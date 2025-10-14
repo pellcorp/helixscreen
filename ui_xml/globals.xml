@@ -14,6 +14,8 @@
 		<!-- Brand colors -->
 		<color name="primary_color" value="0xff4444"/>
 		<color name="accent_color" value="0x00aaff"/>
+		<color name="success_color" value="0x4caf50"/>  <!-- Green for confirm buttons -->
+		<color name="warning_color" value="0xff9800"/>  <!-- Orange for warnings -->
 
 		<!-- UI dimensions -->
 		<px name="nav_width" value="102"/>

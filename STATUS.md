@@ -1,8 +1,44 @@
 # Project Status - LVGL 9 UI Prototype
 
-**Last Updated:** 2025-10-13 (Motion Panel Bug Fixes + Component Naming Pattern)
+**Last Updated:** 2025-10-13 (Temperature Sub-Screens Complete - Phase 5.4)
 
 ## Recent Updates (2025-10-13)
+
+### Temperature Sub-Screens Implementation ✅ COMPLETE (Phase 5.4)
+
+**Nozzle and Bed Temperature Control Panels:**
+- Right-aligned overlay panels (700px width, matching motion panel)
+- Extended header_bar component with optional green "Confirm" button
+- Fire icon visualization (placeholder for future temp graph/progress display)
+- Reactive current/target temperature display (25 / 0°C format)
+- Material preset buttons (PLA, PETG, ABS, Off)
+- Custom temperature button (ready for keypad integration)
+- Status messages with helpful tips
+
+**Files Created:**
+- `ui_xml/nozzle_temp_panel.xml` (105 lines) - Nozzle control interface
+- `ui_xml/bed_temp_panel.xml` (105 lines) - Bed control interface
+- `src/ui_panel_controls_temp.cpp` (287 lines) - Shared temperature logic
+- `include/ui_panel_controls_temp.h` (52 lines) - Temperature panel API
+
+**Files Modified:**
+- `ui_xml/header_bar.xml` - Added `right_button_text` property for action button
+- `ui_xml/globals.xml` - Added success_color (#4caf50) and warning_color (#ff9800)
+- `ui_xml/controls_panel.xml` - Fixed fire icons on temperature cards
+- `src/ui_panel_controls.cpp` - Wired temp card click handlers
+- `src/main.cpp` - Component registration and CLI support
+
+**Key Learnings:**
+- LVGL component names derive from **filename**, not view `name` attribute
+- Right-aligned overlays need `align="right_mid"` attribute
+- Remove borders with `style_border_width="0"` for clean overlay appearance
+
+**Future Enhancements:**
+- Temperature graph in visualization area (replacing static fire icon)
+- Real-time heating progress display
+- Interactive button wiring (presets, custom, confirm, back)
+
+### Bug Fixes
 
 ### Bug Fixes
 
@@ -32,6 +68,7 @@
 
 ## Current State
 
+✅ **Temperature Sub-Screens (Nozzle + Bed) COMPLETE (Phase 5.4 finished)**
 ✅ **Motion Panel with 8-Direction Jog Pad and Z-Axis Controls COMPLETE (Phase 5.3 finished)**
 ✅ **Numeric Keypad Modal Component COMPLETE (Phase 5.2 finished)**
 ✅ **Controls Panel Launcher with 6-Card Menu COMPLETE (Phase 5.1 finished)**
@@ -92,9 +129,21 @@
 
 ### Active Development
 
-**Current Focus:** Phase 5.4 - Temperature Sub-Screens (Nozzle + Bed control)
+**Current Focus:** Phase 5.5 - Extrusion Sub-Screen (or interactive wiring for completed panels)
 
-**Completed Today (2025-10-13):**
+**Completed (2025-10-13 Evening - Temperature Panels):**
+- ✅ Created nozzle and bed temperature panel XML layouts
+- ✅ Extended header_bar component with optional right button
+- ✅ Added success_color and warning_color to globals
+- ✅ Implemented shared temperature control C++ logic
+- ✅ Wired temperature cards to open respective panels
+- ✅ Added CLI support for nozzle-temp and bed-temp arguments
+- ✅ Fixed component registration (filename-based naming)
+- ✅ Fixed panel alignment (right_mid) and borders
+- ✅ Created reactive temperature display subjects
+- ✅ Implemented material preset buttons (PLA, PETG, ABS)
+
+**Completed Earlier (2025-10-13 Afternoon - Motion Panel):**
 - ✅ Created motion panel XML with 3×3 jog pad grid (motion_panel.xml)
 - ✅ Generated custom diagonal_arrows_40 font with Unicode arrows (←↑→↓↖↗↙↘)
 - ✅ Updated generate-icon-consts.py to use Unicode arrow codepoints (U+2190-2193, U+2196-2199)

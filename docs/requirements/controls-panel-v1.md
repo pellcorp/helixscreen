@@ -249,17 +249,23 @@ Z:  15.8 mm
   - **Enabled:** Only when temp value changed
 
 ### 3.3 Visualization Section (Left)
-**Nozzle Visualization:**
-- Graphic: Nozzle/extruder illustration (similar to Bambu's)
-- Size: 280×320px
-- Image: `nozzle_viz.png` (to be created)
-- Animation: Glowing effect when heating (optional)
 
-**Heatbed Visualization:**
-- Graphic: Heated bed illustration
-- Size: 280×320px
-- Image: `heatbed_viz.png` (to be created)
-- Animation: Glowing effect when heating (optional)
+**Current Implementation (v1):**
+- Fire icon (fa-fire, 64px) centered in 280×320px container
+- Serves as visual reference for what's being controlled
+- Background: `#card_bg` (#202020)
+
+**Future Enhancement (v2+):**
+- Real-time temperature graph showing current vs target over time
+- Heating progress indicator (arc/gauge showing % to target)
+- Visual feedback during heating (color changes, glow effects)
+- Historical temperature data visualization
+
+**Original Design (Deferred):**
+- Nozzle/extruder illustration (similar to Bambu's)
+- Heated bed illustration
+- Images: `nozzle_viz.png`, `heatbed_viz.png` (to be created)
+- Animation: Glowing effect when heating
 
 ### 3.4 Current/Target Display
 **Position:** Top of center column

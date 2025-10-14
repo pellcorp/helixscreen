@@ -119,6 +119,10 @@ See **docs/LVGL9_XML_GUIDE.md** for font generation details.
 
 4. **Labels not clickable** - Use `lv_button` instead of `lv_label` with `flag_clickable`. XML parser doesn't apply clickable flag to labels.
 
+5. **Component names** - LVGL uses **filename** as component name, not view's `name` attribute. File `nozzle_temp_panel.xml` → component `nozzle_temp_panel`.
+
+6. **Right-aligned overlays** - Use `align="right_mid"` attribute for panels docked to right edge (motion, temp, keypad).
+
 ## Screenshot Workflow
 
 ```bash
@@ -164,17 +168,106 @@ prototype-ui9/
 └── Makefile          # Build system
 ```
 
+## Using Claude Code Agents
+
+Claude Code provides specialized agents for complex tasks. **Use agents proactively** when tasks match their capabilities.
+
+### Available Agents
+
+**general-purpose**
+- Multi-step implementations requiring file searches, reads, and modifications
+- Researching complex questions across multiple files
+- When uncertain about file locations or need exploratory search
+- **Example:** "Implement temperature sub-screens" (Phase 5.4 - successfully used)
+
+**feature-dev:code-reviewer**
+- Review completed code for bugs, logic errors, security issues
+- Use after significant feature completion
+- Provides confidence-based filtering (only high-priority issues)
+
+**feature-dev:code-explorer**
+- Deep analysis of existing features and patterns
+- Trace execution paths and understand architecture
+- Map dependencies before implementing related features
+
+**feature-dev:code-architect**
+- Design feature architectures based on existing patterns
+- Get implementation blueprints before coding
+- Identify files to create/modify and component designs
+
+### When NOT to Use Agents
+
+- Reading specific known file paths (use Read tool directly)
+- Searching for specific class definitions (use Glob tool)
+- Searching within 2-3 known files (use Read tool)
+- Simple, single-file operations
+
+### Agent Usage Examples
+
+**✅ Good Use Cases:**
+```
+User: "Implement the temperature sub-screens from the spec"
+→ Use general-purpose agent with full context and requirements
+
+User: "Review the temperature panel implementation for issues"
+→ Use code-reviewer agent after Phase 5.4 completion
+
+User: "How does the panel navigation system work?"
+→ Use code-explorer agent to trace the pattern
+```
+
+**❌ Bad Use Cases:**
+```
+User: "Read ui_xml/globals.xml"
+→ Use Read tool directly (known path)
+
+User: "Find the motion_panel class definition"
+→ Use Grep/Glob directly (simple search)
+```
+
+### Agent Best Practices
+
+1. **Provide complete context:** Give agent full task description, expected deliverables
+2. **Run in parallel when possible:** Use single message with multiple agent calls
+3. **Trust agent outputs:** Agents are autonomous and return comprehensive results
+4. **Specify code vs research:** Tell agent if you expect code changes or just investigation
+
 ## Development Workflow
 
 1. Edit XML for layout changes (no recompilation needed)
 2. Edit C++ for logic/subjects changes → `make`
 3. Test with `./build/bin/guppy-ui-proto [panel_name]`
 4. Screenshot with `./scripts/screenshot.sh` or press 'S' in UI
+5. For complex multi-step tasks → use appropriate agent (see above)
+
+## Recent Accomplishments
+
+**Phase 5.4 (2025-10-13) - Temperature Sub-Screens** ✅
+- Nozzle and Bed temperature control panels
+- Extended header_bar with optional right button
+- Material preset buttons (PLA, PETG, ABS)
+- Reactive temperature display (25 / 0°C format)
+- Successfully used general-purpose agent for implementation
+
+**Phase 5.3 (2025-10-13) - Motion Panel** ✅
+- 8-direction jog pad with custom Unicode arrow font
+- Z-axis controls, distance selector, position display
+- Fixed button event handling (removed nested containers)
+
+**Phase 5.2 (2025-10-12) - Numeric Keypad** ✅
+- Reusable integer input modal component
+- Right-docked overlay (700px) with backdrop
+
+**Phase 5.1 (2025-10-12) - Controls Launcher** ✅
+- 6-card menu for manual printer control
+- Navigation to sub-screens
 
 ## Future Integration
 
 This prototype will integrate with main GuppyScreen:
 - Replace SDL2 with framebuffer for embedded hardware
 - Connect to Moonraker WebSocket for printer data
-- Complete remaining panel content
+- Complete remaining panel content (Extrusion, Fan Control)
 - Add animations and multi-language support
+- Implement temperature graphs/progress displays
+- Wire interactive buttons on completed panels

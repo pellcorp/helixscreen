@@ -6,6 +6,7 @@
 	<!-- API Properties -->
 	<api>
 		<prop type="string" name="title"/>
+		<prop type="string" name="right_button_text" default=""/>  <!-- Empty = no button shown -->
 	</api>
 
 	<view extends="lv_obj"
@@ -51,13 +52,20 @@
 			          flag_scrollable="false"/>
 		</lv_obj>
 
-		<!-- Right side: Empty spacer by default (can be replaced with button) -->
-		<lv_obj name="right_content"
-		        width="40"
-		        height="40"
-		        style_bg_opa="0"
-		        flag_scrollable="false"
-		        style_border_width="0"
-		        style_pad_all="0"/>
+		<!-- Right side: Confirm button (shown when right_button_text is not empty) -->
+		<lv_button name="right_button"
+		           width="120"
+		           height="40"
+		           style_bg_color="#success_color"
+		           style_radius="8"
+		           style_border_width="0"
+		           style_shadow_width="0"
+		           flag_scrollable="false">
+			<lv_label name="right_button_label"
+			          text="$right_button_text"
+			          align="center"
+			          style_text_font="montserrat_16"
+			          style_text_color="#text_primary"/>
+		</lv_button>
 	</view>
 </component>

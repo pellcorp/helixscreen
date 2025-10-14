@@ -1,11 +1,14 @@
 #include "ui_panel_controls.h"
 #include "ui_component_keypad.h"
 #include "ui_panel_motion.h"
+#include "ui_panel_controls_temp.h"
 #include <cstdio>
 
 // Panel object references
 static lv_obj_t* controls_panel = nullptr;
 static lv_obj_t* motion_panel = nullptr;
+static lv_obj_t* nozzle_temp_panel = nullptr;
+static lv_obj_t* bed_temp_panel = nullptr;
 static lv_obj_t* parent_screen = nullptr;
 
 // Card click event handlers
@@ -77,13 +80,6 @@ void ui_panel_controls_set(lv_obj_t* panel_obj) {
 // Card Click Event Handlers
 // ============================================================================
 
-// Test callback for keypad confirmation
-static void on_nozzle_temp_confirmed(float value, void* user_data) {
-    (void)user_data;
-    LV_LOG_USER("Nozzle temperature set to: %.0f°C", value);
-    // TODO: Send temperature command to printer (moonraker_set_nozzle_temp(value))
-}
-
 static void card_motion_clicked(lv_event_t* e) {
     (void)e;
     LV_LOG_USER("Motion card clicked - opening Motion sub-screen");
@@ -119,26 +115,66 @@ static void card_motion_clicked(lv_event_t* e) {
 
 static void card_nozzle_temp_clicked(lv_event_t* e) {
     (void)e;
-    LV_LOG_USER("Nozzle Temp card clicked - showing numeric keypad");
+    LV_LOG_USER("Nozzle Temp card clicked - opening Nozzle Temperature sub-screen");
 
-    // Test the numeric keypad with nozzle temperature config
-    ui_keypad_config_t config = {
-        .initial_value = 210.0f,
-        .min_value = 0.0f,
-        .max_value = 350.0f,
-        .unit_label = "°C",
-        .allow_decimal = false,  // Integer temps only
-        .allow_negative = false,
-        .callback = on_nozzle_temp_confirmed,
-        .user_data = nullptr
-    };
+    // Create nozzle temp panel on first access
+    if (!nozzle_temp_panel && parent_screen) {
+        LV_LOG_USER("Creating nozzle temperature panel...");
+        nozzle_temp_panel = (lv_obj_t*)lv_xml_create(parent_screen, "nozzle_temp_panel", nullptr);
 
-    ui_keypad_show(&config);
+        if (!nozzle_temp_panel) {
+            LV_LOG_ERROR("Failed to create nozzle temp panel from XML");
+            return;
+        }
+
+        // Setup event handlers for nozzle temp panel
+        ui_panel_controls_temp_nozzle_setup(nozzle_temp_panel, parent_screen);
+
+        // Initially hidden
+        lv_obj_add_flag(nozzle_temp_panel, LV_OBJ_FLAG_HIDDEN);
+        LV_LOG_USER("Nozzle temp panel created and initialized");
+    }
+
+    // Show nozzle temp panel, hide controls launcher
+    if (nozzle_temp_panel) {
+        lv_obj_clear_flag(nozzle_temp_panel, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (controls_panel) {
+        lv_obj_add_flag(controls_panel, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void card_bed_temp_clicked(lv_event_t* e) {
+    (void)e;
     LV_LOG_USER("Bed Temp card clicked - opening Heatbed Temperature sub-screen");
-    // TODO: Create and show heatbed temperature sub-screen
+
+    // Create bed temp panel on first access
+    if (!bed_temp_panel && parent_screen) {
+        LV_LOG_USER("Creating bed temperature panel...");
+        bed_temp_panel = (lv_obj_t*)lv_xml_create(parent_screen, "bed_temp_panel", nullptr);
+
+        if (!bed_temp_panel) {
+            LV_LOG_ERROR("Failed to create bed temp panel from XML");
+            return;
+        }
+
+        // Setup event handlers for bed temp panel
+        ui_panel_controls_temp_bed_setup(bed_temp_panel, parent_screen);
+
+        // Initially hidden
+        lv_obj_add_flag(bed_temp_panel, LV_OBJ_FLAG_HIDDEN);
+        LV_LOG_USER("Bed temp panel created and initialized");
+    }
+
+    // Show bed temp panel, hide controls launcher
+    if (bed_temp_panel) {
+        lv_obj_clear_flag(bed_temp_panel, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (controls_panel) {
+        lv_obj_add_flag(controls_panel, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void card_extrusion_clicked(lv_event_t* e) {

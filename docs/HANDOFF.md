@@ -1,25 +1,53 @@
 # Session Handoff Document
 
-**Last Session:** 2025-10-12 Night
-**Session Focus:** Controls Panel Phase 1 - Launcher Implementation
-**Status:** Ready for Phase 2 (Numeric Keypad Modal)
+**Last Session:** 2025-10-13 Evening
+**Session Focus:** Controls Panel Phase 5.4 - Temperature Sub-Screens
+**Status:** Temperature panels complete, ready for Phase 5.5 (Extrusion) or interactive wiring
 
 ---
 
 ## Session Summary
 
-Successfully completed **Phase 1 of the Controls Panel** - a 6-card launcher menu that provides navigation to manual printer control sub-screens (Motion, Temperature, Extrusion, etc.). This follows the Bambu Lab X1C design pattern of using dedicated screens for focused control tasks.
+Successfully completed **Phase 5.4 of the Controls Panel** - Nozzle and Bed temperature control sub-screens with preset buttons, reactive displays, and extended header bar with Confirm button. This completes the static UI layout for the temperature management screens.
 
 ### What Was Accomplished
 
-#### 1. Comprehensive Design Specification ✅
-- Created `docs/requirements/controls-panel-v1.md` (70+ pages)
-- Documented all 6 launcher cards with specifications
-- Defined 5 sub-screens in detail (Motion, Nozzle Temp, Bed Temp, Extrusion, Fan)
-- Specified reusable numeric keypad modal component
-- Included icon lists, color palettes, typography, and implementation phases
+#### 1. Temperature Sub-Screens (Nozzle + Bed) ✅
+- **XML Layouts:**
+  - `ui_xml/nozzle_temp_panel.xml` - Nozzle temperature control interface
+  - `ui_xml/bed_temp_panel.xml` - Bed temperature control interface
+  - Both panels: 700px wide, right-aligned overlays with fire icon placeholder
+- **C++ Implementation:**
+  - `src/ui_panel_controls_temp.cpp` (287 lines) - Shared logic for both panels
+  - `include/ui_panel_controls_temp.h` - Public API for temperature control
+  - Reactive subjects for current/target temps (25 / 0°C display format)
+- **Material Presets:**
+  - Nozzle: Off (0°C), PLA (210°C), PETG (240°C), ABS (250°C)
+  - Bed: Off (0°C), PLA (60°C), PETG (80°C), ABS (100°C)
+- **UI Components:**
+  - Extended header_bar with optional green Confirm button (`right_button_text` property)
+  - Custom button for numeric keypad integration (ready to wire)
+  - Status messages with material-specific guidance
+  - Visualization area (280×320px) with fire icon - **future: temp graph/progress display**
 
-#### 2. Controls Panel Launcher ✅
+#### 2. Header Bar Component Enhancement ✅
+- Extended `header_bar.xml` with optional right action button
+- New property: `right_button_text` (empty = no button, text = green Confirm button)
+- Button specs: 120×40px, `#success_color` (#4caf50), montserrat_16 font
+- Pattern reusable for other panels needing action buttons
+
+#### 3. Theme System Updates ✅
+- Added `success_color` constant (#4caf50 - green for confirm/apply actions)
+- Added `warning_color` constant (#ff9800 - orange for warnings/cautions)
+- Updated Controls Panel cards with proper fire icons (was using placeholder icons)
+
+#### 4. Previous Phase Completions ✅
+
+**Phase 5.3 - Motion Panel:** 8-direction jog pad, Z-axis controls, position display
+**Phase 5.2 - Numeric Keypad:** Reusable integer input modal (ready for temp custom input)
+**Phase 5.1 - Controls Launcher:** 6-card menu with proper navigation
+
+#### 5. Controls Panel Launcher (Previous Session) ✅
 - **6-Card Grid:** 2×3 layout with 400×200px cards
 - **Proper Wrapping:** Used `flex_flow="row_wrap"` for automatic grid wrapping
 - **Vertical Scrolling:** Enabled scrolling for overflow content
@@ -32,20 +60,20 @@ Successfully completed **Phase 1 of the Controls Panel** - a 6-card launcher men
   5. Fan Control - Part cooling (dimmed "Coming soon" - settings icon)
   6. Motors Disable - Release steppers (ellipsis icon)
 
-#### 3. C++ Integration ✅
+#### 6. C++ Integration ✅
 - Created `src/ui_panel_controls.cpp` and `include/ui_panel_controls.h`
 - Implemented click event handlers for all 6 cards
 - Integrated with main navigation system (UI_PANEL_CONTROLS enum)
 - Wire-up in `main.cpp` during initialization
 - All handlers log messages and are ready for sub-screen creation
 
-#### 4. Icon System Updates ✅
+#### 7. Icon System Updates ✅
 - Added 10 new icon definitions to `include/ui_fonts.h`
 - Regenerated `ui_xml/globals.xml` with 27 total icon constants
 - Used existing `fa_icons_64` glyphs as placeholders (since new icons not yet in compiled fonts)
 - Updated `scripts/generate-icon-consts.py` with organized icon categories
 
-#### 5. XML Panel Structure ✅
+#### 8. XML Panel Structure ✅
 - Created `ui_xml/controls_panel.xml` with proper view structure
 - Fixed common flex layout issues (row_wrap vs separate flex_wrap attribute)
 - Adjusted card dimensions to fit 2 columns with 20px gaps (890px content area)
@@ -57,109 +85,166 @@ Successfully completed **Phase 1 of the Controls Panel** - a 6-card launcher men
 
 ### Files Created/Modified
 
-**New Files:**
+**New Files (Phase 5.4):**
 ```
-docs/requirements/controls-panel-v1.md       # 70-page design specification
-ui_xml/controls_panel.xml                    # Launcher panel XML
-src/ui_panel_controls.cpp                    # Panel logic implementation
-include/ui_panel_controls.h                  # Panel API header
+ui_xml/nozzle_temp_panel.xml                 # Nozzle temperature control (105 lines)
+ui_xml/bed_temp_panel.xml                    # Bed temperature control (105 lines)
+src/ui_panel_controls_temp.cpp               # Temperature logic (287 lines)
+include/ui_panel_controls_temp.h             # Temperature API (52 lines)
 ```
 
-**Modified Files:**
+**Modified Files (Phase 5.4):**
 ```
-include/ui_fonts.h                           # Added 10 new icon constants
-scripts/generate-icon-consts.py              # Updated icon dictionary
-ui_xml/globals.xml                           # Regenerated with 27 icons
-src/main.cpp                                 # Integrated Controls Panel
-docs/STATUS.md                               # Documented Phase 1 completion
-docs/ROADMAP.md                              # Added Phase 5 breakdown
+ui_xml/header_bar.xml                        # Added right_button_text property
+ui_xml/globals.xml                           # Added success_color, warning_color
+ui_xml/controls_panel.xml                    # Fixed fire icons on temp cards
+src/ui_panel_controls.cpp                    # Wired temp card click handlers
+src/main.cpp                                 # Component registration + CLI support
+docs/STATUS.md                               # Phase 5.4 completion
+docs/HANDOFF.md                              # This document
+```
+
+**Previous Session Files (Phase 5.1-5.3):**
+```
+ui_xml/motion_panel.xml                      # Motion control with jog pad
+ui_xml/numeric_keypad_modal.xml              # Reusable integer input
+assets/fonts/diagonal_arrows_40.c            # Custom Unicode arrow font
+src/ui_panel_motion.cpp                      # Motion panel logic
+src/ui_component_keypad.cpp                  # Keypad component
 ```
 
 ### Visual Verification
 
-**Screenshot:** `/tmp/ui-screenshot-controls-launcher-v1.png`
+**Screenshots:**
+- `/tmp/ui-screenshot-nozzle-temp-final.png` - Nozzle temp panel
+- `/tmp/ui-screenshot-bed-temp-final.png` - Bed temp panel
+- Previous: `/tmp/ui-screenshot-controls-launcher-v1.png` - Launcher with fire icons
 
-✅ All 6 cards visible in 2×3 grid
-✅ Cards fit properly without horizontal scrollbar
-✅ No individual card scrollbars
-✅ Icons rendering (using existing glyphs as placeholders)
-✅ Text layout clean with proper spacing
-✅ Fan Control card properly dimmed
+**Nozzle Temp Panel:**
+✅ Right-aligned overlay (700px width)
+✅ No white borders (clean appearance)
+✅ Header with back chevron, "Nozzle Temperature" title, green Confirm button
+✅ Fire icon in 280×320px visualization area
+✅ Current/Target display: "25 / 0°C"
+✅ 4 preset buttons in 2×2 grid (Off, PLA 210°C, PETG 240°C, ABS 250°C)
+✅ Custom button (full width)
+✅ Status message: "Heating nozzle to target temperature..."
 
-### Click Handlers Working
+**Bed Temp Panel:**
+✅ Identical layout to nozzle panel
+✅ Different presets: Off, PLA 60°C, PETG 80°C, ABS 100°C
+✅ Status message: "Bed maintains temperature during printing to help material adhere."
 
-All 6 cards log click events:
-- Motion → "Motion card clicked - opening Motion sub-screen"
-- Nozzle Temp → "Nozzle Temp card clicked - opening Nozzle Temperature sub-screen"
-- Bed Temp → "Bed Temp card clicked - opening Heatbed Temperature sub-screen"
-- Extrusion → "Extrusion card clicked - opening Extrusion sub-screen"
-- Fan → "Fan card clicked - Phase 2 feature"
-- Motors → "Motors Disable card clicked"
+### Interactive Status
+
+**Working:**
+- ✅ Navigation from Controls launcher to temp panels (card click handlers)
+- ✅ Reactive temperature display (subjects update UI)
+- ✅ CLI support: `./build/bin/guppy-ui-proto nozzle-temp` or `bed-temp`
+
+**Not Yet Wired (Ready for Implementation):**
+- ⏳ Preset buttons → update target temperature
+- ⏳ Custom button → open numeric keypad modal
+- ⏳ Confirm button → apply temperature and close panel
+- ⏳ Back button → return to Controls launcher
 
 ---
 
-## Next Session: Phase 2 - Numeric Keypad Modal
+## Next Session: Phase 5.5 or Interactive Wiring
 
-### Priority Tasks
+### Option A: Continue with Extrusion Sub-Screen (Phase 5.5)
 
-1. **Create Reusable Numeric Keypad Component**
-   - File: `ui_xml/numeric_keypad_modal.xml`
-   - Slide-in modal from right edge (380px width)
-   - 4×4 button grid (0-9, ., -, ←, ESC, OK)
-   - Large input display (montserrat_36)
-   - Semi-transparent backdrop
-   - API properties for min/max/initial values
+1. **Create Extrusion Panel**
+   - File: `ui_xml/extrusion_panel.xml`
+   - Layout: Extruder visualization (left) + controls (right)
+   - Amount selector: 5mm, 10mm, 25mm, 50mm radio buttons
+   - Extrude button (green) + Retract button (orange)
+   - Temperature status card with safety check (nozzle must be >170°C)
+   - Warning display when too cold to extrude
 
-2. **Keypad Logic Implementation**
-   - File: `src/ui_components_keypad.cpp` + `include/ui_components_keypad.h`
-   - Number entry logic
-   - Backspace handling
-   - Input validation
-   - OK/ESC callbacks
+2. **C++ Implementation**
+   - File: `src/ui_panel_controls_extrusion.cpp` + header
+   - Wire amount selector buttons
+   - Enable/disable extrude/retract based on nozzle temp
+   - Mock extrusion commands
+   - Safety checks
 
-3. **Test with Temperature Screen**
-   - Create `ui_xml/controls_nozzle_temp_panel.xml`
-   - Wire "Custom" button to open keypad
-   - Test slide-in animation
-   - Test value passing and confirmation
+### Option B: Wire Interactive Buttons (Polish Existing Panels)
+
+1. **Temperature Panel Interactivity**
+   - Wire preset buttons to update target temp subjects
+   - Wire Custom button to open numeric keypad with proper callback
+   - Wire Confirm button to apply temp and close panel
+   - Wire back button to hide panel and show Controls launcher
+
+2. **Test Complete Flow**
+   - Click Nozzle Temp card → opens panel
+   - Click PLA preset → updates to 210°C target
+   - Click Custom → opens keypad → enter 220 → OK → updates to 220°C
+   - Click Confirm → closes panel, returns to launcher
+   - Test same flow for Bed Temp panel
+
+3. **Motion Panel Interactivity**
+   - Wire back button on motion panel
+   - Test complete flow from launcher → motion → back → launcher
 
 ### Reference Documents
 
-- **Design Spec:** `docs/requirements/controls-panel-v1.md` (Section 4: Numeric Keypad Modal)
-- **Icon Reference:** `include/ui_fonts.h` (ICON_BACKSPACE defined)
-- **Pattern Example:** Print file detail overlay (for modal/overlay patterns)
+- **Design Spec:** `docs/requirements/controls-panel-v1.md`
+  - Section 3: Temperature sub-screens (COMPLETE)
+  - Section 5: Extrusion sub-screen (NEXT)
+- **Icon Reference:** `include/ui_fonts.h` (all icons defined)
+- **Existing Components:** `numeric_keypad_modal.xml` (ready to integrate with Custom button)
 
 ### Key Design Decisions Made
 
-1. **Button Grid Jog Pad:** Simplified from circular jog pad to 3×3 button grid for v1 (easier to implement with LVGL primitives)
-2. **Icon Placeholders:** Using existing `fa_icons_64` icons until proper ones compiled into fonts
-3. **Fan Control:** Marked as Phase 2/future feature (dimmed in launcher)
-4. **Modal Pattern:** Numeric keypad slides in from right (Bambu-style) rather than center popup
-5. **Sub-Screen Navigation:** Back button pattern (like Print Detail overlay) for consistency
+1. **Temperature Visualization:** Using fire icon placeholder - **future enhancement: real-time temp graph or heating progress display**
+2. **Component Naming:** LVGL derives component names from **filenames**, not view `name` attributes
+3. **Overlay Positioning:** Right-aligned overlays use `align="right_mid"` attribute (700px width)
+4. **Header Bar Extension:** Added optional right button to header_bar component (reusable pattern)
+5. **Material Presets:** Standard temps for common materials (PLA/PETG/ABS) following industry norms
+6. **Borderless Overlays:** Use `style_border_width="0"` for clean appearance on dark backgrounds
 
 ---
 
 ## Known Issues & Notes
 
-### Icon Font Limitation
-The new icons added to `ui_fonts.h` (arrows_all, fire, arrow_up_line, fan, power_off, etc.) are **not yet compiled into the FontAwesome font files**. Currently using placeholder icons:
-- Movement → sliders icon (icon_controls)
-- Temperatures → home icon (icon_home)
-- Extrusion → filament icon (icon_filament)
-- Fan → settings icon (icon_settings)
-- Motors → ellipsis icon (icon_advanced)
+### Temperature Panel Interactive Wiring Pending
+The temperature panels have static UI complete but buttons are **not yet wired**:
+- Preset buttons don't update target temperature
+- Custom button doesn't open keypad
+- Confirm button doesn't apply/close
+- Back button doesn't return to launcher
 
-**To Fix:** Need to regenerate fa_icons_64.c using `lv_font_conv` with the new icon codepoints. See `assets/fonts/README.md` for font generation commands (if it exists, otherwise document the process).
+**Ready to implement:** All event handler patterns exist (see motion panel and keypad for reference).
 
-### Card Width Math
-- Content area width: 1024px - 134px (navbar) = 890px
-- Padding left/right: 20 + 20 = 40px
-- Available for cards: 890 - 40 = 850px
-- 2 cards + 1 gap: 400 + 400 + 20 = 820px ✅ Fits
-- Original 435px cards didn't fit (870 + 20 = 890px, no margin)
+### Visualization Area - Future Enhancement
+Left column (280×320px) currently shows static fire icon. **Planned enhancement:**
+- Real-time temperature graph (line chart showing current vs target over time)
+- Heating progress indicator (arc/gauge showing % to target)
+- Visual feedback during heating (color changes, glow effects)
+- Could reuse for both nozzle and bed panels
 
-### Flex Layout Gotcha
-LVGL 9 XML uses `flex_flow="row_wrap"` as a single attribute value, **not** separate `flex_flow="row"` + `flex_wrap="wrap"` attributes. The latter doesn't work.
+### Icon System Status
+All required icons now properly compiled and rendering:
+- ✅ Fire icons (fa-fire) on temperature cards
+- ✅ Motion icons (custom diagonal arrows font)
+- ✅ Backspace icon in keypad (fa-delete-left)
+- ✅ All FontAwesome sizes available (64px, 48px, 32px, 16px)
+
+### Overlay Panel Width
+- All sub-panels use `#overlay_panel_width` constant (700px)
+- Right-aligned with `align="right_mid"`
+- Leaves 324px of Controls launcher visible (helpful visual context)
+- Consistent with numeric keypad width (`#keypad_width` = 700px)
+
+### Component Registration - Critical Pattern
+**LVGL uses filenames as component names**, not the view's `name` attribute:
+- File: `nozzle_temp_panel.xml` → Component: `nozzle_temp_panel`
+- File: `controls_nozzle_temp_panel.xml` → Component: `controls_nozzle_temp_panel`
+- Must match in: `lv_xml_component_register_from_file()` and `lv_xml_create()`
+
+This caused initial "component not found" errors until files were renamed to match.
 
 ---
 

@@ -7,6 +7,7 @@
 #include "ui_panel_print_select.h"
 #include "ui_panel_controls.h"
 #include "ui_panel_motion.h"
+#include "ui_panel_controls_temp.h"
 #include "ui_component_keypad.h"
 #include <SDL.h>
 #include <cstdio>
@@ -116,6 +117,8 @@ int main(int argc, char** argv) {
     // Parse command-line arguments for panel selection
     int initial_panel = UI_PANEL_HOME;  // Default to home panel
     bool show_motion = false;  // Special flag for motion sub-screen
+    bool show_nozzle_temp = false;  // Special flag for nozzle temp sub-screen
+    bool show_bed_temp = false;  // Special flag for bed temp sub-screen
 
     if (argc > 1) {
         const char* panel_arg = argv[1];
@@ -126,6 +129,12 @@ int main(int argc, char** argv) {
         } else if (strcmp(panel_arg, "motion") == 0) {
             initial_panel = UI_PANEL_CONTROLS;
             show_motion = true;
+        } else if (strcmp(panel_arg, "nozzle-temp") == 0) {
+            initial_panel = UI_PANEL_CONTROLS;
+            show_nozzle_temp = true;
+        } else if (strcmp(panel_arg, "bed-temp") == 0) {
+            initial_panel = UI_PANEL_CONTROLS;
+            show_bed_temp = true;
         } else if (strcmp(panel_arg, "filament") == 0) {
             initial_panel = UI_PANEL_FILAMENT;
         } else if (strcmp(panel_arg, "settings") == 0) {
@@ -137,7 +146,7 @@ int main(int argc, char** argv) {
         } else {
             printf("Unknown panel: %s\n", panel_arg);
             printf("Usage: %s [panel_name]\n", argv[0]);
-            printf("Available panels: home, controls, motion, filament, settings, advanced, print-select\n");
+            printf("Available panels: home, controls, motion, nozzle-temp, bed-temp, filament, settings, advanced, print-select\n");
             return 1;
         }
     }
@@ -190,6 +199,8 @@ int main(int argc, char** argv) {
     lv_xml_component_register_from_file("A:ui_xml/home_panel.xml");
     lv_xml_component_register_from_file("A:ui_xml/controls_panel.xml");
     lv_xml_component_register_from_file("A:ui_xml/motion_panel.xml");
+    lv_xml_component_register_from_file("A:ui_xml/nozzle_temp_panel.xml");
+    lv_xml_component_register_from_file("A:ui_xml/bed_temp_panel.xml");
     lv_xml_component_register_from_file("A:ui_xml/filament_panel.xml");
     lv_xml_component_register_from_file("A:ui_xml/settings_panel.xml");
     lv_xml_component_register_from_file("A:ui_xml/advanced_panel.xml");
@@ -203,6 +214,7 @@ int main(int argc, char** argv) {
     ui_panel_print_select_init_subjects();  // Print select panel (none yet)
     ui_panel_controls_init_subjects();  // Controls panel launcher
     ui_panel_motion_init_subjects();  // Motion sub-screen position display
+    ui_panel_controls_temp_init_subjects();  // Temperature sub-screens
 
     // Create entire UI from XML (single component contains everything)
     lv_obj_t* app_layout = (lv_obj_t*)lv_xml_create(screen, "app_layout", NULL);
@@ -270,6 +282,44 @@ int main(int argc, char** argv) {
             ui_panel_motion_set_position(120.5f, 105.2f, 15.8f);
 
             printf("Motion panel displayed\n");
+        }
+    }
+
+    // Special case: Show nozzle temp panel if requested
+    if (show_nozzle_temp) {
+        printf("Creating and showing nozzle temperature sub-screen...\n");
+
+        // Create nozzle temp panel
+        lv_obj_t* nozzle_temp_panel = (lv_obj_t*)lv_xml_create(screen, "nozzle_temp_panel", nullptr);
+        if (nozzle_temp_panel) {
+            ui_panel_controls_temp_nozzle_setup(nozzle_temp_panel, screen);
+
+            // Hide controls launcher, show nozzle temp panel
+            lv_obj_add_flag(panels[UI_PANEL_CONTROLS], LV_OBJ_FLAG_HIDDEN);
+
+            // Set mock temperature data
+            ui_panel_controls_temp_set_nozzle(25, 0);
+
+            printf("Nozzle temp panel displayed\n");
+        }
+    }
+
+    // Special case: Show bed temp panel if requested
+    if (show_bed_temp) {
+        printf("Creating and showing bed temperature sub-screen...\n");
+
+        // Create bed temp panel
+        lv_obj_t* bed_temp_panel = (lv_obj_t*)lv_xml_create(screen, "bed_temp_panel", nullptr);
+        if (bed_temp_panel) {
+            ui_panel_controls_temp_bed_setup(bed_temp_panel, screen);
+
+            // Hide controls launcher, show bed temp panel
+            lv_obj_add_flag(panels[UI_PANEL_CONTROLS], LV_OBJ_FLAG_HIDDEN);
+
+            // Set mock temperature data
+            ui_panel_controls_temp_set_bed(25, 0);
+
+            printf("Bed temp panel displayed\n");
         }
     }
 

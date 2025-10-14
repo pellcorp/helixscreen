@@ -54,7 +54,7 @@
 				        style_border_width="0">
 
 					<!-- Icon -->
-					<lv_label text="#icon_home"
+					<lv_label text="#icon_fire"
 					          style_text_font="fa_icons_64"
 					          style_text_color="#primary_color"
 					          style_pad_bottom="16"/>
@@ -83,7 +83,7 @@
 				        style_border_width="0">
 
 					<!-- Icon -->
-					<lv_label text="#icon_home"
+					<lv_label text="#icon_fire"
 					          style_text_font="fa_icons_64"
 					          style_text_color="#primary_color"
 					          style_pad_bottom="16"/>
