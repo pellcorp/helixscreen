@@ -43,6 +43,12 @@ static float current_x = 0.0f;
 static float current_y = 0.0f;
 static float current_z = 0.0f;
 
+// Press state tracking for visual feedback
+static bool is_pressed = false;
+static jog_direction_t pressed_direction = JOG_DIR_N;
+static bool pressed_is_inner = false;
+static bool pressed_is_home = false;
+
 // Panel widgets (accessed by name)
 static lv_obj_t* motion_panel = nullptr;
 static lv_obj_t* parent_obj = nullptr;
@@ -205,6 +211,13 @@ static float calculate_angle(lv_coord_t dx, lv_coord_t dy) {
     return angle;
 }
 
+// Helper: Convert our angle system (0°=North, CW) to LVGL's (0°=East, CW)
+static int convert_angle_to_lvgl(int our_angle) {
+    // Our system: 0°=North (top), LVGL: 0°=East (right)
+    // Rotate by -90° (subtract 90, or equivalently add 270)
+    return (our_angle + 270) % 360;
+}
+
 // Helper: Determine jog direction from angle (8 wedges of 45° each)
 static jog_direction_t angle_to_direction(float angle) {
     // Wedge boundaries (centered on cardinals):
@@ -222,6 +235,48 @@ static jog_direction_t angle_to_direction(float angle) {
 }
 
 // Custom draw event: Draw two-zone circular jog pad (Bambu Lab style)
+//
+// ================================================================================
+// LVGL ARC DRAWING SYSTEM - THE TRUTH (after much painful debugging)
+// ================================================================================
+//
+// CRITICAL: LVGL arcs are NOT strokes - they are RINGS with thickness measured INWARD
+//
+// Parameters:
+//   - `radius` = OUTER EDGE of the ring (NOT centerline!)
+//   - `width` = THICKNESS measured INWARD from outer edge
+//   - Inner edge = radius - width
+//
+// WRONG MENTAL MODEL (what we initially thought):
+//   - radius = centerline, width = stroke that extends ±width/2
+//   - This is INCORRECT and will give wrong results
+//
+// CORRECT MENTAL MODEL:
+//   - radius = outer boundary you want
+//   - width = how thick inward from that boundary
+//
+// Example: Draw a ring from 25% to 50% of total radius:
+//   Step 1: Identify boundaries
+//     - Inner edge (start) = 25%
+//     - Outer edge (end) = 50%
+//   Step 2: Calculate parameters
+//     - radius = 50% (the OUTER edge we want)
+//     - width = 50% - 25% = 25% (thickness measured inward)
+//   Step 3: Verify
+//     - Inner edge = radius - width = 50% - 25% = 25% ✓
+//     - Outer edge = radius = 50% ✓
+//
+// Example 2: Draw a ring from 50% to 100%:
+//     - radius = 100% (outer edge at full radius)
+//     - width = 100% - 50% = 50% (thickness inward)
+//     - Inner edge = 100% - 50% = 50% ✓
+//
+// This matches how the background circles work:
+//   - Full outer circle: radius = 100%, width = 100% (fills 0% to 100%)
+//   - Inner overlay: radius = 50%, width = 50% (fills 0% to 50%)
+//
+// DO NOT confuse this with other drawing APIs that use centerline+stroke!
+//
 static void jog_pad_draw_cb(lv_event_t* e) {
     lv_obj_t* obj = (lv_obj_t*)lv_event_get_target(e);
     lv_layer_t* layer = lv_event_get_layer(e);
@@ -394,6 +449,137 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     label_area.x2 = label_area.x1 + 25;
     label_area.y2 = label_area.y1 + 20;
     lv_draw_label(layer, &label_dsc, &label_area);
+
+    // Draw press highlight overlay if a zone is pressed
+    if (is_pressed) {
+        if (pressed_is_home) {
+            // Highlight home button with filled circle
+            lv_draw_arc_dsc_t highlight_dsc;
+            lv_draw_arc_dsc_init(&highlight_dsc);
+            highlight_dsc.color = lv_color_hex(0xffffff);
+            highlight_dsc.opa = LV_OPA_60;  // 60 = ~23% opacity
+            lv_coord_t home_radius = (lv_coord_t)(radius * 0.25f);
+            highlight_dsc.width = home_radius * 2;
+            highlight_dsc.center.x = center_x;
+            highlight_dsc.center.y = center_y;
+            highlight_dsc.radius = home_radius;
+            highlight_dsc.start_angle = 0;
+            highlight_dsc.end_angle = 360;
+            lv_draw_arc(layer, &highlight_dsc);
+        } else {
+            // Highlight directional wedge (45° segment)
+            // Map direction enum to angle in our coordinate system (0°=North, CW)
+            // Enum order: N=0, S=1, E=2, W=3, NE=4, NW=5, SE=6, SW=7
+            // Angle mapping: N=0°, NE=45°, E=90°, SE=135°, S=180°, SW=225°, W=270°, NW=315°
+            int direction_angles[] = {0, 180, 90, 270, 45, 315, 135, 225};  // Maps enum to angle
+            int our_wedge_center = direction_angles[pressed_direction];
+            int our_wedge_start = our_wedge_center - 22;  // 22.5° on each side
+            int our_wedge_end = our_wedge_center + 23;    // Total 45° wedge
+
+            // Convert to LVGL's coordinate system (0°=East, CW)
+            int lvgl_start = convert_angle_to_lvgl(our_wedge_start);
+            int lvgl_end = convert_angle_to_lvgl(our_wedge_end);
+
+            lv_draw_arc_dsc_t highlight_dsc;
+            lv_draw_arc_dsc_init(&highlight_dsc);
+            highlight_dsc.color = lv_color_hex(0xffffff);
+            highlight_dsc.opa = LV_OPA_60;
+
+            if (pressed_is_inner) {
+                // Inner zone: Draw arc ring from 25% to 50%
+                // LVGL arc system: radius = outer edge, width = thickness inward
+                // Inner edge = radius - width
+                // So to fill 25% to 50%:
+                //   - radius = 50% (outer edge)
+                //   - width = 50% - 25% = 25% (thickness)
+                //   - Inner edge = 50% - 25% = 25% ✓
+                lv_coord_t inner_boundary = (lv_coord_t)(radius * 0.50f);
+                lv_coord_t home_edge = (lv_coord_t)(radius * 0.25f);
+
+                highlight_dsc.width = inner_boundary - home_edge;  // 25% thickness
+                highlight_dsc.center.x = center_x;
+                highlight_dsc.center.y = center_y;
+                highlight_dsc.radius = inner_boundary;              // 50% outer edge
+                highlight_dsc.start_angle = lvgl_start;
+                highlight_dsc.end_angle = lvgl_end;
+                lv_draw_arc(layer, &highlight_dsc);
+            } else {
+                // Outer zone: Draw arc ring from 50% to 100%
+                //   - radius = 100% (outer edge)
+                //   - width = 100% - 50% = 50% (thickness)
+                //   - Inner edge = 100% - 50% = 50% ✓
+                lv_coord_t inner_boundary = (lv_coord_t)(radius * 0.50f);
+
+                highlight_dsc.width = radius - inner_boundary;     // 50% thickness
+                highlight_dsc.center.x = center_x;
+                highlight_dsc.center.y = center_y;
+                highlight_dsc.radius = radius;                     // 100% outer edge
+                highlight_dsc.start_angle = lvgl_start;
+                highlight_dsc.end_angle = lvgl_end;
+                lv_draw_arc(layer, &highlight_dsc);
+            }
+        }
+    }
+}
+
+// Press event: Track pressed zone for visual feedback
+static void jog_pad_press_cb(lv_event_t* e) {
+    lv_obj_t* obj = (lv_obj_t*)lv_event_get_target(e);
+    lv_point_t point;
+    lv_indev_get_point(lv_indev_get_act(), &point);
+
+    // Get container dimensions and center
+    lv_area_t obj_coords;
+    lv_obj_get_coords(obj, &obj_coords);
+    lv_coord_t width = lv_area_get_width(&obj_coords);
+    lv_coord_t center_x = obj_coords.x1 + width / 2;
+    lv_coord_t center_y = obj_coords.y1 + width / 2;
+    lv_coord_t radius = width / 2;
+
+    // Calculate distance and angle from center
+    lv_coord_t dx = point.x - center_x;
+    lv_coord_t dy = point.y - center_y;
+    float distance = sqrtf((float)(dx * dx + dy * dy));
+
+    // Check if press is within circular boundary
+    if (distance > radius) {
+        is_pressed = false;
+        return;
+    }
+
+    is_pressed = true;
+
+    // Home button: center 25% radius
+    if (distance < radius * 0.25f) {
+        pressed_is_home = true;
+        pressed_is_inner = false;
+        lv_obj_invalidate(obj);  // Trigger redraw
+        return;
+    }
+
+    pressed_is_home = false;
+
+    // Determine direction from angle
+    float angle = calculate_angle(dx, dy);
+    pressed_direction = angle_to_direction(angle);
+
+    // Determine if inner or outer zone
+    float inner_boundary = radius * 0.50f;
+    pressed_is_inner = (distance < inner_boundary);
+
+    // Trigger redraw to show highlight
+    lv_obj_invalidate(obj);
+}
+
+// Release event: Clear press state
+static void jog_pad_release_cb(lv_event_t* e) {
+    lv_obj_t* obj = (lv_obj_t*)lv_event_get_target(e);
+
+    if (is_pressed) {
+        is_pressed = false;
+        // Trigger redraw to remove highlight
+        lv_obj_invalidate(obj);
+    }
 }
 
 // Click event: Detect zone and trigger jog
@@ -532,6 +718,10 @@ void ui_panel_motion_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
         // Register custom draw event (draws circles, dividers, labels, home icon)
         lv_obj_add_event_cb(jog_pad, jog_pad_draw_cb, LV_EVENT_DRAW_POST, nullptr);
+
+        // Register press/release events for visual feedback
+        lv_obj_add_event_cb(jog_pad, jog_pad_press_cb, LV_EVENT_PRESSED, nullptr);
+        lv_obj_add_event_cb(jog_pad, jog_pad_release_cb, LV_EVENT_RELEASED, nullptr);
 
         // Register click event (angle-based direction detection)
         lv_obj_add_event_cb(jog_pad, jog_pad_click_cb, LV_EVENT_CLICKED, nullptr);

@@ -244,12 +244,47 @@ prototype-ui9/
 
 ## Using Claude Code Agents
 
-Available specialized agents: **general-purpose**, **Explore**, **widget-maker**, **ui-reviewer**, **general-coding-agent**, **refractor**, **moonraker-api-agent**
+This project has specialized agents - use them proactively to keep context smaller and leverage domain expertise.
 
-**When to use:** Multi-step implementations, codebase exploration, complex refactoring
-**When NOT to use:** Reading known files, simple searches, single-file edits
+### Project-Specific Agents
 
-**For agent details:** See "Using Claude Code Agents" section in user's global CLAUDE.md or invoke with `--help`
+**widget-maker** - LVGL 9 UI expert
+- Creating/modifying UI panels and components
+- Implementing XML layouts with reactive data binding
+- Working with LVGL 9 XML patterns and subjects
+- **Use when:** Any UI panel or component work
+
+**ui-reviewer** - LVGL 9 UI auditor
+- Analyzing screenshots against requirements
+- Identifying layout/styling issues
+- Providing detailed XML fixes
+- **Use when:** After taking screenshots, auditing existing UI
+
+**moonraker-api-agent** - Klipper/Moonraker integration expert
+- WebSocket communication patterns
+- JSON-RPC protocol implementation
+- Real-time printer state synchronization
+- **Use when:** Implementing Moonraker integration (future work)
+
+### General Agents (see global CLAUDE.md)
+
+**Explore** - Fast codebase exploration
+- "How does X work?"
+- "Where are Y handled?"
+- Architectural pattern discovery
+- **Specify thoroughness:** `quick`, `medium`, or `very thorough`
+
+**general-coding-agent** - C++17/embedded systems expert
+- Multi-file C++ implementations
+- Complex business logic
+- Cross-component features
+
+**refractor** - Code optimization
+- Refactoring existing code
+- Pattern improvements
+- Performance optimization
+
+**When in doubt:** Delegate to an agent. They work independently and report back concisely.
 
 ## Development Workflow
 

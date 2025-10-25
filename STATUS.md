@@ -1,8 +1,96 @@
 # Project Status - LVGL 9 UI Prototype
 
-**Last Updated:** 2025-10-25 (Motion Panel Responsive Sizing)
+**Last Updated:** 2025-10-25 (Motion Panel Touch Feedback)
 
 ## Recent Updates (2025-10-25)
+
+### Motion Panel Bottom Button Row Responsive Height ✅ COMPLETE
+
+**Objective:** Make bottom button row scale naturally instead of fixed 60px height
+
+**Solution:**
+- Removed `height="60"` from all 5 buttons (X/Y Home, Motors Off, Z Home, Speed)
+- Set parent container to `height="LV_SIZE_CONTENT"`
+- Buttons use existing `flex_grow="1"` to fill available space proportionally
+
+**Benefits:**
+- More efficient use of vertical space
+- Scales naturally across screen sizes
+- Consistent with responsive design pattern
+
+**Files Modified:**
+- `ui_xml/motion_panel.xml` (lines 138-189)
+
+---
+
+### Motion Panel Touch/Click Feedback ✅ COMPLETE
+
+**Objective:** Add visual feedback when touching/clicking jog pad zones (home button, inner ring, outer ring)
+
+**Problems Encountered:**
+1. Initial arc drawing used wrong mental model - thought LVGL arcs were stroke-based (centerline ± width/2)
+2. Highlights were drawing from center (0%) instead of inner edge of clicked ring
+3. Multiple failed attempts with different centerline/width calculations
+4. LVGL arc documentation unclear about how `radius` and `width` parameters interact
+
+**Critical Discovery - LVGL Arc System:**
+- LVGL arcs are **RINGS with thickness measured INWARD**, not strokes
+- `radius` parameter = **OUTER EDGE** of the ring (NOT centerline!)
+- `width` parameter = **THICKNESS measured INWARD** from outer edge
+- Inner edge = `radius - width`
+
+**Correct Formula:**
+```cpp
+// To draw ring from 25% to 50%:
+radius = 50%;              // Outer edge
+width = 50% - 25% = 25%;   // Thickness inward
+// Inner edge = 50% - 25% = 25% ✓
+```
+
+**Solution Implemented:**
+
+1. **Press State Tracking** (src/ui_panel_motion.cpp:46-50)
+   ```cpp
+   static bool is_pressed = false;
+   static jog_direction_t pressed_direction = JOG_DIR_N;
+   static bool pressed_is_inner = false;
+   static bool pressed_is_home = false;
+   ```
+
+2. **Press/Release Event Handlers** (src/ui_panel_motion.cpp:405-463)
+   - `LV_EVENT_PRESSED`: Captures click position, determines zone (home/inner/outer), calculates direction
+   - `LV_EVENT_RELEASED`: Clears press state, triggers redraw
+
+3. **Angle-to-Direction Mapping** (src/ui_panel_motion.cpp:458)
+   - Enum order (N=0, S=1, E=2, W=3...) doesn't match angle sequence
+   - Created explicit mapping: `int direction_angles[] = {0, 180, 90, 270, 45, 315, 135, 225}`
+
+4. **Coordinate System Conversion** (src/ui_panel_motion.cpp:214-219)
+   - Our system: 0°=North (top), clockwise
+   - LVGL system: 0°=East (right), clockwise
+   - Conversion: `lvgl_angle = (our_angle + 270) % 360`
+
+5. **Highlight Rendering** (src/ui_panel_motion.cpp:472-504)
+   - Home button: Full white circle with 60% opacity
+   - Inner ring (25%-50%): `radius = inner_boundary (50%)`, `width = 25%`
+   - Outer ring (50%-100%): `radius = total_radius (100%)`, `width = 50%`
+
+**Documentation Added:**
+- Extensive comment block (lines 239-279) explaining LVGL arc system
+- Examples showing correct vs incorrect mental models
+- Warning about confusion with other drawing APIs
+
+**Results:**
+- Home button highlights correctly with filled circle
+- Inner ring highlights from 25% to 50% boundary (dark ring zone)
+- Outer ring highlights from 50% to 100% boundary (light ring zone)
+- All 8 directional zones (N, S, E, W, NE, NW, SE, SW) highlight correctly
+- Semi-transparent white overlay provides clear visual feedback
+
+**Files Modified:**
+- `src/ui_panel_motion.cpp` - Press state, event handlers, highlight rendering, extensive arc system documentation
+
+---
 
 ### Motion Panel Responsive Jog Pad Sizing ✅ COMPLETE
 
@@ -45,10 +133,6 @@
 - Always maintains proper proportions relative to available space
 - Leaves consistent room (20%) for distance/home buttons below
 - No hardcoded breakpoints needed - works for any screen size
-
-**Known Issues:**
-- Jog pad vertical centering may need fine-tuning
-- Visual touch/click feedback not yet implemented for jog pad interactive zones
 
 **Files Modified:**
 - `src/ui_panel_motion.cpp` - Percentage-based sizing calculation in setup function
