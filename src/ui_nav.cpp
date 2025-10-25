@@ -199,22 +199,53 @@ void ui_nav_wire_events(lv_obj_t* navbar) {
     // Ensure navbar container doesn't block clicks to children
     lv_obj_remove_flag(navbar, LV_OBJ_FLAG_CLICKABLE);
 
-    // Determine icon scale based on screen height using theme constants
-    // Material icons are 64x64, scale them down for smaller screens
+    // Determine responsive sizing based on screen height using theme constants
     lv_display_t* display = lv_display_get_default();
     int32_t screen_height = lv_display_get_vertical_resolution(display);
     uint16_t icon_scale;  // 256 = 100%, 128 = 50%, etc.
+    lv_coord_t button_size;
+    lv_coord_t nav_padding;
+    lv_coord_t nav_width;
 
-    if (screen_height <= UI_SCREEN_SMALL_H) {
-        icon_scale = 128;  // Tiny and small screens: 50% scale (64px → 32px)
-        LV_LOG_USER("Using 50%% nav icon scale for screen height %d", screen_height);
+    if (screen_height <= UI_SCREEN_TINY_H) {
+        // Tiny screens (320px): 42px buttons, 0px padding, 52px width
+        // Icons scaled to 60% (64px → 38px) to fit comfortably in 42px buttons
+        icon_scale = 154;
+        button_size = UI_NAV_BUTTON_SIZE_TINY;
+        nav_padding = UI_NAV_PADDING_TINY;
+        nav_width = UI_NAV_WIDTH_TINY;
+        LV_LOG_USER("Tiny nav sizing (h=%d): width=%d, buttons=%d, padding=%d, icon_scale=%d",
+                    screen_height, nav_width, button_size, nav_padding, icon_scale);
+    } else if (screen_height <= UI_SCREEN_SMALL_H) {
+        // Small screens (480px): 60px buttons, 8px padding, 76px width
+        // Icons scaled to 60% (64px → 38px)
+        icon_scale = 154;
+        button_size = UI_NAV_BUTTON_SIZE_SMALL;
+        nav_padding = UI_NAV_PADDING_SMALL;
+        nav_width = UI_NAV_WIDTH_SMALL;
+        LV_LOG_USER("Small nav sizing (h=%d): width=%d, buttons=%d, padding=%d",
+                    screen_height, nav_width, button_size, nav_padding);
     } else if (screen_height <= UI_SCREEN_MEDIUM_H) {
-        icon_scale = 192;  // Medium screens: 75% scale (64px → 48px)
-        LV_LOG_USER("Using 75%% nav icon scale for screen height %d", screen_height);
+        // Medium screens (600px): 70px buttons, 12px padding, 94px width
+        icon_scale = 192;
+        button_size = UI_NAV_BUTTON_SIZE_MEDIUM;
+        nav_padding = UI_NAV_PADDING_MEDIUM;
+        nav_width = UI_NAV_WIDTH_MEDIUM;
+        LV_LOG_USER("Medium nav sizing (h=%d): width=%d, buttons=%d, padding=%d",
+                    screen_height, nav_width, button_size, nav_padding);
     } else {
-        icon_scale = 256;  // Large screens: 100% scale (64px)
-        LV_LOG_USER("Using 100%% nav icon scale for screen height %d", screen_height);
+        // Large screens (720px+): 70px buttons, 16px padding, 102px width
+        icon_scale = 256;
+        button_size = UI_NAV_BUTTON_SIZE_LARGE;
+        nav_padding = UI_NAV_PADDING_LARGE;
+        nav_width = UI_NAV_WIDTH_LARGE;
+        LV_LOG_USER("Large nav sizing (h=%d): width=%d, buttons=%d, padding=%d",
+                    screen_height, nav_width, button_size, nav_padding);
     }
+
+    // Apply responsive width and padding to navbar container
+    lv_obj_set_width(navbar, nav_width);
+    lv_obj_set_style_pad_all(navbar, nav_padding, LV_PART_MAIN);
 
     // Name-based widget lookup for navigation buttons and icons (order matches ui_panel_id_t enum)
     const char* button_names[] = {"nav_btn_home", "nav_btn_print_select", "nav_btn_controls", "nav_btn_filament", "nav_btn_settings", "nav_btn_advanced"};
@@ -235,6 +266,9 @@ void ui_nav_wire_events(lv_obj_t* navbar) {
             LV_LOG_ERROR("Nav icon %d is not an image widget!", i);
             continue;
         }
+
+        // Apply responsive sizing to button (touch target)
+        lv_obj_set_size(btn, button_size, button_size);
 
         // Apply responsive scaling to Material Design image
         lv_image_set_scale(icon_widget, icon_scale);

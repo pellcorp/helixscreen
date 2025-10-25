@@ -75,8 +75,11 @@ $(TARGET): $(APP_OBJS) $(LVGL_OBJS) $(FONT_OBJS) $(MATERIAL_ICON_OBJS)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 	@echo "Build complete: $@"
 
-# Compile app C++ sources
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
+# Collect all header dependencies
+HEADERS := $(shell find $(INC_DIR) -name "*.h" 2>/dev/null)
+
+# Compile app C++ sources (depend on headers)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(HEADERS)
 	@mkdir -p $(dir $@)
 	@echo "Compiling $<..."
 	@$(CXX) $(CXXFLAGS) $(INCLUDES) $(LV_CONF) -c $< -o $@
