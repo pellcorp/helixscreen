@@ -124,37 +124,6 @@ static void distance_button_cb(lv_event_t* e) {
     }
 }
 
-// Event handler: Jog buttons (8 directions + center home)
-static void jog_button_cb(lv_event_t* e) {
-    lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);
-    const char* name = lv_obj_get_name(btn);
-
-    if (!name) return;
-
-    float dist = distance_values[current_distance];
-
-    // Map button name to jog direction
-    if (strcmp(name, "jog_n") == 0) {
-        ui_panel_motion_jog(JOG_DIR_N, dist);
-    } else if (strcmp(name, "jog_s") == 0) {
-        ui_panel_motion_jog(JOG_DIR_S, dist);
-    } else if (strcmp(name, "jog_e") == 0) {
-        ui_panel_motion_jog(JOG_DIR_E, dist);
-    } else if (strcmp(name, "jog_w") == 0) {
-        ui_panel_motion_jog(JOG_DIR_W, dist);
-    } else if (strcmp(name, "jog_ne") == 0) {
-        ui_panel_motion_jog(JOG_DIR_NE, dist);
-    } else if (strcmp(name, "jog_nw") == 0) {
-        ui_panel_motion_jog(JOG_DIR_NW, dist);
-    } else if (strcmp(name, "jog_se") == 0) {
-        ui_panel_motion_jog(JOG_DIR_SE, dist);
-    } else if (strcmp(name, "jog_sw") == 0) {
-        ui_panel_motion_jog(JOG_DIR_SW, dist);
-    } else if (strcmp(name, "jog_home_xy") == 0) {
-        ui_panel_motion_home('A');  // Home X and Y
-    }
-}
-
 // Event handler: Z-axis buttons
 static void z_button_cb(lv_event_t* e) {
     lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);

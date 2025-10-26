@@ -289,6 +289,7 @@ static void print_card_clicked_cb(lv_event_t* e) {
 // Observer callback for network icon/label/color changes
 static void network_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     (void)observer;  // Unused parameter
+    (void)subject;   // Unused - we read subjects directly, not from callback param
 
     if (!network_icon_label || !network_text_label) {
         return;

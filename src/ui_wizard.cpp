@@ -64,12 +64,10 @@ static lv_obj_t* summary_screen = nullptr;
 static lv_obj_t* connection_ip_input = nullptr;
 static lv_obj_t* connection_port_input = nullptr;
 static lv_obj_t* connection_status_label = nullptr;
-static lv_obj_t* connection_keyboard = nullptr;
 
 // Printer identification widgets
 static lv_obj_t* printer_name_input = nullptr;
 static lv_obj_t* printer_type_roller = nullptr;
-static lv_obj_t* printer_identify_keyboard = nullptr;
 
 // Hardware selection widgets
 static lv_obj_t* bed_heater_dropdown = nullptr;
@@ -608,9 +606,6 @@ static bool validate_current_step() {
 
         case WizardStep::BED_SELECT:
             if (bed_heater_dropdown && bed_sensor_dropdown) {
-                uint16_t heater_sel = lv_dropdown_get_selected(bed_heater_dropdown);
-                uint16_t sensor_sel = lv_dropdown_get_selected(bed_sensor_dropdown);
-
                 char heater_buf[64], sensor_buf[64];
                 lv_dropdown_get_selected_str(bed_heater_dropdown, heater_buf, sizeof(heater_buf));
                 lv_dropdown_get_selected_str(bed_sensor_dropdown, sensor_buf, sizeof(sensor_buf));

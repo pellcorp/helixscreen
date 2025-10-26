@@ -216,11 +216,13 @@ static void card_extrusion_clicked(lv_event_t* e) {
 }
 
 static void card_fan_clicked(lv_event_t* e) {
+    (void)e;  // Unused - no event data needed
     spdlog::debug("Fan card clicked - Phase 2 feature");
     // TODO: Create and show fan control sub-screen (Phase 2)
 }
 
 static void card_motors_clicked(lv_event_t* e) {
+    (void)e;  // Unused - no event data needed
     spdlog::debug("Motors Disable card clicked");
     // TODO: Show confirmation dialog, then send motors disable command
 }

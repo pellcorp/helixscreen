@@ -43,11 +43,15 @@
 #include "printer_state.h"
 #include "moonraker_client.h"
 #include "config.h"
+#include <spdlog/spdlog.h>
 #include <SDL.h>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <cmath>
+#include <queue>
+#include <mutex>
+#include <memory>
 
 // LVGL display and input
 static lv_display_t* display = nullptr;
@@ -60,6 +64,22 @@ static int SCREEN_HEIGHT = UI_SCREEN_MEDIUM_H;
 // Printer state management
 static PrinterState printer_state;
 
+// Thread-safe queue for Moonraker notifications (cross-thread communication)
+static std::queue<json> notification_queue;
+static std::mutex notification_mutex;
+
+// Overlay panel tracking for proper lifecycle management
+struct OverlayPanels {
+    lv_obj_t* motion = nullptr;
+    lv_obj_t* nozzle_temp = nullptr;
+    lv_obj_t* bed_temp = nullptr;
+    lv_obj_t* extrusion = nullptr;
+    lv_obj_t* print_status = nullptr;
+} static overlay_panels;
+
+// Forward declarations
+static void save_screenshot();
+
 // Initialize LVGL with SDL
 static bool init_lvgl() {
     lv_init();
@@ -68,6 +88,7 @@ static bool init_lvgl() {
     display = lv_sdl_window_create(SCREEN_WIDTH, SCREEN_HEIGHT);
     if (!display) {
         LV_LOG_ERROR("Failed to create LVGL SDL display");
+        lv_deinit();  // Clean up partial LVGL state
         return false;
     }
 
@@ -75,6 +96,7 @@ static bool init_lvgl() {
     indev_mouse = lv_sdl_mouse_create();
     if (!indev_mouse) {
         LV_LOG_ERROR("Failed to create LVGL SDL mouse input");
+        lv_deinit();  // Clean up partial LVGL state
         return false;
     }
 
@@ -86,10 +108,92 @@ static bool init_lvgl() {
     return true;
 }
 
+// Show splash screen with HelixScreen logo
+static void show_splash_screen() {
+    spdlog::info("Showing splash screen");
+
+    // Get the active screen
+    lv_obj_t* screen = lv_screen_active();
+
+    // Set background to panel background color
+    lv_obj_set_style_bg_color(screen, UI_COLOR_PANEL_BG, LV_PART_MAIN);
+
+    // Disable scrollbars on screen
+    lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Create centered container for logo (disable scrolling)
+    lv_obj_t* container = lv_obj_create(screen);
+    lv_obj_set_size(container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(container, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(container, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(container, LV_OBJ_FLAG_SCROLLABLE);  // Disable scrollbars
+    lv_obj_set_style_opa(container, LV_OPA_TRANSP, LV_PART_MAIN);  // Start invisible for fade-in
+    lv_obj_center(container);
+
+    // Create image widget for logo
+    lv_obj_t* logo = lv_image_create(container);
+    const char* logo_path = "A:assets/images/helixscreen-logo.png";
+    lv_image_set_src(logo, logo_path);
+
+    // Get actual image dimensions
+    lv_image_header_t header;
+    lv_result_t res = lv_image_decoder_get_info(logo_path, &header);
+
+    if (res == LV_RESULT_OK) {
+        // Scale logo to fill more of the screen (60% of screen width)
+        lv_coord_t target_size = (SCREEN_WIDTH * 3) / 5;  // 60% of screen width
+        if (SCREEN_HEIGHT < 500) {  // Tiny screen
+            target_size = SCREEN_WIDTH / 2;  // 50% on tiny screens
+        }
+
+        // Calculate scale: (target_size * 256) / actual_width
+        // LVGL uses 1/256 scale units (256 = 100%, 128 = 50%, etc.)
+        uint32_t width = header.w;   // Copy bit-field to local var for logging
+        uint32_t height = header.h;  // Copy bit-field to local var for logging
+        int scale = (target_size * 256) / width;
+        lv_image_set_scale(logo, scale);
+
+        spdlog::debug("Logo: {}x{} scaled to {} (scale factor: {})",
+                     width, height, target_size, scale);
+    } else {
+        spdlog::warn("Could not get logo dimensions, using default scale");
+        lv_image_set_scale(logo, 128);  // 50% scale as fallback
+    }
+
+    // Create fade-in animation (0.5 seconds)
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, container);
+    lv_anim_set_values(&anim, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_duration(&anim, 500);  // 500ms = 0.5 seconds
+    lv_anim_set_path_cb(&anim, lv_anim_path_ease_in);
+    lv_anim_set_exec_cb(&anim, [](void* obj, int32_t value) {
+        lv_obj_set_style_opa((lv_obj_t*)obj, value, LV_PART_MAIN);
+    });
+    lv_anim_start(&anim);
+
+    // Run LVGL timer to process fade-in animation and keep splash visible
+    // Total display time: 2 seconds (including 0.5s fade-in)
+    uint32_t splash_start = SDL_GetTicks();
+    uint32_t splash_duration = 2000;  // 2 seconds total
+
+    while (SDL_GetTicks() - splash_start < splash_duration) {
+        lv_timer_handler();  // Process animations and rendering
+        SDL_Delay(5);
+    }
+
+    // Clean up splash screen
+    lv_obj_delete(container);
+
+    spdlog::info("Splash screen complete");
+}
+
 // Save screenshot using SDL renderer
 // Simple BMP file writer for ARGB8888 format
 static bool write_bmp(const char* filename, const uint8_t* data, int width, int height) {
-    FILE* f = fopen(filename, "wb");
+    // RAII for file handle - automatically closes on all return paths
+    std::unique_ptr<FILE, decltype(&fclose)> f(fopen(filename, "wb"), fclose);
     if (!f) return false;
 
     // BMP header (54 bytes total)
@@ -100,31 +204,31 @@ static bool write_bmp(const char* filename, const uint8_t* data, int width, int 
     uint16_t bpp = 32;
 
     // BMP file header (14 bytes)
-    fputc('B', f); fputc('M', f);                        // Signature
-    fwrite(&file_size, 4, 1, f);                         // File size
-    fwrite((uint32_t[]){0}, 4, 1, f);                    // Reserved
-    fwrite(&pixel_offset, 4, 1, f);                      // Pixel data offset
+    fputc('B', f.get()); fputc('M', f.get());            // Signature
+    fwrite(&file_size, 4, 1, f.get());                   // File size
+    fwrite((uint32_t[]){0}, 4, 1, f.get());              // Reserved
+    fwrite(&pixel_offset, 4, 1, f.get());                // Pixel data offset
 
     // DIB header (40 bytes)
-    fwrite(&dib_size, 4, 1, f);                          // DIB header size
-    fwrite(&width, 4, 1, f);                             // Width
-    fwrite(&height, 4, 1, f);                            // Height
-    fwrite(&planes, 2, 1, f);                            // Planes
-    fwrite(&bpp, 2, 1, f);                               // Bits per pixel
-    fwrite((uint32_t[]){0}, 4, 1, f);                    // Compression (none)
+    fwrite(&dib_size, 4, 1, f.get());                    // DIB header size
+    fwrite(&width, 4, 1, f.get());                       // Width
+    fwrite(&height, 4, 1, f.get());                      // Height
+    fwrite(&planes, 2, 1, f.get());                      // Planes
+    fwrite(&bpp, 2, 1, f.get());                         // Bits per pixel
+    fwrite((uint32_t[]){0}, 4, 1, f.get());              // Compression (none)
     uint32_t image_size = width * height * 4;
-    fwrite(&image_size, 4, 1, f);                        // Image size
-    fwrite((uint32_t[]){2835}, 4, 1, f);                 // X pixels per meter
-    fwrite((uint32_t[]){2835}, 4, 1, f);                 // Y pixels per meter
-    fwrite((uint32_t[]){0}, 4, 1, f);                    // Colors in palette
-    fwrite((uint32_t[]){0}, 4, 1, f);                    // Important colors
+    fwrite(&image_size, 4, 1, f.get());                  // Image size
+    fwrite((uint32_t[]){2835}, 4, 1, f.get());           // X pixels per meter
+    fwrite((uint32_t[]){2835}, 4, 1, f.get());           // Y pixels per meter
+    fwrite((uint32_t[]){0}, 4, 1, f.get());              // Colors in palette
+    fwrite((uint32_t[]){0}, 4, 1, f.get());              // Important colors
 
     // Write pixel data (BMP is bottom-up, so flip rows)
     for (int y = height - 1; y >= 0; y--) {
-        fwrite(data + (y * width * 4), 4, width, f);
+        fwrite(data + (y * width * 4), 4, width, f.get());
     }
 
-    fclose(f);
+    // File automatically closed by unique_ptr destructor
     return true;
 }
 
@@ -297,25 +401,39 @@ int main(int argc, char** argv) {
             force_wizard = true;
         } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--display") == 0) {
             if (i + 1 < argc) {
-                display_num = atoi(argv[++i]);
-                if (display_num < 0) {
-                    printf("Error: display number must be >= 0\n");
+                char* endptr;
+                long val = strtol(argv[++i], &endptr, 10);
+                if (*endptr != '\0' || val < 0 || val > 10) {
+                    printf("Error: invalid display number (must be 0-10): %s\n", argv[i]);
                     return 1;
                 }
+                display_num = (int)val;
             } else {
                 printf("Error: -d/--display requires a number argument\n");
                 return 1;
             }
         } else if (strcmp(argv[i], "-x") == 0 || strcmp(argv[i], "--x-pos") == 0) {
             if (i + 1 < argc) {
-                x_pos = atoi(argv[++i]);
+                char* endptr;
+                long val = strtol(argv[++i], &endptr, 10);
+                if (*endptr != '\0' || val < 0 || val > 10000) {
+                    printf("Error: invalid x position (must be 0-10000): %s\n", argv[i]);
+                    return 1;
+                }
+                x_pos = (int)val;
             } else {
                 printf("Error: -x/--x-pos requires a number argument\n");
                 return 1;
             }
         } else if (strcmp(argv[i], "-y") == 0 || strcmp(argv[i], "--y-pos") == 0) {
             if (i + 1 < argc) {
-                y_pos = atoi(argv[++i]);
+                char* endptr;
+                long val = strtol(argv[++i], &endptr, 10);
+                if (*endptr != '\0' || val < 0 || val > 10000) {
+                    printf("Error: invalid y position (must be 0-10000): %s\n", argv[i]);
+                    return 1;
+                }
+                y_pos = (int)val;
             } else {
                 printf("Error: -y/--y-pos requires a number argument\n");
                 return 1;
@@ -390,15 +508,20 @@ int main(int argc, char** argv) {
     if (display_num >= 0) {
         char display_str[32];
         snprintf(display_str, sizeof(display_str), "%d", display_num);
-        setenv("HELIX_SDL_DISPLAY", display_str, 1);
+        if (setenv("HELIX_SDL_DISPLAY", display_str, 1) != 0) {
+            spdlog::error("Failed to set HELIX_SDL_DISPLAY environment variable");
+            return 1;
+        }
         printf("Window will be centered on display %d\n", display_num);
     }
     if (x_pos >= 0 && y_pos >= 0) {
         char x_str[32], y_str[32];
         snprintf(x_str, sizeof(x_str), "%d", x_pos);
         snprintf(y_str, sizeof(y_str), "%d", y_pos);
-        setenv("HELIX_SDL_XPOS", x_str, 1);
-        setenv("HELIX_SDL_YPOS", y_str, 1);
+        if (setenv("HELIX_SDL_XPOS", x_str, 1) != 0 || setenv("HELIX_SDL_YPOS", y_str, 1) != 0) {
+            spdlog::error("Failed to set window position environment variables");
+            return 1;
+        }
         printf("Window will be positioned at (%d, %d)\n", x_pos, y_pos);
     } else if ((x_pos >= 0 && y_pos < 0) || (x_pos < 0 && y_pos >= 0)) {
         printf("Warning: Both -x and -y must be specified for exact positioning. Ignoring.\n");
@@ -408,6 +531,9 @@ int main(int argc, char** argv) {
     if (!init_lvgl()) {
         return 1;
     }
+
+    // Show splash screen
+    show_splash_screen();
 
     // Create main screen
     lv_obj_t* screen = lv_screen_active();
@@ -515,6 +641,14 @@ int main(int argc, char** argv) {
     lv_obj_t* navbar = lv_obj_get_child(app_layout, 0);
     lv_obj_t* content_area = lv_obj_get_child(app_layout, 1);
 
+    // Defensive programming: verify XML structure matches expectations
+    if (!navbar || !content_area) {
+        spdlog::error("Failed to find navbar/content_area in app_layout - XML structure mismatch");
+        spdlog::error("Expected app_layout > navbar (child 0), content_area (child 1)");
+        lv_deinit();
+        return 1;
+    }
+
     // Wire up navigation button click handlers and trigger initial color update
     ui_nav_wire_events(navbar);
 
@@ -522,6 +656,12 @@ int main(int argc, char** argv) {
     lv_obj_t* panels[UI_PANEL_COUNT];
     for (int i = 0; i < UI_PANEL_COUNT; i++) {
         panels[i] = lv_obj_get_child(content_area, i);
+        if (!panels[i]) {
+            spdlog::error("Missing panel {} in content_area - expected {} panels", i, UI_PANEL_COUNT);
+            spdlog::error("XML structure changed or panels missing from app_layout.xml");
+            lv_deinit();
+            return 1;
+        }
     }
 
     // Register panels with navigation system for show/hide management
@@ -544,13 +684,13 @@ int main(int argc, char** argv) {
     ui_keypad_init(screen);
 
     // Create print status panel (overlay for active prints)
-    lv_obj_t* print_status_panel = (lv_obj_t*)lv_xml_create(screen, "print_status_panel", nullptr);
-    if (print_status_panel) {
-        ui_panel_print_status_setup(print_status_panel, screen);
-        lv_obj_add_flag(print_status_panel, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
+    overlay_panels.print_status = (lv_obj_t*)lv_xml_create(screen, "print_status_panel", nullptr);
+    if (overlay_panels.print_status) {
+        ui_panel_print_status_setup(overlay_panels.print_status, screen);
+        lv_obj_add_flag(overlay_panels.print_status, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
         // Wire print status panel to print select (for launching prints)
-        ui_panel_print_select_set_print_status_panel(print_status_panel);
+        ui_panel_print_select_set_print_status_panel(overlay_panels.print_status);
 
         LV_LOG_USER("Print status panel created and wired to print select");
     } else {
@@ -602,10 +742,10 @@ int main(int argc, char** argv) {
     if (show_motion) {
         printf("Creating and showing motion sub-screen...\n");
 
-        // Create motion panel
-        lv_obj_t* motion_panel = (lv_obj_t*)lv_xml_create(screen, "motion_panel", nullptr);
-        if (motion_panel) {
-            ui_panel_motion_setup(motion_panel, screen);
+        // Create motion panel (tracked for cleanup)
+        overlay_panels.motion = (lv_obj_t*)lv_xml_create(screen, "motion_panel", nullptr);
+        if (overlay_panels.motion) {
+            ui_panel_motion_setup(overlay_panels.motion, screen);
 
             // Hide controls launcher, show motion panel
             lv_obj_add_flag(panels[UI_PANEL_CONTROLS], LV_OBJ_FLAG_HIDDEN);
@@ -621,10 +761,10 @@ int main(int argc, char** argv) {
     if (show_nozzle_temp) {
         printf("Creating and showing nozzle temperature sub-screen...\n");
 
-        // Create nozzle temp panel
-        lv_obj_t* nozzle_temp_panel = (lv_obj_t*)lv_xml_create(screen, "nozzle_temp_panel", nullptr);
-        if (nozzle_temp_panel) {
-            ui_panel_controls_temp_nozzle_setup(nozzle_temp_panel, screen);
+        // Create nozzle temp panel (tracked for cleanup)
+        overlay_panels.nozzle_temp = (lv_obj_t*)lv_xml_create(screen, "nozzle_temp_panel", nullptr);
+        if (overlay_panels.nozzle_temp) {
+            ui_panel_controls_temp_nozzle_setup(overlay_panels.nozzle_temp, screen);
 
             // Hide controls launcher, show nozzle temp panel
             lv_obj_add_flag(panels[UI_PANEL_CONTROLS], LV_OBJ_FLAG_HIDDEN);
@@ -640,10 +780,10 @@ int main(int argc, char** argv) {
     if (show_bed_temp) {
         printf("Creating and showing bed temperature sub-screen...\n");
 
-        // Create bed temp panel
-        lv_obj_t* bed_temp_panel = (lv_obj_t*)lv_xml_create(screen, "bed_temp_panel", nullptr);
-        if (bed_temp_panel) {
-            ui_panel_controls_temp_bed_setup(bed_temp_panel, screen);
+        // Create bed temp panel (tracked for cleanup)
+        overlay_panels.bed_temp = (lv_obj_t*)lv_xml_create(screen, "bed_temp_panel", nullptr);
+        if (overlay_panels.bed_temp) {
+            ui_panel_controls_temp_bed_setup(overlay_panels.bed_temp, screen);
 
             // Hide controls launcher, show bed temp panel
             lv_obj_add_flag(panels[UI_PANEL_CONTROLS], LV_OBJ_FLAG_HIDDEN);
@@ -659,10 +799,10 @@ int main(int argc, char** argv) {
     if (show_extrusion) {
         printf("Creating and showing extrusion sub-screen...\n");
 
-        // Create extrusion panel
-        lv_obj_t* extrusion_panel = (lv_obj_t*)lv_xml_create(screen, "extrusion_panel", nullptr);
-        if (extrusion_panel) {
-            ui_panel_controls_extrusion_setup(extrusion_panel, screen);
+        // Create extrusion panel (tracked for cleanup)
+        overlay_panels.extrusion = (lv_obj_t*)lv_xml_create(screen, "extrusion_panel", nullptr);
+        if (overlay_panels.extrusion) {
+            ui_panel_controls_extrusion_setup(overlay_panels.extrusion, screen);
 
             // Hide controls launcher, show extrusion panel
             lv_obj_add_flag(panels[UI_PANEL_CONTROLS], LV_OBJ_FLAG_HIDDEN);
@@ -676,22 +816,24 @@ int main(int argc, char** argv) {
 
     // Special case: Show print status screen if requested
     if (show_print_status) {
-        printf("Creating and showing print status screen...\n");
+        printf("Showing print status screen...\n");
 
-        // Create print status panel
-        lv_obj_t* print_status_panel = (lv_obj_t*)lv_xml_create(screen, "print_status_panel", nullptr);
-        if (print_status_panel) {
-            ui_panel_print_status_setup(print_status_panel, screen);
-
+        // Use already-created print status panel (no duplicate creation)
+        if (overlay_panels.print_status) {
             // Hide all navigation panels
             for (int i = 0; i < UI_PANEL_COUNT; i++) {
                 lv_obj_add_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
             }
 
+            // Show print status panel
+            lv_obj_clear_flag(overlay_panels.print_status, LV_OBJ_FLAG_HIDDEN);
+
             // Start mock print simulation (3-hour print, 250 layers)
             ui_panel_print_status_start_mock_print("awesome_benchy.gcode", 250, 10800);
 
             printf("Print status panel displayed with mock print running\n");
+        } else {
+            spdlog::error("Print status panel not created - cannot show");
         }
     }
 
@@ -764,9 +906,12 @@ int main(int argc, char** argv) {
                                config->get<std::string>(config->df() + "moonraker_host") + ":" +
                                std::to_string(config->get<int>(config->df() + "moonraker_port")) + "/websocket";
 
-    // Register notification callback to update printer state
+    // Register notification callback to queue updates for main thread
+    // CRITICAL: Moonraker callbacks run on background thread, but LVGL is NOT thread-safe
+    // Queue notifications here, process on main thread in event loop
     moonraker_client.register_notify_update([](json& notification) {
-        printer_state.update_from_notification(notification);
+        std::lock_guard<std::mutex> lock(notification_mutex);
+        notification_queue.push(notification);
     });
 
     // Connect to Moonraker
@@ -830,6 +975,16 @@ int main(int argc, char** argv) {
         if (current_time - last_mock_data_time >= 1000) {
             update_mock_printer_data();
             last_mock_data_time = current_time;
+        }
+
+        // Process queued Moonraker notifications on main thread (LVGL thread-safety)
+        {
+            std::lock_guard<std::mutex> lock(notification_mutex);
+            while (!notification_queue.empty()) {
+                json notification = notification_queue.front();
+                notification_queue.pop();
+                printer_state.update_from_notification(notification);
+            }
         }
 
         // Run LVGL tasks - internally polls SDL events and processes input

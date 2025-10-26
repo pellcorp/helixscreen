@@ -221,7 +221,7 @@ static void update_preset_buttons_visual() {
 
 // Event handler: Material preset buttons
 static void preset_button_cb(lv_event_t* e) {
-    lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);
+    (void)lv_event_get_target(e);  // Unused - we only need user_data
     int material_id = (int)(uintptr_t)lv_event_get_user_data(e);
 
     selected_material = material_id;

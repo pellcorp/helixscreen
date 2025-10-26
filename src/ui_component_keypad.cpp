@@ -45,8 +45,6 @@ static ui_keypad_config_t current_config;
 static void update_display();
 static void append_digit(char digit);
 static void handle_backspace();
-static void handle_decimal();
-static void handle_minus();
 static void handle_esc();
 static void handle_ok();
 static void wire_button_events();
@@ -214,41 +212,6 @@ static void handle_backspace() {
 	// If empty, reset to "0"
 	if (strlen(input_buffer) == 0 || strcmp(input_buffer, "-") == 0) {
 		strcpy(input_buffer, "0");
-	}
-
-	update_display();
-}
-
-static void handle_decimal() {
-	if (!current_config.allow_decimal) return;
-
-	// Only allow one decimal point
-	if (strchr(input_buffer, '.') != nullptr) {
-		return;
-	}
-
-	size_t len = strlen(input_buffer);
-	if (len < sizeof(input_buffer) - 2) {
-		input_buffer[len] = '.';
-		input_buffer[len + 1] = '\0';
-		update_display();
-	}
-}
-
-static void handle_minus() {
-	if (!current_config.allow_negative) return;
-
-	// Toggle negative sign
-	if (input_buffer[0] == '-') {
-		// Remove minus sign
-		memmove(input_buffer, input_buffer + 1, strlen(input_buffer));
-	} else {
-		// Add minus sign
-		size_t len = strlen(input_buffer);
-		if (len < sizeof(input_buffer) - 1) {
-			memmove(input_buffer + 1, input_buffer, len + 1);
-			input_buffer[0] = '-';
-		}
 	}
 
 	update_display();
