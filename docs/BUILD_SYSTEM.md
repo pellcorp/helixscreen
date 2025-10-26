@@ -4,22 +4,71 @@ This document describes the HelixScreen prototype build system, including automa
 
 ## Build System Overview
 
-The project uses **GNU Make** with automatic dependency tracking and parallel compilation.
+The project uses **GNU Make** with:
+- Color-coded output for easy visual parsing
+- Verbosity control to show/hide full compiler commands
+- Automatic dependency checking before builds
+- Fail-fast error handling with clear diagnostics
+- Parallel build support with output synchronization
+- Build timing for performance tracking
 
 ### Quick Start
 
 ```bash
-# Build (uses all CPU cores automatically)
-make
+# Parallel build (use -j explicitly)
+make -j8
 
-# Clean rebuild
-make clean && make
+# Clean parallel build with progress/timing
+make build
+
+# Verbose mode (shows full commands)
+make V=1
+
+# Dependency checking
+make check-deps
+
+# Help (shows all targets and options)
+make help
 
 # Apply patches manually (usually automatic)
 make apply-patches
 
 # Generate IDE/LSP support
 make compile_commands
+```
+
+### Build Options
+
+- **`V=1`** - Verbose mode: shows full compiler commands instead of short `[CC]`/`[CXX]` tags
+- **`JOBS=N`** - Set parallel job count (default: auto-detects CPU cores)
+- **`NO_COLOR=1`** - Disable colored output (useful for CI/CD)
+- **`-j<N>`** - Enable parallel builds with N jobs (NOT auto-enabled by default)
+
+### Build Output
+
+The build system uses color-coded tags:
+
+- **`[CC]`** (cyan) - Compiling C sources (LVGL)
+- **`[CXX]`** (blue) - Compiling C++ sources (app code)
+- **`[FONT]`** (green) - Compiling font assets
+- **`[ICON]`** (green) - Compiling icon assets
+- **`[LD]`** (magenta) - Linking binary
+- **`✓`** (green) - Success messages
+- **`✗`** (red) - Error messages
+- **`⚠`** (yellow) - Warning messages
+
+### Error Handling
+
+When compilation fails, the build system:
+1. Shows the failed file with a red `✗` marker
+2. Displays the full compiler command for debugging
+3. Exits immediately (fail-fast behavior)
+
+Example:
+```
+[CXX] src/ui_panel_home.cpp
+✗ Compilation failed: src/ui_panel_home.cpp
+Command: clang++ -std=c++17 -Wall -Wextra -O2 -g -I. -Iinclude ...
 ```
 
 ## Automatic Patch Application
@@ -138,7 +187,7 @@ This ensures the UI window appears on a different display from the terminal, mak
 
 ## Parallel Compilation
 
-The Makefile auto-detects CPU cores and builds in parallel by default.
+**Important**: Parallel builds are **NOT** enabled by default. Use `-j` flag explicitly.
 
 ### Platform Detection
 
@@ -147,38 +196,86 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     # macOS
     NPROC := $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
+    PLATFORM := macOS
 else
     # Linux
     NPROC := $(shell nproc 2>/dev/null || echo 4)
+    PLATFORM := Linux
 endif
-
-MAKEFLAGS += -j$(NPROC)
 ```
 
-**Result**: Automatically uses all CPU cores for compilation without manual `-j` flag.
+### Usage
+
+```bash
+make -j          # Auto-detect CPU cores and parallelize
+make -j8         # Use 8 parallel jobs
+make JOBS=4      # Set job count via variable
+make build       # Clean parallel build (auto-detects cores)
+```
+
+The build system uses `--output-sync=target` to prevent interleaved output during parallel builds.
 
 ## Build Targets
 
 ### Primary Targets
 
-- `make` or `make all` - Incremental build (applies patches, compiles changed files)
-- `make clean` - Remove all build artifacts
-- `make run` - Build and run the prototype
+- **`all`** (default) - Build the main binary with dependency checks
+- **`build`** - Clean parallel build with progress and timing
+- **`clean`** - Remove all build artifacts
+- **`run`** - Build and run the prototype
+- **`help`** - Show comprehensive help with all targets and options
 
 ### Development Targets
 
-- `make compile_commands` - Generate `compile_commands.json` for IDE/LSP (requires `bear`)
-- `make apply-patches` - Manually apply submodule patches (usually automatic)
+- **`compile_commands`** - Generate `compile_commands.json` for IDE/LSP (requires `bear`)
+- **`check-deps`** - Verify all build dependencies are installed
+- **`apply-patches`** - Manually apply submodule patches (usually automatic)
 
 ### Test Targets
 
-- `make test` - Run unit tests
-- `make test-cards` - Test dynamic card instantiation
-- `make test-print-select` - Test print select panel with mock data
+- **`test`** - Run unit tests
+- **`test-cards`** - Test dynamic card instantiation
+- **`test-print-select`** - Test print select panel with mock data
 
 ### Demo Target
 
-- `make demo` - Build LVGL demo widgets (for LVGL API testing)
+- **`demo`** - Build LVGL demo widgets (for LVGL API testing)
+
+## Dependency Checking
+
+Before building, the system automatically checks for required dependencies:
+
+**Required:**
+- `clang` / `clang++` - C/C++ compiler with C++17 support
+- `sdl2-config` - SDL2 development libraries
+- `libhv` - WebSocket client library (symlinked from parent repo)
+- `spdlog` - Logging library (symlinked from parent repo)
+- LVGL submodule
+
+**Optional:**
+- `bear` - For generating `compile_commands.json`
+- `imagemagick` - For screenshot conversion
+
+### Manual Dependency Check
+
+```bash
+make check-deps
+```
+
+Example output:
+```
+Checking build dependencies...
+✓ clang found: Apple clang version 17.0.0
+✓ clang++ found: Apple clang version 17.0.0
+✓ SDL2 found: 2.32.10
+✓ libhv found: libhv/lib/libhv.a
+✓ spdlog found: spdlog
+✓ LVGL found: lvgl
+
+All dependencies satisfied!
+```
+
+If dependencies are missing, the check provides installation instructions.
 
 ## Dependency Management
 
@@ -243,9 +340,10 @@ git -C lvgl apply ../../patches/lvgl_sdl_window_position.patch
 **Symptom**: Slow compilation
 
 **Solutions**:
-- Verify parallel builds: `make -j8` (should be automatic)
-- Use incremental builds: `make` instead of `make clean && make`
-- Check CPU usage during build (should be near 100%)
+- Use parallel builds: `make -j8` or `make -j$(nproc)`
+- Use incremental builds: `make -j8` instead of `make clean && make`
+- Check CPU usage during build (should be near 100% with parallel builds)
+- Use `make build` for optimized clean builds with timing
 
 ### SDL2 Not Found
 
@@ -269,10 +367,16 @@ sdl2-config --version
 ### Development Workflow
 
 1. **Edit code** in `src/` or `include/`
-2. **Run `make`** - incremental build with auto-patching
+2. **Run `make -j8`** - parallel incremental build with auto-patching
 3. **Test** with `./build/bin/helix-ui-proto`
 4. **Screenshot** with `./scripts/screenshot.sh` (auto-opens on display 1)
 5. **Commit** with working incremental changes
+
+For debugging build issues:
+```bash
+make clean
+make V=1   # Verbose sequential build
+```
 
 ### Clean Builds
 
