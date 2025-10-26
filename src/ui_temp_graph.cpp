@@ -20,7 +20,7 @@
 
 #include "ui_temp_graph.h"
 #include "ui_theme.h"
-#include "../lvgl/src/widgets/chart/lv_chart_private.h"
+#include "../lvgl/src/widgets/chart/lv_chart_private.h"  // For checking LV_CHART_POINT_NONE only
 #include <spdlog/spdlog.h>
 #include <string.h>
 #include <stdlib.h>
@@ -40,35 +40,22 @@ static ui_temp_series_meta_t* find_series(ui_temp_graph_t* graph, int series_id)
     return nullptr;
 }
 
-// Event callback for drawing gradient fills under curves
+// Event callback for drawing gradient fills under curves (LVGL 9 draw task system)
+// TODO: Currently disabled - needs complete rewrite for LVGL 9's new draw task system
+#if 0
 static void draw_gradient_fill_cb(lv_event_t* e) {
-    lv_obj_t* chart = (lv_obj_t*)lv_event_get_target(e);
-    ui_temp_graph_t* graph = (ui_temp_graph_t*)lv_event_get_user_data(e);
-
-    if (!graph || !chart) return;
-
-    lv_event_code_t code = lv_event_get_code(e);
-    if (code != LV_EVENT_DRAW_MAIN) return;
-
-    // Get layer for drawing
-    lv_layer_t* layer = lv_event_get_layer(e);
-    if (!layer) return;
 
     // Get chart dimensions
     lv_area_t chart_area;
     lv_obj_get_coords(chart, &chart_area);
 
-    // Get chart padding to find data area
-    lv_coord_t pad_left = lv_obj_get_style_pad_left(chart, LV_PART_MAIN);
+    // Get chart padding to find data area (for Y coordinates only - X comes from API)
     lv_coord_t pad_top = lv_obj_get_style_pad_top(chart, LV_PART_MAIN);
-    lv_coord_t pad_right = lv_obj_get_style_pad_right(chart, LV_PART_MAIN);
     lv_coord_t pad_bottom = lv_obj_get_style_pad_bottom(chart, LV_PART_MAIN);
 
-    lv_coord_t data_w = lv_area_get_width(&chart_area) - pad_left - pad_right;
     lv_coord_t data_h = lv_area_get_height(&chart_area) - pad_top - pad_bottom;
 
     // Data area coordinates
-    lv_coord_t data_x1 = chart_area.x1 + pad_left;
     lv_coord_t data_y1 = chart_area.y1 + pad_top;
     lv_coord_t data_y2 = data_y1 + data_h;
 
@@ -81,39 +68,27 @@ static void draw_gradient_fill_cb(lv_event_t* e) {
         ui_temp_series_meta_t* meta = &graph->series_meta[i];
         if (!meta->visible || !meta->chart_series) continue;
 
-        int32_t* y_points = meta->chart_series->y_points;
-        if (!y_points) continue;
-
-        // Calculate temperature range for Y mapping
-        float temp_range = graph->max_temp - graph->min_temp;
-        if (temp_range == 0.0f) continue;
-
         // Draw triangular strips to fill area under curve with gradient
         // We'll draw vertical strips for each segment between data points
         for (uint32_t pt = 0; pt < point_cnt - 1; pt++) {
-            // Get Y values - skip if either point has no data
-            int32_t y_val1 = y_points[pt];
-            int32_t y_val2 = y_points[pt + 1];
-
-            // Skip segments with no data (LV_CHART_POINT_NONE = INT32_MAX)
-            if (y_val1 == LV_CHART_POINT_NONE || y_val2 == LV_CHART_POINT_NONE) {
+            // Check if either point has no data (read-only access to internal array)
+            if (meta->chart_series->y_points[pt] == LV_CHART_POINT_NONE ||
+                meta->chart_series->y_points[pt + 1] == LV_CHART_POINT_NONE) {
                 continue;
             }
 
-            // Calculate X positions for this segment
-            float x_frac1 = (float)pt / (float)(point_cnt - 1);
-            float x_frac2 = (float)(pt + 1) / (float)(point_cnt - 1);
-            lv_coord_t x1 = data_x1 + (lv_coord_t)(data_w * x_frac1);
-            lv_coord_t x2 = data_x1 + (lv_coord_t)(data_w * x_frac2);
+            // Get pixel positions from LVGL's public API
+            lv_point_t pos1, pos2;
+            lv_chart_get_point_pos_by_id(chart, meta->chart_series, pt, &pos1);
+            lv_chart_get_point_pos_by_id(chart, meta->chart_series, pt + 1, &pos2);
 
-            // Map temperature values to Y pixel coordinates (inverted: high temp = low Y)
-            float y_frac1 = (float)(y_val1 - (int32_t)graph->min_temp) / temp_range;
-            float y_frac2 = (float)(y_val2 - (int32_t)graph->min_temp) / temp_range;
+            // Use the X,Y coordinates directly (LVGL returns absolute screen coords)
+            lv_coord_t x1 = pos1.x;
+            lv_coord_t y1 = pos1.y;
+            lv_coord_t x2 = pos2.x;
+            lv_coord_t y2 = pos2.y;
 
-            lv_coord_t y1 = data_y2 - (lv_coord_t)(data_h * y_frac1);
-            lv_coord_t y2 = data_y2 - (lv_coord_t)(data_h * y_frac2);
-
-            // Clamp Y values to data area
+            // Clamp Y values to data area (handle out-of-range data gracefully)
             if (y1 < data_y1) y1 = data_y1;
             if (y2 < data_y1) y2 = data_y1;
             if (y1 > data_y2) y1 = data_y2;
@@ -156,6 +131,7 @@ static void draw_gradient_fill_cb(lv_event_t* e) {
         }
     }
 }
+#endif  // Gradient fill disabled
 
 // Create temperature graph widget
 ui_temp_graph_t* ui_temp_graph_create(lv_obj_t* parent) {
@@ -209,14 +185,22 @@ ui_temp_graph_t* ui_temp_graph_create(lv_obj_t* parent) {
     lv_obj_set_style_line_opa(graph->chart, LV_OPA_30, LV_PART_MAIN);  // Subtle - 30% opacity
 
     // Style data series lines
-    lv_obj_set_style_line_width(graph->chart, 3, LV_PART_ITEMS);  // Thicker series lines
+    lv_obj_set_style_line_width(graph->chart, 2, LV_PART_ITEMS);  // Series line thickness
     lv_obj_set_style_line_opa(graph->chart, LV_OPA_COVER, LV_PART_ITEMS);  // Full opacity for series
+
+    // Hide point indicators (circles at each data point)
+    lv_obj_set_style_width(graph->chart, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_height(graph->chart, 0, LV_PART_INDICATOR);
 
     // Configure division line count
     lv_chart_set_div_line_count(graph->chart, 5, 10);  // 5 horizontal, 10 vertical division lines
 
-    // Attach gradient draw callback
-    lv_obj_add_event_cb(graph->chart, draw_gradient_fill_cb, LV_EVENT_DRAW_MAIN, graph);
+    // TODO: Gradient fill temporarily disabled - requires LVGL 9 draw task system rewrite
+    // The LVGL 8-style event-based custom drawing doesn't work in LVGL 9
+    // Need to implement using lv_draw_task_t API with LV_EVENT_DRAW_TASK_ADDED
+    //
+    // lv_obj_add_flag(graph->chart, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    // lv_obj_add_event_cb(graph->chart, draw_gradient_fill_cb, LV_EVENT_DRAW_TASK_ADDED, graph);
 
     // Store graph pointer in chart user data for retrieval
     lv_obj_set_user_data(graph->chart, graph);
@@ -348,10 +332,8 @@ void ui_temp_graph_show_series(ui_temp_graph_t* graph, int series_id, bool visib
 
     meta->visible = visible;
 
-    // Use LVGL's hidden flag for the series
-    if (meta->chart_series) {
-        meta->chart_series->hidden = visible ? 0 : 1;
-    }
+    // Use LVGL's public API to hide/show series
+    lv_chart_hide_series(graph->chart, meta->chart_series, !visible);
 
     lv_obj_invalidate(graph->chart);
     spdlog::debug("[TempGraph] Series {} '{}' {}", series_id, meta->name, visible ? "shown" : "hidden");
@@ -377,17 +359,25 @@ void ui_temp_graph_set_series_data(ui_temp_graph_t* graph, int series_id, const 
         return;
     }
 
-    // Clear existing data
-    lv_chart_series_t* ser = meta->chart_series;
-    for (int i = 0; i < graph->point_count; i++) {
-        ser->y_points[i] = LV_CHART_POINT_NONE;
+    // Clear existing data using public API
+    lv_chart_set_all_values(graph->chart, meta->chart_series, LV_CHART_POINT_NONE);
+
+    // Convert float array to int32_t array for LVGL API
+    int points_to_copy = count > graph->point_count ? graph->point_count : count;
+    int32_t* values = (int32_t*)malloc(points_to_copy * sizeof(int32_t));
+    if (!values) {
+        spdlog::error("[TempGraph] Failed to allocate conversion buffer");
+        return;
     }
 
-    // Copy new data (up to point_count)
-    int points_to_copy = count > graph->point_count ? graph->point_count : count;
     for (int i = 0; i < points_to_copy; i++) {
-        ser->y_points[i] = (lv_coord_t)temps[i];
+        values[i] = (int32_t)temps[i];
     }
+
+    // Set data using public API
+    lv_chart_set_series_values(graph->chart, meta->chart_series, values, points_to_copy);
+
+    free(values);
 
     lv_chart_refresh(graph->chart);
     spdlog::debug("[TempGraph] Series {} '{}' data set ({} points)", series_id, meta->name, points_to_copy);
@@ -400,10 +390,7 @@ void ui_temp_graph_clear(ui_temp_graph_t* graph) {
     for (int i = 0; i < graph->series_count; i++) {
         ui_temp_series_meta_t* meta = &graph->series_meta[i];
         if (meta->chart_series) {
-            lv_chart_series_t* ser = meta->chart_series;
-            for (int p = 0; p < graph->point_count; p++) {
-                ser->y_points[p] = LV_CHART_POINT_NONE;
-            }
+            lv_chart_set_all_values(graph->chart, meta->chart_series, LV_CHART_POINT_NONE);
         }
     }
 
@@ -419,10 +406,7 @@ void ui_temp_graph_clear_series(ui_temp_graph_t* graph, int series_id) {
         return;
     }
 
-    lv_chart_series_t* ser = meta->chart_series;
-    for (int i = 0; i < graph->point_count; i++) {
-        ser->y_points[i] = LV_CHART_POINT_NONE;
-    }
+    lv_chart_set_all_values(graph->chart, meta->chart_series, LV_CHART_POINT_NONE);
 
     lv_chart_refresh(graph->chart);
     spdlog::debug("[TempGraph] Series {} '{}' cleared", series_id, meta->name);
@@ -440,13 +424,8 @@ void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, int series_id, floa
     meta->show_target = show;
 
     if (meta->target_cursor && show) {
-        // Update cursor position - set Y position to target temperature
-        meta->target_cursor->pos.y = (lv_coord_t)target;
-        meta->target_cursor->pos_set = 1;  // Mark position as manually set
-
-        // Update cursor color (brighter version of series color)
-        lv_color_t bright_color = lv_color_lighten(meta->color, LV_OPA_40);
-        meta->target_cursor->color = bright_color;
+        // Update cursor position using public API
+        lv_chart_set_cursor_pos_y(graph->chart, meta->target_cursor, (int32_t)target);
 
         lv_obj_invalidate(graph->chart);
     }

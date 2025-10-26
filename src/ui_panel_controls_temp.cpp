@@ -29,6 +29,33 @@
 #include <string.h>
 #include <math.h>
 
+// Heater type enumeration
+typedef enum {
+    HEATER_NOZZLE,
+    HEATER_BED
+} heater_type_t;
+
+// Heater configuration structure
+typedef struct {
+    heater_type_t type;
+    const char* name;
+    const char* title;
+    lv_color_t color;
+    float temp_range_max;
+    int y_axis_increment;
+    int default_mock_target;
+    struct {
+        int off;
+        int pla;
+        int petg;
+        int abs;
+    } presets;
+    struct {
+        float min;
+        float max;
+    } keypad_range;
+} heater_config_t;
+
 // Temperature subjects (reactive data binding)
 static lv_subject_t nozzle_current_subject;
 static lv_subject_t nozzle_target_subject;
@@ -67,6 +94,31 @@ static ui_temp_graph_t* nozzle_graph = nullptr;
 static ui_temp_graph_t* bed_graph = nullptr;
 static int nozzle_series_id = -1;
 static int bed_series_id = -1;
+
+// Heater configurations
+static const heater_config_t NOZZLE_CONFIG = {
+    .type = HEATER_NOZZLE,
+    .name = "Nozzle",
+    .title = "Nozzle Temperature",
+    .color = lv_color_hex(0xFF4444),     // Red
+    .temp_range_max = 320.0f,
+    .y_axis_increment = 80,
+    .default_mock_target = 210,
+    .presets = {0, 210, 240, 250},
+    .keypad_range = {0.0f, 350.0f}
+};
+
+static const heater_config_t BED_CONFIG = {
+    .type = HEATER_BED,
+    .name = "Bed",
+    .title = "Heatbed Temperature",
+    .color = lv_color_hex(0x00CED1),     // Cyan
+    .temp_range_max = 140.0f,
+    .y_axis_increment = 35,
+    .default_mock_target = 60,
+    .presets = {0, 60, 80, 100},
+    .keypad_range = {0.0f, 150.0f}
+};
 
 // Forward declarations for callbacks
 static void update_nozzle_display();
@@ -137,6 +189,166 @@ static void update_bed_display() {
 }
 
 // ============================================================================
+// COMMON HELPER FUNCTIONS
+// ============================================================================
+
+// Helper: Create Y-axis temperature labels
+static void create_y_axis_labels(lv_obj_t* container, const heater_config_t* config) {
+    if (!container) return;
+
+    // Calculate number of labels based on range and increment
+    int num_labels = (int)(config->temp_range_max / config->y_axis_increment) + 1;
+
+    // Create labels from top to bottom
+    for (int i = num_labels - 1; i >= 0; i--) {
+        int temp = i * config->y_axis_increment;
+        lv_obj_t* label = lv_label_create(container);
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%d°", temp);
+        lv_label_set_text(label, buf);
+        lv_obj_set_style_text_color(label, lv_color_hex(0x808080), 0);  // Gray
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_10, 0);
+    }
+}
+
+// Helper: Create and configure temperature graph
+static ui_temp_graph_t* create_temp_graph(lv_obj_t* chart_area, const heater_config_t* config,
+                                          int current_temp, int target_temp, int* series_id_out) {
+    if (!chart_area) return nullptr;
+
+    ui_temp_graph_t* graph = ui_temp_graph_create(chart_area);
+    if (!graph) return nullptr;
+
+    lv_obj_t* chart = ui_temp_graph_get_chart(graph);
+    lv_obj_set_size(chart, lv_pct(100), lv_pct(100));
+
+    // Configure temperature range
+    ui_temp_graph_set_temp_range(graph, 0.0f, config->temp_range_max);
+
+    // Add series
+    int series_id = ui_temp_graph_add_series(graph, config->name, config->color);
+    if (series_id_out) {
+        *series_id_out = series_id;
+    }
+
+    if (series_id >= 0) {
+        // Use mock target if current target is 0
+        int mock_target = (target_temp == 0) ? config->default_mock_target : target_temp;
+
+        // Set target temperature line
+        ui_temp_graph_set_series_target(graph, series_id, (float)mock_target, true);
+
+        // Generate and populate mock temperature data
+        const int point_count = 100;
+        float temps[point_count];
+        generate_mock_temp_data(temps, point_count, (float)current_temp, (float)mock_target);
+        ui_temp_graph_set_series_data(graph, series_id, temps, point_count);
+
+        spdlog::debug("[Temp]   ✓ {} graph created with mock data", config->name);
+    }
+
+    return graph;
+}
+
+// Helper: Get current/target/display values by heater type
+static void get_heater_state(heater_type_t type, int* current_out, int* target_out,
+                             void (**update_fn_out)()) {
+    if (type == HEATER_NOZZLE) {
+        if (current_out) *current_out = nozzle_current;
+        if (target_out) *target_out = nozzle_target;
+        if (update_fn_out) *update_fn_out = update_nozzle_display;
+    } else {
+        if (current_out) *current_out = bed_current;
+        if (target_out) *target_out = bed_target;
+        if (update_fn_out) *update_fn_out = update_bed_display;
+    }
+}
+
+// Helper: Set heater target temperature
+static void set_heater_target(heater_type_t type, int temp) {
+    if (type == HEATER_NOZZLE) {
+        nozzle_target = temp;
+        update_nozzle_display();
+    } else {
+        bed_target = temp;
+        update_bed_display();
+    }
+}
+
+// Helper: Generic preset button callback
+static void preset_button_cb_generic(lv_event_t* e, const heater_config_t* config) {
+    lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);
+    const char* name = lv_obj_get_name(btn);
+    if (!name) return;
+
+    int temp = 0;
+    if (strcmp(name, "preset_off") == 0) {
+        temp = config->presets.off;
+    } else if (strcmp(name, "preset_pla") == 0) {
+        temp = config->presets.pla;
+    } else if (strcmp(name, "preset_petg") == 0) {
+        temp = config->presets.petg;
+    } else if (strcmp(name, "preset_abs") == 0) {
+        temp = config->presets.abs;
+    }
+
+    set_heater_target(config->type, temp);
+    spdlog::debug("[Temp] {} target set to {}°C via preset", config->name, temp);
+}
+
+// Helper: Setup preset buttons with generic callback
+static void setup_preset_buttons(lv_obj_t* panel, const heater_config_t* config,
+                                 lv_event_cb_t callback) {
+    const char* preset_names[] = {"preset_off", "preset_pla", "preset_petg", "preset_abs"};
+    for (const char* name : preset_names) {
+        lv_obj_t* btn = lv_obj_find_by_name(panel, name);
+        if (btn) {
+            lv_obj_add_event_cb(btn, callback, LV_EVENT_CLICKED, (void*)config);
+        }
+    }
+}
+
+// Helper: Custom temperature callback wrapper
+typedef struct {
+    heater_type_t type;
+    const heater_config_t* config;
+} custom_callback_data_t;
+
+static custom_callback_data_t nozzle_custom_data = {HEATER_NOZZLE, &NOZZLE_CONFIG};
+static custom_callback_data_t bed_custom_data = {HEATER_BED, &BED_CONFIG};
+
+static void custom_temp_callback_generic(float value, void* user_data) {
+    custom_callback_data_t* data = (custom_callback_data_t*)user_data;
+    set_heater_target(data->type, (int)value);
+    spdlog::debug("[Temp] {} target set to {}°C via custom input", data->config->name, (int)value);
+}
+
+// Helper: Generic custom button callback
+static void custom_button_cb_generic(lv_event_t* e, const heater_config_t* config,
+                                     custom_callback_data_t* callback_data) {
+    (void)e;
+
+    int current_target;
+    get_heater_state(config->type, nullptr, &current_target, nullptr);
+
+    spdlog::debug("[Temp] Opening keypad for {} custom temperature", config->name);
+
+    ui_keypad_config_t keypad_config = {
+        .initial_value = (float)current_target,
+        .min_value = config->keypad_range.min,
+        .max_value = config->keypad_range.max,
+        .title_label = config->type == HEATER_NOZZLE ? "Nozzle Temp" : "Heat Bed Temp",
+        .unit_label = "°C",
+        .allow_decimal = false,
+        .allow_negative = false,
+        .callback = custom_temp_callback_generic,
+        .user_data = callback_data
+    };
+
+    ui_keypad_show(&keypad_config);
+}
+
+// ============================================================================
 // NOZZLE TEMPERATURE PANEL
 // ============================================================================
 
@@ -171,55 +383,15 @@ static void nozzle_confirm_button_cb(lv_event_t* e) {
     nozzle_back_button_cb(e);
 }
 
-// Event handler: Nozzle preset buttons
+// Event handler: Nozzle preset buttons (wrapper for generic handler)
 static void nozzle_preset_button_cb(lv_event_t* e) {
-    lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);
-    const char* name = lv_obj_get_name(btn);
-
-    if (!name) return;
-
-    int temp = 0;
-    if (strcmp(name, "preset_off") == 0) {
-        temp = 0;
-    } else if (strcmp(name, "preset_pla") == 0) {
-        temp = 210;
-    } else if (strcmp(name, "preset_petg") == 0) {
-        temp = 240;
-    } else if (strcmp(name, "preset_abs") == 0) {
-        temp = 250;
-    }
-
-    nozzle_target = temp;
-    update_nozzle_display();
-    spdlog::debug("[Temp] Nozzle target set to {}°C via preset", temp);
+    const heater_config_t* config = (const heater_config_t*)lv_event_get_user_data(e);
+    preset_button_cb_generic(e, config);
 }
 
-// Callback for nozzle custom temperature input
-static void nozzle_custom_callback(float value, void* user_data) {
-    (void)user_data;
-    nozzle_target = (int)value;
-    update_nozzle_display();
-    spdlog::debug("[Temp] Nozzle target set to {}°C via custom input", nozzle_target);
-}
-
-// Event handler: Nozzle custom button
+// Event handler: Nozzle custom button (wrapper for generic handler)
 static void nozzle_custom_button_cb(lv_event_t* e) {
-    (void)e;
-    spdlog::debug("[Temp] Opening keypad for nozzle custom temperature");
-
-    ui_keypad_config_t config = {
-        .initial_value = (float)nozzle_target,
-        .min_value = 0.0f,
-        .max_value = 350.0f,
-        .title_label = "Nozzle Temp",
-        .unit_label = "°C",
-        .allow_decimal = false,
-        .allow_negative = false,
-        .callback = nozzle_custom_callback,
-        .user_data = nullptr
-    };
-
-    ui_keypad_show(&config);
+    custom_button_cb_generic(e, &NOZZLE_CONFIG, &nozzle_custom_data);
 }
 
 // Resize callback for responsive padding (nozzle panel)
@@ -241,33 +413,16 @@ void ui_panel_controls_temp_nozzle_setup(lv_obj_t* panel, lv_obj_t* parent_scree
 
     spdlog::info("[Temp] Setting up nozzle panel event handlers...");
 
-    // Create temperature graph widget
-    lv_obj_t* graph_container = lv_obj_find_by_name(panel, "graph_container");
-    if (graph_container) {
-        nozzle_graph = ui_temp_graph_create(graph_container);
-        if (nozzle_graph) {
-            lv_obj_t* chart = ui_temp_graph_get_chart(nozzle_graph);
-            lv_obj_set_size(chart, lv_pct(100), lv_pct(100));
+    // Create Y-axis labels using common helper
+    lv_obj_t* y_axis_labels = lv_obj_find_by_name(panel, "y_axis_labels");
+    if (y_axis_labels) {
+        create_y_axis_labels(y_axis_labels, &NOZZLE_CONFIG);
+    }
 
-            // Configure temperature range for nozzle (0-320°C)
-            ui_temp_graph_set_temp_range(nozzle_graph, 0.0f, 320.0f);
-
-            // Add nozzle series (red color)
-            nozzle_series_id = ui_temp_graph_add_series(nozzle_graph, "Nozzle", lv_color_hex(0xFF4444));
-
-            if (nozzle_series_id >= 0) {
-                // Set target temperature line
-                ui_temp_graph_set_series_target(nozzle_graph, nozzle_series_id, (float)nozzle_target, true);
-
-                // Generate and populate mock temperature data
-                const int point_count = 100;
-                float temps[point_count];
-                generate_mock_temp_data(temps, point_count, 25.0f, (float)nozzle_target);
-                ui_temp_graph_set_series_data(nozzle_graph, nozzle_series_id, temps, point_count);
-
-                spdlog::debug("[Temp]   ✓ Temperature graph created with mock data");
-            }
-        }
+    // Create temperature graph using common helper
+    lv_obj_t* chart_area = lv_obj_find_by_name(panel, "chart_area");
+    if (chart_area) {
+        nozzle_graph = create_temp_graph(chart_area, &NOZZLE_CONFIG, nozzle_current, nozzle_target, &nozzle_series_id);
     }
 
     // Setup header for responsive height
@@ -304,14 +459,8 @@ void ui_panel_controls_temp_nozzle_setup(lv_obj_t* panel, lv_obj_t* parent_scree
         }
     }
 
-    // Preset buttons
-    const char* preset_names[] = {"preset_off", "preset_pla", "preset_petg", "preset_abs"};
-    for (const char* name : preset_names) {
-        lv_obj_t* btn = lv_obj_find_by_name(panel, name);
-        if (btn) {
-            lv_obj_add_event_cb(btn, nozzle_preset_button_cb, LV_EVENT_CLICKED, nullptr);
-        }
-    }
+    // Preset buttons (using generic helper)
+    setup_preset_buttons(panel, &NOZZLE_CONFIG, nozzle_preset_button_cb);
     spdlog::debug("[Temp]   ✓ Preset buttons (4)");
 
     // Custom button
@@ -359,55 +508,15 @@ static void bed_confirm_button_cb(lv_event_t* e) {
     bed_back_button_cb(e);
 }
 
-// Event handler: Bed preset buttons
+// Event handler: Bed preset buttons (wrapper for generic handler)
 static void bed_preset_button_cb(lv_event_t* e) {
-    lv_obj_t* btn = (lv_obj_t*)lv_event_get_target(e);
-    const char* name = lv_obj_get_name(btn);
-
-    if (!name) return;
-
-    int temp = 0;
-    if (strcmp(name, "preset_off") == 0) {
-        temp = 0;
-    } else if (strcmp(name, "preset_pla") == 0) {
-        temp = 60;
-    } else if (strcmp(name, "preset_petg") == 0) {
-        temp = 80;
-    } else if (strcmp(name, "preset_abs") == 0) {
-        temp = 100;
-    }
-
-    bed_target = temp;
-    update_bed_display();
-    spdlog::debug("[Temp] Bed target set to {}°C via preset", temp);
+    const heater_config_t* config = (const heater_config_t*)lv_event_get_user_data(e);
+    preset_button_cb_generic(e, config);
 }
 
-// Callback for bed custom temperature input
-static void bed_custom_callback(float value, void* user_data) {
-    (void)user_data;
-    bed_target = (int)value;
-    update_bed_display();
-    spdlog::debug("[Temp] Bed target set to {}°C via custom input", bed_target);
-}
-
-// Event handler: Bed custom button
+// Event handler: Bed custom button (wrapper for generic handler)
 static void bed_custom_button_cb(lv_event_t* e) {
-    (void)e;
-    spdlog::debug("[Temp] Opening keypad for bed custom temperature");
-
-    ui_keypad_config_t config = {
-        .initial_value = (float)bed_target,
-        .min_value = 0.0f,
-        .max_value = 150.0f,
-        .title_label = "Heat Bed Temp",
-        .unit_label = "°C",
-        .allow_decimal = false,
-        .allow_negative = false,
-        .callback = bed_custom_callback,
-        .user_data = nullptr
-    };
-
-    ui_keypad_show(&config);
+    custom_button_cb_generic(e, &BED_CONFIG, &bed_custom_data);
 }
 
 // Resize callback for responsive padding (bed panel)
@@ -429,33 +538,16 @@ void ui_panel_controls_temp_bed_setup(lv_obj_t* panel, lv_obj_t* parent_screen) 
 
     spdlog::info("[Temp] Setting up bed panel event handlers...");
 
-    // Create temperature graph widget
-    lv_obj_t* graph_container = lv_obj_find_by_name(panel, "graph_container");
-    if (graph_container) {
-        bed_graph = ui_temp_graph_create(graph_container);
-        if (bed_graph) {
-            lv_obj_t* chart = ui_temp_graph_get_chart(bed_graph);
-            lv_obj_set_size(chart, lv_pct(100), lv_pct(100));
+    // Create Y-axis labels using common helper
+    lv_obj_t* y_axis_labels = lv_obj_find_by_name(panel, "y_axis_labels");
+    if (y_axis_labels) {
+        create_y_axis_labels(y_axis_labels, &BED_CONFIG);
+    }
 
-            // Configure temperature range for bed (0-140°C)
-            ui_temp_graph_set_temp_range(bed_graph, 0.0f, 140.0f);
-
-            // Add bed series (teal/cyan color like Creality style)
-            bed_series_id = ui_temp_graph_add_series(bed_graph, "Bed", lv_color_hex(0x00CED1));
-
-            if (bed_series_id >= 0) {
-                // Set target temperature line
-                ui_temp_graph_set_series_target(bed_graph, bed_series_id, (float)bed_target, true);
-
-                // Generate and populate mock temperature data
-                const int point_count = 100;
-                float temps[point_count];
-                generate_mock_temp_data(temps, point_count, 25.0f, (float)bed_target);
-                ui_temp_graph_set_series_data(bed_graph, bed_series_id, temps, point_count);
-
-                spdlog::debug("[Temp]   ✓ Temperature graph created with mock data");
-            }
-        }
+    // Create temperature graph using common helper
+    lv_obj_t* chart_area = lv_obj_find_by_name(panel, "chart_area");
+    if (chart_area) {
+        bed_graph = create_temp_graph(chart_area, &BED_CONFIG, bed_current, bed_target, &bed_series_id);
     }
 
     // Setup header for responsive height
@@ -492,14 +584,8 @@ void ui_panel_controls_temp_bed_setup(lv_obj_t* panel, lv_obj_t* parent_screen) 
         }
     }
 
-    // Preset buttons
-    const char* preset_names[] = {"preset_off", "preset_pla", "preset_petg", "preset_abs"};
-    for (const char* name : preset_names) {
-        lv_obj_t* btn = lv_obj_find_by_name(panel, name);
-        if (btn) {
-            lv_obj_add_event_cb(btn, bed_preset_button_cb, LV_EVENT_CLICKED, nullptr);
-        }
-    }
+    // Preset buttons (using generic helper)
+    setup_preset_buttons(panel, &BED_CONFIG, bed_preset_button_cb);
     spdlog::debug("[Temp]   ✓ Preset buttons (4)");
 
     // Custom button
