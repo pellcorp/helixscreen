@@ -396,14 +396,130 @@
   - Print errors
   - File system errors
 
-## 🚀 Phase 11: Production Readiness (FUTURE)
+## 🎯 Phase 11: First-Run Configuration Wizard (HIGH PRIORITY)
+
+**Priority: High** - Initial setup flow for new installations
+
+**Status: PLANNED** - Required before production use
+
+### User Story
+New users need a guided setup wizard to:
+1. Connect to their Moonraker instance (manual IP entry)
+2. Map auto-discovered printer components to UI defaults
+3. Save these mappings for consistent behavior
+
+### Requirements
+
+- [ ] **First-Run Detection**
+  - [ ] Detect missing/incomplete configuration on startup
+  - [ ] Show wizard automatically on first run
+  - [ ] Allow re-run from settings panel ("Reset Configuration")
+  - [ ] Skip wizard if config is complete
+
+- [ ] **Moonraker Connection Screen**
+  - [ ] Manual IP address entry field with validation
+  - [ ] Port configuration field (default 7125)
+  - [ ] "Test Connection" button with spinner/status feedback
+  - [ ] Connection status display (success/error messages)
+  - [ ] "Next" button (disabled until successful connection)
+  - [ ] Save connection settings to helixconfig.json
+  - [ ] Optional future enhancement: mDNS/Bonjour auto-discovery scan
+
+- [ ] **Hardware Mapping Wizard**
+  - [ ] Auto-detect available components via printer.objects.list
+  - [ ] Multi-screen wizard flow (one category per screen):
+    1. **Heated Bed Selection**
+       - Dropdown: Select heater (heater_bed, heater_generic X)
+       - Dropdown: Select sensor (same as heater, or temperature_sensor X)
+       - Auto-default if only heater_bed exists
+    2. **Hotend Selection**
+       - Dropdown: Select heater (extruder, extruder1, etc.)
+       - Dropdown: Select sensor (same as heater, or temperature_sensor X)
+       - Auto-default if only extruder exists
+    3. **Fan Selection**
+       - Dropdown: Hotend fan (heater_fan X, fan_generic X)
+       - Dropdown: Part cooling fan (default: "fan")
+       - Multi-select: Bed fans (optional, any fan type)
+       - Auto-default part cooling fan to "fan" if exists
+    4. **LED Selection**
+       - Dropdown: Main LED (led X, neopixel X, dotstar X)
+       - Option to skip if no LEDs
+  - [ ] Back/Next navigation buttons on each screen
+  - [ ] Summary screen showing all selections before saving
+  - [ ] Save mappings to config file under printer-specific section
+
+- [ ] **Configuration Storage**
+  - [ ] Extend helixconfig.json schema with hardware mappings:
+    ```json
+    {
+      "printers": {
+        "default_printer": {
+          "moonraker_host": "192.168.1.112",
+          "moonraker_port": 7125,
+          "hardware_map": {
+            "heated_bed": {
+              "heater": "heater_bed",
+              "sensor": "heater_bed"
+            },
+            "hotend": {
+              "heater": "extruder",
+              "sensor": "extruder"
+            },
+            "fans": {
+              "hotend_fan": "heater_fan hotend_fan",
+              "part_cooling_fan": "fan",
+              "bed_fans": ["fan_generic bed_fan_1", "fan_generic bed_fan_2"]
+            },
+            "leds": {
+              "main_led": "neopixel chamber_led"
+            }
+          }
+        }
+      }
+    }
+    ```
+  - [ ] Config validation on load
+  - [ ] Migration logic for old configs
+
+- [ ] **UI Components Needed**
+  - [ ] Wizard panel wrapper (progress indicator, back/next/finish buttons)
+  - [ ] IP address input field with numeric keypad integration
+  - [ ] Dropdown/select widgets for component selection
+  - [ ] Multi-select checkbox list for optional components
+  - [ ] Success/error message overlays
+  - [ ] Progress spinner for connection testing
+
+### Design Notes
+
+- **Auto-default behavior:** If only one obvious component exists (e.g., single heater_bed, single extruder), pre-select it and skip that wizard screen
+- **Validation:** Ensure selections are valid before allowing user to proceed
+- **User control:** Always allow manual override of auto-detected defaults
+- **mDNS Discovery:** Future enhancement - Moonraker supports zeroconf component but not universally enabled. Manual IP entry is primary method.
+
+### Dependencies
+
+- Requires Phase 8 (Backend Integration) complete
+- MoonrakerClient auto-discovery functional
+- Config system with JSON pointer API
+
+### Testing
+
+- [ ] Test with no config file (first run)
+- [ ] Test with partial config (migration)
+- [ ] Test with complete config (skip wizard)
+- [ ] Test connection failures (invalid IP, port, timeout)
+- [ ] Test with various printer configurations:
+  - Single extruder
+  - Multi-extruder (extruder + extruder1)
+  - No heated bed
+  - Multiple fans
+  - No LEDs
+
+---
+
+## 🚀 Phase 12: Production Readiness (FUTURE)
 
 **Priority: Future** - Deployment prep
-
-- [ ] **Configuration System**
-  - Runtime configuration file
-  - Printer profiles
-  - User preferences
 
 - [ ] **Error Handling**
   - Graceful degradation
@@ -465,10 +581,11 @@
 - Default sort: Filename ascending
 
 **Next Priorities:**
-1. **Phase 8:** Refine discovery error handling, build Settings UI, test with live printer
-2. **Phase 8:** Bind real temperature data to UI (replace mock data)
-3. **Phase 5:** Implement motion controls with gcode_script() integration
-4. **Phase 8:** File operations (server.files.list for print select panel)
+1. **Phase 11:** First-run configuration wizard (Moonraker connection + hardware mapping)
+2. **Phase 8:** Refine discovery error handling, build Settings UI, test with live printer
+3. **Phase 8:** Bind real temperature data to UI (replace mock data)
+4. **Phase 5:** Implement motion controls with gcode_script() integration
+5. **Phase 8:** File operations (server.files.list for print select panel)
 
 **Completed Phases:** 1, 2, 3, 4
 **In Progress:** Phase 5 (Controls Panel), Phase 8 (Backend Integration)

@@ -158,7 +158,12 @@ int MoonrakerClient::send_jsonrpc(const std::string& method, const json& params)
   json rpc;
   rpc["jsonrpc"] = "2.0";
   rpc["method"] = method;
-  rpc["params"] = params;
+
+  // Only include params if not null or empty
+  if (!params.is_null() && !params.empty()) {
+    rpc["params"] = params;
+  }
+
   rpc["id"] = request_id_++;
 
   spdlog::debug("send_jsonrpc: {}", rpc.dump());
@@ -189,11 +194,17 @@ int MoonrakerClient::gcode_script(const std::string& gcode) {
 void MoonrakerClient::discover_printer(std::function<void()> on_complete) {
   spdlog::info("Starting printer auto-discovery");
 
-  // Step 1: Query available printer objects
-  send_jsonrpc("printer.objects.list", {}, [this, on_complete](json& response) {
+  // Step 1: Query available printer objects (no params required)
+  send_jsonrpc("printer.objects.list", json(), [this, on_complete](json& response) {
+    // Debug: Log raw response
+    spdlog::debug("printer.objects.list response: {}", response.dump());
+
     // Validate response
     if (!response.contains("result") || !response["result"].contains("objects")) {
       spdlog::error("printer.objects.list failed: invalid response");
+      if (response.contains("error")) {
+        spdlog::error("  Error details: {}", response["error"].dump());
+      }
       return;
     }
 

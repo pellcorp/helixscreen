@@ -647,23 +647,23 @@ int main(int argc, char** argv) {
     // Connect to Moonraker
     spdlog::info("Connecting to Moonraker at {}", moonraker_url);
     int connect_result = moonraker_client.connect(moonraker_url.c_str(),
-        []() {
+        [&moonraker_client]() {
             spdlog::info("✓ Connected to Moonraker");
+            printer_state.set_connection_state(2, "Connected");
+
+            // Start auto-discovery (must be called AFTER connection is established)
+            moonraker_client.discover_printer([]() {
+                spdlog::info("✓ Printer auto-discovery complete");
+            });
         },
         []() {
             spdlog::warn("✗ Disconnected from Moonraker");
+            printer_state.set_connection_state(0, "Disconnected");
         }
     );
 
-    if (connect_result == 0) {
-        // Start auto-discovery
-        moonraker_client.discover_printer([]() {
-            spdlog::info("✓ Printer auto-discovery complete");
-        });
-
-        printer_state.set_connection_state(2, "Connected");
-    } else {
-        spdlog::error("Failed to connect to Moonraker (code {})", connect_result);
+    if (connect_result != 0) {
+        spdlog::error("Failed to initiate Moonraker connection (code {})", connect_result);
         printer_state.set_connection_state(0, "Disconnected");
     }
 

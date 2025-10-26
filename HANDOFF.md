@@ -1,51 +1,52 @@
 # Session Handoff Document
 
-**Last Updated:** 2025-10-26
-**Current Focus:** Config + Moonraker Auto-Discovery Complete - Ready for Settings UI and Real Printer Testing
+**Last Updated:** 2025-10-26 Late Evening
+**Current Focus:** Real Printer Connection Working - Ready for First-Run Wizard Implementation
 
 ---
 
-## Recent Work (2025-10-26 Evening)
+## Recent Work (2025-10-26 Late Evening)
 
-### Config System + Moonraker Auto-Discovery + Connection ✅ COMPLETE
-- Created `Config` singleton class with JSON storage and auto-migration
-- Implemented full auto-discovery chain in `MoonrakerClient`
-- Auto-categorizes heaters, sensors, fans, LEDs from `printer.objects.list`
-- Connects to Moonraker on startup with config values
-- Wires notification updates to `PrinterState` reactive subjects
-- Successfully tested connection to `ws://127.0.0.1:7125/websocket`
+### Real Printer Connection Testing + First-Run Wizard Planning ✅ COMPLETE
 
-**Config Features:**
-- JSON pointer-based get/set API (`get<T>(json_ptr)`, `set<T>(json_ptr, value)`)
-- Auto-generates `helixconfig.json` with sensible defaults on first run
-- Multi-printer structure (ready for expansion)
-- Empty sensors/fans arrays (populated by auto-discovery)
+**Successfully connected to real Voron V2 printer at 192.168.1.112!**
 
-**Discovery Features:**
-- Discovery chain: `objects.list` → `server.info` → `printer.info` → `subscribe`
-- Intelligent object categorization via string prefix matching
-- Subscribes to core objects + all discovered components
-- Logs comprehensive printer metadata
+**Bug Fixes:**
 
-**Integration:**
-- Config initialized before LVGL (main.cpp:334-335)
-- MoonrakerClient connects on startup (main.cpp:633-668)
-- Discovery triggered on successful connection
-- Connection state updates UI subject
+1. **Async Timing Issue** (`src/main.cpp:633-668`):
+   - **Problem**: Called `discover_printer()` before WebSocket actually connected
+   - **Fix**: Moved discovery into `on_connected` callback
 
-**Testing:**
-- ✅ Config generation works
-- ✅ WebSocket connection successful
-- ⚠️ Discovery parsing needs refinement for "not ready" state
+2. **Lambda Capture Error** (`src/main.cpp:637`):
+   - **Problem**: Tried to capture static `printer_state` by reference
+   - **Fix**: Removed capture (static vars don't need capture)
 
-**Files Created:**
-- `include/config.h`, `src/config.cpp` - Config singleton
-- `helixconfig.json` - Auto-generated runtime config
+3. **JSON-RPC Params Bug** (`src/moonraker_client.cpp:157-171`):
+   - **Problem**: Moonraker rejected empty params object `"params": {}`
+   - **Fix**: Only include params field if not null/empty:
+     ```cpp
+     if (!params.is_null() && !params.empty()) {
+         rpc["params"] = params;
+     }
+     ```
+
+**Real Printer Test Results:**
+- Connected to ws://192.168.1.112:7125/websocket
+- Moonraker v0.9.3, hostname: voronv2
+- Discovered: 2 heaters, 6 sensors, 6 fans, 3 LEDs
+- 22 objects subscribed successfully
+
+**First-Run Wizard Planning:**
+- Added Phase 11 to ROADMAP.md with comprehensive requirements
+- Wizard screens: Connection → Hardware Mapping → Summary → Save
+- Auto-default behavior when only one component exists
+- mDNS optional (not universally enabled), manual IP primary method
 
 **Files Modified:**
-- `include/moonraker_client.h` - Added discovery methods and object storage
-- `src/moonraker_client.cpp` - Implemented discovery chain (~173 lines added)
-- `src/main.cpp` - Integrated config and Moonraker connection
+- `helixconfig.json` - Changed moonraker_host to 192.168.1.112
+- `src/main.cpp` - Fixed async callback timing
+- `src/moonraker_client.cpp` - Fixed JSON-RPC params handling
+- `docs/ROADMAP.md` - Added Phase 11 (First-Run Configuration Wizard)
 
 ### Earlier: Moonraker Integration Foundation ✅ COMPLETE (2025-10-26 Morning)
 - Integrated libhv WebSocket library (static linking via parent repo)
@@ -74,12 +75,26 @@ Navigation system robust. All panels render correctly across all screen sizes. R
 - ✅ **Cross-platform build** - macOS/Linux-aware Makefile
 - ✅ **Connection on Startup** - Connects and discovers printer automatically
 
-### Next Steps
-- ⚠️ **Refine discovery response parsing** - Handle Klipper "not ready" state gracefully
-- 🎨 **Build Settings UI panel** - Connection config (host/port), display sleep, log level
-- 🧪 **Test with live "ready" Klipper printer** - Verify discovery and subscription work end-to-end
-- 🔌 **Bind UI to real subjects** - Replace mock data with printer_state subjects in XML
-- 🔌 **Implement control actions** - Wire buttons to gcode_script() calls (motion, temps, extrusion)
+### Next Steps (Priority Order)
+1. 🎯 **Implement First-Run Wizard** (Phase 11 in ROADMAP.md)
+   - Connection screen with IP/port entry
+   - Hardware mapping screens (bed, hotend, fans, LEDs)
+   - Config validation and storage
+   - Settings panel integration for re-running wizard
+
+2. 🔌 **Bind UI to real subjects** - Replace mock data with printer_state subjects in XML
+   - Home panel: connection state, temps, print status
+   - Controls panels: real-time position, temperatures
+
+3. 🔌 **Implement control actions** - Wire buttons to gcode_script() calls
+   - Motion: jog commands, homing
+   - Temps: SET_HEATER_TEMPERATURE commands
+   - Extrusion: EXTRUDE/RETRACT commands
+
+4. 📁 **File operations** - Get real print files from Moonraker
+   - server.files.list integration
+   - Print select panel with real data
+   - Thumbnail extraction
 
 ---
 

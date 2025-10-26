@@ -345,3 +345,4 @@ This project has specialized agents - use them proactively to keep context small
 **For development history:** See STATUS.md (chronological accomplishments)
 **For planned work:** See docs/ROADMAP.md (future features/milestones)
 **For handoff:** See HANDOFF.md (current focus and next priorities)
+- our default size for the prototype should be "small".

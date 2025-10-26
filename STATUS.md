@@ -1,8 +1,75 @@
 # Project Status - LVGL 9 UI Prototype
 
-**Last Updated:** 2025-10-26 (Config System + Moonraker Auto-Discovery)
+**Last Updated:** 2025-10-26 (Real Printer Connection + First-Run Wizard Planning)
 
-## Recent Updates (2025-10-26 Evening)
+## Recent Updates (2025-10-26 Late Evening)
+
+### Real Printer Connection Testing + First-Run Wizard Planning ✅ COMPLETE
+
+**Objective:** Connect to real Voron V2 printer, fix connection bugs, and plan first-run configuration wizard
+
+**Implementation:**
+
+1. **Bug Fixes for Real Printer Connection**:
+
+   **Bug #1: Async Timing Issue** (`src/main.cpp:633-668`):
+   - **Problem**: Called `discover_printer()` immediately after `connect()` returned, before WebSocket actually connected
+   - **Root Cause**: `connect()` is asynchronous - returns 0 meaning "connection initiated" not "connected"
+   - **Fix**: Moved `discover_printer()` call into the `on_connected` callback
+   - **Result**: Discovery now happens after connection is actually established
+
+   **Bug #2: Lambda Capture Error** (`src/main.cpp:637`):
+   - **Error**: `'printer_state' cannot be captured because it does not have automatic storage duration`
+   - **Root Cause**: Tried to capture static variable `printer_state` by reference `[&printer_state]`
+   - **Fix**: Removed from capture list since static variables are accessible without capture
+   - **Result**: Code compiles successfully
+
+   **Bug #3: JSON-RPC Params Handling** (`src/moonraker_client.cpp:157-171`):
+   - **Error**: `{"code":-32602,"message":"Invalid params:"}`
+   - **Root Cause**: Moonraker's `printer.objects.list` expects NO params field at all, but code was sending `"params": {}`
+   - **Fix**: Modified `send_jsonrpc()` to conditionally include params field only if not null/empty:
+     ```cpp
+     if (!params.is_null() && !params.empty()) {
+         rpc["params"] = params;
+     }
+     ```
+   - **Result**: API call succeeded, discovered 2 heaters, 6 sensors, 6 fans, 3 LEDs
+
+2. **Successful Real Printer Connection** (`helixconfig.json`):
+   - Updated moonraker_host from "127.0.0.1" to "192.168.1.112" (user's Voron V2)
+   - Successfully connected to real printer at ws://192.168.1.112:7125/websocket
+   - Auto-discovery working perfectly:
+     - Moonraker version: v0.9.3-114-g72ca7db
+     - Printer hostname: voronv2
+     - 22 objects subscribed
+     - Components: 2 heaters, 6 sensors, 6 fans, 3 LEDs
+
+3. **mDNS/Bonjour Investigation**:
+   - Researched Moonraker's mDNS support - confirmed it has zeroconf component
+   - Tested with `dns-sd -B _http._tcp local.` on macOS
+   - User's Moonraker instance not advertising via mDNS (zeroconf possibly not enabled)
+   - Decision: Manual IP entry will be primary method, mDNS optional future feature
+
+4. **First-Run Configuration Wizard Planning** (`docs/ROADMAP.md:399-517`):
+   - Added comprehensive Phase 11 to roadmap
+   - Wizard requirements:
+     1. **First-Run Detection**: Auto-detect missing/incomplete config
+     2. **Moonraker Connection Screen**: Manual IP/port entry with test connection
+     3. **Hardware Mapping Wizard**: Multi-screen flow for:
+        - Heated bed selection (heater + sensor)
+        - Hotend selection (heater + sensor)
+        - Fan selection (hotend fan, part cooling fan, bed fans)
+        - LED selection (main LED)
+     4. **Configuration Storage**: Extended helixconfig.json schema with `hardware_map` section
+     5. **UI Components**: Dropdowns, multi-select, spinners, etc.
+   - Auto-default behavior when only one obvious component exists
+   - Allow re-run from settings panel
+
+**Result:** Successfully connected to real Voron V2 printer! All connection bugs fixed, auto-discovery working perfectly. First-run configuration wizard fully planned in roadmap.
+
+---
+
+## Earlier Updates (2025-10-26 Evening)
 
 ### Config System + Moonraker Auto-Discovery + Connection ✅ COMPLETE
 

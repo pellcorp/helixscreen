@@ -15,7 +15,7 @@
       "log_level": "debug",
       "monitored_sensors": [],
       "moonraker_api_key": false,
-      "moonraker_host": "127.0.0.1",
+      "moonraker_host": "192.168.1.112",
       "moonraker_port": 7125
     }
   }
