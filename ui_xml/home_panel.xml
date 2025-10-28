@@ -77,17 +77,33 @@
 					style_border_width="0"
 					style_pad_ver="8"
 					style_pad_hor="0"
+					flex_flow="row"
+					style_pad_gap="8"
+					clickable="true"
 				>
+					<event_cb trigger="clicked" callback="tip_text_clicked_cb"/>
+
+					<!-- "Tip: " prefix -->
+					<lv_label
+						text="Tip:"
+						style_text_color="#text_primary"
+						style_text_font="#font_heading"
+					/>
+
+					<!-- Tip text (bound to subject) -->
 					<lv_label
 						name="status_text_label"
 						bind_text="status_text"
 						style_text_color="#text_primary"
 						style_text_font="#font_heading"
-						style_text_align="left"
-						clickable="true"
-					>
-						<event_cb trigger="clicked" callback="tip_text_clicked_cb"/>
-					</lv_label>
+					/>
+
+					<!-- Question mark icon -->
+					<lv_label
+						text="#icon_question_circle"
+						style_text_color="#text_secondary"
+						style_text_font="fa_icons_24"
+					/>
 				</lv_obj>
 			</lv_obj>
 		</lv_obj>

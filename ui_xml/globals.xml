@@ -249,7 +249,7 @@
 	<px name="step_spacing" value="16" />
 	<!-- Gap between step items -->
 
-			<!-- ===================================================================== -->
+					<!-- ===================================================================== -->
 		<!-- FontAwesome icon constants - AUTO-GENERATED - DO NOT EDIT MANUALLY   -->
 		<!-- Run: python3 scripts/generate-icon-consts.py                         -->
 		<!-- ===================================================================== -->
@@ -284,6 +284,7 @@
 		<str name="icon_lightbulb" value=""/>  <!-- U+F0EB lightbulb -->
 		<str name="icon_list" value=""/>  <!-- U+F03A list -->
 		<str name="icon_power_off" value=""/>  <!-- U+F011 power-off -->
+		<str name="icon_question_circle" value=""/>  <!-- U+F059 circle-question -->
 		<str name="icon_settings" value=""/>  <!-- U+F013 gear -->
 		<str name="icon_temperature" value=""/>  <!-- U+F2C7 thermometer-half -->
 		<str name="icon_th_large" value=""/>  <!-- U+F009 th-large -->

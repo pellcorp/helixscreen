@@ -215,6 +215,179 @@ make build       # Clean parallel build (auto-detects cores)
 
 The build system uses `--output-sync=target` to prevent interleaved output during parallel builds.
 
+## Font Generation
+
+The build system includes automated font generation using `lv_font_conv` to convert TrueType fonts into LVGL-compatible C arrays.
+
+### How It Works
+
+Fonts are automatically regenerated when `package.json` is modified (which contains the glyph ranges). The build system uses Make's dependency tracking to only regenerate when needed.
+
+**Automatic regeneration:**
+```bash
+make          # Checks fonts and regenerates if package.json is newer
+```
+
+**Manual regeneration:**
+```bash
+make generate-fonts    # Explicitly regenerate fonts
+npm run convert-all-fonts  # Direct npm script (bypasses Make)
+```
+
+### Adding New Font Glyphs
+
+To add new FontAwesome icons or glyphs:
+
+1. **Find the Unicode codepoint** for the icon (e.g., `circle-question` = `0xF059`)
+2. **Edit `package.json`** and add the codepoint to the appropriate `convert-font-*` script's `--range` parameter:
+   ```json
+   "convert-font-24": "lv_font_conv ... --range 0xf008,0xf011,0xf059,..."
+   ```
+3. **Regenerate fonts:**
+   ```bash
+   make generate-fonts
+   ```
+   Or let the build system handle it automatically on next `make`.
+
+### Font Files
+
+**FontAwesome icons:**
+- `fa_icons_16.c` - 16px icons (small UI elements)
+- `fa_icons_24.c` - 24px icons (standard buttons/labels)
+- `fa_icons_32.c` - 32px icons (medium-sized elements)
+- `fa_icons_48.c` - 48px icons (large buttons/cards)
+- `fa_icons_64.c` - 64px icons (very large/hero elements)
+
+**Arrow glyphs (from Arial Unicode):**
+- `arrows_32.c`, `arrows_48.c`, `arrows_64.c` - Unicode directional arrows (U+2190-2193, U+2196-2199)
+
+### Requirements
+
+- **Node.js and npm** - Required for font generation
+  - macOS: `brew install node`
+  - Ubuntu/Debian: `sudo apt install npm`
+  - Fedora/RHEL: `sudo dnf install npm`
+- **lv_font_conv** - Installed automatically via `npm install` (see `package.json` devDependencies)
+
+### Troubleshooting
+
+**npm not found:**
+```bash
+# macOS
+brew install node
+
+# Linux
+sudo apt install npm   # Debian/Ubuntu
+sudo dnf install npm   # Fedora/RHEL
+
+# Verify
+npm --version
+```
+
+**Fonts not regenerating:**
+```bash
+# Force regeneration by touching package.json
+touch package.json
+make generate-fonts
+```
+
+**Manual font generation:**
+```bash
+# Generate specific size
+npm run convert-font-24
+
+# Generate all fonts
+npm run convert-all-fonts
+```
+
+## Icon Generation
+
+The build system includes automated icon generation with platform-specific output formats.
+
+### Quick Start
+
+```bash
+# Generate/regenerate icon from source logo
+make icon
+```
+
+**Output:**
+- **macOS**: `helix-icon.icns` (multi-resolution bundle) + `helix-icon.png` (650x650)
+- **Linux**: `helix-icon.png` (650x650 for application use)
+
+### Requirements
+
+**Required:**
+- `imagemagick` - Image processing (`magick` command)
+  - macOS: `brew install imagemagick`
+  - Ubuntu/Debian: `sudo apt install imagemagick`
+  - Fedora/RHEL: `sudo dnf install ImageMagick`
+
+**macOS only:**
+- `iconutil` - macOS icon bundle creator (built-in on macOS)
+
+### What It Does
+
+The `make icon` target performs the following steps:
+
+**All platforms:**
+1. **Crops source logo** (`assets/images/helixscreen-logo.png`) to just the circular helix
+2. **Creates square icon** at 650x650px with transparent background → `helix-icon.png`
+
+**macOS only (additional steps):**
+3. **Generates 12 resolutions**:
+   - Standard: 16x16, 32x32, 64x64, 128x128, 256x256, 512x512
+   - Retina (@2x): 32x32, 64x64, 128x128, 256x256, 512x512, 1024x1024
+4. **Bundles into .icns** file using `iconutil` → `helix-icon.icns`
+5. **Cleans up** temporary iconset directory
+
+### Generated Files
+
+**All platforms:**
+- **`assets/images/helix-icon.png`** - Cropped square logo (650x650px, ~245KB)
+
+**macOS only:**
+- **`assets/images/helix-icon.icns`** - macOS icon bundle (~1.3MB with all resolutions)
+- **`assets/images/icon.iconset/`** - Temporary directory (auto-deleted after .icns creation)
+
+### Usage
+
+**Cross-platform:**
+- SDL window icons (programmatically via `SDL_SetWindowIcon()` with PNG)
+- Linux `.desktop` files (Icon= field pointing to PNG)
+
+**macOS specific:**
+- macOS `.app` bundles with `Info.plist` (CFBundleIconFile pointing to .icns)
+- Dock/Finder display when bundled as application
+
+### Troubleshooting
+
+**ImageMagick not found (macOS):**
+```bash
+brew install imagemagick
+make icon
+```
+
+**ImageMagick not found (Linux):**
+```bash
+# Ubuntu/Debian
+sudo apt install imagemagick
+
+# Fedora/RHEL
+sudo dnf install ImageMagick
+```
+
+**Linux output:**
+- Linux builds generate PNG only (not .icns)
+- This is expected - `.icns` is macOS-specific
+- PNG icons work with SDL and Linux desktop environments
+
+**Regenerating after logo changes:**
+```bash
+# Update assets/images/helixscreen-logo.png
+make icon  # Regenerates all icon files (platform-specific)
+```
+
 ## Build Targets
 
 ### Primary Targets
@@ -230,6 +403,7 @@ The build system uses `--output-sync=target` to prevent interleaved output durin
 - **`compile_commands`** - Generate `compile_commands.json` for IDE/LSP (requires `bear`)
 - **`check-deps`** - Verify all build dependencies are installed
 - **`apply-patches`** - Manually apply submodule patches (usually automatic)
+- **`icon`** - Generate macOS .icns icon from logo (requires `imagemagick`, `iconutil`)
 
 ### Test Targets
 
@@ -254,7 +428,8 @@ Before building, the system automatically checks for required dependencies:
 
 **Optional:**
 - `bear` - For generating `compile_commands.json`
-- `imagemagick` - For screenshot conversion
+- `imagemagick` - For screenshot conversion and icon generation
+- `iconutil` - For macOS .icns icon generation (macOS only, built-in)
 
 ### Manual Dependency Check
 

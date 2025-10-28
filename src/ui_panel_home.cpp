@@ -75,15 +75,7 @@ void ui_panel_home_init_subjects() {
     spdlog::debug("Initializing home panel subjects");
 
     // Initialize subjects with default values
-    // Get first tip of the day
-    auto tip = TipsManager::get_instance()->get_random_unique_tip();
-    if (!tip.title.empty()) {
-        current_tip = tip;  // Store full tip for dialog
-        snprintf(status_buffer, sizeof(status_buffer), "%s", tip.title.c_str());
-    } else {
-        snprintf(status_buffer, sizeof(status_buffer), "Welcome to HelixScreen");
-    }
-    lv_subject_init_string(&status_subject, status_buffer, NULL, sizeof(status_buffer), status_buffer);
+    lv_subject_init_string(&status_subject, status_buffer, NULL, sizeof(status_buffer), "Welcome to HelixScreen");
     lv_subject_init_string(&temp_subject, temp_buffer, NULL, sizeof(temp_buffer), "30 °C");
     lv_subject_init_string(&network_icon_subject, network_icon_buffer, NULL, sizeof(network_icon_buffer), ICON_WIFI);
     lv_subject_init_string(&network_label_subject, network_label_buffer, NULL, sizeof(network_label_buffer), "Wi-Fi");
@@ -106,6 +98,9 @@ void ui_panel_home_init_subjects() {
     subjects_initialized = true;
     spdlog::debug("Registered subjects: status_text, temp_text, network_icon, network_label, network_color, light_icon_color");
     spdlog::debug("Registered event callbacks: light_toggle_cb, print_card_clicked_cb, tip_text_clicked_cb");
+
+    // Set initial tip of the day
+    update_tip_of_day();
 }
 
 void ui_panel_home_setup_observers(lv_obj_t* panel) {
@@ -366,7 +361,6 @@ static void update_tip_of_day() {
         // Store full tip for dialog display
         current_tip = tip;
 
-        // Display only title in status label
         snprintf(status_buffer, sizeof(status_buffer), "%s", tip.title.c_str());
         lv_subject_copy_string(&status_subject, status_buffer);
         spdlog::info("[Home] Updated tip: {}", tip.title);

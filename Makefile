@@ -142,7 +142,7 @@ UI_TEST_UTILS_OBJ := $(OBJ_DIR)/tests/ui_test_utils.o
 MOCK_SRCS := $(wildcard $(TEST_MOCK_DIR)/*.cpp)
 MOCK_OBJS := $(patsubst $(TEST_MOCK_DIR)/%.cpp,$(OBJ_DIR)/tests/mocks/%.o,$(MOCK_SRCS))
 
-.PHONY: all clean run test test-integration test-cards test-print-select test-size-content demo compile_commands libhv-build apply-patches help check-deps
+.PHONY: all clean run test test-integration test-cards test-print-select test-size-content demo compile_commands libhv-build apply-patches generate-fonts help check-deps icon
 
 # Default target
 .DEFAULT_GOAL := all
@@ -170,6 +170,8 @@ help:
 	@echo "  $(GREEN)compile_commands$(RESET) - Generate compile_commands.json for IDE/LSP"
 	@echo "  $(GREEN)check-deps$(RESET)       - Verify all dependencies are installed"
 	@echo "  $(GREEN)apply-patches$(RESET)    - Apply LVGL patches"
+	@echo "  $(GREEN)generate-fonts$(RESET)   - Regenerate FontAwesome fonts from package.json"
+	@echo "  $(GREEN)icon$(RESET)             - Generate macOS .icns icon from logo"
 	@echo ""
 	@echo "$(CYAN)Build Options:$(RESET)"
 	@echo "  $(YELLOW)V=1$(RESET)              - Verbose mode (show full compiler commands)"
@@ -221,6 +223,12 @@ check-deps:
 	else \
 		echo "$(GREEN)✓ LVGL found:$(RESET) $(LVGL_DIR)"; \
 	fi; \
+	if ! command -v npm >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠ npm not found$(RESET) (needed for font generation)"; \
+		echo "  Install: $(YELLOW)brew install node$(RESET) (macOS) or $(YELLOW)apt install npm$(RESET) (Linux)"; \
+	else \
+		echo "$(GREEN)✓ npm found:$(RESET) $$(npm --version)"; \
+	fi; \
 	if [ $$ERROR -eq 1 ]; then \
 		echo ""; \
 		echo "$(RED)Dependency check failed!$(RESET)"; \
@@ -245,7 +253,26 @@ apply-patches:
 		echo "$(GREEN)✓ LVGL SDL window position patch already applied$(RESET)"; \
 	fi
 
-all: check-deps apply-patches $(TARGET)
+# Generate fonts if package.json is newer than stamp file
+# Use stamp file pattern to avoid regenerating multiple times in parallel
+.fonts.stamp: package.json
+	$(ECHO) "$(CYAN)Checking font generation...$(RESET)"
+	$(Q)if ! command -v npm >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠ npm not found - skipping font generation$(RESET)"; \
+		touch $@; \
+	else \
+		echo "$(YELLOW)→ Regenerating FontAwesome fonts from package.json...$(RESET)"; \
+		npm run convert-all-fonts && \
+		touch $@ && \
+		echo "$(GREEN)✓ Fonts regenerated successfully$(RESET)"; \
+	fi
+
+# Fonts depend on stamp file to ensure they're regenerated when needed
+$(FONT_SRCS): .fonts.stamp
+
+generate-fonts: .fonts.stamp
+
+all: check-deps apply-patches generate-fonts $(TARGET)
 	$(ECHO) "$(GREEN)$(BOLD)✓ Build complete!$(RESET)"
 	$(ECHO) "$(CYAN)Run with: $(YELLOW)./$(TARGET)$(RESET)"
 
@@ -337,6 +364,7 @@ clean:
 	else \
 		echo "$(GREEN)✓ Already clean (no build directory)$(RESET)"; \
 	fi
+	$(Q)rm -f .fonts.stamp
 
 # Parallel build target with progress
 build:
@@ -541,4 +569,57 @@ libhv-build:
 	$(Q)cd $(LIBHV_DIR) && ./configure --with-http-client
 	$(Q)$(MAKE) -C $(LIBHV_DIR) -j$(NPROC) libhv
 	$(ECHO) "$(GREEN)✓ libhv built successfully$(RESET)"
+
+# Generate macOS .icns icon from source logo
+# Requires: ImageMagick (magick) for image processing
+# Source: assets/images/helixscreen-logo.png
+# Output: assets/images/helix-icon.icns (macOS), assets/images/helix-icon.png (Linux)
+icon:
+ifeq ($(UNAME_S),Darwin)
+	$(ECHO) "$(CYAN)Generating macOS icon from logo...$(RESET)"
+	@if ! command -v magick >/dev/null 2>&1; then \
+		echo "$(RED)✗ ImageMagick (magick) not found$(RESET)"; \
+		echo "$(YELLOW)Install with: brew install imagemagick$(RESET)"; \
+		exit 1; \
+	fi
+	@if ! command -v iconutil >/dev/null 2>&1; then \
+		echo "$(RED)✗ iconutil not found (should be built-in on macOS)$(RESET)"; \
+		exit 1; \
+	fi
+else
+	$(ECHO) "$(CYAN)Generating icon from logo (Linux - PNG only)...$(RESET)"
+	@if ! command -v magick >/dev/null 2>&1; then \
+		echo "$(RED)✗ ImageMagick (magick) not found$(RESET)"; \
+		echo "$(YELLOW)Install with: sudo apt install imagemagick$(RESET)"; \
+		exit 1; \
+	fi
+endif
+	$(ECHO) "$(CYAN)  [1/5] Cropping logo to circular icon...$(RESET)"
+	$(Q)magick assets/images/helixscreen-logo.png \
+		-crop 1024x640+0+40 +repage \
+		-gravity center -background none -extent 680x680 \
+		assets/images/helix-icon.png
+	$(ECHO) "$(CYAN)  [2/5] Generating 64x64 icon for window...$(RESET)"
+	$(Q)magick assets/images/helix-icon.png -resize 64x64 assets/images/helix-icon-64.png
+ifeq ($(UNAME_S),Darwin)
+	$(ECHO) "$(CYAN)  [3/5] Generating icon sizes (16px to 1024px)...$(RESET)"
+	$(Q)mkdir -p assets/images/icon.iconset
+	$(Q)for size in 16 32 64 128 256 512; do \
+		magick assets/images/helix-icon.png -resize $${size}x$${size} \
+			assets/images/icon.iconset/icon_$${size}x$${size}.png; \
+		magick assets/images/helix-icon.png -resize $$((size*2))x$$((size*2)) \
+			assets/images/icon.iconset/icon_$${size}x$${size}@2x.png; \
+	done
+	$(ECHO) "$(CYAN)  [4/5] Creating .icns bundle...$(RESET)"
+	$(Q)iconutil -c icns assets/images/icon.iconset -o assets/images/helix-icon.icns
+	$(ECHO) "$(CYAN)  [5/5] Cleaning up temporary files...$(RESET)"
+	$(Q)rm -rf assets/images/icon.iconset
+	$(ECHO) "$(GREEN)✓ Icon generated: assets/images/helix-icon.icns + helix-icon-64.png$(RESET)"
+	@ls -lh assets/images/helix-icon.icns assets/images/helix-icon-64.png | awk '{print "$(CYAN)  " $$9 ": " $$5 "$(RESET)"}'
+else
+	$(ECHO) "$(CYAN)  [3/3] Icon generated (PNG format)...$(RESET)"
+	$(ECHO) "$(GREEN)✓ Icon generated: assets/images/helix-icon.png + helix-icon-64.png$(RESET)"
+	@ls -lh assets/images/helix-icon.png assets/images/helix-icon-64.png | awk '{print "$(CYAN)  " $$9 ": " $$5 "$(RESET)"}'
+	$(ECHO) "$(YELLOW)Note: .icns format requires macOS. PNG icons can be used for Linux apps.$(RESET)"
+endif
 

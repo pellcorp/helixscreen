@@ -12,19 +12,19 @@ This is the **LVGL 9 UI Prototype** for HelixScreen - a declarative XML-based to
 
 ### macOS (Homebrew)
 ```bash
-brew install sdl2 bear imagemagick python3
+brew install sdl2 bear imagemagick python3 node
 ```
 
 ### Debian/Ubuntu (apt)
 ```bash
-sudo apt install libsdl2-dev bear imagemagick python3 clang make
+sudo apt install libsdl2-dev bear imagemagick python3 clang make npm
 ```
 
 ### Fedora/RHEL/CentOS (dnf/yum)
 ```bash
-sudo dnf install SDL2-devel bear ImageMagick python3 clang make
+sudo dnf install SDL2-devel bear ImageMagick python3 clang make npm
 # OR on older systems:
-sudo yum install SDL2-devel bear ImageMagick python3 clang make
+sudo yum install SDL2-devel bear ImageMagick python3 clang make npm
 ```
 
 **Required:**
@@ -32,6 +32,7 @@ sudo yum install SDL2-devel bear ImageMagick python3 clang make
 - `libsdl2-dev` / `SDL2-devel` - SDL2 display simulator
 - `make` - GNU Make build system
 - `python3` - Icon generation scripts
+- `node` / `npm` - Font generation (lv_font_conv)
 
 **Optional (for IDE support):**
 - `bear` - Generates `compile_commands.json` for LSP/clangd

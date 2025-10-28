@@ -10,3 +10,4 @@ package-lock.json
 
 # IDE/LSP
 compile_commands.json
+.fonts.stamp
