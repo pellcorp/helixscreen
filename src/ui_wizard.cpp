@@ -347,6 +347,46 @@ void ui_wizard_goto_step(WizardStep step) {
                         ui_keyboard_register_textarea(printer_name_input);
                     }
 
+                    // Manually set roller options (workaround for XML parser issue)
+                    if (printer_type_roller) {
+                        lv_roller_set_options(printer_type_roller,
+                            "Generic Klipper\n"
+                            "Voron V0\n"
+                            "Voron V1\n"
+                            "Voron V2 250\n"
+                            "Voron V2 300\n"
+                            "Voron V2 350\n"
+                            "Voron Trident\n"
+                            "Voron Switchwire\n"
+                            "Voron Legacy\n"
+                            "Creality Ender 3\n"
+                            "Creality Ender 3 V2\n"
+                            "Creality Ender 3 S1\n"
+                            "Creality Ender 5\n"
+                            "Creality K1\n"
+                            "Creality K1 Max\n"
+                            "Creality K1C\n"
+                            "Creality CR-10\n"
+                            "Creality CR-6 SE\n"
+                            "Prusa i3 MK3/MK3S\n"
+                            "Prusa MK4\n"
+                            "Prusa Mini/Mini+\n"
+                            "Prusa XL\n"
+                            "Anycubic Kobra\n"
+                            "Anycubic Vyper\n"
+                            "Anycubic Chiron\n"
+                            "Rat Rig V-Core 3\n"
+                            "Rat Rig V-Minion\n"
+                            "FLSUN QQ-S\n"
+                            "FLSUN Super Racer\n"
+                            "FLSUN V400\n"
+                            "FlashForge AD5M\n"
+                            "FlashForge AD5M Pro\n"
+                            "Other / Custom",
+                            LV_ROLLER_MODE_NORMAL);
+                        spdlog::info("[Wizard] Roller options set programmatically");
+                    }
+
                     // Pre-fill printer name from config if available
                     std::string printer_name = config_instance->get<std::string>(config_instance->df() + "printer_name", "");
                     if (!printer_name.empty() && printer_name_input) {
@@ -692,6 +732,13 @@ static void on_wifi_toggle_changed(lv_event_t* e) {
         if (network_list_container) {
             lv_obj_remove_state(network_list_container, LV_STATE_DISABLED);
             lv_obj_set_style_opa(network_list_container, 255, LV_PART_MAIN);
+
+            // Hide placeholder immediately when WiFi is enabled
+            lv_obj_t* placeholder = lv_obj_find_by_name(network_list_container, "network_list_placeholder");
+            if (placeholder) {
+                lv_obj_add_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
+                spdlog::debug("[WiFi] Placeholder hidden (WiFi enabled)");
+            }
         }
 
         // Create 3-second delay timer before starting scan
@@ -712,6 +759,13 @@ static void on_wifi_toggle_changed(lv_event_t* e) {
         if (network_list_container) {
             lv_obj_add_state(network_list_container, LV_STATE_DISABLED);
             lv_obj_set_style_opa(network_list_container, UI_DISABLED_OPA, LV_PART_MAIN);
+
+            // Show placeholder immediately when WiFi is disabled
+            lv_obj_t* placeholder = lv_obj_find_by_name(network_list_container, "network_list_placeholder");
+            if (placeholder) {
+                lv_obj_remove_flag(placeholder, LV_OBJ_FLAG_HIDDEN);
+                spdlog::debug("[WiFi] Placeholder shown (WiFi disabled)");
+            }
         }
 
         clear_network_list();
