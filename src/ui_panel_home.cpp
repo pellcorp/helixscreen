@@ -183,8 +183,8 @@ void ui_panel_home_setup_observers(lv_obj_t* panel) {
     if (screen_height <= UI_SCREEN_TINY_H) {
         lv_obj_t* status_text = lv_obj_find_by_name(home_panel, "status_text_label");
         if (status_text) {
-            lv_obj_set_style_text_font(status_text, &lv_font_montserrat_20, 0);  // Smaller font for tiny
-            spdlog::debug("Set status text to montserrat_20 for tiny screen");
+            lv_obj_set_style_text_font(status_text, UI_FONT_HEADING, 0);  // Smaller font for tiny
+            spdlog::debug("Set status text to UI_FONT_HEADING for tiny screen");
         }
     }
 

@@ -626,11 +626,12 @@ int main(int argc, char** argv) {
     lv_xml_register_font(NULL, "arrows_64", &arrows_64);
     lv_xml_register_font(NULL, "arrows_48", &arrows_48);
     lv_xml_register_font(NULL, "arrows_32", &arrows_32);
+    lv_xml_register_font(NULL, "montserrat_10", &lv_font_montserrat_10);
+    lv_xml_register_font(NULL, "montserrat_12", &lv_font_montserrat_12);
     lv_xml_register_font(NULL, "montserrat_14", &lv_font_montserrat_14);
     lv_xml_register_font(NULL, "montserrat_16", &lv_font_montserrat_16);
     lv_xml_register_font(NULL, "montserrat_20", &lv_font_montserrat_20);
     lv_xml_register_font(NULL, "montserrat_28", &lv_font_montserrat_28);
-    lv_xml_register_font(NULL, "montserrat_48", &lv_font_montserrat_48);
     lv_xml_register_image(NULL, "A:assets/images/printer_400.png",
                           "A:assets/images/printer_400.png");
     lv_xml_register_image(NULL, "filament_spool",

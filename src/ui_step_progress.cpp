@@ -19,6 +19,7 @@
  */
 
 #include "ui_step_progress.h"
+#include "ui_theme.h"
 #include <spdlog/spdlog.h>
 #include <string.h>
 #include <stdlib.h>
@@ -110,10 +111,10 @@ static void apply_step_styling(lv_obj_t* step_item, ui_step_state_t state) {
     // Apply label styling (larger + brighter for active, dimmed for others)
     if (label) {
         if (state == UI_STEP_STATE_ACTIVE) {
-            lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);  // Larger
+            lv_obj_set_style_text_font(label, UI_FONT_HEADING, 0);  // Larger
             lv_obj_set_style_text_color(label, lv_color_hex(0xffffff), 0);  // Bright white
         } else {
-            lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);  // Normal size
+            lv_obj_set_style_text_font(label, UI_FONT_BODY, 0);  // Normal size
             lv_obj_set_style_text_color(label, lv_color_hex(0xcccccc), 0);  // Dimmed gray
         }
     }
@@ -257,14 +258,14 @@ lv_obj_t* ui_step_progress_create(lv_obj_t* parent,
         snprintf(num_buf, sizeof(num_buf), "%d", i + 1);  // 1-indexed step numbers
         lv_label_set_text(step_number, num_buf);
         lv_obj_align(step_number, LV_ALIGN_CENTER, 0, 0);
-        lv_obj_set_style_text_font(step_number, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(step_number, UI_FONT_MEDIUM, 0);
         lv_obj_set_style_text_color(step_number, lv_color_hex(0xffffff), 0);
 
         // Create checkmark label (shown for COMPLETED state)
         lv_obj_t* checkmark = lv_label_create(circle);
         lv_label_set_text(checkmark, LV_SYMBOL_OK);  // LVGL built-in checkmark symbol
         lv_obj_align(checkmark, LV_ALIGN_CENTER, 0, 0);
-        lv_obj_set_style_text_font(checkmark, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(checkmark, UI_FONT_MEDIUM, 0);
         lv_obj_set_style_text_color(checkmark, lv_color_hex(0xffffff), 0);
         lv_obj_add_flag(checkmark, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 

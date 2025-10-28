@@ -90,3 +90,20 @@
 #define UI_NAV_WIDTH_SMALL         76   // Small screens: 60px button + 8px padding each side
 #define UI_NAV_WIDTH_MEDIUM        94   // Medium screens: 70px button + 12px padding each side
 #define UI_NAV_WIDTH_LARGE         102  // Large screens: 70px button + 16px padding each side
+
+// Font references (extern declarations for fonts used in C++ code)
+extern const lv_font_t lv_font_montserrat_10;
+extern const lv_font_t lv_font_montserrat_12;
+extern const lv_font_t lv_font_montserrat_14;
+extern const lv_font_t lv_font_montserrat_16;
+extern const lv_font_t lv_font_montserrat_20;
+extern const lv_font_t lv_font_montserrat_28;
+
+// Semantic font constants (matching globals.xml)
+#define UI_FONT_BODY              (&lv_font_montserrat_16)  // Standard body text
+#define UI_FONT_HEADING           (&lv_font_montserrat_20)  // Section headings
+#define UI_FONT_MODAL_TITLE       (&lv_font_montserrat_16)  // Modal dialog titles
+#define UI_FONT_LARGE             (&lv_font_montserrat_20)  // Large text (same as heading for now)
+#define UI_FONT_MEDIUM            (&lv_font_montserrat_14)  // Medium text (secondary info, step indicators)
+#define UI_FONT_SMALL             (&lv_font_montserrat_12)  // Small text (hints, helpers, warnings)
+#define UI_FONT_TINY              (&lv_font_montserrat_10)  // Tiny text (chart axis labels, metadata)

@@ -56,7 +56,7 @@
             <lv_label name="tip_title"
                       text="$title"
                       width="100%"
-                      style_text_font="montserrat_28"
+                      style_text_font="#font_modal_title"
                       style_text_color="#text_primary"
                       style_text_align="left"
                       long_mode="wrap"/>

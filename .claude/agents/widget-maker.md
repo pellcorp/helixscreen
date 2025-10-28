@@ -535,6 +535,38 @@ floating="true"             <!-- Floating (ignores layout + content size) -->
 #label_width_short, #label_width_medium
 ```
 
+**Typography (Fonts):**
+```xml
+#font_heading      <!-- Section headings, prominent labels -->
+#font_body         <!-- Standard body text, inputs -->
+#font_modal_title  <!-- Modal/dialog titles -->
+#font_large        <!-- Large display text (future: big temp displays, timers) -->
+```
+
+**⚠️ FONT USAGE RULES:**
+
+**❌ NEVER hardcode font sizes in XML:**
+```xml
+<!-- ❌ WRONG - Hardcoded font size -->
+<lv_label text="Title" style_text_font="montserrat_20"/>
+<lv_label text="Body" style_text_font="montserrat_16"/>
+```
+
+**✅ ALWAYS use semantic font constants:**
+```xml
+<!-- ✅ CORRECT - Semantic constants -->
+<lv_label text="Panel Title" style_text_font="#font_heading"/>
+<lv_label text="Body text here" style_text_font="#font_body"/>
+<lv_label text="Dialog Title" style_text_font="#font_modal_title"/>
+```
+
+**Font Selection Guidelines:**
+- **Panel/section headings** → `#font_heading` (most prominent text)
+- **Body text/labels** → `#font_body` (comfortable reading, most common)
+- **Modal/dialog titles** → `#font_modal_title` (consistent hierarchy)
+- **Large display values** → `#font_large` (future: temperature displays, print time)
+- **No semantic constant?** → Suggest adding one to globals.xml if used 3+ times
+
 **Responsive:**
 ```xml
 #print_file_card_width_5col, _4col, _3col
@@ -583,6 +615,7 @@ Before presenting any XML, verify:
 - [ ] **Vertical centering container has `height="100%"`**
 - [ ] **Subjects referenced in bindings will be registered in C++ before XML creation**
 - [ ] **Global constants exist in globals.xml** (or will be added)
+- [ ] **Fonts use semantic constants** (#font_heading, #font_body, #font_modal_title) **NOT hardcoded sizes**
 
 ---
 

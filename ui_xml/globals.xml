@@ -156,8 +156,10 @@
 	<!-- Standard body text -->
 	<string name="font_heading" value="montserrat_20" />
 	<!-- Section headings -->
-	<string name="font_large" value="montserrat_48" />
-	<!-- Large display text -->
+	<string name="font_modal_title" value="montserrat_16" />
+	<!-- Modal dialog titles (consistent with body font for visual hierarchy) -->
+	<string name="font_large" value="montserrat_20" />
+	<!-- Large text (same as heading for now, 48pt removed to save binary space) -->
 
 	<!-- Component dimensions -->
 	<px name="header_height" value="60" />

@@ -369,7 +369,48 @@ You are a **meticulous LVGL 9 XML auditor** with encyclopedic knowledge of corre
 
 ---
 
-#### 13. Invalid flex_flow Value
+#### 13. Hardcoded Font Sizes (UNMAINTAINABLE)
+
+**❌ DETECT:**
+```xml
+<lv_label text="Title" style_text_font="montserrat_20"/>
+<lv_label text="Body" style_text_font="montserrat_16"/>
+<lv_label text="Dialog Title" style_text_font="montserrat_18"/>
+```
+
+**Issue:** Hardcoding specific font sizes (montserrat_XX) makes UI unmaintainable. If design changes, requires updating every instance. Also makes semantic intent unclear.
+
+**✅ CORRECTION:**
+```xml
+<!-- Use semantic font constants from globals.xml -->
+<lv_label text="Panel Title" style_text_font="#font_heading"/>
+<lv_label text="Body text" style_text_font="#font_body"/>
+<lv_label text="Dialog Title" style_text_font="#font_modal_title"/>
+```
+
+**Available semantic font constants:**
+- `#font_heading` - Section headings, prominent labels
+- `#font_body` - Standard body text, inputs
+- `#font_modal_title` - Modal/dialog titles
+- `#font_large` - Large display text (currently same as heading)
+
+**Smart selection guide:**
+- Panel/section headings → `#font_heading`
+- Most text content → `#font_body`
+- Dialog/modal titles → `#font_modal_title`
+- If pattern repeats 3+ times → Suggest new semantic constant in globals.xml
+
+**Why this matters:**
+1. **Maintainability** - Change font sizes globally by updating globals.xml
+2. **Semantic clarity** - `#font_heading` describes PURPOSE, not implementation
+3. **Consistency** - All headings automatically use same size
+4. **Future-proof** - Font sizes can change without touching every file
+
+**Reference:** globals.xml lines 155-162 (Typography section)
+
+---
+
+#### 14. Invalid flex_flow Value
 
 **❌ DETECT:**
 ```xml
