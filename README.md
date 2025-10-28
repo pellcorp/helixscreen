@@ -1,4 +1,8 @@
-# HelixScreen LVGL 9 UI Prototype
+<p align="center">
+  <img src="assets/images/helix-icon-64.png" alt="HelixScreen" width="64"/>
+</p>
+
+# HelixScreen
 
 [![Build](https://github.com/prestonbrown/guppyscreen/actions/workflows/prototype-ui9-build.yml/badge.svg?branch=ui-redesign)](https://github.com/prestonbrown/guppyscreen/actions/workflows/prototype-ui9-build.yml)
 [![Code Quality](https://github.com/prestonbrown/guppyscreen/actions/workflows/prototype-ui9-quality.yml/badge.svg?branch=ui-redesign)](https://github.com/prestonbrown/guppyscreen/actions/workflows/prototype-ui9-quality.yml)
@@ -7,16 +11,40 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)](#)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 
-Modern, declarative XML-based touch UI for 3D printer control using LVGL 9 with reactive data binding.
+**A modern, lightweight touch interface for Klipper/Moonraker 3D printers**
 
-## Overview
+HelixScreen is a next-generation printer control interface built from the ground up using LVGL 9's declarative XML system. Designed for embedded hardware with limited resources, it brings advanced Klipper features to printers that ship with restrictive vendor UIs.
 
-This is a prototype UI system for HelixScreen that demonstrates a modern approach to embedded UI development:
+**Built on proven foundations:**
+- Based on [GuppyScreen](https://github.com/ballaswag/guppyscreen) architecture and design patterns
+- Potential integration with [KlipperScreen](https://github.com/KlipperScreen/KlipperScreen) features
+- Modern XML-based UI with reactive data binding (LVGL 9.4)
 
-- **Declarative XML layouts** separate UI structure from application logic
-- **Reactive data binding** eliminates manual widget management
-- **SDL2 simulator** enables rapid development on desktop before deploying to embedded hardware
-- **Theme system** allows global style changes in a single file
+**Key Goals:**
+- 🚀 **More features** - Unlock Klipper's full potential beyond vendor limitations
+- 💻 **Better hardware support** - Run on limited embedded devices (Pi, BTT Pad, vendor displays)
+- 🎨 **Modern UI** - Clean, responsive touch interface with visual polish
+- 📦 **Lightweight** - Minimal resource footprint for constrained hardware
+
+## Target Hardware
+
+HelixScreen is designed for embedded Linux devices with limited resources:
+
+- **Raspberry Pi** (Pi 3/4/5, Zero 2 W)
+- **BTT Pad 7** / similar touch displays
+- **Vendor printer displays** (Creality K1/K1 Max, FlashForge AD5M, etc.)
+- **Generic Linux ARM/x64** with framebuffer support
+
+**Development simulator:** macOS/Linux desktop with SDL2 for rapid iteration
+
+## Architecture Overview
+
+HelixScreen uses a modern, declarative approach to embedded UI development:
+
+- **Declarative XML layouts** - UI structure completely separate from application logic
+- **Reactive data binding** - Automatic UI updates via Subject-Observer pattern
+- **SDL2 simulator** - Rapid desktop development before embedded deployment
+- **Global theme system** - Change colors/styles in a single file
 
 **Key Innovation:** The entire UI is defined in XML files. C++ code only handles initialization and reactive data updates—zero layout or styling logic.
 
@@ -351,8 +379,16 @@ See **[HANDOFF.md](HANDOFF.md)** for current work status and next priorities.
 
 GPL v3 - See individual source files for copyright headers.
 
-## Related Projects
+## Related Projects & Acknowledgments
 
-- **[GuppyScreen](https://github.com/ballaswag/guppyscreen)** - Parent project (LVGL 8, production)
-- **[LVGL](https://lvgl.io/)** - Light and Versatile Graphics Library
-- **[Klipper](https://www.klipper3d.org/)** - 3D printer firmware
+**HelixScreen builds upon:**
+- **[GuppyScreen](https://github.com/ballaswag/guppyscreen)** - Core architecture and Moonraker integration patterns
+- **[KlipperScreen](https://github.com/KlipperScreen/KlipperScreen)** - Feature inspiration and UI concepts
+
+**Technology Stack:**
+- **[LVGL 9.4](https://lvgl.io/)** - Light and Versatile Graphics Library
+- **[Klipper](https://www.klipper3d.org/)** - Advanced 3D printer firmware
+- **[Moonraker](https://github.com/Arksine/moonraker)** - Klipper API server
+- **[libhv](https://github.com/ithewei/libhv)** v1.3.4 - Async networking (WebSocket, HTTP)
+- **[wpa_supplicant](https://w1.fi/wpa_supplicant/)** v2.11 - WiFi control (Linux only)
+- **[spdlog](https://github.com/gabime/spdlog)** - Fast C++ logging library
