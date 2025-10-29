@@ -759,7 +759,7 @@ When Moonraker integration happens, can add config file support for custom macro
 
 **Design References:**
 - `docs/requirements/controls-panel-v1.md` - Similar panel structure
-- `docs/RESPONSIVE_DESIGN_PATTERN.md` - Layout scaling patterns
+- `docs/LVGL9_XML_GUIDE.md` (Responsive Design Patterns section) - Layout scaling patterns
 
 **GuppyScreen Reference (Parent Project):**
 - `/Users/pbrown/code/guppyscreen/src/extruder_panel.cpp` - Load/unload implementation

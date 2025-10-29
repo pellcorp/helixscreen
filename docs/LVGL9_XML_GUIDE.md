@@ -13,12 +13,13 @@ This comprehensive guide covers LVGL 9's declarative XML UI system with reactive
 3. [Core Concepts](#core-concepts)
 4. [Layouts & Positioning](#layouts--positioning)
 5. [Common UI Patterns](#common-ui-patterns)
-6. [Styles & Theming](#styles--theming)
-7. [Event Handling](#event-handling)
-8. [Implementation Guide](#implementation-guide)
-9. [Best Practices](#best-practices)
-10. [Troubleshooting](#troubleshooting)
-11. [Resources](#resources)
+6. [Responsive Design Patterns](#responsive-design-patterns)
+7. [Styles & Theming](#styles--theming)
+8. [Event Handling](#event-handling)
+9. [Implementation Guide](#implementation-guide)
+10. [Best Practices](#best-practices)
+11. [Troubleshooting](#troubleshooting)
+12. [Resources](#resources)
 
 ---
 
@@ -1195,6 +1196,150 @@ Vertical stacking of icon and label, centered (using icon component):
           style_text_font="fa_icons_48"
           style_text_align="center"
           width="100%"/>
+```
+
+---
+
+## Responsive Design Patterns
+
+Responsive design ensures UI layouts adapt gracefully across different screen sizes using mobile-first principles and flex layouts.
+
+### Mobile-First Approach
+
+Design for the smallest screen first (480×320), then let flex layout scale up naturally.
+
+**Screen Size Reference:**
+- **Tiny**: 480×320 (height: 320px) - **Design for this first**
+- **Small**: 800×480 (height: 480px)
+- **Medium**: 1024×600 (height: 600px)
+- **Large**: 1280×720 (height: 720px)
+
+### Key Principles
+
+#### 1. Use Semantic Constants Only
+
+Never hardcode pixel values in XML. Use constants from `globals.xml`:
+
+```xml
+<!-- globals.xml -->
+<consts>
+    <px name="padding_small" value="8"/>
+    <px name="padding_medium" value="12"/>
+    <px name="padding_large" value="20"/>
+    <px name="gap_tiny" value="4"/>
+    <px name="gap_small" value="8"/>
+    <px name="gap_normal" value="12"/>
+    <px name="gap_large" value="20"/>
+</consts>
+
+<!-- Usage in components -->
+<lv_obj style_pad_all="#padding_medium" style_pad_gap="#gap_small"/>
+```
+
+#### 2. Flex Layout for Responsiveness
+
+Use flex layouts that adapt to available space:
+
+```xml
+<!-- Container fills available space -->
+<lv_obj flex_grow="1" flex_flow="column">
+    <!-- Rows distribute evenly -->
+    <lv_obj flex_grow="1" flex_flow="row"
+            style_flex_main_place="space_evenly">
+        <!-- Buttons/cells expand to fill -->
+        <lv_button flex_grow="1" height="100%"/>
+        <lv_button flex_grow="1" height="100%"/>
+    </lv_obj>
+</lv_obj>
+```
+
+#### 3. Mobile-First Font Sizes
+
+Choose fonts that work on tiny screens - larger screens get the same compact fonts:
+
+```xml
+<!-- Prefer smaller, readable fonts -->
+<lv_label style_text_font="montserrat_16"/>  <!-- Good for tiny screens -->
+<lv_label style_text_font="montserrat_20"/>  <!-- Still readable on tiny -->
+
+<!-- Avoid large fonts that don't scale down -->
+<lv_label style_text_font="montserrat_28"/>  <!-- Too big for tiny screens -->
+```
+
+### C++ Component Pattern for Dynamic Responsiveness
+
+When XML constants aren't sufficient, use C++ component wrappers for dynamic responsive behavior:
+
+```cpp
+// src/ui_responsive_utils.cpp
+lv_coord_t ui_get_responsive_header_height(lv_coord_t screen_height) {
+    if (screen_height >= 600) return 60;      // Large/medium
+    else if (screen_height >= 480) return 48; // Small
+    else return 40;                           // Tiny
+}
+
+void ui_component_header_bar_setup(lv_obj_t* header, lv_obj_t* screen) {
+    lv_coord_t height = ui_get_responsive_header_height(lv_obj_get_height(screen));
+    lv_obj_set_height(header, height);
+}
+```
+
+**Usage in panels:**
+```cpp
+void ui_panel_motion_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
+    lv_obj_t* header = lv_obj_find_by_name(panel, "motion_header");
+    if (header) {
+        ui_component_header_bar_setup(header, parent_screen);
+    }
+}
+```
+
+### Testing Responsive Layouts
+
+Test panels at all screen sizes:
+
+```bash
+# Test specific panel at all sizes
+for size in tiny small medium large; do
+  ./build/bin/helix-ui-proto -s $size -p panel-name
+done
+
+# Or use screenshot script for visual comparison
+for size in tiny small medium large; do
+  ./scripts/screenshot.sh helix-ui-proto panel-$size -s $size
+done
+```
+
+### Common Responsive Patterns
+
+#### Equal Distribution Grid
+
+```xml
+<lv_obj flex_flow="row" width="100%" height="100%">
+    <lv_obj flex_grow="1" height="100%" style_pad_all="#padding_small">
+        <!-- Content adapts to available space -->
+    </lv_obj>
+    <lv_obj flex_grow="1" height="100%" style_pad_all="#padding_small">
+        <!-- Content adapts to available space -->
+    </lv_obj>
+</lv_obj>
+```
+
+#### Responsive Button Grid
+
+```xml
+<lv_obj flex_flow="column" style_pad_gap="#gap_small">
+    <lv_obj flex_grow="1" flex_flow="row" style_pad_gap="#gap_small">
+        <lv_button flex_grow="1" height="100%">1</lv_button>
+        <lv_button flex_grow="1" height="100%">2</lv_button>
+        <lv_button flex_grow="1" height="100%">3</lv_button>
+    </lv_obj>
+    <lv_obj flex_grow="1" flex_flow="row" style_pad_gap="#gap_small">
+        <lv_button flex_grow="1" height="100%">4</lv_button>
+        <lv_button flex_grow="1" height="100%">5</lv_button>
+        <lv_button flex_grow="1" height="100%">6</lv_button>
+    </lv_obj>
+</lv_obj>
 ```
 
 ---
