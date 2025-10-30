@@ -29,6 +29,90 @@
 #include <cstring>
 
 /**
+ * Size preset bundles for ui_switch
+ * Maps semantic size names to dimension values (screen-size-aware)
+ */
+struct SwitchSizePreset {
+    int32_t width;
+    int32_t height;
+    int32_t knob_pad;
+};
+
+// Presets populated by ui_switch_init_size_presets() based on screen dimensions
+static SwitchSizePreset SIZE_TINY;
+static SwitchSizePreset SIZE_SMALL;
+static SwitchSizePreset SIZE_MEDIUM;
+static SwitchSizePreset SIZE_LARGE;
+
+/**
+ * Initialize size presets based on screen dimensions
+ * Called once at startup from ui_switch_register()
+ */
+static void ui_switch_init_size_presets() {
+    int width = lv_display_get_horizontal_resolution(lv_display_get_default());
+
+    if (width < 600) {  // TINY screen (480x320)
+        SIZE_TINY   = {32, 16, 1};
+        SIZE_SMALL  = {40, 20, 1};
+        SIZE_MEDIUM = {48, 24, 2};
+        SIZE_LARGE  = {56, 28, 2};
+        spdlog::debug("[Switch] Initialized TINY screen presets ({}px wide)", width);
+    } else if (width < 900) {  // SMALL screen (800x480)
+        SIZE_TINY   = {48, 24, 2};
+        SIZE_SMALL  = {64, 32, 2};
+        SIZE_MEDIUM = {80, 40, 3};
+        SIZE_LARGE  = {88, 44, 3};
+        spdlog::debug("[Switch] Initialized SMALL screen presets ({}px wide)", width);
+    } else {  // LARGE screen (1024x600+)
+        SIZE_TINY   = {64, 32, 2};
+        SIZE_SMALL  = {88, 44, 3};
+        SIZE_MEDIUM = {112, 56, 4};
+        SIZE_LARGE  = {128, 64, 4};
+        spdlog::debug("[Switch] Initialized LARGE screen presets ({}px wide)", width);
+    }
+}
+
+/**
+ * Parse size string to SwitchSizePreset
+ * Returns true if valid size found, false otherwise
+ */
+static bool parse_size_preset(const char* size_str, SwitchSizePreset* out_preset) {
+    if (strcmp(size_str, "tiny") == 0) {
+        *out_preset = SIZE_TINY;
+        return true;
+    } else if (strcmp(size_str, "small") == 0) {
+        *out_preset = SIZE_SMALL;
+        return true;
+    } else if (strcmp(size_str, "medium") == 0) {
+        *out_preset = SIZE_MEDIUM;
+        return true;
+    } else if (strcmp(size_str, "large") == 0) {
+        *out_preset = SIZE_LARGE;
+        return true;
+    }
+
+    spdlog::warn("[Switch] Invalid size '{}', ignoring preset", size_str);
+    return false;
+}
+
+/**
+ * Apply size preset to switch widget
+ * Sets width, height, and knob padding as a bundle
+ */
+static void apply_size_preset(lv_obj_t* obj, const SwitchSizePreset& preset) {
+    lv_obj_set_size(obj, preset.width, preset.height);
+    lv_obj_set_style_pad_all(obj, preset.knob_pad, LV_PART_KNOB);
+
+    // Allow knob to overflow container bounds (prevents vertical clipping)
+    // NOTE: LV_OBJ_FLAG_OVERFLOW_VISIBLE when SET means "clip overflow"
+    //       We need to CLEAR this flag to allow overflow
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+
+    spdlog::debug("[Switch] Applied size preset: {}x{}, knob_pad={}",
+                  preset.width, preset.height, preset.knob_pad);
+}
+
+/**
  * XML create handler for ui_switch
  * Creates an lv_switch widget when <ui_switch> is encountered in XML
  */
@@ -49,7 +133,7 @@ static void *ui_switch_xml_create(lv_xml_parser_state_t *state, const char **att
 
 /**
  * XML apply handler for ui_switch
- * Applies attributes from XML to the switch widget
+ * Applies attributes from XML to the switch widget with 3-pass size handling
  */
 static void ui_switch_xml_apply(lv_xml_parser_state_t *state, const char **attrs)
 {
@@ -61,10 +145,39 @@ static void ui_switch_xml_apply(lv_xml_parser_state_t *state, const char **attrs
         return;
     }
 
-    // First apply standard lv_obj properties (width, height, style_*, etc.)
+    // PASS 1: Extract size preset AND explicit dimension overrides
+    SwitchSizePreset preset;
+    bool preset_found = false;
+    int32_t explicit_width = -1;
+    int32_t explicit_height = -1;
+    int32_t explicit_knob_pad = -1;
+
+    for (int i = 0; attrs[i]; i += 2) {
+        const char* name = attrs[i];
+        const char* value = attrs[i + 1];
+
+        if (strcmp(name, "size") == 0) {
+            preset_found = parse_size_preset(value, &preset);
+        }
+        else if (strcmp(name, "width") == 0) {
+            explicit_width = atoi(value);
+        }
+        else if (strcmp(name, "height") == 0) {
+            explicit_height = atoi(value);
+        }
+        else if (strcmp(name, "knob_pad") == 0) {
+            explicit_knob_pad = atoi(value);
+        }
+    }
+
+    // Apply standard lv_obj properties (style_*, etc.)
     lv_xml_obj_apply(state, attrs);
 
-    // Then process switch-specific properties
+    // PASS 2: Apply size preset (if found), then process other custom properties
+    if (preset_found) {
+        apply_size_preset(obj, preset);
+    }
+
     for (int i = 0; attrs[i]; i += 2) {
         const char* name = attrs[i];
         const char* value = attrs[i + 1];
@@ -90,6 +203,144 @@ static void ui_switch_xml_apply(lv_xml_parser_state_t *state, const char **attrs
             }
         }
     }
+
+    // PASS 3: Apply explicit overrides AFTER preset
+    // This allows size="medium" width="100" to override just width
+    if (explicit_width > 0) {
+        lv_obj_set_width(obj, explicit_width);
+        spdlog::debug("[Switch] Explicit width override: {}px", explicit_width);
+    }
+    if (explicit_height > 0) {
+        lv_obj_set_height(obj, explicit_height);
+        spdlog::debug("[Switch] Explicit height override: {}px", explicit_height);
+    }
+    if (explicit_knob_pad >= 0) {
+        lv_obj_set_style_pad_all(obj, explicit_knob_pad, LV_PART_KNOB);
+        spdlog::debug("[Switch] Explicit knob_pad override: {}px", explicit_knob_pad);
+    }
+
+    // Log final state
+    int32_t actual_w = lv_obj_get_width(obj);
+    int32_t actual_h = lv_obj_get_height(obj);
+    int32_t actual_knob_pad = lv_obj_get_style_pad_left(obj, LV_PART_KNOB);
+    spdlog::debug("[Switch] Final size: {}x{}, knob_pad={}px",
+                  actual_w, actual_h, actual_knob_pad);
+}
+
+/**
+ * Register responsive constants for switch sizing based on screen dimensions
+ * Call this BEFORE registering XML components that use switches
+ */
+void ui_switch_register_responsive_constants()
+{
+    spdlog::debug("[Switch] Registering responsive constants");
+
+    // Detect screen size
+    int width = lv_display_get_horizontal_resolution(lv_display_get_default());
+    int height = lv_display_get_vertical_resolution(lv_display_get_default());
+
+    // Switch sizing strategy:
+    // - Knob is square (width = height of switch)
+    // - Knob padding (style_pad_knob_all) adds visual spacing inside switch
+    // - Width = ~2x height to allow knob to slide
+    // - Row height calculation CRITICAL:
+    //   * XML uses style_pad_all="#padding_normal" (20px in globals.xml)
+    //   * Total row height = switch_height + (2 * container_padding)
+    //   * Container padding is 20px, so add 40px to switch height minimum
+
+    const char* switch_width;
+    const char* switch_height;
+    const char* knob_pad;
+    const char* row_height;
+    const char* row_height_large;
+    const char* label_font;
+    const char* label_large_font;
+
+    const char* switch_width_large;
+    const char* switch_height_large;
+    const char* knob_pad_large;
+
+    if (width < 600) {  // TINY (480x320)
+        // Switch: 20px height, 40px width (2:1 ratio)
+        // Knob: 1px padding (minimal visual spacing)
+        // Row: 20 + (2 * 20) = 60px
+        switch_height = "20";
+        switch_width = "40";
+        knob_pad = "1";
+        row_height = "60";
+        row_height_large = "70";
+        label_font = "montserrat_12";
+        label_large_font = "montserrat_14";
+
+        // Large variant
+        switch_height_large = "28";
+        switch_width_large = "56";
+        knob_pad_large = "2";
+
+        spdlog::info("[Switch] Screen: TINY ({}x{}), switch: {}x{}, row: {}px",
+                     width, height, switch_width, switch_height, row_height);
+    } else if (width < 900) {  // SMALL (800x480)
+        // Switch: 32px height, 64px width
+        // Knob: 2px padding
+        // Row: 32 + (2 * 20) = 72px
+        switch_height = "32";
+        switch_width = "64";
+        knob_pad = "2";
+        row_height = "72";
+        row_height_large = "88";
+        label_font = "montserrat_16";
+        label_large_font = "montserrat_20";
+
+        // Large variant
+        switch_height_large = "44";
+        switch_width_large = "88";
+        knob_pad_large = "3";
+
+        spdlog::info("[Switch] Screen: SMALL ({}x{}), switch: {}x{}, row: {}px",
+                     width, height, switch_width, switch_height, row_height);
+    } else {  // LARGE (1024x600+)
+        // Switch: 44px height, 88px width
+        // Knob: 3px padding
+        // Row: 44 + (2 * 20) = 84px
+        switch_height = "44";
+        switch_width = "88";
+        knob_pad = "3";
+        row_height = "84";
+        row_height_large = "104";
+        label_font = "montserrat_20";
+        label_large_font = "montserrat_24";
+
+        // Large variant
+        switch_height_large = "56";
+        switch_width_large = "112";
+        knob_pad_large = "4";
+
+        spdlog::info("[Switch] Screen: LARGE ({}x{}), switch: {}x{}, row: {}px",
+                     width, height, switch_width, switch_height, row_height);
+    }
+
+    // Get globals scope for constant registration
+    lv_xml_component_scope_t* scope = lv_xml_component_get_scope("globals");
+    if (!scope) {
+        spdlog::error("[Switch] Failed to get globals scope for constant registration");
+        return;
+    }
+
+    // Register test panel constants
+    lv_xml_register_const(scope, "test_switch_width", switch_width);
+    lv_xml_register_const(scope, "test_switch_height", switch_height);
+    lv_xml_register_const(scope, "test_switch_knob_pad", knob_pad);
+    lv_xml_register_const(scope, "test_row_height", row_height);
+    lv_xml_register_const(scope, "test_row_height_large", row_height_large);
+    lv_xml_register_const(scope, "test_label_font", label_font);
+    lv_xml_register_const(scope, "test_label_large_font", label_large_font);
+
+    lv_xml_register_const(scope, "test_switch_width_large", switch_width_large);
+    lv_xml_register_const(scope, "test_switch_height_large", switch_height_large);
+    lv_xml_register_const(scope, "test_switch_knob_pad_large", knob_pad_large);
+
+    spdlog::debug("[Switch] Registered constants: {}x{} (pad={}), row={}",
+                  switch_width, switch_height, knob_pad, row_height);
 }
 
 /**
@@ -97,6 +348,7 @@ static void ui_switch_xml_apply(lv_xml_parser_state_t *state, const char **attrs
  */
 void ui_switch_register()
 {
+    ui_switch_init_size_presets();
     lv_xml_register_widget("ui_switch", ui_switch_xml_create, ui_switch_xml_apply);
     spdlog::info("[Switch] Registered ui_switch widget with XML system");
 }
