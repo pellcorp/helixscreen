@@ -19,6 +19,7 @@
  */
 
 #include "ui_switch.h"
+#include "ui_theme.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/others/xml/lv_xml.h"
 #include "lvgl/src/others/xml/lv_xml_widget.h"
@@ -170,8 +171,46 @@ static void ui_switch_xml_apply(lv_xml_parser_state_t *state, const char **attrs
         }
     }
 
-    // Apply standard lv_obj properties (style_*, etc.)
+    // Apply standard lv_obj properties first (LVGL theme + XML attributes)
     lv_xml_obj_apply(state, attrs);
+
+    // Apply custom styling AFTER theme (to override defaults)
+    //
+    // Switch anatomy (3 layers, drawn back-to-front):
+    //
+    // LV_PART_MAIN - Background track (always visible)
+    //   - Base rectangle behind everything
+    //   - Visible when UNCHECKED (behind knob)
+    //   - Mostly covered by INDICATOR when CHECKED
+    //
+    // LV_PART_INDICATOR - Filled/active portion (drawn on top of MAIN)
+    //   - Always drawn by LVGL, styled differently per state
+    //   - UNCHECKED: invisible or same as MAIN (you don't notice it)
+    //   - CHECKED: the "filled" track showing switch is ON
+    //
+    // LV_PART_KNOB - The sliding handle (drawn last, on top)
+    //   - Circular button that slides left/right
+    //   - Always visible in both states
+    const char* primary_str = lv_xml_get_const(NULL, "primary_color");
+    if (primary_str) {
+        lv_color_t primary = ui_theme_parse_color(primary_str);
+
+        // CHECKED state: primary color, 40% track / 100% knob opacity
+        lv_obj_set_style_bg_color(obj, primary, LV_PART_INDICATOR | LV_STATE_CHECKED);
+        lv_obj_set_style_bg_opa(obj, 102, LV_PART_INDICATOR | LV_STATE_CHECKED);
+
+        lv_obj_set_style_bg_color(obj, primary, LV_PART_KNOB | LV_STATE_CHECKED);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_CHECKED);
+    }
+
+    // UNCHECKED state: 40% track opacity, knob = track color + 50% brighter
+    lv_obj_set_style_bg_opa(obj, 102, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    // Get track color and brighten it 50% for the knob (mix with white)
+    lv_color_t track_color = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
+    lv_color_t knob_color = lv_color_mix(lv_color_white(), track_color, LV_OPA_50);
+    lv_obj_set_style_bg_color(obj, knob_color, LV_PART_KNOB | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_DEFAULT);
 
     // PASS 2: Apply size preset (if found), then process other custom properties
     if (preset_found) {
