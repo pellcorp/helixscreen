@@ -33,26 +33,23 @@
 	      name="wizard_summary_root">
 
 		<!-- Help text -->
-		<lv_label text="Review your configuration and click Finish to save"
-		          width="100%"
-		          style_text_font="montserrat_20"
-		          style_pad_bottom="#gap_small"/>
+		<text_heading text="Review your configuration and click Finish to save"
+		              width="100%"
+		              style_pad_bottom="#gap_small"/>
 
 		<!-- Summary container -->
-		<lv_obj width="100%"
-		        height="auto"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="12"
-		        style_pad_all="#padding_normal"
-		        style_pad_gap="#gap_small"
-		        flex_flow="column"
-		        style_flex_main_place="start" style_flex_cross_place="start">
+		<ui_card width="100%"
+		         height="auto"
+		         style_bg_opa="255"
+		         style_radius="12"
+		         style_pad_all="#padding_normal"
+		         style_pad_gap="#gap_small"
+		         flex_flow="column"
+		         style_flex_main_place="start" style_flex_cross_place="start">
 
 			<!-- Connection settings -->
-			<lv_label text="Printer Connection"
-			          style_text_font="montserrat_20"
-			          style_pad_bottom="8"/>
+			<text_heading text="Printer Connection"
+			              style_pad_bottom="8"/>
 
 			<lv_obj width="100%"
 			        height="auto"
@@ -61,13 +58,10 @@
 			        style_pad_all="0"
 			        style_pad_gap="4"
 			        flex_flow="row">
-				<lv_label text="Printer Name:"
-				          style_text_font="montserrat_16"
-/>
-				<lv_label name="summary_printer_name"
-				          text="My Printer"
-				          style_text_font="montserrat_16"
-						          style_pad_left="8"/>
+				<text_body text="Printer Name:"/>
+				<text_body name="summary_printer_name"
+				           text="My Printer"
+				           style_pad_left="8"/>
 			</lv_obj>
 
 			<lv_obj width="100%"
@@ -77,13 +71,10 @@
 			        style_pad_all="0"
 			        style_pad_gap="4"
 			        flex_flow="row">
-				<lv_label text="Printer Type:"
-				          style_text_font="montserrat_16"
-/>
-				<lv_label name="summary_printer_type"
-				          text="Generic Klipper"
-				          style_text_font="montserrat_16"
-						          style_pad_left="8"/>
+				<text_body text="Printer Type:"/>
+				<text_body name="summary_printer_type"
+				           text="Generic Klipper"
+				           style_pad_left="8"/>
 			</lv_obj>
 
 			<lv_obj width="100%"
@@ -93,20 +84,16 @@
 			        style_pad_all="0"
 			        style_pad_gap="4"
 			        flex_flow="row">
-				<lv_label text="Network Address:"
-				          style_text_font="montserrat_16"
-/>
-				<lv_label name="summary_host"
-				          text="192.168.1.100:7125"
-				          style_text_font="montserrat_16"
-						          style_pad_left="8"/>
+				<text_body text="Network Address:"/>
+				<text_body name="summary_host"
+				           text="192.168.1.100:7125"
+				           style_pad_left="8"/>
 			</lv_obj>
 
 			<!-- Hardware mapping -->
-			<lv_label text="Hardware Mapping"
-			          style_text_font="montserrat_20"
-			          style_pad_top="#gap_normal"
-			          style_pad_bottom="8"/>
+			<text_heading text="Hardware Mapping"
+			              style_pad_top="#gap_normal"
+			              style_pad_bottom="8"/>
 
 			<lv_obj width="100%"
 			        height="auto"
@@ -115,13 +102,10 @@
 			        style_pad_all="0"
 			        style_pad_gap="4"
 			        flex_flow="row">
-				<lv_label text="Heated Bed:"
-				          style_text_font="montserrat_16"
-/>
-				<lv_label name="summary_bed"
-				          text="heater_bed"
-				          style_text_font="montserrat_16"
-						          style_pad_left="8"/>
+				<text_body text="Heated Bed:"/>
+				<text_body name="summary_bed"
+				           text="heater_bed"
+				           style_pad_left="8"/>
 			</lv_obj>
 
 			<lv_obj width="100%"
@@ -131,13 +115,10 @@
 			        style_pad_all="0"
 			        style_pad_gap="4"
 			        flex_flow="row">
-				<lv_label text="Hotend:"
-				          style_text_font="montserrat_16"
-/>
-				<lv_label name="summary_hotend"
-				          text="extruder"
-				          style_text_font="montserrat_16"
-						          style_pad_left="8"/>
+				<text_body text="Hotend:"/>
+				<text_body name="summary_hotend"
+				           text="extruder"
+				           style_pad_left="8"/>
 			</lv_obj>
 
 			<lv_obj width="100%"
@@ -147,21 +128,17 @@
 			        style_pad_all="0"
 			        style_pad_gap="4"
 			        flex_flow="row">
-				<lv_label text="Part Cooling Fan:"
-				          style_text_font="montserrat_16"
-/>
-				<lv_label name="summary_part_fan"
-				          text="fan"
-				          style_text_font="montserrat_16"
-						          style_pad_left="8"/>
+				<text_body text="Part Cooling Fan:"/>
+				<text_body name="summary_part_fan"
+				           text="fan"
+				           style_pad_left="8"/>
 			</lv_obj>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Success message -->
-		<lv_label text="✓ Configuration will be saved when you click Finish"
-		          width="100%"
-		          style_text_font="montserrat_16"
-		          style_pad_top="#padding_normal"/>
+		<text_body text="✓ Configuration will be saved when you click Finish"
+		           width="100%"
+		           style_pad_top="#padding_normal"/>
 
 	</view>
 </component>

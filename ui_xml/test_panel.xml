@@ -31,16 +31,15 @@
 	      scroll_dir="VER">
 
 		<!-- Test Row 1: Small Label + Switch -->
-		<lv_obj width="100%"
-		        height="#test_row_height"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        style_pad_gap="#gap_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="#test_row_height"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         style_pad_gap="#gap_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 
 			<lv_label text="Toggle Feature"
 			          style_text_font="#test_label_font"
@@ -50,19 +49,18 @@
 			           width="#test_switch_width"
 			           height="#test_switch_height"
 			           style_pad_knob_all="#test_switch_knob_pad"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Test Row 2: Large Label + Switch -->
-		<lv_obj width="100%"
-		        height="#test_row_height_large"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        style_pad_gap="#gap_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="#test_row_height_large"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         style_pad_gap="#gap_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 
 			<lv_label text="Advanced Setting"
 			          style_text_font="#test_label_large_font"
@@ -73,19 +71,18 @@
 			           height="#test_switch_height_large"
 			           style_pad_knob_all="#test_switch_knob_pad_large"
 			           checked="true"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Test Row 3: Compact Row with Two Switches -->
-		<lv_obj width="100%"
-		        height="#test_row_height"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        style_pad_gap="#gap_normal"
-		        flex_flow="row"
-		        style_flex_main_place="start"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="#test_row_height"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         style_pad_gap="#gap_normal"
+		         flex_flow="row"
+		         style_flex_main_place="start"
+		         style_flex_cross_place="center">
 
 			<lv_label text="WiFi"
 			          style_text_font="#test_label_font"
@@ -106,7 +103,7 @@
 			           height="#test_switch_height"
 			           style_pad_knob_all="#test_switch_knob_pad"
 			           checked="true"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- NEW: Test semantic size parameter -->
 		<lv_label text="Semantic Size Parameter Tests"
@@ -114,83 +111,78 @@
 		          style_margin_top="10"/>
 
 		<!-- Size: tiny -->
-		<lv_obj width="100%"
-		        height="60"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="60"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 			<lv_label text="size=&quot;tiny&quot;"
 			          style_text_font="#test_label_font"
 			         />
 			<ui_switch name="test_switch_tiny" size="tiny"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Size: small -->
-		<lv_obj width="100%"
-		        height="60"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="60"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 			<lv_label text="size=&quot;small&quot;"
 			          style_text_font="#test_label_font"
 			         />
 			<ui_switch name="test_switch_small" size="small" checked="true"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Size: medium -->
-		<lv_obj width="100%"
-		        height="70"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="70"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 			<lv_label text="size=&quot;medium&quot;"
 			          style_text_font="#test_label_font"
 			         />
 			<ui_switch name="test_switch_medium" size="medium"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Size: large -->
-		<lv_obj width="100%"
-		        height="80"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="80"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 			<lv_label text="size=&quot;large&quot;"
 			          style_text_font="#test_label_font"
 			         />
 			<ui_switch name="test_switch_large" size="large" checked="true"/>
-		</lv_obj>
+		</ui_card>
 
 		<!-- Size: medium with width override -->
-		<lv_obj width="100%"
-		        height="70"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="8"
-		        style_pad_all="#padding_normal"
-		        flex_flow="row"
-		        style_flex_main_place="space_between"
-		        style_flex_cross_place="center">
+		<ui_card width="100%"
+		         height="70"
+		         style_bg_opa="255"
+		         style_radius="8"
+		         style_pad_all="#padding_normal"
+		         flex_flow="row"
+		         style_flex_main_place="space_between"
+		         style_flex_cross_place="center">
 			<lv_label text="size=&quot;medium&quot; width=&quot;100&quot;"
 			          style_text_font="#test_label_font"
 			         />
 			<ui_switch name="test_switch_override" size="medium" width="100"/>
-		</lv_obj>
+		</ui_card>
 	</view>
 </component>

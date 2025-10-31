@@ -49,13 +49,12 @@
 			<!-- ================================================================== -->
 			<!-- LEFT SECTION: Thumbnail (2/3 width via flex_grow)                 -->
 			<!-- ================================================================== -->
-			<lv_obj name="thumbnail_section"
-			        flex_grow="2"
-			        height="100%"
-			       			        style_border_width="0"
-			        style_pad_all="0"
-			        style_radius="#card_radius"
-			        scrollable="false">
+			<ui_card name="thumbnail_section"
+			         flex_grow="2"
+			         height="100%"
+			         style_pad_all="0"
+			         style_radius="#card_radius"
+			         scrollable="false">
 
 				<!-- Gradient background -->
 				<lv_image name="gradient_background"
@@ -125,7 +124,7 @@
 						         />
 					</lv_obj>
 				</lv_obj>
-			</lv_obj>
+			</ui_card>
 
 			<!-- ================================================================== -->
 			<!-- RIGHT SECTION: Controls (1/3 width via flex_grow)                 -->
@@ -141,36 +140,34 @@
 			        style_pad_gap="#padding_normal">
 
 				<!-- Nozzle Temperature Card -->
-				<lv_obj name="nozzle_temp_card"
-				        width="100%"
-				        height="80"
-				       				        style_radius="8"
-				        style_border_width="0"
-				        style_pad_all="16"
-				        scrollable="false"
-				        flex_flow="column"
-				        style_flex_main_place="center"
-				        style_flex_cross_place="center"
-				        style_pad_gap="4">
-					<lv_label text="Nozzle" style_text_font="montserrat_14" align="center"/>
+				<ui_card name="nozzle_temp_card"
+				         width="100%"
+				         height="80"
+				         style_radius="8"
+				         style_pad_all="16"
+				         scrollable="false"
+				         flex_flow="column"
+				         style_flex_main_place="center"
+				         style_flex_cross_place="center"
+				         style_pad_gap="4">
+					<text_small text="Nozzle" align="center"/>
 					<lv_label name="nozzle_temp_display" bind_text="nozzle_temp_display" style_text_font="montserrat_28" align="center"/>
-				</lv_obj>
+				</ui_card>
 
 				<!-- Bed Temperature Card -->
-				<lv_obj name="bed_temp_card"
-				        width="100%"
-				        height="80"
-				       				        style_radius="8"
-				        style_border_width="0"
-				        style_pad_all="16"
-				        scrollable="false"
-				        flex_flow="column"
-				        style_flex_main_place="center"
-				        style_flex_cross_place="center"
-				        style_pad_gap="4">
-					<lv_label text="Bed" style_text_font="montserrat_14" align="center"/>
+				<ui_card name="bed_temp_card"
+				         width="100%"
+				         height="80"
+				         style_radius="8"
+				         style_pad_all="16"
+				         scrollable="false"
+				         flex_flow="column"
+				         style_flex_main_place="center"
+				         style_flex_cross_place="center"
+				         style_pad_gap="4">
+					<text_small text="Bed" align="center"/>
 					<lv_label name="bed_temp_display" bind_text="bed_temp_display" style_text_font="montserrat_28" align="center"/>
-				</lv_obj>
+				</ui_card>
 
 				<!-- Spacer (pushes buttons to bottom) -->
 				<lv_obj flex_grow="1" style_bg_opa="0" style_border_width="0"/>
@@ -196,11 +193,11 @@
 					        style_pad_gap="8">
 						<lv_button name="btn_light" width="120" height="54"
 						        style_radius="6" style_border_width="0">
-							<lv_label text="Light" style_text_font="montserrat_14" align="center"/>
+							<text_small text="Light" align="center"/>
 						</lv_button>
 						<lv_button name="btn_pause" width="120" height="54"
 						        style_radius="6" style_border_width="0">
-							<lv_label text="Pause" style_text_font="montserrat_14" align="center"/>
+							<text_small text="Pause" align="center"/>
 						</lv_button>
 					</lv_obj>
 
@@ -212,11 +209,11 @@
 					        style_pad_gap="8">
 						<lv_button name="btn_tune" width="120" height="54"
 						        style_radius="6" style_border_width="0">
-							<lv_label text="Tune" style_text_font="montserrat_14" align="center"/>
+							<text_small text="Tune" align="center"/>
 						</lv_button>
 						<lv_button name="btn_cancel" width="120" height="54"
 						        style_radius="6" style_border_width="0">
-							<lv_label text="Cancel" style_text_font="montserrat_14" style_text_color="0xFFFFFF" align="center"/>
+							<text_small text="Cancel" style_text_color="0xFFFFFF" align="center"/>
 						</lv_button>
 					</lv_obj>
 				</lv_obj>

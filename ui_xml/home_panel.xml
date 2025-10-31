@@ -133,12 +133,11 @@
 			</lv_button>
 
 			<!-- Status Card (Temperature, Network, Light) -->
-			<lv_obj
+			<ui_card
 				name="status_card"
 				flex_grow="1"
 				height="100%"
-					style_radius="#card_radius"
-				style_border_width="0"
+				style_radius="#card_radius"
 				style_pad_all="0"
 				flex_flow="row"
 				style_flex_cross_place="center"
@@ -226,7 +225,7 @@
 					<!-- NOTE: LVGL source uses lv_event-call_function, NOT event_cb (despite what web docs say) -->
 					<event_cb trigger="clicked" callback="light_toggle_cb"/>
 				</lv_button>
-			</lv_obj>
+			</ui_card>
 		</lv_obj>
 	</view>
 </component>

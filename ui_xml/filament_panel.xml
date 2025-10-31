@@ -44,31 +44,27 @@
             style_pad_gap="#padding_normal">
 
       <!-- Filament Spool Visualization Card -->
-      <lv_obj name="spool_visualization" width="100%" height="320"
-              style_radius="#card_radius_large" style_pad_all="#padding_card"
-              style_border_width="0"
-              scrollable="false"
-              flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center">
+      <ui_card name="spool_visualization" width="100%" height="320"
+               style_radius="#card_radius_large" style_pad_all="#padding_card"
+               scrollable="false"
+               flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center">
         <!-- Filament spool placeholder (TODO: add actual image) -->
         <icon src="mat_filament" size="xl" variant="primary"/>
-        <lv_label text="Filament Spool"
-                  style_text_font="montserrat_16"
-                  style_pad_top="#gap_normal"
-                  align="center"/>
-      </lv_obj>
+        <text_body text="Filament Spool"
+                   style_pad_top="#gap_normal"
+                   align="center"/>
+      </ui_card>
 
       <!-- Temperature Status Card -->
-      <lv_obj name="temp_status_card" width="100%" height="140"
-              style_radius="#card_radius_large" style_pad_all="#padding_card_emphasis"
-              style_border_width="0"
-              scrollable="false"
-              flex_flow="column" style_flex_main_place="start" style_flex_cross_place="center"
-              style_pad_gap="#gap_normal">
+      <ui_card name="temp_status_card" width="100%" height="140"
+               style_radius="#card_radius_large" style_pad_all="#padding_card_emphasis"
+               scrollable="false"
+               flex_flow="column" style_flex_main_place="start" style_flex_cross_place="center"
+               style_pad_gap="#gap_normal">
 
         <!-- Header -->
-        <lv_label text="Nozzle Temperature"
-                  style_text_font="montserrat_16"
-                  align="center"/>
+        <text_body text="Nozzle Temperature"
+                   align="center"/>
 
         <!-- Temperature Display (Current / Target) -->
         <lv_label name="temp_display"
@@ -77,11 +73,10 @@
                   align="center"/>
 
         <!-- Status Indicator -->
-        <lv_label name="status_indicator"
-                  bind_text="filament_status"
-                  style_text_font="montserrat_14"
-                  align="center"/>
-      </lv_obj>
+        <text_small name="status_indicator"
+                    bind_text="filament_status"
+                    align="center"/>
+      </ui_card>
     </lv_obj>
 
     <!-- ================================================================== -->
@@ -94,9 +89,8 @@
             style_pad_gap="12">
 
       <!-- Material Selection Header -->
-      <lv_label text="Material Selection"
-                style_text_font="montserrat_16"
-                align="left_mid"/>
+      <text_body text="Material Selection"
+                 align="left_mid"/>
 
       <!-- Material Preset Buttons (2x2 Grid) -->
       <lv_obj name="preset_grid" width="100%" height="116"
@@ -153,10 +147,9 @@
       </lv_obj>
 
       <!-- Filament Operations Header -->
-      <lv_label text="Filament Operations"
-                style_text_font="montserrat_16"
-                style_pad_top="#gap_normal"
-                align="left_mid"/>
+      <text_body text="Filament Operations"
+                 style_pad_top="#gap_normal"
+                 align="left_mid"/>
 
       <!-- Action Buttons (Vertical Stack) -->
       <lv_obj name="action_buttons" width="100%" height="220"
@@ -200,13 +193,13 @@
       </lv_obj>
 
       <!-- Safety Warning Card (Visible when temp < 170°C) -->
-      <lv_obj name="safety_warning" width="100%" flex_grow="1"
-              style_bg_opa="100%"
-              style_border_width="2"
-              style_radius="#card_radius" style_pad_all="#padding_card"
-              scrollable="false"
-              flex_flow="column" style_flex_main_place="start" style_flex_cross_place="start"
-              style_pad_gap="#gap_small">
+      <ui_card name="safety_warning" width="100%" flex_grow="1"
+               style_bg_opa="100%"
+               style_border_width="2"
+               style_radius="#card_radius" style_pad_all="#padding_card"
+               scrollable="false"
+               flex_flow="column" style_flex_main_place="start" style_flex_cross_place="start"
+               style_pad_gap="#gap_small">
 
         <!-- Warning Title (icon + text in single label) -->
         <lv_obj width="100%" height="#label_height_md"
@@ -219,18 +212,16 @@
         </lv_obj>
 
         <!-- Warning Message -->
-        <lv_label text="Heat nozzle to at least 170°C before loading or unloading filament."
-                  width="100%"
-                  style_text_font="montserrat_14"
-                  align="left_mid"/>
+        <text_small text="Heat nozzle to at least 170°C before loading or unloading filament."
+                    width="100%"
+                    align="left_mid"/>
 
         <!-- Current Temp Display -->
-        <lv_label name="warning_temps"
-                  bind_text="filament_warning_temps"
-                  style_text_font="montserrat_14"
-                  style_pad_top="#gap_tiny"
-                  align="left_mid"/>
-      </lv_obj>
+        <text_small name="warning_temps"
+                    bind_text="filament_warning_temps"
+                    style_pad_top="#gap_tiny"
+                    align="left_mid"/>
+      </ui_card>
     </lv_obj>
   </view>
 </component>

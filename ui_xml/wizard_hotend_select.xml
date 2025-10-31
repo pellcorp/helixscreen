@@ -33,26 +33,23 @@
 	      name="wizard_hotend_select_root">
 
 		<!-- Help text -->
-		<lv_label text="Choose which heater controls your nozzle"
-		          width="100%"
-		          style_text_font="montserrat_20"
-		          style_pad_bottom="#gap_small"/>
+		<text_heading text="Choose which heater controls your nozzle"
+		              width="100%"
+		              style_pad_bottom="#gap_small"/>
 
 		<!-- Selection container -->
-		<lv_obj width="100%"
-		        height="auto"
-		        style_bg_opa="255"
-		        style_border_width="0"
-		        style_radius="12"
-		        style_pad_all="#padding_normal"
-		        style_pad_gap="#gap_normal"
-		        flex_flow="column"
-		        style_flex_main_place="start" style_flex_cross_place="start">
+		<ui_card width="100%"
+		         height="auto"
+		         style_bg_opa="255"
+		         style_radius="12"
+		         style_pad_all="#padding_normal"
+		         style_pad_gap="#gap_normal"
+		         flex_flow="column"
+		         style_flex_main_place="start" style_flex_cross_place="start">
 
 			<!-- Heater selection -->
-			<lv_label text="Hotend Heater"
-			          style_text_font="montserrat_20"
-				          style_pad_bottom="#gap_small"/>
+			<text_heading text="Hotend Heater"
+			              style_pad_bottom="#gap_small"/>
 
 			<lv_dropdown name="hotend_heater_dropdown"
 			             options="extruder"
@@ -66,10 +63,9 @@
 			             style_pad_all="#padding_card"/>
 
 			<!-- Sensor selection -->
-			<lv_label text="Hotend Temperature Sensor"
-			          style_text_font="montserrat_20"
-				          style_pad_top="#gap_normal"
-			          style_pad_bottom="#gap_small"/>
+			<text_heading text="Hotend Temperature Sensor"
+			              style_pad_top="#gap_normal"
+			              style_pad_bottom="#gap_small"/>
 
 			<lv_dropdown name="hotend_sensor_dropdown"
 			             options="extruder"
@@ -81,7 +77,7 @@
 			            			             style_border_opa="100%"
 			             style_radius="#card_radius"
 			             style_pad_all="#padding_card"/>
-		</lv_obj>
+		</ui_card>
 
 	</view>
 </component>

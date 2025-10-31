@@ -33,15 +33,14 @@
 	      scroll_dir="ver">
 
 				<!-- Card 1: Movement & Home -->
-				<lv_obj name="card_motion"
-				        width="#launcher_card_width"
-				        height="#launcher_card_height"
-				        flex_flow="column"
-				        flex_main_place="center"
-				        flex_cross_place="center"
-				        style_radius="#card_radius_large"
-				        style_pad_all="#launcher_card_padding"
-				        style_border_width="0">
+				<ui_card name="card_motion"
+				         width="#launcher_card_width"
+				         height="#launcher_card_height"
+				         flex_flow="column"
+				         flex_main_place="center"
+				         flex_cross_place="center"
+				         style_radius="#card_radius_large"
+				         style_pad_all="#launcher_card_padding">
 
 					<!-- Icon -->
 					<icon src="mat_move"
@@ -49,26 +48,22 @@
 					      style_pad_bottom="#launcher_card_icon_padding"/>
 
 					<!-- Label -->
-					<lv_label text="Movement &amp; Home"
-					          style_text_font="montserrat_16"
-					          style_pad_bottom="#launcher_card_title_padding"/>
+					<text_body text="Movement &amp; Home"
+					           style_pad_bottom="#launcher_card_title_padding"/>
 
 					<!-- Subtitle -->
-					<lv_label text="XYZ jog &amp; homing"
-					          style_text_font="montserrat_14"
-					         />
-				</lv_obj>
+					<text_small text="XYZ jog &amp; homing"/>
+				</ui_card>
 
 				<!-- Card 2: Nozzle Temperature -->
-				<lv_obj name="card_nozzle_temp"
-				        width="#launcher_card_width"
-				        height="#launcher_card_height"
-				        flex_flow="column"
-				        flex_main_place="center"
-				        flex_cross_place="center"
-				        style_radius="#card_radius_large"
-				        style_pad_all="#launcher_card_padding"
-				        style_border_width="0">
+				<ui_card name="card_nozzle_temp"
+				         width="#launcher_card_width"
+				         height="#launcher_card_height"
+				         flex_flow="column"
+				         flex_main_place="center"
+				         flex_cross_place="center"
+				         style_radius="#card_radius_large"
+				         style_pad_all="#launcher_card_padding">
 
 					<!-- Icon -->
 					<icon src="mat_heater"
@@ -76,26 +71,22 @@
 					      style_pad_bottom="#launcher_card_icon_padding"/>
 
 					<!-- Label -->
-					<lv_label text="Nozzle Temp"
-					          style_text_font="montserrat_16"
-					          style_pad_bottom="#launcher_card_title_padding"/>
+					<text_body text="Nozzle Temp"
+					           style_pad_bottom="#launcher_card_title_padding"/>
 
 					<!-- Subtitle -->
-					<lv_label text="Heat nozzle"
-					          style_text_font="montserrat_14"
-					         />
-				</lv_obj>
+					<text_small text="Heat nozzle"/>
+				</ui_card>
 
 				<!-- Card 3: Heatbed Temperature -->
-				<lv_obj name="card_bed_temp"
-				        width="#launcher_card_width"
-				        height="#launcher_card_height"
-				        flex_flow="column"
-				        flex_main_place="center"
-				        flex_cross_place="center"
-				        style_radius="#card_radius_large"
-				        style_pad_all="#launcher_card_padding"
-				        style_border_width="0">
+				<ui_card name="card_bed_temp"
+				         width="#launcher_card_width"
+				         height="#launcher_card_height"
+				         flex_flow="column"
+				         flex_main_place="center"
+				         flex_cross_place="center"
+				         style_radius="#card_radius_large"
+				         style_pad_all="#launcher_card_padding">
 
 					<!-- Icon -->
 					<icon src="mat_bed"
@@ -103,26 +94,22 @@
 					      style_pad_bottom="#launcher_card_icon_padding"/>
 
 					<!-- Label -->
-					<lv_label text="Heatbed Temp"
-					          style_text_font="montserrat_16"
-					          style_pad_bottom="#launcher_card_title_padding"/>
+					<text_body text="Heatbed Temp"
+					           style_pad_bottom="#launcher_card_title_padding"/>
 
 					<!-- Subtitle -->
-					<lv_label text="Heat bed"
-					          style_text_font="montserrat_14"
-					         />
-				</lv_obj>
+					<text_small text="Heat bed"/>
+				</ui_card>
 
 				<!-- Card 4: Extrude/Retract -->
-				<lv_obj name="card_extrusion"
-				        width="#launcher_card_width"
-				        height="#launcher_card_height"
-				        flex_flow="column"
-				        flex_main_place="center"
-				        flex_cross_place="center"
-				        style_radius="#card_radius_large"
-				        style_pad_all="#launcher_card_padding"
-				        style_border_width="0">
+				<ui_card name="card_extrusion"
+				         width="#launcher_card_width"
+				         height="#launcher_card_height"
+				         flex_flow="column"
+				         flex_main_place="center"
+				         flex_cross_place="center"
+				         style_radius="#card_radius_large"
+				         style_pad_all="#launcher_card_padding">
 
 					<!-- Icon -->
 					<icon src="mat_extrude"
@@ -130,27 +117,23 @@
 					      style_pad_bottom="#launcher_card_icon_padding"/>
 
 					<!-- Label -->
-					<lv_label text="Extrude/Retract"
-					          style_text_font="montserrat_16"
-					          style_pad_bottom="#launcher_card_title_padding"/>
+					<text_body text="Extrude/Retract"
+					           style_pad_bottom="#launcher_card_title_padding"/>
 
 					<!-- Subtitle -->
-					<lv_label text="Filament control"
-					          style_text_font="montserrat_14"
-					         />
-				</lv_obj>
+					<text_small text="Filament control"/>
+				</ui_card>
 
 				<!-- Card 5: Fan Control (Phase 2 - Placeholder) -->
-				<lv_obj name="card_fan"
-				        width="#launcher_card_width"
-				        height="#launcher_card_height"
-				        flex_flow="column"
-				        flex_main_place="center"
-				        flex_cross_place="center"
-				        style_radius="#card_radius_large"
-				        style_pad_all="#launcher_card_padding"
-				        style_border_width="0"
-				        style_opa="128">  <!-- Disabled appearance -->
+				<ui_card name="card_fan"
+				         width="#launcher_card_width"
+				         height="#launcher_card_height"
+				         flex_flow="column"
+				         flex_main_place="center"
+				         flex_cross_place="center"
+				         style_radius="#card_radius_large"
+				         style_pad_all="#launcher_card_padding"
+				         style_opa="128">  <!-- Disabled appearance -->
 
 					<!-- Icon -->
 					<icon src="mat_fan"
@@ -158,26 +141,22 @@
 					      style_pad_bottom="#launcher_card_icon_padding"/>
 
 					<!-- Label -->
-					<lv_label text="Fan Control"
-					          style_text_font="montserrat_16"
-					          style_pad_bottom="#launcher_card_title_padding"/>
+					<text_body text="Fan Control"
+					           style_pad_bottom="#launcher_card_title_padding"/>
 
 					<!-- Subtitle -->
-					<lv_label text="Coming soon"
-					          style_text_font="montserrat_14"
-					         />
-				</lv_obj>
+					<text_small text="Coming soon"/>
+				</ui_card>
 
 				<!-- Card 6: Motors Disable -->
-				<lv_obj name="card_motors"
-				        width="#launcher_card_width"
-				        height="#launcher_card_height"
-				        flex_flow="column"
-				        flex_main_place="center"
-				        flex_cross_place="center"
-				        style_radius="#card_radius_large"
-				        style_pad_all="#launcher_card_padding"
-				        style_border_width="0">
+				<ui_card name="card_motors"
+				         width="#launcher_card_width"
+				         height="#launcher_card_height"
+				         flex_flow="column"
+				         flex_main_place="center"
+				         flex_cross_place="center"
+				         style_radius="#card_radius_large"
+				         style_pad_all="#launcher_card_padding">
 
 					<!-- Icon -->
 					<icon src="mat_motor_off"
@@ -185,15 +164,12 @@
 					      style_pad_bottom="#launcher_card_icon_padding"/>
 
 					<!-- Label -->
-					<lv_label text="Motors Disable"
-					          style_text_font="montserrat_16"
-					          style_pad_bottom="#launcher_card_title_padding"/>
+					<text_body text="Motors Disable"
+					           style_pad_bottom="#launcher_card_title_padding"/>
 
 					<!-- Subtitle -->
-					<lv_label text="Release steppers"
-					          style_text_font="montserrat_14"
-					         />
-		</lv_obj>
+					<text_small text="Release steppers"/>
+		</ui_card>
 
 	</view>
 </component>

@@ -55,14 +55,13 @@
 		<px name="metadata_label_min_width" value="35"/>
 	</consts>
 
-	<view extends="lv_obj"
+	<view extends="ui_card"
 	      style_flex_basis="#card_base_width"
 	      flex_grow="1"
 	      style_min_width="#card_min_width"
 	      style_max_width="#card_max_width"
 	      height="#card_height"
 	     	      style_radius="#card_radius"
-	      style_border_width="0"
 	      style_pad_all="0"
 	      style_clip_corner="true"
 	      clickable="true"

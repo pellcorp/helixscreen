@@ -54,23 +54,23 @@
               style_pad_gap="16">
 
         <!-- Extruder Visualization -->
-        <lv_obj name="viz_container" width="280" height="320"
-                style_min_height="200" style_max_height="320"
- style_radius="#card_radius_large" style_border_width="0"
-                scrollable="false"
-                flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center">
+        <ui_card name="viz_container" width="280" height="320"
+                 style_min_height="200" style_max_height="320"
+                 style_radius="#card_radius_large"
+                 scrollable="false"
+                 flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center">
           <icon src="mat_extrude" variant="accent"/>
-        </lv_obj>
+        </ui_card>
 
         <!-- Temperature Status Card -->
-        <lv_obj name="temp_status_card" width="280" height="80"
- style_radius="8" style_border_width="0" style_pad_all="16"
-                scrollable="false"
-                flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
-                style_pad_gap="4">
-          <lv_label text="Nozzle Temperature" style_text_font="montserrat_14" align="center"/>
+        <ui_card name="temp_status_card" width="280" height="80"
+                 style_radius="8" style_pad_all="16"
+                 scrollable="false"
+                 flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
+                 style_pad_gap="4">
+          <text_small text="Nozzle Temperature" align="center"/>
           <lv_label name="temp_status_display" bind_text="extrusion_temp_status" style_text_font="#font_heading" align="center"/>
-        </lv_obj>
+        </ui_card>
       </lv_obj>
 
       <!-- Right Column (50%): Controls -->
@@ -94,19 +94,19 @@
                 style_pad_gap="8">
           <lv_button name="amount_5mm" width="80" height="40"
  style_radius="6" style_border_width="0">
-            <lv_label text="5mm" style_text_font="montserrat_14" align="center"/>
+            <text_small text="5mm" align="center"/>
           </lv_button>
           <lv_button name="amount_10mm" width="80" height="40"
    style_radius="6" style_border_width="0">
-            <lv_label text="10mm" style_text_font="montserrat_14" align="center"/>
+            <text_small text="10mm" align="center"/>
           </lv_button>
           <lv_button name="amount_25mm" width="80" height="40"
  style_radius="6" style_border_width="0">
-            <lv_label text="25mm" style_text_font="montserrat_14" align="center"/>
+            <text_small text="25mm" align="center"/>
           </lv_button>
           <lv_button name="amount_50mm" width="80" height="40"
  style_radius="6" style_border_width="0">
-            <lv_label text="50mm" style_text_font="montserrat_14" align="center"/>
+            <text_small text="50mm" align="center"/>
           </lv_button>
         </lv_obj>
 
@@ -136,14 +136,12 @@
                 scrollable="false" hidden="true"
                 flex_flow="column" style_flex_main_place="center" style_flex_cross_place="start"
                 style_pad_gap="8">
-          <lv_label text="⚠ Nozzle must be >170°C to extrude"
-                    width="100%"
-                    style_text_font="montserrat_14"
-                                       style_text_align="left"/>
-          <lv_label name="warning_temps" bind_text="extrusion_warning_temps"
-                    width="100%"
-                    style_text_font="montserrat_12"
-                                       style_text_align="left"/>
+          <text_small text="⚠ Nozzle must be >170°C to extrude"
+                      width="100%"
+                      style_text_align="left"/>
+          <text_small name="warning_temps" bind_text="extrusion_warning_temps"
+                      width="100%"
+                      style_text_align="left"/>
         </lv_obj>
       </lv_obj>
     </lv_obj>

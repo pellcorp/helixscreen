@@ -48,15 +48,13 @@
 				style_flex_cross_place="start">
 
 			<!-- Help text -->
-			<lv_label text="Connect to WiFi network (optional)"
-			          width="100%"
-			          style_text_font="#wifi_help_font"
-			         			          style_margin_bottom="4"/>
+			<text_body text="Connect to WiFi network (optional)"
+			           width="100%"
+			           style_margin_bottom="4"/>
 
-			<lv_label text="Configure WiFi now or skip to use Ethernet/localhost"
-			          width="100%"
-			          style_text_font="#wifi_status_font"
-			         			          style_margin_bottom="12"/>
+			<text_small text="Configure WiFi now or skip to use Ethernet/localhost"
+			            width="100%"
+			            style_margin_bottom="12"/>
 
 			<!-- Two-column row: WiFi/Ethernet (left) and Network List (right) -->
 			<lv_obj width="100%"
@@ -83,17 +81,16 @@
 				        style_flex_cross_place="start">
 
 					<!-- WiFi Card -->
-					<lv_obj width="100%"
-					        height="#wifi_card_height"
-							scrollable="false"
-					       					        style_bg_opa="255"
-					        style_border_width="0"
-					        style_radius="12"
-					        style_pad_all="#padding_normal"
-					        style_pad_gap="#gap_small"
-					        flex_flow="column"
-					        style_flex_main_place="start"
-					        style_flex_cross_place="center">
+					<ui_card width="100%"
+					         height="#wifi_card_height"
+					         scrollable="false"
+					         style_bg_opa="255"
+					         style_radius="12"
+					         style_pad_all="#padding_normal"
+					         style_pad_gap="#gap_small"
+					         flex_flow="column"
+					         style_flex_main_place="start"
+					         style_flex_cross_place="center">
 
 						<!-- Label + Switch horizontal container -->
 						<lv_obj width="100%"
@@ -128,18 +125,17 @@
 						          style_text_font="#wifi_status_font"
 						         						          style_text_align="center"
 						          style_pad_top="#gap_small"/>
-					</lv_obj>
+					</ui_card>
 
 					<!-- Ethernet Status Card -->
-					<lv_obj width="100%"
-					        height="#wifi_ethernet_height"
-					       					        style_bg_opa="255"
-					        style_border_width="0"
-					        style_radius="12"
-					        style_pad_all="#padding_normal"
-					        flex_flow="column"
-					        style_flex_main_place="start"
-					        style_flex_cross_place="start">
+					<ui_card width="100%"
+					         height="#wifi_ethernet_height"
+					         style_bg_opa="255"
+					         style_radius="12"
+					         style_pad_all="#padding_normal"
+					         flex_flow="column"
+					         style_flex_main_place="start"
+					         style_flex_cross_place="start">
 
 						<lv_label text="Ethernet"
 						          style_text_font="#wifi_title_font"
@@ -151,24 +147,23 @@
 						          width="100%"
 						          style_text_font="#wifi_status_font"
 						         						          style_text_align="left"/>
-					</lv_obj>
+					</ui_card>
 				</lv_obj>
 
 				<!-- RIGHT COLUMN: Network List (70%) -->
 				<!-- State-driven styling: automatically dims to 50% opacity when disabled -->
-				<lv_obj flex_grow="7"
-				        height="100%"
-				        name="network_list_container"
-				       				        style_bg_opa="255"
-				        style_border_width="0"
-				        style_radius="12"
-				        style_pad_all="#list_item_padding"
-				        style_pad_gap="#list_item_padding"
-				        flex_flow="column"
-				        scrollable="true"
-				        scroll_dir="VER"
-				        style_flex_main_place="start"
-				        style_flex_cross_place="start">
+				<ui_card flex_grow="7"
+				         height="100%"
+				         name="network_list_container"
+				         style_bg_opa="255"
+				         style_radius="12"
+				         style_pad_all="#list_item_padding"
+				         style_pad_gap="#list_item_padding"
+				         flex_flow="column"
+				         scrollable="true"
+				         scroll_dir="VER"
+				         style_flex_main_place="start"
+				         style_flex_cross_place="start">
 
 					<!-- Reactive state binding: set disabled state when wifi_enabled == 0 -->
 					<lv_obj-bind_state_if_eq subject="wifi_enabled" state="disabled" ref_value="0"/>
@@ -205,7 +200,7 @@
 					</lv_label>
 
 					<!-- Network list populated dynamically from C++ -->
-				</lv_obj>
+				</ui_card>
 			</lv_obj>
 		</lv_obj>
 
