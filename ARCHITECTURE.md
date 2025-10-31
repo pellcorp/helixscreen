@@ -225,6 +225,31 @@ LVGL uses automatic memory management:
 - No manual `free()` calls needed for UI elements
 - Use LVGL's built-in reference counting for shared resources
 
+### Static Object Destructors and Logging
+
+**Problem:** Static/global objects are destroyed during `exit()` in undefined order across translation units (static destruction order fiasco). If your destructor tries to use spdlog, it may crash because spdlog's global logger might already be destroyed.
+
+**Solution:** Use `fprintf(stderr, ...)` instead of spdlog in destructors of static/global objects:
+
+```cpp
+MyManager::~MyManager() {
+    // Use fprintf - spdlog may be destroyed during static cleanup
+    fprintf(stderr, "[MyManager] Shutting down\n");
+    cleanup_resources();
+}
+```
+
+**When this applies:**
+- Destructors of objects stored in static/global variables (e.g., `static std::unique_ptr<WiFiManager>`)
+- Any destructor that might run during `exit()` or program termination
+
+**Reference implementations:**
+- `src/wifi_manager.cpp:71-72`
+- `src/ethernet_manager.cpp:38-41`
+- `src/ethernet_backend_*.cpp` (all backend destructors)
+
+**Note:** This is separate from the weak_ptr pattern used for async callback safety - that protects against managers being explicitly destroyed via `.reset()` while async operations are queued.
+
 ## Thread Safety
 
 ### ⚠️ CRITICAL: LVGL Main Thread Requirement

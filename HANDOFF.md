@@ -25,17 +25,13 @@
 
 ## 🎯 Active Work & Next Priorities
 
-1. **Investigate Exit Crash** (⚠️ High Priority)
-   - Occasional crashes when exiting wizard with Ethernet backend
-   - May be related to cleanup order or async callbacks (see Pattern #4 below)
-
-2. **Additional Wizard Screens** (WiFi/Ethernet complete)
+1. **Additional Wizard Screens** (WiFi/Ethernet complete)
    - Moonraker connection (host/port/API key)
    - Printer identification (32 printer presets)
    - Hardware selection (bed/hotend/fan/LED)
    - Summary/confirmation
 
-3. **State Persistence & Validation**
+2. **State Persistence & Validation**
    - Save wizard progress between steps
    - Validation and error handling
 
@@ -168,17 +164,6 @@ lv_xml_create(screen, "my_panel", NULL);  // AFTER
 ---
 
 ## 🔧 Known Issues & Gotchas
-
-### Ethernet Backend Exit Crash ⚠️
-
-**Issue:** Occasional crashes when exiting wizard with Ethernet backend active
-
-**Investigation needed:**
-- Similar to WiFi weak_ptr fix (async callbacks executing after manager freed)
-- Check cleanup order and object lifecycle
-- May need weak_ptr pattern for Ethernet backend callbacks
-
-**Reference:** WiFi fix in `src/wifi_manager.cpp` (std::weak_ptr solution)
 
 ### LVGL 9 XML Roller Options
 
