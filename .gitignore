@@ -14,3 +14,6 @@ compile_commands.json
 
 # Local config (user-specific, use data/helixconfig.json.template)
 helixconfig.json
+
+# auto generated libhv log
+libhv.*.log
