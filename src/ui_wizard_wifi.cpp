@@ -118,6 +118,27 @@ static void populate_network_list(const std::vector<WiFiNetwork>& networks);
 static void clear_network_list();
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * @brief Map WiFi signal strength percentage to Material icon name
+ * @param signal_strength Signal strength (0-100%)
+ * @return Material icon name for appropriate signal tier
+ */
+static const char* get_wifi_signal_icon(int signal_strength) {
+    if (signal_strength <= 25) {
+        return "mat_wifi_strength_1";  // Poor (1 bar)
+    } else if (signal_strength <= 50) {
+        return "mat_wifi_strength_2";  // Fair (2 bars)
+    } else if (signal_strength <= 75) {
+        return "mat_wifi_strength_3";  // Good (3 bars)
+    } else {
+        return "mat_wifi_strength_4";  // Excellent (full)
+    }
+}
+
+// ============================================================================
 // Public API Implementation
 // ============================================================================
 
@@ -646,9 +667,13 @@ static void populate_network_list(const std::vector<WiFiNetwork>& networks) {
             lv_obj_bind_flag_if_eq(lock_icon, item_data->is_secured, LV_OBJ_FLAG_HIDDEN, 0);
         }
 
-        // Signal icon color based on strength (theme handles colors)
-        // Could be implemented with state changes if color-coding is needed
-        (void)signal_icon;  // Suppress unused warning
+        // Set signal strength icon based on signal quality (not reactive - rarely changes)
+        if (signal_icon) {
+            const char* icon_name = get_wifi_signal_icon(network.signal_strength);
+            lv_image_set_src(signal_icon, icon_name);
+            spdlog::trace("[WiFi Screen] Set signal icon '{}' for {}% strength",
+                          icon_name, network.signal_strength);
+        }
 
         // Store NetworkItemData in user_data for click handler and cleanup
         lv_obj_set_user_data(item, item_data);

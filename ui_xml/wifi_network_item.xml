@@ -36,9 +36,8 @@
 	      style_flex_cross_place="center">
 
 		<!-- Signal strength icon (left) -->
-		<lv_label name="signal_icon"
-		          text="#icon_wifi"
-		          style_text_font="fa_icons_24"
+		<lv_image name="signal_icon"
+		          src="mat_wifi_strength_4"
 />
 
 		<!-- SSID and security type column (center) -->
