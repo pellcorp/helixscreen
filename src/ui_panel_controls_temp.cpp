@@ -95,12 +95,12 @@ static ui_temp_graph_t* bed_graph = nullptr;
 static int nozzle_series_id = -1;
 static int bed_series_id = -1;
 
-// Heater configurations
-static const heater_config_t NOZZLE_CONFIG = {
+// Heater configurations (colors loaded from component-local XML constants)
+static heater_config_t NOZZLE_CONFIG = {
     .type = HEATER_NOZZLE,
     .name = "Nozzle",
     .title = "Nozzle Temperature",
-    .color = lv_color_hex(0xFF4444),     // Red
+    .color = lv_color_hex(0xFF4444),     // Default red (will be loaded from XML)
     .temp_range_max = 320.0f,
     .y_axis_increment = 80,
     .default_mock_target = 210,
@@ -108,11 +108,11 @@ static const heater_config_t NOZZLE_CONFIG = {
     .keypad_range = {0.0f, 350.0f}
 };
 
-static const heater_config_t BED_CONFIG = {
+static heater_config_t BED_CONFIG = {
     .type = HEATER_BED,
     .name = "Bed",
     .title = "Heatbed Temperature",
-    .color = lv_color_hex(0x00CED1),     // Cyan
+    .color = lv_color_hex(0x00CED1),     // Default cyan (will be loaded from XML)
     .temp_range_max = 140.0f,
     .y_axis_increment = 35,
     .default_mock_target = 60,
@@ -411,6 +411,17 @@ void ui_panel_controls_temp_nozzle_setup(lv_obj_t* panel, lv_obj_t* parent_scree
     nozzle_panel = panel;
     parent_obj = parent_screen;
 
+    // Load theme-aware graph color from component scope
+    lv_xml_component_scope_t* scope = lv_xml_component_get_scope("nozzle_temp_panel");
+    if (scope) {
+        bool use_dark_mode = ui_theme_is_dark_mode();
+        const char* color_str = lv_xml_get_const(scope, use_dark_mode ? "temp_graph_nozzle_dark" : "temp_graph_nozzle_light");
+        if (color_str) {
+            NOZZLE_CONFIG.color = ui_theme_parse_color(color_str);
+            spdlog::debug("[Temp] Nozzle graph color loaded: {} ({})", color_str, use_dark_mode ? "dark" : "light");
+        }
+    }
+
     spdlog::info("[Temp] Setting up nozzle panel event handlers...");
 
     // Create Y-axis labels using common helper
@@ -535,6 +546,17 @@ static void bed_on_resize() {
 void ui_panel_controls_temp_bed_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     bed_panel = panel;
     parent_obj = parent_screen;
+
+    // Load theme-aware graph color from component scope
+    lv_xml_component_scope_t* scope = lv_xml_component_get_scope("bed_temp_panel");
+    if (scope) {
+        bool use_dark_mode = ui_theme_is_dark_mode();
+        const char* color_str = lv_xml_get_const(scope, use_dark_mode ? "temp_graph_bed_dark" : "temp_graph_bed_light");
+        if (color_str) {
+            BED_CONFIG.color = ui_theme_parse_color(color_str);
+            spdlog::debug("[Temp] Bed graph color loaded: {} ({})", color_str, use_dark_mode ? "dark" : "light");
+        }
+    }
 
     spdlog::info("[Temp] Setting up bed panel event handlers...");
 

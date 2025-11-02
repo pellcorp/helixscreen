@@ -23,6 +23,13 @@
   <!-- Nozzle Temperature Sub-Screen -->
   <!-- Temperature control with presets and custom input -->
 
+  <!-- Component-local constants for theme-aware colors -->
+  <consts>
+    <!-- Nozzle temperature graph series color (red) -->
+    <const name="temp_graph_nozzle_light" value="#FF4444"/>
+    <const name="temp_graph_nozzle_dark" value="#FF6666"/>
+  </consts>
+
   <!-- Full-screen backdrop with semi-transparent overlay -->
   <view extends="lv_obj"
         name="nozzle_temp_panel_backdrop"

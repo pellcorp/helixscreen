@@ -23,6 +23,13 @@
   <!-- Heatbed Temperature Sub-Screen -->
   <!-- Temperature control with presets and custom input -->
 
+  <!-- Component-local constants for theme-aware colors -->
+  <consts>
+    <!-- Bed temperature graph series color (cyan) -->
+    <const name="temp_graph_bed_light" value="#00CED1"/>
+    <const name="temp_graph_bed_dark" value="#33E5E8"/>
+  </consts>
+
   <!-- Full-screen backdrop with semi-transparent overlay -->
   <view extends="lv_obj"
         name="bed_temp_panel_backdrop"
