@@ -23,6 +23,49 @@
   <!-- Motion Sub-Screen: XYZ Movement & Homing -->
   <!-- Simplified button grid design (vs circular jog pad) -->
 
+  <!-- Component-local constants for jog pad colors (theme-aware) -->
+  <consts>
+    <!-- Jog pad outer ring (light gray background) -->
+    <const name="jog_outer_ring_light" value="#5A5A5A"/>
+    <const name="jog_outer_ring_dark" value="#3A3A3A"/>
+
+    <!-- Jog pad inner circle (darker gray) -->
+    <const name="jog_inner_circle_light" value="#4A4A4A"/>
+    <const name="jog_inner_circle_dark" value="#2A2A2A"/>
+
+    <!-- Jog pad grid divider lines (black) -->
+    <const name="jog_grid_lines_light" value="#404040"/>
+    <const name="jog_grid_lines_dark" value="#000000"/>
+
+    <!-- Home button background -->
+    <const name="jog_home_bg_light" value="#606060"/>
+    <const name="jog_home_bg_dark" value="#404040"/>
+
+    <!-- Home button border -->
+    <const name="jog_home_border_light" value="#808080"/>
+    <const name="jog_home_border_dark" value="#606060"/>
+
+    <!-- Home icon text color -->
+    <const name="jog_home_text_light" value="#000000"/>
+    <const name="jog_home_text_dark" value="#FFFFFF"/>
+
+    <!-- Zone boundary lines (subtle gray) -->
+    <const name="jog_boundary_lines_light" value="#686868"/>
+    <const name="jog_boundary_lines_dark" value="#484848"/>
+
+    <!-- Distance labels (1mm/10mm text) -->
+    <const name="jog_distance_labels_light" value="#444444"/>
+    <const name="jog_distance_labels_dark" value="#CCCCCC"/>
+
+    <!-- Axis labels (X+/Y+ etc) -->
+    <const name="jog_axis_labels_light" value="#000000"/>
+    <const name="jog_axis_labels_dark" value="#FFFFFF"/>
+
+    <!-- Press highlight overlay -->
+    <const name="jog_highlight_light" value="#000000"/>
+    <const name="jog_highlight_dark" value="#FFFFFF"/>
+  </consts>
+
   <!-- Full-screen backdrop with semi-transparent overlay -->
   <view extends="lv_obj"
         name="motion_panel_backdrop"

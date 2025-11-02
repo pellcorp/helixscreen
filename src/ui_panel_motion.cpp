@@ -23,6 +23,7 @@
 #include "ui_nav.h"
 #include "ui_utils.h"
 #include "ui_theme.h"
+#include <spdlog/spdlog.h>
 #include <stdio.h>
 #include <string.h>
 #include <cmath>
@@ -58,6 +59,67 @@ static lv_obj_t* dist_buttons[4] = {nullptr};
 
 // Distance values in mm
 static const float distance_values[] = {0.1f, 1.0f, 10.0f, 100.0f};
+
+// Jog pad theme-aware colors (loaded from component-local constants)
+static lv_color_t jog_color_outer_ring;
+static lv_color_t jog_color_inner_circle;
+static lv_color_t jog_color_grid_lines;
+static lv_color_t jog_color_home_bg;
+static lv_color_t jog_color_home_border;
+static lv_color_t jog_color_home_text;
+static lv_color_t jog_color_boundary_lines;
+static lv_color_t jog_color_distance_labels;
+static lv_color_t jog_color_axis_labels;
+static lv_color_t jog_color_highlight;
+
+// Initialize jog pad colors from component-local XML constants
+static void init_jog_pad_colors() {
+    // Get component scope (uses filename without .xml extension)
+    lv_xml_component_scope_t* scope = lv_xml_component_get_scope("motion_panel");
+    if (!scope) {
+        spdlog::warn("[Motion] Failed to get component scope, using fallback colors");
+        // Fallback to dark mode defaults if scope not found
+        jog_color_outer_ring = lv_color_hex(0x3A3A3A);
+        jog_color_inner_circle = lv_color_hex(0x2A2A2A);
+        jog_color_grid_lines = lv_color_hex(0x000000);
+        jog_color_home_bg = lv_color_hex(0x404040);
+        jog_color_home_border = lv_color_hex(0x606060);
+        jog_color_home_text = lv_color_hex(0xFFFFFF);
+        jog_color_boundary_lines = lv_color_hex(0x484848);
+        jog_color_distance_labels = lv_color_hex(0xCCCCCC);
+        jog_color_axis_labels = lv_color_hex(0xFFFFFF);
+        jog_color_highlight = lv_color_hex(0xFFFFFF);
+        return;
+    }
+
+    // Read light/dark variants for each color
+    bool use_dark_mode = ui_theme_is_dark_mode();
+
+    const char* outer_ring = lv_xml_get_const(scope, use_dark_mode ? "jog_outer_ring_dark" : "jog_outer_ring_light");
+    const char* inner_circle = lv_xml_get_const(scope, use_dark_mode ? "jog_inner_circle_dark" : "jog_inner_circle_light");
+    const char* grid_lines = lv_xml_get_const(scope, use_dark_mode ? "jog_grid_lines_dark" : "jog_grid_lines_light");
+    const char* home_bg = lv_xml_get_const(scope, use_dark_mode ? "jog_home_bg_dark" : "jog_home_bg_light");
+    const char* home_border = lv_xml_get_const(scope, use_dark_mode ? "jog_home_border_dark" : "jog_home_border_light");
+    const char* home_text = lv_xml_get_const(scope, use_dark_mode ? "jog_home_text_dark" : "jog_home_text_light");
+    const char* boundary_lines = lv_xml_get_const(scope, use_dark_mode ? "jog_boundary_lines_dark" : "jog_boundary_lines_light");
+    const char* distance_labels = lv_xml_get_const(scope, use_dark_mode ? "jog_distance_labels_dark" : "jog_distance_labels_light");
+    const char* axis_labels = lv_xml_get_const(scope, use_dark_mode ? "jog_axis_labels_dark" : "jog_axis_labels_light");
+    const char* highlight = lv_xml_get_const(scope, use_dark_mode ? "jog_highlight_dark" : "jog_highlight_light");
+
+    // Parse colors using theme utility
+    jog_color_outer_ring = ui_theme_parse_color(outer_ring ? outer_ring : "#3A3A3A");
+    jog_color_inner_circle = ui_theme_parse_color(inner_circle ? inner_circle : "#2A2A2A");
+    jog_color_grid_lines = ui_theme_parse_color(grid_lines ? grid_lines : "#000000");
+    jog_color_home_bg = ui_theme_parse_color(home_bg ? home_bg : "#404040");
+    jog_color_home_border = ui_theme_parse_color(home_border ? home_border : "#606060");
+    jog_color_home_text = ui_theme_parse_color(home_text ? home_text : "#FFFFFF");
+    jog_color_boundary_lines = ui_theme_parse_color(boundary_lines ? boundary_lines : "#484848");
+    jog_color_distance_labels = ui_theme_parse_color(distance_labels ? distance_labels : "#CCCCCC");
+    jog_color_axis_labels = ui_theme_parse_color(axis_labels ? axis_labels : "#FFFFFF");
+    jog_color_highlight = ui_theme_parse_color(highlight ? highlight : "#FFFFFF");
+
+    spdlog::debug("[Motion] Jog pad colors loaded for {} mode", use_dark_mode ? "dark" : "light");
+}
 
 void ui_panel_motion_init_subjects() {
     // Initialize position subjects with default placeholder values
@@ -273,7 +335,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Layer 1: Full background circle (light gray)
     lv_draw_arc_dsc_t bg_arc_dsc;
     lv_draw_arc_dsc_init(&bg_arc_dsc);
-    bg_arc_dsc.color = lv_color_hex(0x3a3a3a);  // Light gray (outer ring color)
+    bg_arc_dsc.color = jog_color_outer_ring;  // Theme-aware outer ring color
     bg_arc_dsc.width = radius * 2;  // Width = diameter, fills entire circle
     bg_arc_dsc.center.x = center_x;
     bg_arc_dsc.center.y = center_y;
@@ -285,7 +347,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Layer 2: Inner circle overlay (dark gray)
     lv_draw_arc_dsc_t inner_arc_dsc;
     lv_draw_arc_dsc_init(&inner_arc_dsc);
-    inner_arc_dsc.color = lv_color_hex(0x2a2a2a);  // Darker gray (inner circle color)
+    inner_arc_dsc.color = jog_color_inner_circle;  // Theme-aware inner circle color
     inner_arc_dsc.width = inner_boundary * 2;  // Width = inner diameter
     inner_arc_dsc.center.x = center_x;
     inner_arc_dsc.center.y = center_y;
@@ -298,7 +360,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Creates 4 pie-shaped quadrants for diagonal movements
     lv_draw_line_dsc_t line_dsc;
     lv_draw_line_dsc_init(&line_dsc);
-    line_dsc.color = lv_color_hex(0x000000);
+    line_dsc.color = jog_color_grid_lines;  // Theme-aware grid lines
     line_dsc.width = 4;
     line_dsc.opa = LV_OPA_50;
 
@@ -322,7 +384,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Draw filled background circle for home area
     lv_draw_arc_dsc_t home_bg_dsc;
     lv_draw_arc_dsc_init(&home_bg_dsc);
-    home_bg_dsc.color = lv_color_hex(0x404040);  // Slightly lighter than inner circle
+    home_bg_dsc.color = jog_color_home_bg;  // Theme-aware home button background
     home_bg_dsc.width = home_radius * 2;  // Fill entire circle
     home_bg_dsc.center.x = center_x;
     home_bg_dsc.center.y = center_y;
@@ -334,7 +396,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Draw visual ring border around home area
     lv_draw_arc_dsc_t home_ring_dsc;
     lv_draw_arc_dsc_init(&home_ring_dsc);
-    home_ring_dsc.color = lv_color_hex(0x606060);  // Lighter border color
+    home_ring_dsc.color = jog_color_home_border;  // Theme-aware home button border
     home_ring_dsc.width = 3;  // Border thickness
     home_ring_dsc.center.x = center_x;
     home_ring_dsc.center.y = center_y;
@@ -347,7 +409,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Use simple text icon as lv_draw_image doesn't work reliably in draw callbacks
     lv_draw_label_dsc_t home_label_dsc;
     lv_draw_label_dsc_init(&home_label_dsc);
-    home_label_dsc.color = lv_color_hex(0xffffff);
+    home_label_dsc.color = jog_color_home_text;  // Theme-aware home icon text
     home_label_dsc.text = LV_SYMBOL_HOME;
     home_label_dsc.font = &lv_font_montserrat_28;
     home_label_dsc.align = LV_TEXT_ALIGN_CENTER;
@@ -367,7 +429,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
 
         lv_draw_line_dsc_t boundary_line_dsc;
         lv_draw_line_dsc_init(&boundary_line_dsc);
-        boundary_line_dsc.color = lv_color_hex(0x484848);  // More subtle gray
+        boundary_line_dsc.color = jog_color_boundary_lines;  // Theme-aware boundary lines
         boundary_line_dsc.width = 1;  // Very thin
         boundary_line_dsc.opa = LV_OPA_50;  // 50% opacity for extra subtlety
 
@@ -385,7 +447,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     // Draw distance labels showing movement amounts for each ring
     lv_draw_label_dsc_t label_dsc;
     lv_draw_label_dsc_init(&label_dsc);
-    label_dsc.color = lv_color_hex(0xcccccc);
+    label_dsc.color = jog_color_distance_labels;  // Theme-aware distance labels
     label_dsc.font = &lv_font_montserrat_14;
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
 
@@ -410,7 +472,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
     lv_draw_label(layer, &label_dsc, &label_area);
 
     // Draw axis labels (cardinal directions)
-    label_dsc.color = lv_color_hex(0xffffff);
+    label_dsc.color = jog_color_axis_labels;  // Theme-aware axis labels
     label_dsc.font = &lv_font_montserrat_16;
 
     // Y+ (North)
@@ -451,7 +513,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
             // Highlight home button with filled circle
             lv_draw_arc_dsc_t highlight_dsc;
             lv_draw_arc_dsc_init(&highlight_dsc);
-            highlight_dsc.color = lv_color_hex(0xffffff);
+            highlight_dsc.color = jog_color_highlight;  // Theme-aware press highlight
             highlight_dsc.opa = LV_OPA_60;  // 60 = ~23% opacity
             lv_coord_t home_radius = (lv_coord_t)(radius * 0.25f);
             highlight_dsc.width = home_radius * 2;
@@ -477,7 +539,7 @@ static void jog_pad_draw_cb(lv_event_t* e) {
 
             lv_draw_arc_dsc_t highlight_dsc;
             lv_draw_arc_dsc_init(&highlight_dsc);
-            highlight_dsc.color = lv_color_hex(0xffffff);
+            highlight_dsc.color = jog_color_highlight;  // Theme-aware press highlight
             highlight_dsc.opa = LV_OPA_60;
 
             if (pressed_is_inner) {
@@ -712,6 +774,9 @@ void ui_panel_motion_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         lv_obj_set_height(jog_pad, jog_size);
         printf("[Motion]   Jog pad size: %dpx (available height: %dpx, screen: %dpx)\n",
                jog_size, available_height, screen_height);
+
+        // Initialize theme-aware colors from component-local constants
+        init_jog_pad_colors();
 
         // Register custom draw event (draws circles, dividers, labels, home icon)
         lv_obj_add_event_cb(jog_pad, jog_pad_draw_cb, LV_EVENT_DRAW_POST, nullptr);
