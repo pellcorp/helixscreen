@@ -224,12 +224,12 @@ static bool parse_command_line_args(int argc, char** argv,
             if (i + 1 < argc) {
                 wizard_step = atoi(argv[++i]);
                 force_wizard = true;
-                if (wizard_step < 1 || wizard_step > 7) {
-                    printf("Error: wizard step must be 1-7\n");
+                if (wizard_step < 1 || wizard_step > 8) {
+                    printf("Error: wizard step must be 1-8\n");
                     return false;
                 }
             } else {
-                printf("Error: --wizard-step requires an argument (1-7)\n");
+                printf("Error: --wizard-step requires an argument (1-8)\n");
                 return false;
             }
         } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--display") == 0) {

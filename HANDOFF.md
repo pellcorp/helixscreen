@@ -1,7 +1,7 @@
 # Session Handoff Document
 
 **Last Updated:** 2025-11-02
-**Current Focus:** Multiple tracks - Wizard implementation (other session), Print Select real file ops (JUST COMPLETED)
+**Current Focus:** Wizard baseline implementations COMPLETE - All 8 steps functional
 
 ---
 
@@ -52,64 +52,102 @@ api->list_files("gcodes", "", false, [api](const std::vector<FileInfo>& files) {
 
 ---
 
-## 🧙 Active Work: First-Run Configuration Wizard (IN PROGRESS)
+## ✅ JUST COMPLETED: Wizard Baseline Implementations (2025-11-02)
 
-### What's Working ✅
+**All 8 wizard steps now have functional baseline C++ implementations!**
 
-**Wizard Framework Infrastructure**
+### Wizard Framework (Complete)
 - Subject-based navigation (current_step, total_steps, wizard_title, wizard_progress)
 - Responsive constants system (SMALL ≤480, MEDIUM 481-800, LARGE >800px)
-- Back/Next navigation with automatic "Finish" button on last step
+- Back/Next navigation with automatic "Finish" button on step 8
 - Parent-defined constants pattern (wizard_container → child screens)
 - Theme-aware background colors
-- Test infrastructure (wizard_validation.h/cpp with IP/hostname validation)
+- Next button control (enabled/disabled per screen)
+- total_steps = 8 (fixed throughout codebase)
 
-**Step 1: WiFi Setup ✅ FULLY IMPLEMENTED**
-- WiFi toggle with immediate placeholder hide/show
-- Network scanning with 3-second delay after enable
-- Network list population (signal strength icons + encryption indicators)
-- Connected network highlighting with accent color
-- Click-to-connect with password modal
-- Responsive layout for all screen sizes
+### All Steps Implemented ✅
+
+**Step 1: WiFi Setup** (ui_wizard_wifi.h/.cpp)
+- WiFi toggle, network scanning, password modal
 - Backend integration with WiFiManager (mock + real)
 
-### What Exists But NOT Wired ⚠️
+**Step 2: Moonraker Connection** (ui_wizard_connection.h/.cpp)
+- IP/hostname + port validation
+- WebSocket connection testing with status feedback
+- Config persistence to `/moonraker/host` and `/moonraker/port`
+- Next button disabled until successful connection
+- Comprehensive unit tests (validation + UI)
 
-**8 XML Screens Created:**
-1. ✅ wizard_wifi_setup.xml (working)
-2. ⚠️ wizard_connection.xml (exists, not wired - Moonraker IP/port)
-3. ⚠️ wizard_printer_identify.xml (exists, not wired - printer type/name)
-4. ⚠️ wizard_bed_select.xml (exists, not wired - bed heater/sensor dropdowns)
-5. ⚠️ wizard_hotend_select.xml (exists, not wired - extruder dropdowns)
-6. ⚠️ wizard_fan_select.xml (exists, not wired - fan assignments)
-7. ⚠️ wizard_led_select.xml (exists, not wired - LED assignments)
-8. ⚠️ wizard_summary.xml (exists, not wired - review selections)
+**Step 3: Printer Identification** (ui_wizard_printer_identify.h/.cpp)
+- Printer name textarea
+- Printer type roller (33 options: Voron, Prusa, Creality, Ender, Bambu, etc.)
+- Config persistence to `/printer/name` and `/printer/type`
+- Auto-detection status display (ready for Moonraker integration)
 
-**C++ Implementation Gaps** (ui_wizard.cpp:305-338):
-- Steps 2-7 show "not yet implemented" placeholders
-- total_steps = 7 but 8 XML screens exist (mismatch to resolve)
-- Only WiFi screen has content creation function (ui_wizard_wifi_create())
+**Step 4: Bed Select** (ui_wizard_bed_select.h/.cpp)
+- Bed heater dropdown (placeholder options)
+- Bed sensor dropdown (placeholder options)
+- Config persistence to `/printer/bed/heater` and `/printer/bed/sensor`
 
-### Next Session (Tomorrow Morning) 🌅
+**Step 5: Hotend Select** (ui_wizard_hotend_select.h/.cpp)
+- Extruder heater dropdown
+- Temperature sensor dropdown
+- Config persistence to `/printer/extruder/heater` and `/printer/extruder/sensor`
 
-1. **Wire Step 2: Moonraker Connection**
-   - Connection test with spinner + status feedback
-   - IP address entry (numeric keypad)
-   - Save to config on success
-   - Trigger auto-discovery
+**Step 6: Fan Select** (ui_wizard_fan_select.h/.cpp)
+- Hotend fan dropdown
+- Part cooling fan dropdown
+- Config persistence to `/printer/fans/hotend_fan` and `/printer/fans/part_cooling_fan`
 
-2. **Resolve step count mismatch** (7 vs 8 screens)
+**Step 7: LED Select** (ui_wizard_led_select.h/.cpp)
+- LED strip dropdown (optional)
+- Config persistence to `/printer/led/strip`
 
-3. **Wire Step 3: Printer Identify**
-   - Roller widget for printer type (32 options)
-   - Text input for printer name
-   - Auto-populate from discovery
+**Step 8: Summary** (ui_wizard_summary.h/.cpp)
+- Read-only display of all configurations
+- Loads from config: printer name, type, network address, hardware selections
+- "Finish" button replaces "Next" automatically
+
+### Files Created (12 new files)
+- `include/ui_wizard_printer_identify.h`, `src/ui_wizard_printer_identify.cpp`
+- `include/ui_wizard_bed_select.h`, `src/ui_wizard_bed_select.cpp`
+- `include/ui_wizard_hotend_select.h`, `src/ui_wizard_hotend_select.cpp`
+- `include/ui_wizard_fan_select.h`, `src/ui_wizard_fan_select.cpp`
+- `include/ui_wizard_led_select.h`, `src/ui_wizard_led_select.cpp`
+- `include/ui_wizard_summary.h`, `src/ui_wizard_summary.cpp`
+
+### Files Modified
+- `src/ui_wizard.cpp` - Wired all 8 steps, updated total_steps to 8
+- `src/main.cpp` - Updated CLI arg validation to allow steps 1-8
+- `include/ui_wizard.h` - Added ui_wizard_set_next_button_enabled()
+- `ui_xml/wizard_container.xml` - Added Next button control via subject
+
+### Next Priorities
+
+1. **Integrate real Moonraker data for Steps 4-6**
+   - Replace placeholder dropdown options with live Moonraker heater/sensor/fan queries
+   - Use `MoonrakerAPI::query_printer_objects()` to fetch available components
+   - Dynamically populate dropdowns based on printer.cfg
+
+2. **Implement Finish button handler**
+   - Save wizard completion flag to config
+   - Trigger transition to main application screen
+   - Handle "complete wizard" vs "skip wizard" paths
+
+3. **Add printer auto-detection to Step 3**
+   - Query Moonraker for printer info after connection (Step 2)
+   - Auto-populate printer name/type if detectable
+   - Allow manual override
 
 **Key Files:**
-- `src/ui_wizard.cpp` - Navigation (WiFi only, rest TODOs)
-- `src/ui_wizard_wifi.cpp` - WiFi screen implementation
-- `ui_xml/wizard_*.xml` - 8 screens (1 working, 7 waiting)
-- `include/wizard_validation.h` - IP/hostname/port helpers
+- `src/ui_wizard.cpp` - Main navigation, loads all 8 steps
+- `src/ui_wizard_connection.cpp` - Step 2 with comprehensive tests
+- `src/ui_wizard_printer_identify.cpp` - Step 3 with 33 printer types
+- `src/ui_wizard_{bed,hotend,fan,led}_select.cpp` - Steps 4-7 hardware config
+- `src/ui_wizard_summary.cpp` - Step 8 final review
+- `ui_xml/wizard_*.xml` - All 8 XML layouts (complete)
+- `include/wizard_validation.h` - Input validation helpers
+- `tests/unit/test_wizard_connection*.cpp` - Comprehensive test suite
 
 ---
 

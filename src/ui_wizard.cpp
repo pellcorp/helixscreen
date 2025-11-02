@@ -20,6 +20,13 @@
 
 #include "ui_wizard.h"
 #include "ui_wizard_wifi.h"
+#include "ui_wizard_connection.h"
+#include "ui_wizard_printer_identify.h"
+#include "ui_wizard_bed_select.h"
+#include "ui_wizard_hotend_select.h"
+#include "ui_wizard_fan_select.h"
+#include "ui_wizard_led_select.h"
+#include "ui_wizard_summary.h"
 #include "ui_theme.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/others/xml/lv_xml.h"
@@ -51,13 +58,13 @@ void ui_wizard_init_subjects() {
 
     // Initialize subjects with defaults
     lv_subject_init_int(&current_step, 1);
-    lv_subject_init_int(&total_steps, 7);
+    lv_subject_init_int(&total_steps, 8);  // 8 steps: WiFi, Connection, Printer, Bed, Hotend, Fan, LED, Summary
 
     lv_subject_init_string(&wizard_title, wizard_title_buffer, nullptr,
                            sizeof(wizard_title_buffer), "Welcome");
 
     lv_subject_init_string(&wizard_progress, wizard_progress_buffer, nullptr,
-                           sizeof(wizard_progress_buffer), "Step 1 of 7");
+                           sizeof(wizard_progress_buffer), "Step 1 of 8");
 
     lv_subject_init_string(&wizard_next_button_text, wizard_next_button_text_buffer,
                            nullptr, sizeof(wizard_next_button_text_buffer), "Next");
@@ -303,39 +310,59 @@ static void ui_wizard_load_screen(int step) {
             break;
 
         case 2:  // Moonraker Connection
-            spdlog::info("[Wizard] Step 2 (Moonraker) not yet implemented");
+            spdlog::info("[Wizard] Creating Moonraker connection screen");
+            ui_wizard_connection_init_subjects();
+            ui_wizard_connection_register_callbacks();
+            ui_wizard_connection_create(content);
             ui_wizard_set_title("Moonraker Connection");
-            // TODO: ui_wizard_connection_create(content);
             break;
 
-        case 3:  // Printer Selection
-            spdlog::info("[Wizard] Step 3 (Printer) not yet implemented");
-            ui_wizard_set_title("Printer Selection");
-            // TODO: ui_wizard_printer_create(content);
+        case 3:  // Printer Identification
+            spdlog::info("[Wizard] Creating printer identification screen");
+            ui_wizard_printer_identify_init_subjects();
+            ui_wizard_printer_identify_register_callbacks();
+            ui_wizard_printer_identify_create(content);
+            ui_wizard_set_title("Printer Identification");
             break;
 
-        case 4:  // Hardware Configuration
-            spdlog::info("[Wizard] Step 4 (Hardware) not yet implemented");
-            ui_wizard_set_title("Hardware Configuration");
-            // TODO: ui_wizard_hardware_create(content);
+        case 4:  // Bed Select
+            spdlog::info("[Wizard] Creating bed select screen");
+            ui_wizard_bed_select_init_subjects();
+            ui_wizard_bed_select_register_callbacks();
+            ui_wizard_bed_select_create(content);
+            ui_wizard_set_title("Bed Configuration");
             break;
 
-        case 5:  // Additional Settings
-            spdlog::info("[Wizard] Step 5 (Settings) not yet implemented");
-            ui_wizard_set_title("Additional Settings");
-            // TODO: ui_wizard_settings_create(content);
+        case 5:  // Hotend Select
+            spdlog::info("[Wizard] Creating hotend select screen");
+            ui_wizard_hotend_select_init_subjects();
+            ui_wizard_hotend_select_register_callbacks();
+            ui_wizard_hotend_select_create(content);
+            ui_wizard_set_title("Hotend Configuration");
             break;
 
-        case 6:  // Review
-            spdlog::info("[Wizard] Step 6 (Review) not yet implemented");
-            ui_wizard_set_title("Review Settings");
-            // TODO: ui_wizard_review_create(content);
+        case 6:  // Fan Select
+            spdlog::info("[Wizard] Creating fan select screen");
+            ui_wizard_fan_select_init_subjects();
+            ui_wizard_fan_select_register_callbacks();
+            ui_wizard_fan_select_create(content);
+            ui_wizard_set_title("Fan Configuration");
             break;
 
-        case 7:  // Completion
-            spdlog::info("[Wizard] Step 7 (Complete) not yet implemented");
-            ui_wizard_set_title("Setup Complete");
-            // TODO: ui_wizard_complete_create(content);
+        case 7:  // LED Select
+            spdlog::info("[Wizard] Creating LED select screen");
+            ui_wizard_led_select_init_subjects();
+            ui_wizard_led_select_register_callbacks();
+            ui_wizard_led_select_create(content);
+            ui_wizard_set_title("LED Configuration");
+            break;
+
+        case 8:  // Summary
+            spdlog::info("[Wizard] Creating summary screen");
+            ui_wizard_summary_init_subjects();
+            ui_wizard_summary_register_callbacks();
+            ui_wizard_summary_create(content);
+            ui_wizard_set_title("Configuration Summary");
             break;
 
         default:
@@ -369,4 +396,43 @@ static void on_next_clicked(lv_event_t* e) {
         spdlog::info("[Wizard] Finish button clicked, completing wizard");
         // TODO: Handle wizard completion (emit event or callback)
     }
+}
+
+// ============================================================================
+// Button Control Functions
+// ============================================================================
+
+void ui_wizard_set_button_enabled(bool back_enabled, bool next_enabled) {
+    if (!wizard_root) {
+        spdlog::warn("[Wizard] Cannot set button state: wizard not created");
+        return;
+    }
+
+    // Find buttons by name
+    lv_obj_t* back_btn = lv_obj_find_by_name(wizard_root, "back_button");
+    lv_obj_t* next_btn = lv_obj_find_by_name(wizard_root, "next_button");
+
+    if (back_btn) {
+        if (back_enabled) {
+            lv_obj_remove_state(back_btn, LV_STATE_DISABLED);
+        } else {
+            lv_obj_add_state(back_btn, LV_STATE_DISABLED);
+        }
+    }
+
+    if (next_btn) {
+        if (next_enabled) {
+            lv_obj_remove_state(next_btn, LV_STATE_DISABLED);
+        } else {
+            lv_obj_add_state(next_btn, LV_STATE_DISABLED);
+        }
+    }
+
+    spdlog::debug("[Wizard] Button states updated - back: {}, next: {}",
+                  back_enabled, next_enabled);
+}
+
+void ui_wizard_set_next_button_enabled(bool enabled) {
+    // Keep back button in its current state, only change next button
+    ui_wizard_set_button_enabled(true, enabled);
 }
