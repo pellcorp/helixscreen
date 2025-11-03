@@ -20,6 +20,7 @@
 
 #include "ui_wizard_printer_identify.h"
 #include "ui_wizard.h"
+#include "ui_keyboard.h"
 #include "app_globals.h"
 #include "config.h"
 #include "lvgl/lvgl.h"
@@ -260,7 +261,8 @@ lv_obj_t* ui_wizard_printer_identify_create(lv_obj_t* parent) {
     lv_obj_t* name_ta = lv_obj_find_by_name(printer_identify_screen_root, "printer_name_input");
     if (name_ta) {
         lv_obj_add_event_cb(name_ta, on_printer_name_changed, LV_EVENT_VALUE_CHANGED, nullptr);
-        spdlog::debug("[Wizard Printer] Name textarea configured");
+        ui_keyboard_register_textarea(name_ta);
+        spdlog::debug("[Wizard Printer] Name textarea configured with keyboard");
     }
 
     // Update layout

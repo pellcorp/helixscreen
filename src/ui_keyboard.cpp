@@ -130,26 +130,56 @@ void ui_keyboard_show(lv_obj_t* textarea)
     // Show keyboard
     lv_obj_remove_flag(g_keyboard, LV_OBJ_FLAG_HIDDEN);
 
-    // Auto-scroll textarea to be visible above keyboard
-    if (textarea) {
-        // Force layout update to get accurate keyboard position
-        lv_obj_update_layout(lv_screen_active());
+    // Force layout update to get accurate positions
+    lv_obj_update_layout(lv_screen_active());
 
-        // Get keyboard height and position
-        int32_t kb_y = lv_obj_get_y(g_keyboard);
-        int32_t textarea_y = lv_obj_get_y(textarea);
-        int32_t textarea_h = lv_obj_get_height(textarea);
+    if (!textarea) {
+        return;
+    }
 
-        // Calculate if textarea is obscured by keyboard
-        // (textarea bottom is below keyboard top)
-        if (textarea_y + textarea_h > kb_y) {
-            spdlog::debug("[Keyboard] Textarea obscured by keyboard - scrolling into view");
+    // Get absolute coordinates
+    lv_area_t kb_coords, ta_coords;
+    lv_obj_get_coords(g_keyboard, &kb_coords);
+    lv_obj_get_coords(textarea, &ta_coords);
 
-            // Scroll with smooth animation
-            lv_obj_scroll_to_view_recursive(textarea, LV_ANIM_ON);
-        } else {
-            spdlog::debug("[Keyboard] Textarea already visible above keyboard");
+    int32_t kb_top = kb_coords.y1;
+    int32_t ta_bottom = ta_coords.y2;
+
+    // Add padding above textarea (20px breathing room)
+    const int32_t padding = 20;
+    int32_t desired_bottom = kb_top - padding;
+
+    // Calculate if we need to shift the screen up
+    if (ta_bottom > desired_bottom) {
+        int32_t shift_up = ta_bottom - desired_bottom;
+
+        spdlog::debug("[Keyboard] Shifting screen UP by {} px (ta_bottom={}, kb_top={})",
+                     shift_up, ta_bottom, kb_top);
+
+        // Move all screen children (except keyboard) up with animation
+        lv_obj_t* screen = lv_screen_active();
+        uint32_t child_count = lv_obj_get_child_count(screen);
+
+        for (uint32_t i = 0; i < child_count; i++) {
+            lv_obj_t* child = lv_obj_get_child(screen, i);
+            if (child == g_keyboard) continue;
+
+            int32_t current_y = lv_obj_get_y(child);
+            int32_t target_y = current_y - shift_up;
+
+            // Animate the Y position change (200ms, fast and smooth)
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, child);
+            lv_anim_set_values(&a, current_y, target_y);
+            lv_anim_set_time(&a, 200);
+            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_start(&a);
         }
+    } else {
+        spdlog::debug("[Keyboard] Textarea already visible (ta_bottom={}, kb_top={})",
+                     ta_bottom, kb_top);
     }
 }
 
@@ -162,19 +192,34 @@ void ui_keyboard_hide()
 
     spdlog::debug("[Keyboard] Hiding keyboard");
 
-    // Get current textarea before clearing (for scroll-back)
-    lv_obj_t* textarea = lv_keyboard_get_textarea(g_keyboard);
-
     // Clear textarea assignment
     lv_keyboard_set_textarea(g_keyboard, NULL);
 
     // Hide keyboard
     lv_obj_add_flag(g_keyboard, LV_OBJ_FLAG_HIDDEN);
 
-    // Scroll textarea back with smooth animation (if it was scrolled)
-    if (textarea) {
-        lv_obj_scroll_to_view_recursive(textarea, LV_ANIM_ON);
-        spdlog::debug("[Keyboard] Scrolled textarea back after hide");
+    // Move all screen children (except keyboard) back to y=0 with animation
+    lv_obj_t* screen = lv_screen_active();
+    uint32_t child_count = lv_obj_get_child_count(screen);
+
+    spdlog::debug("[Keyboard] Restoring screen children to y=0");
+
+    for (uint32_t i = 0; i < child_count; i++) {
+        lv_obj_t* child = lv_obj_get_child(screen, i);
+        if (child == g_keyboard) continue;
+
+        int32_t current_y = lv_obj_get_y(child);
+        if (current_y != 0) {
+            // Animate back to y=0 (200ms, fast and smooth)
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, child);
+            lv_anim_set_values(&a, current_y, 0);
+            lv_anim_set_time(&a, 200);
+            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
+            lv_anim_start(&a);
+        }
     }
 }
 
