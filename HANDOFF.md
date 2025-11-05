@@ -1,7 +1,7 @@
 # Session Handoff Document
 
 **Last Updated:** 2025-11-04
-**Current Focus:** WiFi mock backend refactored, password dialog visibility issue pending
+**Current Focus:** WiFi password modal complete, ready for wizard polish
 
 ---
 
@@ -9,14 +9,21 @@
 
 ### Completed Phases
 
-1. **WiFi Mock Backend Refactoring** - ✅ COMPLETE
-   - Created `MockWiFiNetwork` struct to cleanly separate public network info from mock passwords
-   - All secured mock networks now use password `"12345678"` for testing
-   - Password validation in `connect_thread_func()` checks entered password against expected
-   - Connection timeout simulation for weak signals (<20% strength)
-   - Logs show modal is created but not visually appearing (investigation needed)
+1. **WiFi Password Modal** - ✅ COMPLETE
+   - Modal appears and functions correctly
+   - Connect button disables immediately on click (50% opacity)
+   - Fixed button radius morphing on press (disabled LV_THEME_DEFAULT_GROW in lv_conf.h)
+   - Connected network highlighted with primary color border + distinct background
+   - Status text reads from XML constants ("WiFi Enabled", "Connecting to...", etc.)
+   - Password validation working (empty password → error, wrong password → AUTH_FAILED)
+   - Fixed critical blocking bug in wifi_backend_mock.cpp (thread.join() → thread.detach())
 
-2. **Custom HelixScreen Theme** - ✅ COMPLETE
+2. **Global Disabled State Styling** - ✅ COMPLETE
+   - All widgets automatically dim to 50% opacity when disabled
+   - Implemented in theme system (helix_theme.c)
+   - No per-widget styling needed - applies to buttons, inputs, all interactive elements
+
+3. **Custom HelixScreen Theme** - ✅ COMPLETE
    - Implemented custom LVGL wrapper theme (helix_theme.c) that extends default theme
    - Input widgets (textarea, dropdown, roller, spinbox) get computed background colors automatically
    - Dark mode: input backgrounds 22-27 RGB units lighter than cards (#35363A vs #1F1F1F)
@@ -24,23 +31,23 @@
    - Removed 273 lines of fragile LVGL private API patching from ui_theme.cpp
    - Uses LVGL's public theme API, much more maintainable across LVGL versions
 
-2. **Phase 1: Hardware Discovery Trigger** - ✅ COMPLETE
+4. **Phase 1: Hardware Discovery Trigger** - ✅ COMPLETE
    - Wizard triggers `discover_printer()` after successful connection
    - Connection stays alive for hardware selection steps 4-7
 
-3. **Phase 2: Dynamic Dropdown Population** - ✅ COMPLETE
+5. **Phase 2: Dynamic Dropdown Population** - ✅ COMPLETE
    - All 4 wizard hardware screens use dynamic dropdowns from MoonrakerClient
    - Hardware filtering: bed (by "bed"), hotend (by "extruder"/"hotend"), fans (separated by type), LEDs (all)
    - Fixed critical layout bug: `height="LV_SIZE_CONTENT"` → `flex_grow="1"`
 
-3. **Phase 2.5: Connection Screen Reactive UI** - ✅ SUBSTANTIALLY COMPLETE
+6. **Phase 2.5: Connection Screen Reactive UI** - ✅ SUBSTANTIALLY COMPLETE
    - Reactive Next button control via connection_test_passed subject
    - Split connection_status into icon (checkmark/xmark) and text subjects
    - Virtual keyboard integration with auto-show on textarea focus
    - Config prefilling for IP/port from previous sessions
    - Disabled button styling (50% opacity when connection_test_passed=0)
 
-4. **Phase 3: Mock Backend** - ✅ COMPLETE
+7. **Phase 3: Mock Backend** - ✅ COMPLETE
    - `MoonrakerClientMock` with 7 printer profiles, factory pattern in main.cpp
 
 ### What Works Now
@@ -50,10 +57,10 @@
 - ✅ Wizard hardware selection (steps 4-7) dynamically populated from discovered hardware
 - ✅ Mock backend testing (`--test` flag)
 - ✅ Config persistence for all wizard fields
+- ✅ WiFi wizard screen with password modal, connection, and status display
 
 ### What Needs Work
 
-- 🔴 **WiFi password modal not visible** - Modal created in logs but not appearing on screen (needs z-index/visibility investigation)
 - ⚠️ Wizard steps 1-2 need polish and refinement (basic functionality complete)
 - ❌ Wizard steps 3 and 8 (printer ID, summary) need implementation
 - ❌ Real printer testing with connection screen (only tested with mock backend)
@@ -63,18 +70,13 @@
 
 ## 🚀 NEXT PRIORITIES
 
-### 1. **URGENT: Fix WiFi Password Modal Visibility**
-- Modal is being created (logs confirm) but not visually appearing
-- Likely z-index, hidden flag, or parent visibility issue
-- Check modal system's z-order management and backdrop rendering
-
-### 2. Polish Wizard Connection Screen (Step 2)
+### 1. Polish Wizard Connection Screen (Step 2)
 - Improve error messaging and user feedback
 - Add timeout handling for connection attempts
 - Test with real printer (no `--test` flag)
 - Refine layout and visual feedback
 
-### 3. Implement Printer Identification (Step 3)
+### 2. Implement Printer Identification (Step 3)
 - Allow user to name their printer
 - Store printer name in config
 - Validate input (non-empty, reasonable length)
@@ -103,7 +105,65 @@
 
 **Why:** LV_SIZE_CONTENT doesn't work reliably when child elements are themselves flex containers or have complex layouts. Use `flex_grow` or fixed heights instead.
 
-### Pattern #1: Dynamic Dropdown Population
+### Pattern #1: Thread Management - NEVER Block UI Thread
+
+**CRITICAL:** NEVER use blocking operations like `thread.join()` in code paths triggered by UI events.
+
+```cpp
+// ❌ WRONG - Blocks LVGL main thread for 2-3 seconds
+if (connect_thread_.joinable()) {
+    connect_thread_.join();  // UI FREEZES HERE
+}
+
+// ✅ CORRECT - Non-blocking cleanup
+connect_active_ = false;  // Signal thread to exit
+if (connect_thread_.joinable()) {
+    connect_thread_.detach();  // Let thread finish on its own
+}
+```
+
+**Why:** Blocking the LVGL main thread prevents all UI updates (including immediate visual feedback like button states). Use detach() or async patterns instead.
+
+**Symptoms of blocking:**
+- UI changes delayed by seconds
+- Direct style manipulation (`lv_obj_set_style_*`) also delayed
+- Button states don't update until blocking call completes
+
+### Pattern #2: Global Disabled State Styling
+
+All widgets automatically get 50% opacity when disabled via theme system. No per-widget styling needed.
+
+```cpp
+// Enable/disable any widget
+lv_obj_add_state(widget, LV_STATE_DISABLED);    // Dims to 50% automatically
+lv_obj_remove_state(widget, LV_STATE_DISABLED); // Restores full opacity
+```
+
+**Implementation:** helix_theme.c applies disabled_style globally to all objects for LV_STATE_DISABLED.
+
+### Pattern #3: LVGL XML String Constants
+
+Use `<str>` tags for C++-accessible string constants, NOT `<enumdef>`.
+
+```xml
+<!-- ✅ CORRECT - String constants -->
+<consts>
+  <str name="wifi_status.disabled" value="WiFi Disabled"/>
+  <str name="wifi_status.enabled" value="WiFi Enabled"/>
+  <str name="wifi_status.connecting" value="Connecting to "/>
+</consts>
+```
+
+```cpp
+// Access via component scope
+lv_xml_component_scope_t* scope = lv_xml_component_get_scope("wizard_wifi_setup");
+const char* text = lv_xml_get_const(scope, "wifi_status.enabled");
+// Returns: "WiFi Enabled"
+```
+
+**Why:** `<enumdef>` is ONLY for widget property types in `<api>` sections, not for string lookups.
+
+### Pattern #4: Dynamic Dropdown Population
 
 ```cpp
 // Store items for event callback mapping
@@ -132,7 +192,7 @@ static void on_changed(lv_event_t* e) {
 }
 ```
 
-### Pattern #2: Moonraker Client Access
+### Pattern #5: Moonraker Client Access
 
 ```cpp
 #include "app_globals.h"
@@ -147,7 +207,7 @@ const auto& fans = client->get_fans();
 const auto& leds = client->get_leds();
 ```
 
-### Pattern #3: Reactive Button Control via Subjects
+### Pattern #6: Reactive Button Control via Subjects
 
 Control button state (enabled/disabled, styled) reactively using subjects and bind_flag_if_eq.
 
@@ -177,8 +237,12 @@ lv_subject_set_int(&connection_test_passed, 1);  // Button becomes enabled
 
 **Why:** Fully reactive UI - no manual button state management. Button automatically updates when subject changes.
 
+### Pattern #7: Button Radius Morphing Fix
+
+Fixed 8px radius on buttons appears to morph when `LV_THEME_DEFAULT_GROW=1` causes 3px width/height transform on press. Disable in lv_conf.h:690 to prevent visual artifact while preserving other animations.
+
 ---
 
 **Reference:** See `docs/MOONRAKER_HARDWARE_DISCOVERY_PLAN.md` for implementation plan
 
-**Next Session:** Polish connection screen (step 2), implement printer ID (step 3)
+**Next Session:** Polish wizard connection screen (step 2), then implement printer identification (step 3)
