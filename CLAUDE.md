@@ -59,8 +59,9 @@ This is the **LVGL 9 UI Prototype** for HelixScreen - a declarative XML-based to
 
 **See DEVELOPMENT.md for complete setup instructions.**
 
-**Essential dependencies**: SDL2, clang/gcc, make, python3, npm
-**Install**: `brew install sdl2` (macOS) or `sudo apt install libsdl2-dev` (Linux), then `npm install`
+**Essential dependencies**: cmake, clang/gcc, make, python3, npm
+**Install**: `brew install cmake` (macOS) or `sudo apt install cmake` (Linux), then `npm install`
+**Note**: SDL2 is optional - will be built from submodule if not system-installed
 
 **Build & Run**:
 

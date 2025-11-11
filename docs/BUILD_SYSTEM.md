@@ -67,11 +67,11 @@ make check-deps
 ```
 
 This checks for:
-- **System tools**: C/C++ compiler, make, python3, npm
-- **Libraries**: SDL2, pkg-config
+- **System tools**: C/C++ compiler, cmake, make, python3, npm
+- **Libraries**: pkg-config
 - **Canvas dependencies**: cairo, pango, libpng, libjpeg, librsvg (for lv_img_conv)
 - **npm packages**: lv_font_conv, lv_img_conv
-- **Git submodules**: LVGL, spdlog, libhv
+- **Git submodules**: SDL2, LVGL, spdlog, libhv (built automatically)
 
 The checker is **platform-aware** and shows the correct install commands for:
 - **macOS** (Homebrew)
@@ -491,8 +491,8 @@ Before building, the system automatically checks for required dependencies:
 
 **Required:**
 - `clang` / `clang++` - C/C++ compiler with C++17 support
-- `sdl2-config` - SDL2 development libraries
-- Git submodules: `lvgl`, `libhv`, `spdlog`, `wpa_supplicant` (auto-built by build system)
+- `cmake` - Build system for SDL2 (version 3.16+)
+- Git submodules: `sdl2`, `lvgl`, `libhv`, `spdlog`, `wpa_supplicant` (auto-built by build system)
 
 **Optional:**
 - `bear` - For generating `compile_commands.json`
@@ -510,7 +510,8 @@ Example output:
 Checking build dependencies...
 ✓ clang found: Apple clang version 17.0.0
 ✓ clang++ found: Apple clang version 17.0.0
-✓ SDL2 found: 2.32.10
+✓ SDL2: Building from submodule (sdl2/)
+✓ cmake found: cmake version 3.30.5
 ✓ libhv found: libhv/lib/libhv.a
 ✓ spdlog found: spdlog
 ✓ LVGL found: lvgl

@@ -13,8 +13,8 @@ all: check-deps apply-patches generate-fonts $(TARGET)
 $(LIBHV_LIB):
 	$(Q)$(MAKE) libhv-build
 
-# Link binary
-$(TARGET): $(LIBHV_LIB) $(APP_C_OBJS) $(APP_OBJS) $(OBJCPP_OBJS) $(LVGL_OBJS) $(THORVG_OBJS) $(FONT_OBJS) $(MATERIAL_ICON_OBJS) $(WPA_DEPS)
+# Link binary (SDL2_LIB is empty if using system SDL2)
+$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(APP_C_OBJS) $(APP_OBJS) $(OBJCPP_OBJS) $(LVGL_OBJS) $(THORVG_OBJS) $(FONT_OBJS) $(MATERIAL_ICON_OBJS) $(WPA_DEPS)
 	$(Q)mkdir -p $(BIN_DIR)
 	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
 	$(Q)$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) || { \
@@ -123,6 +123,10 @@ clean:
 		echo "$(GREEN)✓ Already clean (no build directory)$(RESET)"; \
 	fi
 	$(Q)rm -f .fonts.stamp
+	$(Q)if [ -d "$(SDL2_BUILD_DIR)" ]; then \
+		echo "$(YELLOW)→ Cleaning SDL2 build...$(RESET)"; \
+		rm -rf $(SDL2_BUILD_DIR); \
+	fi
 ifneq ($(UNAME_S),Darwin)
 	$(Q)if [ -f "$(WPA_CLIENT_LIB)" ]; then \
 		echo "$(YELLOW)→ Cleaning wpa_supplicant...$(RESET)"; \

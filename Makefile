@@ -144,9 +144,21 @@ FONT_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(FONT_SRCS))
 MATERIAL_ICON_SRCS := $(wildcard assets/images/material/*.c)
 MATERIAL_ICON_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(MATERIAL_ICON_SRCS))
 
-# SDL2
-SDL2_CFLAGS := $(shell sdl2-config --cflags)
-SDL2_LIBS := $(shell sdl2-config --libs)
+# SDL2 - Use system version if available, otherwise build from submodule
+SDL2_SYSTEM_AVAILABLE := $(shell command -v sdl2-config 2>/dev/null)
+ifneq ($(SDL2_SYSTEM_AVAILABLE),)
+    # System SDL2 found - use it
+    SDL2_INC := $(shell sdl2-config --cflags)
+    SDL2_LIBS := $(shell sdl2-config --libs)
+    SDL2_LIB :=
+else
+    # No system SDL2 - build from submodule
+    SDL2_DIR := sdl2
+    SDL2_BUILD_DIR := $(SDL2_DIR)/build
+    SDL2_LIB := $(SDL2_BUILD_DIR)/libSDL2.a
+    SDL2_INC := -I$(SDL2_DIR)/include -I$(SDL2_BUILD_DIR)/include -I$(SDL2_BUILD_DIR)/include-config-release
+    SDL2_LIBS := $(SDL2_LIB)
+endif
 
 # libhv (WebSocket client for Moonraker) - symlinked from parent repo submodule
 LIBHV_DIR := libhv
@@ -163,7 +175,7 @@ WPA_CLIENT_LIB := $(WPA_DIR)/wpa_supplicant/libwpa_client.a
 WPA_INC := -I$(WPA_DIR)/src/common -I$(WPA_DIR)/src/utils
 
 # Include paths
-INCLUDES := -I. -I$(INC_DIR) $(LVGL_INC) $(LIBHV_INC) $(SPDLOG_INC) $(WPA_INC) $(SDL2_CFLAGS)
+INCLUDES := -I. -I$(INC_DIR) $(LVGL_INC) $(LIBHV_INC) $(SPDLOG_INC) $(WPA_INC) $(SDL2_INC)
 
 # Platform detection and configuration
 UNAME_S := $(shell uname -s)
@@ -177,13 +189,13 @@ ifeq ($(UNAME_S),Darwin)
 
     CFLAGS += $(MACOS_DEPLOYMENT_TARGET)
     CXXFLAGS += $(MACOS_DEPLOYMENT_TARGET)
-    LDFLAGS := $(SDL2_LIBS) -lm -lpthread -framework Foundation -framework CoreFoundation -framework Security -framework CoreWLAN -framework CoreLocation
+    LDFLAGS := $(SDL2_LIBS) -lm -lpthread -framework Foundation -framework CoreFoundation -framework Security -framework CoreWLAN -framework CoreLocation -framework Cocoa -framework IOKit -framework CoreVideo -framework AudioToolbox -framework ForceFeedback -framework Carbon -framework CoreAudio -framework Metal -liconv
     PLATFORM := macOS
     WPA_DEPS :=
 else
     # Linux - Include libwpa_client.a for WiFi control
     NPROC := $(shell nproc 2>/dev/null || echo 4)
-    LDFLAGS := $(SDL2_LIBS) $(WPA_CLIENT_LIB) -lm -lpthread
+    LDFLAGS := $(SDL2_LIBS) $(WPA_CLIENT_LIB) -lm -lpthread -ldl
     PLATFORM := Linux
     WPA_DEPS := $(WPA_CLIENT_LIB)
 endif

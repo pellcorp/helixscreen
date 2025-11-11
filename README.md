@@ -47,14 +47,16 @@ make install-deps   # Auto-install missing dependencies (interactive)
 
 **Manual setup (macOS):**
 ```bash
-brew install sdl2 python3 node
+brew install cmake python3 node
 npm install  # Install lv_font_conv and lv_img_conv
+# Optional: brew install sdl2  (or will be built from submodule)
 ```
 
 **Manual setup (Debian/Ubuntu):**
 ```bash
-sudo apt install libsdl2-dev python3 clang make npm
+sudo apt install cmake python3 clang make npm
 npm install  # Install lv_font_conv and lv_img_conv
+# Optional: sudo apt install libsdl2-dev  (or will be built from submodule)
 ```
 
 ### Build & Run

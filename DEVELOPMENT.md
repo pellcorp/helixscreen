@@ -8,21 +8,26 @@ This document covers development environment setup, build processes, and daily d
 
 **macOS (Homebrew):**
 ```bash
-brew install sdl2 bear imagemagick python3 node
+brew install cmake bear imagemagick python3 node
+# Optional: brew install sdl2  (if not installed, will be built from submodule)
 npm install  # Install lv_font_conv and lv_img_conv
 ```
 
 **Minimum macOS Version:** macOS 10.15 (Catalina) or newer required for CoreWLAN/CoreLocation WiFi APIs. The build system enforces this via `-mmacosx-version-min=10.15` deployment target.
 
+**Note:** SDL2 can be installed via package manager OR built automatically from the `sdl2/` submodule. The build system detects and uses whichever is available (system version preferred).
+
 **Debian/Ubuntu (apt):**
 ```bash
-sudo apt install libsdl2-dev bear imagemagick python3 clang make npm
+sudo apt install cmake bear imagemagick python3 clang make npm
+# Optional: sudo apt install libsdl2-dev  (if not installed, will be built from submodule)
 npm install  # Install lv_font_conv and lv_img_conv
 ```
 
 **Fedora/RHEL/CentOS (dnf):**
 ```bash
-sudo dnf install SDL2-devel bear ImageMagick python3 clang make npm
+sudo dnf install cmake bear ImageMagick python3 clang make npm
+# Optional: sudo dnf install SDL2-devel  (if not installed, will be built from submodule)
 npm install  # Install lv_font_conv and lv_img_conv
 ```
 
@@ -30,11 +35,19 @@ npm install  # Install lv_font_conv and lv_img_conv
 
 **Core Dependencies (Required):**
 - **`clang`** - C/C++ compiler with C++17 support
-- **`libsdl2-dev`** / **`SDL2-devel`** - SDL2 display simulator
+- **`cmake`** - Build system for SDL2 (version 3.16+)
 - **`make`** - GNU Make build system
 - **`python3`** - Icon generation scripts
 - **`node`** / **`npm`** - Package manager for JavaScript dependencies
 - **`lv_font_conv`** - Font converter (installed via `npm install`)
+
+**Optional (Auto-Built from Submodules if Not Installed):**
+- **SDL2** - Can be installed via package manager, or auto-built from `sdl2/` submodule
+
+**Built from Submodules (No Installation Required):**
+- **libhv** - WebSocket client library
+- **lvgl** - LVGL 9.4 graphics library
+- **spdlog** - Logging library
 
 **Development Tools (Optional):**
 - **`bear`** - Generates `compile_commands.json` for IDE/LSP support
