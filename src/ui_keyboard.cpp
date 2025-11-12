@@ -283,9 +283,10 @@ void ui_keyboard_show(lv_obj_t* textarea)
     }
 
     // Safety: check if screen is valid before layout operations
+    // Note: Root screens have NULL parents by design, so only check for NULL screen
     lv_obj_t* screen = lv_screen_active();
-    if (screen == NULL || lv_obj_get_parent(screen) == NULL) {
-        spdlog::debug("[Keyboard] Skipping show - screen is being cleaned up");
+    if (screen == NULL) {
+        spdlog::debug("[Keyboard] Skipping show - no active screen");
         return;
     }
 
@@ -364,9 +365,10 @@ void ui_keyboard_hide()
     }
 
     // Safety: check if screen is valid before layout operations
+    // Note: Root screens have NULL parents by design, so only check for NULL screen
     lv_obj_t* screen = lv_screen_active();
-    if (screen == NULL || lv_obj_get_parent(screen) == NULL) {
-        spdlog::debug("[Keyboard] Skipping hide - screen is being cleaned up");
+    if (screen == NULL) {
+        spdlog::debug("[Keyboard] Skipping hide - no active screen");
         return;
     }
 

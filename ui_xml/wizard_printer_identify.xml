@@ -70,22 +70,21 @@
 					<text_body text="Printer Name"
 					           width="100%"/>
 					<lv_textarea name="printer_name_input"
-					             text=""
+					             bind_text="printer_name"
 					             placeholder_text="My Printer"
-					             one_line="true"
 					             width="100%"
 					             height="#input_height"/>
 
 					<!-- Detection status -->
-					<text_body name="detection_status"
+					<text_small name="detection_status"
 					           bind_text="printer_detection_status"
 					           width="100%"
-					           style_text_color="#primary_color"
 					           style_pad_top="#gap_small"/>
 				</lv_obj>
 
 				<!-- Right column: Printer type selection -->
 				<lv_obj flex_grow="1"
+						height="100%"
 				        style_bg_opa="0"
 				        style_border_width="0"
 				        style_pad_all="0"
@@ -99,8 +98,7 @@
 					<lv_roller name="printer_type_roller"
 					           width="100%"
 					           flex_grow="1"
-					           visible_row_count="5"
-					           style_text_font="montserrat_14"
+					           style_text_font="#font_body"
 					           style_border_width="2"
 					           style_border_opa="60"
 					           style_selected_bg_color="#primary_color"/>

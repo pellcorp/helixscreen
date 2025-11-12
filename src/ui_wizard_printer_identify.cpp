@@ -24,6 +24,7 @@
 #include "ui_wizard_printer_identify.h"
 #include "ui_wizard.h"
 #include "ui_keyboard.h"
+#include "ui_theme.h"
 #include "app_globals.h"
 #include "config.h"
 #include "printer_types.h"
@@ -176,13 +177,22 @@ void ui_wizard_printer_identify_init_subjects() {
     // Load existing values from config if available
     Config* config = Config::get_instance();
     std::string default_name = "";
+    std::string saved_type = "";
     int default_type = PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX;
 
     try {
         default_name = config->get<std::string>("/printer/name", "");
-        default_type = config->get<int>("/printer/type_index", PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX);
-        spdlog::debug("[Wizard Printer] Loaded from config: name='{}', type_index={}",
-                      default_name, default_type);
+        saved_type = config->get<std::string>("/printer/type", "");
+
+        // Dynamic lookup: find index by type name
+        if (!saved_type.empty()) {
+            default_type = find_printer_type_index(saved_type);
+            spdlog::debug("[Wizard Printer] Loaded from config: name='{}', type='{}', resolved index={}",
+                          default_name, saved_type, default_type);
+        } else {
+            spdlog::debug("[Wizard Printer] Loaded from config: name='{}', no type saved",
+                          default_name);
+        }
     } catch (const std::exception& e) {
         spdlog::debug("[Wizard Printer] No existing config, using defaults");
     }
@@ -194,21 +204,44 @@ void ui_wizard_printer_identify_init_subjects() {
     lv_subject_init_string(&printer_name, printer_name_buffer, nullptr,
                           sizeof(printer_name_buffer), printer_name_buffer);
 
-    lv_subject_init_int(&printer_type_selected, default_type);
-
-    // Run auto-detection (placeholder for Phase 3)
-    PrinterDetectionHint hint = detect_printer_type();
-    if (hint.confidence > 0) {
-        spdlog::info("[Wizard Printer] Auto-detection: {} (confidence: {}%)", hint.reason, hint.confidence);
-    } else {
-        spdlog::debug("[Wizard Printer] Auto-detection: {}", hint.reason);
+    // Run auto-detection if no saved type
+    PrinterDetectionHint hint{PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX, 0, ""};
+    if (saved_type.empty()) {
+        hint = detect_printer_type();
+        if (hint.confidence >= 70) {
+            // High-confidence detection overrides default
+            default_type = hint.type_index;
+            spdlog::info("[Wizard Printer] Auto-detection: {} (confidence: {}%)", hint.reason, hint.confidence);
+        } else if (hint.confidence > 0) {
+            spdlog::info("[Wizard Printer] Auto-detection suggestion: {} (confidence: {}%)", hint.reason, hint.confidence);
+        } else {
+            spdlog::debug("[Wizard Printer] Auto-detection: {}", hint.reason);
+        }
     }
 
-    // Initialize status message
+    lv_subject_init_int(&printer_type_selected, default_type);
+
+    // Initialize detection status message (auto-detection results only, not validation)
+    const char* status_msg;
+    if (!saved_type.empty()) {
+        status_msg = "Loaded from configuration";
+    } else if (hint.confidence >= 70) {
+        // High-confidence detection: show what was detected
+        snprintf(printer_detection_status_buffer, sizeof(printer_detection_status_buffer),
+                "Detected: %s", hint.reason.c_str());
+        status_msg = printer_detection_status_buffer;
+    } else if (hint.confidence > 0) {
+        // Low-confidence suggestion
+        snprintf(printer_detection_status_buffer, sizeof(printer_detection_status_buffer),
+                "Possible: %s (low confidence)", hint.reason.c_str());
+        status_msg = printer_detection_status_buffer;
+    } else {
+        // No detection results
+        status_msg = "No printer detected - please confirm type";
+    }
+
     lv_subject_init_string(&printer_detection_status, printer_detection_status_buffer, nullptr,
-                          sizeof(printer_detection_status_buffer),
-                          hint.confidence >= 70 ? hint.reason.c_str() :
-                          "Enter printer details or wait for auto-detection");
+                          sizeof(printer_detection_status_buffer), status_msg);
 
     // Register globally for XML binding
     lv_xml_register_subject(nullptr, "printer_name", &printer_name);
@@ -234,6 +267,8 @@ void ui_wizard_printer_identify_init_subjects() {
  * @brief Handle printer name textarea changes with enhanced validation
  *
  * Validates input, trims whitespace, updates reactive button control.
+ * Validation feedback is shown via textarea error state (red border).
+ * Config is persisted during cleanup, not on each keystroke.
  */
 static void on_printer_name_changed(lv_event_t* e) {
     lv_obj_t* ta = (lv_obj_t*)lv_event_get_target(e);
@@ -256,34 +291,34 @@ static void on_printer_name_changed(lv_event_t* e) {
 
     // Validate trimmed length and check max size
     const size_t max_length = sizeof(printer_name_buffer) - 1;  // 127
-    bool length_valid = (trimmed.length() > 0 && trimmed.length() <= max_length);
+    bool is_empty = (trimmed.length() == 0);
+    bool is_too_long = (trimmed.length() > max_length);
+    bool is_valid = !is_empty && !is_too_long;
 
     // Update validation state
-    printer_identify_validated = length_valid;
+    printer_identify_validated = is_valid;
 
     // Update connection_test_passed reactively (controls Next button)
     lv_subject_set_int(&connection_test_passed, printer_identify_validated ? 1 : 0);
 
-    // Update status message
-    if (printer_identify_validated) {
-        lv_subject_copy_string(&printer_detection_status, "✓ Printer name entered");
-    } else if (trimmed.length() > max_length) {
-        lv_subject_copy_string(&printer_detection_status, "⚠ Name too long (max 127 characters)");
+    // Apply error state to textarea for validation feedback
+    if (is_too_long) {
+        // Show error state: red border for "too long" error
+        lv_color_t error_color = ui_theme_get_color("error_color");
+        lv_obj_set_style_border_color(ta, error_color, LV_PART_MAIN);
+        lv_obj_set_style_border_width(ta, 2, LV_PART_MAIN);
+        spdlog::debug("[Wizard Printer] Validation: name too long ({} > {})", trimmed.length(), max_length);
+    } else if (!is_empty) {
+        // Valid input: use secondary color border
+        lv_color_t valid_color = ui_theme_get_color("secondary_color");
+        lv_obj_set_style_border_color(ta, valid_color, LV_PART_MAIN);
+        lv_obj_set_style_border_width(ta, 1, LV_PART_MAIN);
     } else {
-        lv_subject_copy_string(&printer_detection_status,
-                              "Enter printer details or wait for auto-detection");
+        // Empty but not an error: neutral state (default border)
+        lv_obj_remove_style(ta, nullptr, LV_PART_MAIN | LV_STATE_ANY);
     }
 
-    // Update config (in-memory, persisted on cleanup)
-    if (printer_identify_validated) {
-        Config* config = Config::get_instance();
-        try {
-            config->set("/printer/name", trimmed);  // Update in-memory config
-            spdlog::debug("[Wizard Printer] Updated printer name in config: '{}'", trimmed);
-        } catch (const std::exception& e) {
-            spdlog::error("[Wizard Printer] Failed to update config: {}", e.what());
-        }
-    }
+    // Detection status label remains unchanged (shows auto-detection results only)
 }
 
 /**
@@ -293,25 +328,15 @@ static void on_printer_type_changed(lv_event_t* e) {
     lv_obj_t* roller = (lv_obj_t*)lv_event_get_target(e);
     uint16_t selected = lv_roller_get_selected(roller);
 
-    spdlog::debug("[Wizard Printer] Type changed: index {}", selected);
+    char buf[64];
+    lv_roller_get_selected_str(roller, buf, sizeof(buf));
+
+    spdlog::debug("[Wizard Printer] Type changed: index {} ({})", selected, buf);
 
     // Update subject
     lv_subject_set_int(&printer_type_selected, selected);
 
-    // Update config (in-memory, persisted on cleanup)
-    Config* config = Config::get_instance();
-    try {
-        config->set("/printer/type_index", (int)selected);
-
-        // Also save the type name for reference
-        char buf[64];
-        lv_roller_get_selected_str(roller, buf, sizeof(buf));
-        config->set("/printer/type", std::string(buf));
-
-        spdlog::debug("[Wizard Printer] Updated printer type in config: {}", buf);
-    } catch (const std::exception& e) {
-        spdlog::error("[Wizard Printer] Failed to update config: {}", e.what());
-    }
+    // Config will be persisted on cleanup (saves type name, not index)
 }
 
 // ============================================================================
@@ -367,9 +392,14 @@ lv_obj_t* ui_wizard_printer_identify_create(lv_obj_t* parent) {
     // Find and set up the name textarea
     lv_obj_t* name_ta = lv_obj_find_by_name(printer_identify_screen_root, "printer_name_input");
     if (name_ta) {
+        // Set initial value from subject (bind_text doesn't set initial value for textareas)
+        lv_textarea_set_text(name_ta, printer_name_buffer);
+
+        // Register validation handler for button enable/disable
         lv_obj_add_event_cb(name_ta, on_printer_name_changed, LV_EVENT_VALUE_CHANGED, nullptr);
         ui_keyboard_register_textarea(name_ta);
-        spdlog::debug("[Wizard Printer] Name textarea configured with keyboard");
+        spdlog::debug("[Wizard Printer] Name textarea configured with keyboard and validation (initial: '{}')",
+                      printer_name_buffer);
     }
 
     // Update layout
@@ -386,9 +416,45 @@ lv_obj_t* ui_wizard_printer_identify_create(lv_obj_t* parent) {
 void ui_wizard_printer_identify_cleanup() {
     spdlog::debug("[Wizard Printer] Cleaning up printer identification screen");
 
-    // Persist config changes to disk
+    // Save current subject values to config before persisting
     Config* config = Config::get_instance();
     try {
+        // Get current name from subject buffer
+        std::string current_name(printer_name_buffer);
+
+        // Trim whitespace
+        current_name.erase(0, current_name.find_first_not_of(" \t\n\r\f\v"));
+        current_name.erase(current_name.find_last_not_of(" \t\n\r\f\v") + 1);
+
+        // Save printer name if valid
+        if (current_name.length() > 0) {
+            config->set("/printer/name", current_name);
+            spdlog::debug("[Wizard Printer] Saving printer name to config: '{}'", current_name);
+        }
+
+        // Get current type index and convert to type name
+        int type_index = lv_subject_get_int(&printer_type_selected);
+
+        // Extract type name from PRINTER_TYPES_ROLLER by index
+        std::istringstream stream(PrinterTypes::PRINTER_TYPES_ROLLER);
+        std::string line;
+        int idx = 0;
+        std::string type_name = "Unknown";  // Default fallback
+
+        while (std::getline(stream, line)) {
+            if (idx == type_index) {
+                type_name = line;
+                break;
+            }
+            idx++;
+        }
+
+        // Save printer type name (not index)
+        config->set("/printer/type", type_name);
+        spdlog::debug("[Wizard Printer] Saving printer type to config: '{}' (index {})",
+                      type_name, type_index);
+
+        // Persist config changes to disk
         config->save();
         spdlog::info("[Wizard Printer] Saved printer identification settings to config");
     } catch (const std::exception& e) {
