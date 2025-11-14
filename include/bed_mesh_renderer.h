@@ -58,9 +58,10 @@ extern "C" {
 #define BED_MESH_MIN_Z_SCALE 35.0             // Min Z scale (prevents flatness)
 #define BED_MESH_MAX_Z_SCALE 120.0            // Max Z scale (prevents extreme projection)
 #define BED_MESH_COLOR_COMPRESSION 0.8        // Color range compression (0.8 = 80% of data range)
-#define BED_MESH_Z_ORIGIN_VERTICAL_POS 0.4    // Canvas Y position for Z=0 plane (0=top, 1=bottom)
-#define BED_MESH_GRADIENT_SEGMENTS 6          // Max gradient segments per scanline
-#define BED_MESH_GRADIENT_MIN_LINE_WIDTH 3    // Use solid color for lines narrower than this
+#define BED_MESH_Z_ORIGIN_VERTICAL_POS                                                             \
+    0.5 // Canvas Y position for Z=0 plane (0=top, 0.5=center, 1=bottom)
+#define BED_MESH_GRADIENT_SEGMENTS 6       // Max gradient segments per scanline
+#define BED_MESH_GRADIENT_MIN_LINE_WIDTH 3 // Use solid color for lines narrower than this
 
 // 3D point in world space after perspective projection
 typedef struct {

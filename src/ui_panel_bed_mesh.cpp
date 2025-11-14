@@ -167,6 +167,9 @@ static void back_button_cb(lv_event_t* e) {
 
 // Update UI subjects when bed mesh data changes
 static void on_bed_mesh_update(const MoonrakerClient::BedMeshProfile& mesh) {
+    spdlog::debug("[BedMesh] on_bed_mesh_update called, probed_matrix.size={}",
+                  mesh.probed_matrix.size());
+
     if (mesh.probed_matrix.empty()) {
         lv_subject_set_int(&bed_mesh_available, 0);
         lv_subject_copy_string(&bed_mesh_dimensions, "No mesh data");
@@ -180,10 +183,12 @@ static void on_bed_mesh_update(const MoonrakerClient::BedMeshProfile& mesh) {
 
     // Update profile name
     lv_subject_copy_string(&bed_mesh_profile_name, mesh.name.c_str());
+    spdlog::debug("[BedMesh] Set profile name: {}", mesh.name);
 
     // Format and update dimensions
     snprintf(dimensions_buf, sizeof(dimensions_buf), "%dx%d points", mesh.x_count, mesh.y_count);
     lv_subject_copy_string(&bed_mesh_dimensions, dimensions_buf);
+    spdlog::debug("[BedMesh] Set dimensions: {}", dimensions_buf);
 
     // Calculate Z range
     float min_z = std::numeric_limits<float>::max();
@@ -198,9 +203,26 @@ static void on_bed_mesh_update(const MoonrakerClient::BedMeshProfile& mesh) {
     // Format and update Z range
     snprintf(z_range_buf, sizeof(z_range_buf), "Z: %.3f to %.3f mm", min_z, max_z);
     lv_subject_copy_string(&bed_mesh_z_range, z_range_buf);
+    spdlog::debug("[BedMesh] Set Z range: {}", z_range_buf);
 
     // Update renderer with new mesh data
     ui_panel_bed_mesh_set_data(mesh.probed_matrix);
+
+    // TEMPORARY: Manually set label text to verify labels are accessible
+    lv_obj_t* dim_label = lv_obj_find_by_name(bed_mesh_panel, "mesh_dimensions_label");
+    lv_obj_t* range_label = lv_obj_find_by_name(bed_mesh_panel, "mesh_z_range_label");
+    if (dim_label) {
+        lv_label_set_text(dim_label, dimensions_buf);
+        spdlog::debug("[BedMesh] Manually set dimensions label text");
+    } else {
+        spdlog::warn("[BedMesh] Could not find mesh_dimensions_label");
+    }
+    if (range_label) {
+        lv_label_set_text(range_label, z_range_buf);
+        spdlog::debug("[BedMesh] Manually set z_range label text");
+    } else {
+        spdlog::warn("[BedMesh] Could not find mesh_z_range_label");
+    }
 
     spdlog::info("[BedMesh] Mesh updated: {} ({}x{}, Z: {:.3f} to {:.3f})", mesh.name, mesh.x_count,
                  mesh.y_count, min_z, max_z);
@@ -320,11 +342,20 @@ void ui_panel_bed_mesh_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     }
 
     // Load initial mesh data from MoonrakerClient (mock or real)
-    if (client && client->has_bed_mesh()) {
-        on_bed_mesh_update(client->get_active_bed_mesh());
+    if (client) {
+        bool has_mesh = client->has_bed_mesh();
+        spdlog::info("[BedMesh] Moonraker client found, has_bed_mesh={}", has_mesh);
+        if (has_mesh) {
+            const auto& mesh = client->get_active_bed_mesh();
+            spdlog::info("[BedMesh] Active mesh: profile='{}', size={}x{}, rows={}", mesh.name,
+                         mesh.x_count, mesh.y_count, mesh.probed_matrix.size());
+            on_bed_mesh_update(mesh);
+        } else {
+            spdlog::info("[BedMesh] No mesh data available from Moonraker");
+            // Panel will show "No mesh data" via subjects initialized in init_subjects()
+        }
     } else {
-        spdlog::info("[BedMesh] No mesh data available from Moonraker");
-        // Panel will show "No mesh data" via subjects initialized in init_subjects()
+        spdlog::warn("[BedMesh] Moonraker client is null!");
     }
 
     // Register cleanup handler

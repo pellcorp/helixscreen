@@ -81,6 +81,45 @@ static void bed_mesh_delete_cb(lv_event_t* e) {
 }
 
 /**
+ * Size changed event handler - reallocate buffer to match new canvas size
+ */
+static void bed_mesh_size_changed_cb(lv_event_t* e) {
+    lv_obj_t* canvas = (lv_obj_t*)lv_event_get_target(e);
+    bed_mesh_widget_data_t* data = (bed_mesh_widget_data_t*)lv_obj_get_user_data(canvas);
+
+    if (!data) {
+        spdlog::warn("[bed_mesh] SIZE_CHANGED: no widget data");
+        return;
+    }
+
+    int new_width = lv_obj_get_width(canvas);
+    int new_height = lv_obj_get_height(canvas);
+
+    spdlog::debug("[bed_mesh] SIZE_CHANGED: {}x{}", new_width, new_height);
+
+    // Reallocate buffer to match new canvas size
+    size_t new_buffer_size = LV_CANVAS_BUF_SIZE(new_width, new_height, 24, 1);
+    void* new_buffer = realloc(data->buffer, new_buffer_size);
+
+    if (!new_buffer) {
+        spdlog::error("[bed_mesh] Failed to reallocate buffer for {}x{} ({}bytes)", new_width,
+                      new_height, new_buffer_size);
+        return;
+    }
+
+    data->buffer = new_buffer;
+
+    // Update canvas buffer
+    lv_canvas_set_buffer(canvas, data->buffer, new_width, new_height, LV_COLOR_FORMAT_RGB888);
+
+    spdlog::debug("[bed_mesh] Reallocated buffer: {}x{} RGB888 ({} bytes)", new_width, new_height,
+                  new_buffer_size);
+
+    // Re-render mesh with new dimensions
+    ui_bed_mesh_redraw(canvas);
+}
+
+/**
  * XML create handler for <bed_mesh>
  * Creates canvas widget with RGB888 buffer and renderer
  */
@@ -136,10 +175,11 @@ static void* bed_mesh_xml_create(lv_xml_parser_state_t* state, const char** attr
     // Store widget data in user_data for cleanup and API access
     lv_obj_set_user_data(canvas, data);
 
-    // Register delete event handler for cleanup
+    // Register event handlers
     lv_obj_add_event_cb(canvas, bed_mesh_delete_cb, LV_EVENT_DELETE, NULL);
+    lv_obj_add_event_cb(canvas, bed_mesh_size_changed_cb, LV_EVENT_SIZE_CHANGED, NULL);
 
-    // Set default size
+    // Set default size (will be overridden by XML width/height attributes)
     lv_obj_set_size(canvas, BED_MESH_CANVAS_WIDTH, BED_MESH_CANVAS_HEIGHT);
 
     spdlog::debug("[bed_mesh] Created canvas: {}x{} RGB888 ({} bytes), renderer initialized",
