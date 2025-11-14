@@ -146,6 +146,7 @@ static bool g_caps_lock = false;      // Two consecutive presses: stay uppercase
 // Forward declarations for long-press event handlers
 static void longpress_event_handler(lv_event_t* e);
 static void overlay_cleanup();
+static void keyboard_draw_alternative_chars(lv_event_t* e);
 
 //=============================================================================
 // IMPROVED KEYBOARD LAYOUTS
@@ -819,6 +820,98 @@ static void keyboard_event_cb(lv_event_t* e) {
     }
 }
 
+/**
+ * @brief Custom draw event handler to display alternative characters on keys
+ * Draws small gray text in upper-right corner showing long-press alternatives
+ * Uses LV_EVENT_DRAW_POST_END to render after main button drawing
+ */
+static void keyboard_draw_alternative_chars(lv_event_t* e) {
+    lv_obj_t* keyboard = lv_event_get_target_obj(e);
+    lv_layer_t* layer = lv_event_get_layer(e);
+
+    // Get keyboard map to iterate through buttons
+    const char* const* map = lv_buttonmatrix_get_map(keyboard);
+    if (!map)
+        return;
+
+    // Get theme-appropriate gray color for alternative text
+    const char* gray_color_str = lv_xml_get_const(
+        NULL, ui_theme_is_dark_mode() ? "text_secondary_dark" : "text_secondary_light");
+    lv_color_t gray_color =
+        gray_color_str ? ui_theme_parse_color(gray_color_str) : lv_color_hex(0x888888);
+
+    // Iterate through all buttons and draw alternative characters
+    uint32_t btn_id = 0;
+    for (uint32_t i = 0; map[i][0] != '\0'; i++) {
+        // Skip newline markers
+        if (strcmp(map[i], "\n") == 0) {
+            continue;
+        }
+
+        const char* btn_text = map[i];
+
+        // Only process single-character buttons (skip special symbols, multi-char buttons)
+        if (btn_text && btn_text[0] && !btn_text[1]) {
+            // Look up alternatives for this character
+            const char* alternatives = find_alternatives(btn_text[0]);
+
+            if (alternatives && alternatives[0]) {
+                // Get button coordinates (use LVGL's internal coordinate calculation)
+                // This is a workaround since lv_buttonmatrix_get_button_area() doesn't exist in
+                // LVGL 9
+                lv_area_t kb_coords;
+                lv_obj_get_coords(keyboard, &kb_coords);
+
+                // Calculate approximate button position
+                // This is a simplified calculation - may need adjustment based on actual layout
+                lv_coord_t btn_width = lv_obj_get_width(keyboard) / 10;  // Approximate
+                lv_coord_t btn_height = lv_obj_get_height(keyboard) / 5; // 5 rows
+
+                uint32_t row = 0;
+                uint32_t col = btn_id;
+                // Count buttons to determine row/col (simplified)
+                for (uint32_t j = 0; j < i; j++) {
+                    if (strcmp(map[j], "\n") == 0) {
+                        row++;
+                        col = 0;
+                    } else {
+                        if (j > 0 && strcmp(map[j - 1], "\n") != 0)
+                            col++;
+                    }
+                }
+
+                // Calculate button top-right corner
+                lv_coord_t btn_x = kb_coords.x1 + (col + 1) * btn_width - 10;
+                lv_coord_t btn_y = kb_coords.y1 + row * btn_height + 6;
+
+                // Create draw label descriptor
+                lv_draw_label_dsc_t label_dsc;
+                lv_draw_label_dsc_init(&label_dsc);
+                label_dsc.font = &lv_font_montserrat_12;
+                label_dsc.color = gray_color;
+                label_dsc.opa = LV_OPA_60;
+
+                // Create text with first alternative
+                char alt_str[2] = {alternatives[0], '\0'};
+                label_dsc.text = alt_str;
+                label_dsc.text_local = true;
+
+                // Create area for label
+                lv_area_t alt_area;
+                alt_area.x1 = btn_x - 12;
+                alt_area.y1 = btn_y;
+                alt_area.x2 = btn_x;
+                alt_area.y2 = btn_y + 14;
+
+                // Draw the alternative character
+                lv_draw_label(layer, &label_dsc, &alt_area);
+            }
+        }
+
+        btn_id++;
+    }
+}
+
 void ui_keyboard_init(lv_obj_t* parent) {
     if (g_keyboard != NULL) {
         spdlog::warn("[Keyboard] Already initialized, skipping");
@@ -876,7 +969,11 @@ void ui_keyboard_init(lv_obj_t* parent) {
     lv_obj_add_event_cb(g_keyboard, longpress_event_handler, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_add_event_cb(g_keyboard, longpress_event_handler, LV_EVENT_RELEASED, NULL);
 
-    spdlog::info("[Keyboard] Initialization complete (with long-press alternatives)");
+    // Add custom draw handler to display alternative characters on keys
+    lv_obj_add_event_cb(g_keyboard, keyboard_draw_alternative_chars, LV_EVENT_DRAW_POST_END, NULL);
+
+    spdlog::info(
+        "[Keyboard] Initialization complete (with long-press alternatives and visual hints)");
 }
 
 void ui_keyboard_register_textarea(lv_obj_t* textarea) {
