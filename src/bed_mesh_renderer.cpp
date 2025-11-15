@@ -101,6 +101,94 @@ static inline double mesh_z_to_world_z(double z_height, double z_center, double 
     return (z_height - z_center) * z_scale;
 }
 
+// Triangle rasterization helpers
+
+/**
+ * Sort three values and their associated data by Y coordinate (ascending)
+ * Uses bubble sort optimized for 3 elements
+ */
+template <typename T> static inline void sort_by_y(int& y1, T& x1, int& y2, T& x2, int& y3, T& x3) {
+    if (y1 > y2) {
+        std::swap(y1, y2);
+        std::swap(x1, x2);
+    }
+    if (y2 > y3) {
+        std::swap(y2, y3);
+        std::swap(x2, x3);
+    }
+    if (y1 > y2) {
+        std::swap(y1, y2);
+        std::swap(x1, x2);
+    }
+}
+
+/**
+ * Compute scanline X coordinates for triangle edges at given Y
+ * Uses linear interpolation along triangle edges
+ * @param y Current scanline Y coordinate
+ * @param y1, x1 Top vertex (after Y-sorting)
+ * @param y2, x2 Middle vertex
+ * @param y3, x3 Bottom vertex
+ * @param out_x_left Output: left edge X coordinate
+ * @param out_x_right Output: right edge X coordinate
+ */
+static inline void compute_scanline_x(int y, int y1, int x1, int y2, int x2, int y3, int x3,
+                                      int* out_x_left, int* out_x_right) {
+    // Long edge: y1 -> y3
+    double t_long = (y - y1) / static_cast<double>(y3 - y1);
+    int x_long = x1 + static_cast<int>(t_long * (x3 - x1));
+
+    // Short edge: split at y2
+    int x_short;
+    if (y < y2) {
+        // Upper half: y1 -> y2
+        if (y2 == y1) {
+            x_short = x1;
+        } else {
+            double t = (y - y1) / static_cast<double>(y2 - y1);
+            x_short = x1 + static_cast<int>(t * (x2 - x1));
+        }
+    } else {
+        // Lower half: y2 -> y3
+        if (y3 == y2) {
+            x_short = x2;
+        } else {
+            double t = (y - y2) / static_cast<double>(y3 - y2);
+            x_short = x2 + static_cast<int>(t * (x3 - x2));
+        }
+    }
+
+    // Ensure correct ordering
+    *out_x_left = std::min(x_long, x_short);
+    *out_x_right = std::max(x_long, x_short);
+}
+
+// Bounds checking helpers
+
+/**
+ * Check if point is visible on canvas (with margin for partially visible geometry)
+ * @param x Screen X coordinate
+ * @param y Screen Y coordinate
+ * @param canvas_width Canvas width in pixels
+ * @param canvas_height Canvas height in pixels
+ * @param margin Pixel margin for partially visible objects (default 10px)
+ * @return true if point is visible or partially visible
+ */
+static inline bool is_point_visible(int x, int y, int canvas_width, int canvas_height,
+                                    int margin = 10) {
+    return x >= -margin && x < canvas_width + margin && y >= -margin && y < canvas_height + margin;
+}
+
+/**
+ * Check if line segment is potentially visible on canvas
+ * @return true if either endpoint is visible (line may be partially visible)
+ */
+static inline bool is_line_visible(int x1, int y1, int x2, int y2, int canvas_width,
+                                   int canvas_height, int margin = 10) {
+    return is_point_visible(x1, y1, canvas_width, canvas_height, margin) ||
+           is_point_visible(x2, y2, canvas_width, canvas_height, margin);
+}
+
 // Public API implementation
 
 bed_mesh_renderer_t* bed_mesh_renderer_create(void) {
@@ -498,19 +586,8 @@ static void fill_triangle_solid(lv_obj_t* canvas, int x1, int y1, int x2, int y2
     int canvas_width = lv_obj_get_width(canvas);
     int canvas_height = lv_obj_get_height(canvas);
 
-    // Sort vertices by Y coordinate (bubble sort for 3 elements)
-    if (y1 > y2) {
-        std::swap(y1, y2);
-        std::swap(x1, x2);
-    }
-    if (y2 > y3) {
-        std::swap(y2, y3);
-        std::swap(x2, x3);
-    }
-    if (y1 > y2) {
-        std::swap(y1, y2);
-        std::swap(x1, x2);
-    }
+    // Sort vertices by Y coordinate
+    sort_by_y(y1, x1, y2, x2, y3, x3);
 
     // Skip degenerate triangles
     if (y1 == y3)
@@ -535,31 +612,12 @@ static void fill_triangle_solid(lv_obj_t* canvas, int x1, int y1, int x2, int y2
 
     for (int y = y_start; y <= y_end; y++) {
         // Compute left/right edges
-        double t_long = (y - y1) / static_cast<double>(y3 - y1);
-        int x_long = x1 + static_cast<int>(t_long * (x3 - x1));
+        int x_left_raw, x_right_raw;
+        compute_scanline_x(y, y1, x1, y2, x2, y3, x3, &x_left_raw, &x_right_raw);
 
-        int x_short;
-        if (y < y2) {
-            // Upper half: interpolate along y1->y2
-            if (y2 == y1) {
-                x_short = x1;
-            } else {
-                double t = (y - y1) / static_cast<double>(y2 - y1);
-                x_short = x1 + static_cast<int>(t * (x2 - x1));
-            }
-        } else {
-            // Lower half: interpolate along y2->y3
-            if (y3 == y2) {
-                x_short = x2;
-            } else {
-                double t = (y - y2) / static_cast<double>(y3 - y2);
-                x_short = x2 + static_cast<int>(t * (x3 - x2));
-            }
-        }
-
-        // Ensure x_left <= x_right and clip to canvas bounds
-        int x_left = std::max(std::min(x_long, x_short), 0);
-        int x_right = std::min(std::max(x_long, x_short), canvas_width - 1);
+        // Clip to canvas bounds
+        int x_left = std::max(x_left_raw, 0);
+        int x_right = std::min(x_right_raw, canvas_width - 1);
 
         // Draw horizontal line pixel by pixel (only if valid range)
         if (x_left <= x_right) {
@@ -614,41 +672,43 @@ static void fill_triangle_gradient(lv_obj_t* canvas, int x1, int y1, lv_color_t 
     int y_end = std::min(v[2].y, canvas_height - 1);
 
     for (int y = y_start; y <= y_end; y++) {
-        // Interpolate along long edge (v0 -> v2)
+        // Compute scanline X coordinates
+        int x_left_raw, x_right_raw;
+        compute_scanline_x(y, v[0].y, v[0].x, v[1].y, v[1].x, v[2].y, v[2].x, &x_left_raw,
+                           &x_right_raw);
+
+        // Interpolate colors along edges
         double t_long = (y - v[0].y) / static_cast<double>(v[2].y - v[0].y);
-        int x_long = v[0].x + static_cast<int>(t_long * (v[2].x - v[0].x));
         bed_mesh_rgb_t c_long = lerp_color(v[0].color, v[2].color, t_long);
 
-        // Interpolate along short edge
-        int x_short;
         bed_mesh_rgb_t c_short;
         if (y < v[1].y) {
             // Upper half: v0 -> v1
             if (v[1].y == v[0].y) {
-                x_short = v[0].x;
                 c_short = v[0].color;
             } else {
                 double t = (y - v[0].y) / static_cast<double>(v[1].y - v[0].y);
-                x_short = v[0].x + static_cast<int>(t * (v[1].x - v[0].x));
                 c_short = lerp_color(v[0].color, v[1].color, t);
             }
         } else {
             // Lower half: v1 -> v2
             if (v[2].y == v[1].y) {
-                x_short = v[1].x;
                 c_short = v[1].color;
             } else {
                 double t = (y - v[1].y) / static_cast<double>(v[2].y - v[1].y);
-                x_short = v[1].x + static_cast<int>(t * (v[2].x - v[1].x));
                 c_short = lerp_color(v[1].color, v[2].color, t);
             }
         }
 
-        // Ensure left/right ordering and clip to canvas bounds
-        int x_left = std::max(std::min(x_long, x_short), 0);
-        int x_right = std::min(std::max(x_long, x_short), canvas_width - 1);
-        bed_mesh_rgb_t c_left = (x_long < x_short) ? c_long : c_short;
-        bed_mesh_rgb_t c_right = (x_long < x_short) ? c_short : c_long;
+        // Clip to canvas bounds and determine color ordering
+        int x_left = std::max(x_left_raw, 0);
+        int x_right = std::min(x_right_raw, canvas_width - 1);
+        bed_mesh_rgb_t c_left = (x_left_raw == x_right_raw)  ? c_long
+                                : (x_left_raw < x_right_raw) ? c_long
+                                                             : c_short;
+        bed_mesh_rgb_t c_right = (x_left_raw == x_right_raw)  ? c_short
+                                 : (x_left_raw < x_right_raw) ? c_short
+                                                              : c_long;
 
         int line_width = x_right - x_left + 1;
         if (line_width <= 0)
@@ -815,10 +875,8 @@ static void render_grid_lines(lv_obj_t* canvas, const bed_mesh_renderer_t* rende
             const auto& p2 = projected_points[row][col + 1];
 
             // Bounds check (allow some margin for partially visible lines)
-            if (p1.screen_x >= -10 && p1.screen_x < canvas_width + 10 && p1.screen_y >= -10 &&
-                p1.screen_y < canvas_height + 10 && p2.screen_x >= -10 &&
-                p2.screen_x < canvas_width + 10 && p2.screen_y >= -10 &&
-                p2.screen_y < canvas_height + 10) {
+            if (is_line_visible(p1.screen_x, p1.screen_y, p2.screen_x, p2.screen_y, canvas_width,
+                                canvas_height)) {
                 // Set line endpoints in descriptor
                 line_dsc.p1.x = static_cast<lv_value_precise_t>(p1.screen_x);
                 line_dsc.p1.y = static_cast<lv_value_precise_t>(p1.screen_y);
@@ -837,10 +895,8 @@ static void render_grid_lines(lv_obj_t* canvas, const bed_mesh_renderer_t* rende
             const auto& p2 = projected_points[row + 1][col];
 
             // Bounds check
-            if (p1.screen_x >= -10 && p1.screen_x < canvas_width + 10 && p1.screen_y >= -10 &&
-                p1.screen_y < canvas_height + 10 && p2.screen_x >= -10 &&
-                p2.screen_x < canvas_width + 10 && p2.screen_y >= -10 &&
-                p2.screen_y < canvas_height + 10) {
+            if (is_line_visible(p1.screen_x, p1.screen_y, p2.screen_x, p2.screen_y, canvas_width,
+                                canvas_height)) {
                 // Set line endpoints in descriptor
                 line_dsc.p1.x = static_cast<lv_value_precise_t>(p1.screen_x);
                 line_dsc.p1.y = static_cast<lv_value_precise_t>(p1.screen_y);
