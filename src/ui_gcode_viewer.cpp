@@ -39,6 +39,9 @@ struct gcode_viewer_state_t {
     lv_point_t drag_start{0, 0};
     lv_point_t last_drag_pos{0, 0};
 
+    // Rendering settings
+    bool use_filament_color{true}; // Auto-apply filament color from metadata
+
     // Constructor
     gcode_viewer_state_t() {
         camera = std::make_unique<gcode::GCodeCamera>();
@@ -265,6 +268,15 @@ void ui_gcode_viewer_load_file(lv_obj_t* obj, const char* file_path) {
                      st->gcode_file->layers.size(), st->gcode_file->total_segments,
                      st->gcode_file->objects.size());
 
+        // Auto-apply filament color if enabled and available
+        if (st->use_filament_color && !st->gcode_file->filament_color_hex.empty()) {
+            lv_color_t color = lv_color_hex(
+                std::strtol(st->gcode_file->filament_color_hex.c_str() + 1, nullptr, 16));
+            st->renderer->set_extrusion_color(color);
+            spdlog::info("GCodeViewer: Auto-applied filament color: {}",
+                         st->gcode_file->filament_color_hex);
+        }
+
         // Trigger redraw
         lv_obj_invalidate(obj);
 
@@ -291,6 +303,15 @@ void ui_gcode_viewer_set_gcode_data(lv_obj_t* obj, void* gcode_data) {
 
     spdlog::info("GCodeViewer: Set G-code data: {} layers, {} segments",
                  st->gcode_file->layers.size(), st->gcode_file->total_segments);
+
+    // Auto-apply filament color if enabled and available
+    if (st->use_filament_color && !st->gcode_file->filament_color_hex.empty()) {
+        lv_color_t color = lv_color_hex(
+            std::strtol(st->gcode_file->filament_color_hex.c_str() + 1, nullptr, 16));
+        st->renderer->set_extrusion_color(color);
+        spdlog::info("GCodeViewer: Auto-applied filament color: {}",
+                     st->gcode_file->filament_color_hex);
+    }
 
     // Trigger redraw
     lv_obj_invalidate(obj);
@@ -420,6 +441,160 @@ void ui_gcode_viewer_set_highlighted_object(lv_obj_t* obj, const char* object_na
 
     st->renderer->set_highlighted_object(object_name ? object_name : "");
     lv_obj_invalidate(obj);
+}
+
+// ==============================================
+// Color & Rendering Control
+// ==============================================
+
+void ui_gcode_viewer_set_extrusion_color(lv_obj_t* obj, lv_color_t color) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->renderer->set_extrusion_color(color);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_travel_color(lv_obj_t* obj, lv_color_t color) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->renderer->set_travel_color(color);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_use_filament_color(lv_obj_t* obj, bool enable) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->use_filament_color = enable;
+
+    // If enabling and we have a loaded file with filament color, apply it now
+    if (enable && st->gcode_file && !st->gcode_file->filament_color_hex.empty()) {
+        lv_color_t color = lv_color_hex(
+            std::strtol(st->gcode_file->filament_color_hex.c_str() + 1, nullptr, 16));
+        st->renderer->set_extrusion_color(color);
+        lv_obj_invalidate(obj);
+        spdlog::debug("GCodeViewer: Applied filament color: {}",
+                      st->gcode_file->filament_color_hex);
+    } else if (!enable) {
+        // Reset to theme default
+        st->renderer->reset_colors();
+        lv_obj_invalidate(obj);
+    }
+}
+
+void ui_gcode_viewer_set_opacity(lv_obj_t* obj, lv_opa_t opacity) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->renderer->set_global_opacity(opacity);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_brightness(lv_obj_t* obj, float factor) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->renderer->set_brightness_factor(factor);
+    lv_obj_invalidate(obj);
+}
+
+// ==============================================
+// Layer Control Extensions
+// ==============================================
+
+void ui_gcode_viewer_set_single_layer(lv_obj_t* obj, int layer) {
+    ui_gcode_viewer_set_layer_range(obj, layer, layer);
+}
+
+int ui_gcode_viewer_get_current_layer_start(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return 0;
+
+    return st->renderer->get_options().layer_start;
+}
+
+int ui_gcode_viewer_get_current_layer_end(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return -1;
+
+    return st->renderer->get_options().layer_end;
+}
+
+// ==============================================
+// Metadata Access
+// ==============================================
+
+const char* ui_gcode_viewer_get_filament_color(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file || st->gcode_file->filament_color_hex.empty())
+        return nullptr;
+
+    return st->gcode_file->filament_color_hex.c_str();
+}
+
+const char* ui_gcode_viewer_get_filament_type(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file || st->gcode_file->filament_type.empty())
+        return nullptr;
+
+    return st->gcode_file->filament_type.c_str();
+}
+
+const char* ui_gcode_viewer_get_printer_model(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file || st->gcode_file->printer_model.empty())
+        return nullptr;
+
+    return st->gcode_file->printer_model.c_str();
+}
+
+float ui_gcode_viewer_get_estimated_time_minutes(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file)
+        return 0.0f;
+
+    return st->gcode_file->estimated_print_time_minutes;
+}
+
+float ui_gcode_viewer_get_filament_weight_g(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file)
+        return 0.0f;
+
+    return st->gcode_file->filament_weight_g;
+}
+
+float ui_gcode_viewer_get_filament_length_mm(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file)
+        return 0.0f;
+
+    return st->gcode_file->total_filament_mm;
+}
+
+float ui_gcode_viewer_get_filament_cost(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file)
+        return 0.0f;
+
+    return st->gcode_file->filament_cost;
+}
+
+float ui_gcode_viewer_get_nozzle_diameter_mm(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st || !st->gcode_file)
+        return 0.0f;
+
+    return st->gcode_file->nozzle_diameter_mm;
 }
 
 // ==============================================

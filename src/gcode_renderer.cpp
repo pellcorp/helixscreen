@@ -30,6 +30,10 @@ GCodeRenderer::GCodeRenderer() {
     color_object_boundary_ = ui_theme_parse_color(lv_xml_get_const(NULL, "accent"));
     color_highlighted_ = ui_theme_parse_color(lv_xml_get_const(NULL, "success"));
     color_excluded_ = ui_theme_parse_color(lv_xml_get_const(NULL, "text_disabled"));
+
+    // Save theme defaults for reset
+    theme_color_extrusion_ = color_extrusion_;
+    theme_color_travel_ = color_travel_;
 }
 
 void GCodeRenderer::set_viewport_size(int width, int height) {
@@ -60,6 +64,34 @@ void GCodeRenderer::set_lod_level(LODLevel level) {
 void GCodeRenderer::set_layer_range(int start, int end) {
     options_.layer_start = start;
     options_.layer_end = end;
+}
+
+void GCodeRenderer::set_extrusion_color(lv_color_t color) {
+    color_extrusion_ = color;
+    use_custom_extrusion_color_ = true;
+}
+
+void GCodeRenderer::set_travel_color(lv_color_t color) {
+    color_travel_ = color;
+    use_custom_travel_color_ = true;
+}
+
+void GCodeRenderer::set_global_opacity(lv_opa_t opacity) {
+    global_opacity_ = opacity;
+}
+
+void GCodeRenderer::set_brightness_factor(float factor) {
+    // Clamp to reasonable range
+    brightness_factor_ = std::max(0.5f, std::min(2.0f, factor));
+}
+
+void GCodeRenderer::reset_colors() {
+    color_extrusion_ = theme_color_extrusion_;
+    color_travel_ = theme_color_travel_;
+    use_custom_extrusion_color_ = false;
+    use_custom_travel_color_ = false;
+    brightness_factor_ = 1.0f;
+    global_opacity_ = LV_OPA_90;
 }
 
 void GCodeRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
@@ -246,23 +278,41 @@ lv_draw_line_dsc_t GCodeRenderer::get_line_style(const ToolpathSegment& segment)
     lv_draw_line_dsc_t dsc;
     lv_draw_line_dsc_init(&dsc);
 
-    // Determine color
+    // Determine base color and opacity
     bool is_highlighted =
         !options_.highlighted_object.empty() && segment.object_name == options_.highlighted_object;
 
+    lv_color_t base_color;
+    lv_opa_t base_opa;
+
     if (is_highlighted) {
-        dsc.color = color_highlighted_;
+        base_color = color_highlighted_;
         dsc.width = 3;
-        dsc.opa = LV_OPA_COVER;
+        base_opa = LV_OPA_COVER;
     } else if (segment.is_extrusion) {
-        dsc.color = color_extrusion_;
+        base_color = color_extrusion_;
         dsc.width = 2;
-        dsc.opa = LV_OPA_80;
+        base_opa = LV_OPA_80;
     } else {
-        dsc.color = color_travel_;
+        base_color = color_travel_;
         dsc.width = 1;
-        dsc.opa = LV_OPA_50;
+        base_opa = LV_OPA_50;
     }
+
+    // Apply brightness factor to color
+    if (brightness_factor_ != 1.0f) {
+        uint8_t r = std::clamp(static_cast<int>(base_color.red * brightness_factor_), 0, 255);
+        uint8_t g = std::clamp(static_cast<int>(base_color.green * brightness_factor_), 0, 255);
+        uint8_t b = std::clamp(static_cast<int>(base_color.blue * brightness_factor_), 0, 255);
+        dsc.color = lv_color_make(r, g, b);
+    } else {
+        dsc.color = base_color;
+    }
+
+    // Apply global opacity
+    dsc.opa = static_cast<lv_opa_t>(
+        std::clamp((base_opa * global_opacity_) / 255, 0, 255)
+    );
 
     return dsc;
 }

@@ -160,6 +160,45 @@ class GCodeRenderer {
     void set_layer_range(int start, int end);
 
     // ==============================================
+    // Color & Rendering Control
+    // ==============================================
+
+    /**
+     * @brief Set custom extrusion color
+     * @param color Color for extrusion moves
+     *
+     * Overrides theme default. Call with invalid color to reset to theme default.
+     */
+    void set_extrusion_color(lv_color_t color);
+
+    /**
+     * @brief Set custom travel move color
+     * @param color Color for travel moves
+     *
+     * Overrides theme default. Call with invalid color to reset to theme default.
+     */
+    void set_travel_color(lv_color_t color);
+
+    /**
+     * @brief Set global rendering opacity
+     * @param opacity Opacity value (0-255)
+     */
+    void set_global_opacity(lv_opa_t opacity);
+
+    /**
+     * @brief Set brightness multiplier
+     * @param factor Brightness factor (0.5-2.0, clamped)
+     *
+     * Applied to all colors. Values >1.0 brighten, <1.0 darken.
+     */
+    void set_brightness_factor(float factor);
+
+    /**
+     * @brief Reset colors to theme defaults
+     */
+    void reset_colors();
+
+    // ==============================================
     // Object Picking
     // ==============================================
 
@@ -288,6 +327,16 @@ class GCodeRenderer {
     lv_color_t color_object_boundary_;
     lv_color_t color_highlighted_;
     lv_color_t color_excluded_;
+
+    // Theme default colors (for reset)
+    lv_color_t theme_color_extrusion_;
+    lv_color_t theme_color_travel_;
+
+    // Rendering control
+    bool use_custom_extrusion_color_{false};
+    bool use_custom_travel_color_{false};
+    lv_opa_t global_opacity_{LV_OPA_90};  // Default opacity for all segments
+    float brightness_factor_{1.0f};       // Brightness multiplier (0.5-2.0)
 
     // Statistics (updated each frame)
     size_t segments_rendered_{0};
