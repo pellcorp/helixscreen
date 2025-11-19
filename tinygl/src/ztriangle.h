@@ -299,18 +299,12 @@ Things to keep in mind:
 				register GLuint s, t;
 #endif
 #ifdef INTERP_STZ
-
+				
 #endif
-				/* Dithering coordinates */
-				register GLint dither_x;
-				register GLint dither_y;
 
 				n = (x2 >> 16) - x1;
-
+				
 				pp = (PIXEL*)pp1 + x1;
-				/* Initialize dithering position */
-				dither_x = x1;
-				dither_y = the_y;
 #ifdef INTERP_Z
 				pz = pz1 + x1;
 				z = z1;
@@ -336,20 +330,18 @@ Things to keep in mind:
 #ifdef INTERP_Z
 					pz += 4;
 #endif
-
+					
 					pp += 4;
-					dither_x += 4;  /* Update dithering x coordinate */
 					n -= 4;
 				}
 				while (n >= 0) {
 					PUT_PIXEL(0); /*the_x++;*/
 #ifdef INTERP_Z
-
+					
 					pz++;
 #endif
 					/*pp = (PIXEL*)((GLbyte*)pp + PS_ZB);*/
 					pp++;
-					dither_x++;  /* Update dithering x coordinate */
 					n--;
 				}
 			}

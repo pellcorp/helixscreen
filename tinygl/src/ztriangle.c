@@ -1,6 +1,5 @@
 #include "../include/zbuffer.h"
 #include "msghandling.h"
-#include "zdither.h"
 #include <stdlib.h>
 
 
@@ -195,7 +194,7 @@ void ZB_fillTriangleSmoothNOBLEND(ZBuffer* zb, ZBufferPoint* p0, ZBufferPoint* p
 		{                                                                                                                                                      \
 			register GLuint zz = z >> ZB_POINT_Z_FRAC_BITS;                                                                                                    \
 			if (ZCMPSIMP(zz, pz[_a], _a, 0)) {                                                                                                                 \
-				pp[_a] = RGB_TO_PIXEL_DITHERED(or1, og1, ob1, dither_x + _a, dither_y);                                                                        \
+				pp[_a] = RGB_TO_PIXEL(or1, og1, ob1);                                                                                                          \
 				if (zbdw)                                                                                                                                      \
 					pz[_a] = zz;                                                                                                                               \
 			}                                                                                                                                                  \
@@ -212,7 +211,7 @@ void ZB_fillTriangleSmoothNOBLEND(ZBuffer* zb, ZBufferPoint* p0, ZBufferPoint* p
 			register GLuint zz = z >> ZB_POINT_Z_FRAC_BITS;                                                                                                    \
 			/*c = RGB_TO_PIXEL(or1, og1, ob1);*/                                                                                                               \
 			if (ZCMPSIMP(zz, pz[_a], _a, 0)) {                                                                                                                 \
-				pp[_a] = RGB_TO_PIXEL_DITHERED(or1, og1, ob1, dither_x + _a, dither_y);                                                                        \
+				pp[_a] = RGB_TO_PIXEL(or1, og1, ob1);                                                                                                          \
 				if (zbdw)                                                                                                                                      \
 					pz[_a] = zz;                                                                                                                               \
 			}                                                                                                                                                  \
@@ -234,7 +233,7 @@ void ZB_fillTriangleSmoothNOBLEND(ZBuffer* zb, ZBufferPoint* p0, ZBufferPoint* p
 		{                                                                                                                                                      \
 			register GLuint zz = z >> ZB_POINT_Z_FRAC_BITS;                                                                                                    \
 			if (ZCMPSIMP(zz, pz[_a], _a, 0)) {                                                                                                                 \
-				pp[_a] = RGB_TO_PIXEL_DITHERED(or1, og1, ob1, dither_x + _a, dither_y);                                                                        \
+				pp[_a] = RGB_TO_PIXEL(or1, og1, ob1);                                                                                                          \
                                                                                                                                                                \
 				if (zbdw)                                                                                                                                      \
 					pz[_a] = zz;                                                                                                                               \

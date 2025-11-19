@@ -4,13 +4,6 @@
 // TinyGL Test Runner - Main test execution program
 
 #include "tinygl_test_framework.h"
-
-// TinyGL extensions
-extern "C" {
-void glSetDithering(int enabled);
-int glGetDithering(void);
-}
-
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <iomanip>
@@ -102,21 +95,14 @@ void test_color_banding(TinyGLTestFramework& framework) {
     print_separator("Color Banding Test");
 
     SceneConfig config;
+
     ColorBandingScene scene;
-
-    // Test without dithering
-    glSetDithering(0);
     framework.render_scene(&scene, config);
-    framework.save_screenshot("tests/tinygl/output/color_banding_no_dither.ppm");
+    framework.save_screenshot("tests/tinygl/output/color_banding.ppm");
 
-    // Test with dithering
-    glSetDithering(1);
-    framework.render_scene(&scene, config);
-    framework.save_screenshot("tests/tinygl/output/color_banding_with_dither.ppm");
-
-    std::cout << "\n🌈 Color banding test rendered (with and without dithering).\n";
-    std::cout << "  Without dithering: Visible 8-bit quantization bands.\n";
-    std::cout << "  With dithering: Bands should be significantly reduced.\n";
+    std::cout << "\n🌈 Color banding test rendered.\n";
+    std::cout << "  Gradient should show visible 8-bit quantization bands.\n";
+    std::cout << "  Sphere lighting should show subtle banding in shadows.\n";
 }
 
 void test_performance_scaling(TinyGLTestFramework& framework) {
