@@ -12,6 +12,7 @@
 
 #include "ui_panel_gcode_test.h"
 
+#include "runtime_config.h"
 #include "ui_gcode_viewer.h"
 #include "ui_theme.h"
 
@@ -394,9 +395,33 @@ lv_obj_t* ui_panel_gcode_test_create(lv_obj_t* parent) {
         lv_obj_add_event_cb(shininess_slider, on_shininess_changed, LV_EVENT_VALUE_CHANGED,
                             nullptr);
 
-    // Auto-load the default sample file
-    spdlog::info("[GCodeTest] Auto-loading sample file: {}", TEST_GCODE_PATH);
-    ui_gcode_viewer_load_file(gcode_viewer, TEST_GCODE_PATH);
+    // Apply runtime config camera settings
+    const RuntimeConfig& config = get_runtime_config();
+
+    if (config.gcode_camera_azimuth_set) {
+        spdlog::info("[GCodeTest] Setting camera azimuth: {}", config.gcode_camera_azimuth);
+        ui_gcode_viewer_set_camera_azimuth(gcode_viewer, config.gcode_camera_azimuth);
+    }
+
+    if (config.gcode_camera_elevation_set) {
+        spdlog::info("[GCodeTest] Setting camera elevation: {}", config.gcode_camera_elevation);
+        ui_gcode_viewer_set_camera_elevation(gcode_viewer, config.gcode_camera_elevation);
+    }
+
+    if (config.gcode_camera_zoom_set) {
+        spdlog::info("[GCodeTest] Setting camera zoom: {}", config.gcode_camera_zoom);
+        ui_gcode_viewer_set_camera_zoom(gcode_viewer, config.gcode_camera_zoom);
+    }
+
+    if (config.gcode_debug_colors) {
+        spdlog::info("[GCodeTest] Enabling debug face colors");
+        ui_gcode_viewer_set_debug_colors(gcode_viewer, true);
+    }
+
+    // Auto-load file (either from config or default)
+    const char* file_to_load = config.gcode_test_file ? config.gcode_test_file : TEST_GCODE_PATH;
+    spdlog::info("[GCodeTest] Auto-loading file: {}", file_to_load);
+    ui_gcode_viewer_load_file(gcode_viewer, file_to_load);
 
     // Update stats after loading
     int layer_count = ui_gcode_viewer_get_layer_count(gcode_viewer);
@@ -405,8 +430,8 @@ lv_obj_t* ui_panel_gcode_test_create(lv_obj_t* parent) {
     if (stats_label) {
         if (state == GCODE_VIEWER_STATE_LOADED) {
             // Extract just the filename from the path
-            const char* filename = strrchr(TEST_GCODE_PATH, '/');
-            filename = filename ? filename + 1 : TEST_GCODE_PATH;
+            const char* filename = strrchr(file_to_load, '/');
+            filename = filename ? filename + 1 : file_to_load;
             char buf[256];
             snprintf(buf, sizeof(buf), "%s | %d layers", filename, layer_count);
             lv_label_set_text(stats_label, buf);

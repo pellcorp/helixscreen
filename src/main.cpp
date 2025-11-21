@@ -333,6 +333,57 @@ static bool parse_command_line_args(
             g_runtime_config.use_real_moonraker = true;
         } else if (strcmp(argv[i], "--real-files") == 0) {
             g_runtime_config.use_real_files = true;
+        } else if (strcmp(argv[i], "--gcode-file") == 0) {
+            if (i + 1 < argc) {
+                g_runtime_config.gcode_test_file = argv[++i];
+            } else {
+                printf("Error: --gcode-file requires a path argument\n");
+                return false;
+            }
+        } else if (strcmp(argv[i], "--gcode-az") == 0) {
+            if (i + 1 < argc) {
+                char* endptr;
+                double val = strtod(argv[++i], &endptr);
+                if (*endptr != '\0') {
+                    printf("Error: --gcode-az requires a numeric value\n");
+                    return false;
+                }
+                g_runtime_config.gcode_camera_azimuth = (float)val;
+                g_runtime_config.gcode_camera_azimuth_set = true;
+            } else {
+                printf("Error: --gcode-az requires a numeric argument\n");
+                return false;
+            }
+        } else if (strcmp(argv[i], "--gcode-el") == 0) {
+            if (i + 1 < argc) {
+                char* endptr;
+                double val = strtod(argv[++i], &endptr);
+                if (*endptr != '\0') {
+                    printf("Error: --gcode-el requires a numeric value\n");
+                    return false;
+                }
+                g_runtime_config.gcode_camera_elevation = (float)val;
+                g_runtime_config.gcode_camera_elevation_set = true;
+            } else {
+                printf("Error: --gcode-el requires a numeric argument\n");
+                return false;
+            }
+        } else if (strcmp(argv[i], "--gcode-zoom") == 0) {
+            if (i + 1 < argc) {
+                char* endptr;
+                double val = strtod(argv[++i], &endptr);
+                if (*endptr != '\0' || val <= 0) {
+                    printf("Error: --gcode-zoom requires a positive numeric value\n");
+                    return false;
+                }
+                g_runtime_config.gcode_camera_zoom = (float)val;
+                g_runtime_config.gcode_camera_zoom_set = true;
+            } else {
+                printf("Error: --gcode-zoom requires a numeric argument\n");
+                return false;
+            }
+        } else if (strcmp(argv[i], "--gcode-debug-colors") == 0) {
+            g_runtime_config.gcode_debug_colors = true;
         } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "-vv") == 0 ||
                    strcmp(argv[i], "-vvv") == 0) {
             // Count the number of 'v' characters for verbosity level
@@ -372,6 +423,12 @@ static bool parse_command_line_args(
             printf("    --real-ethernet    Use real Ethernet hardware (requires --test)\n");
             printf("    --real-moonraker   Connect to real printer (requires --test)\n");
             printf("    --real-files       Use real files from printer (requires --test)\n");
+            printf("\nG-code Viewer Options:\n");
+            printf("  --gcode-file <path>  Load specific G-code file on startup\n");
+            printf("  --gcode-az <deg>     Set camera azimuth angle (degrees)\n");
+            printf("  --gcode-el <deg>     Set camera elevation angle (degrees)\n");
+            printf("  --gcode-zoom <n>     Set camera zoom level (positive number)\n");
+            printf("  --gcode-debug-colors Enable per-face debug coloring\n");
             printf("\nAvailable panels:\n");
             printf("  home, controls, motion, nozzle-temp, bed-temp, extrusion,\n");
             printf("  print-status, filament, settings, advanced, print-select,\n");

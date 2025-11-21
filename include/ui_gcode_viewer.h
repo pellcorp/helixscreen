@@ -150,6 +150,34 @@ void ui_gcode_viewer_reset_camera(lv_obj_t* obj);
  */
 void ui_gcode_viewer_set_view(lv_obj_t* obj, gcode_viewer_preset_view_t preset);
 
+/**
+ * @brief Set camera azimuth angle directly
+ * @param obj Viewer widget
+ * @param azimuth Horizontal rotation in degrees (0-360)
+ */
+void ui_gcode_viewer_set_camera_azimuth(lv_obj_t* obj, float azimuth);
+
+/**
+ * @brief Set camera elevation angle directly
+ * @param obj Viewer widget
+ * @param elevation Vertical rotation in degrees (-90 to 90)
+ */
+void ui_gcode_viewer_set_camera_elevation(lv_obj_t* obj, float elevation);
+
+/**
+ * @brief Set camera zoom level directly
+ * @param obj Viewer widget
+ * @param zoom Zoom factor (>0, 1.0 = default)
+ */
+void ui_gcode_viewer_set_camera_zoom(lv_obj_t* obj, float zoom);
+
+/**
+ * @brief Enable/disable per-face debug coloring
+ * @param obj Viewer widget
+ * @param enable true to enable debug colors, false for normal rendering
+ */
+void ui_gcode_viewer_set_debug_colors(lv_obj_t* obj, bool enable);
+
 // ==============================================
 // Rendering Options
 // ==============================================

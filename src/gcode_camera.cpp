@@ -135,6 +135,28 @@ void GCodeCamera::set_isometric_view() {
     update_matrices();
 }
 
+void GCodeCamera::set_azimuth(float azimuth) {
+    azimuth_ = azimuth;
+    // Wrap azimuth to [0, 360)
+    while (azimuth_ >= 360.0f)
+        azimuth_ -= 360.0f;
+    while (azimuth_ < 0.0f)
+        azimuth_ += 360.0f;
+    update_matrices();
+}
+
+void GCodeCamera::set_elevation(float elevation) {
+    // Clamp elevation to [-89, 89] to avoid gimbal lock at poles
+    elevation_ = std::clamp(elevation, -89.0f, 89.0f);
+    update_matrices();
+}
+
+void GCodeCamera::set_zoom_level(float zoom) {
+    // Clamp zoom to reasonable range
+    zoom_level_ = std::clamp(zoom, 0.1f, 10.0f);
+    update_matrices();
+}
+
 void GCodeCamera::set_projection_type(ProjectionType type) {
     if (type == ProjectionType::PERSPECTIVE) {
         spdlog::warn("Perspective projection not fully implemented in Phase 1");

@@ -134,6 +134,28 @@ class GCodeCamera {
     void set_isometric_view();
 
     // ==============================================
+    // Direct Setters
+    // ==============================================
+
+    /**
+     * @brief Set azimuth angle directly
+     * @param azimuth Horizontal rotation in degrees (0-360)
+     */
+    void set_azimuth(float azimuth);
+
+    /**
+     * @brief Set elevation angle directly
+     * @param elevation Vertical rotation in degrees (-90 to 90)
+     */
+    void set_elevation(float elevation);
+
+    /**
+     * @brief Set zoom level directly
+     * @param zoom Zoom factor (>0, 1.0 = default)
+     */
+    void set_zoom_level(float zoom);
+
+    // ==============================================
     // Matrix Access
     // ==============================================
 

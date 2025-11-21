@@ -1,152 +1,60 @@
 # Session Handoff Document
 
 **Last Updated:** 2025-11-20
-**Current Focus:** G-code TinyGL Renderer - Tube Geometry Debugging
+**Current Focus:** G-code Viewer Polish & Bed Mesh Enhancements
 
 ---
 
 ## ✅ CURRENT STATE
 
-### Just Completed (This Session) - 2025-11-20
+### Recently Completed
 
-**G-Code TinyGL Renderer: Per-Face Debug Coloring System**
-
-**Context:** Discovered critical geometry issues in 3D rectangular tube rendering. Tubes appearing twisted/kinked instead of straight, with triangular gaps and incorrect face positioning.
-
-**Implementation:** Added comprehensive per-face debug coloring system to diagnose geometry problems:
+**G-Code Viewer Command-Line Options (2025-11-20)**
+- ✅ Added `--gcode-file <path>` to load specific G-code file on startup
+- ✅ Added `--gcode-az <deg>` to set camera azimuth angle
+- ✅ Added `--gcode-el <deg>` to set camera elevation angle
+- ✅ Added `--gcode-zoom <n>` to set camera zoom level
+- ✅ Added `--gcode-debug-colors` to enable per-face debug coloring
+- ✅ Exposed camera setters (set_azimuth/set_elevation/set_zoom_level) in GCodeCamera
+- ✅ Added ui_gcode_viewer API functions for camera control and debug colors
+- ✅ Settings applied automatically in gcode test panel on startup
 
 **Files Modified:**
-1. `include/gcode_geometry_builder.h` (lines 278-295, 317)
-   - Added `bool debug_face_colors_` member variable
-   - Added `set_debug_face_colors(bool enable)` method with full documentation
-   - Documents 6-color mapping: Top=Red, Bottom=Blue, Left=Green, Right=Yellow, StartCap=Magenta, EndCap=Cyan
+- `include/runtime_config.h` - Added G-code viewer config fields
+- `src/main.cpp` - Added command-line argument parsing
+- `include/gcode_camera.h` - Added direct setter methods
+- `src/gcode_camera.cpp` - Implemented camera setters
+- `include/ui_gcode_viewer.h` - Added viewer widget API functions
+- `src/ui_gcode_viewer.cpp` - Implemented widget wrapper functions
+- `src/ui_panel_gcode_test.cpp` - Apply runtime config on panel init
 
-2. `src/gcode_geometry_builder.cpp` (lines 18-29, 558-573, 586-625, 628-661, 681-691, 702-708)
-   - Added `DebugColors` namespace with 6 bright color constants
-   - Modified color assignment in `generate_ribbon_vertices()`:
-     - Creates 6 separate color palette indices when debug mode enabled
-     - Assigns face-specific colors to all vertices based on which face they belong to
-     - Vertex ordering: [0-1]=bottom (Blue), [2-3]=right (Yellow), [4-5]=top (Red), [6-7]=left (Green)
-     - Start cap vertices use Magenta, end cap vertices use Cyan
-   - Added debug logging (once per build) showing active color mapping
+**Usage Examples:**
+```bash
+# Custom camera angles
+./build/bin/helix-ui-proto -p gcode-test --gcode-az 90 --gcode-el -10 --gcode-zoom 5
 
-3. `include/gcode_tinygl_renderer.h` (lines 98-110)
-   - Added `set_debug_face_colors(bool enable)` public method
-   - Complete Doxygen documentation with 6-color mapping
+# Load specific file with debug colors
+./build/bin/helix-ui-proto -p gcode-test --gcode-file assets/test_gcode/multi_color_cube.gcode --gcode-debug-colors
 
-4. `src/gcode_tinygl_renderer.cpp` (lines 31, 91-101)
-   - Enabled debug mode in constructor: `geometry_builder_->set_debug_face_colors(true)` (line 31)
-   - Implemented `set_debug_face_colors()` wrapper method with debug logging
-   - Method triggers geometry rebuild to apply new coloring
-
-5. `src/gcode_camera.cpp` (lines 28-38)
-   - Set camera to exact test angle: Az=85.5°, El=-2.5°, Zoom=10.0x
-   - Preserves custom zoom through `fit_to_bounds()` calls
-
-**Debug Output (with -vv flag):**
-```
-[debug] Setting debug face colors: ENABLED
-[debug] DEBUG FACE COLORS ACTIVE: Top=Red, Bottom=Blue, Left=Green,
-        Right=Yellow, StartCap=Magenta, EndCap=Cyan
+# All options combined
+./build/bin/helix-ui-proto -p gcode-test --test \
+  --gcode-file my_print.gcode \
+  --gcode-az 45 --gcode-el 30 --gcode-zoom 2.5 \
+  --gcode-debug-colors
 ```
 
-**🚨 CRITICAL DISCOVERY: Major Geometry Issues Revealed**
-
-The per-face coloring successfully exposed fundamental problems in tube geometry generation:
-
-**Observable Issues (from screenshot `/tmp/ui-screenshot-gcode-debug-colors.png`):**
-1. ✅ **Debug colors working perfectly** - Can clearly see all 6 faces in distinct colors
-2. ❌ **Tube is twisted/kinked** - 10mm horizontal line renders as bent/curved shape
-3. ❌ **Black triangular gaps** - Missing or incorrectly connected geometry
-4. ❌ **Wrong overall shape** - Should be straight rectangular bar, appears twisted
-
-**Color Verification:**
-- Cyan (end cap) - visible at left front ✓
-- Blue (bottom) - visible on bottom face ✓
-- Yellow (right) - visible on right side ✓
-- Magenta (start cap) - visible at right end ✓
-- Geometry is clearly WRONG despite colors being correct
-
-**Root Cause Analysis (Suspected):**
-
-The issue is in `generate_ribbon_vertices()` (gcode_geometry_builder.cpp:451-720). Possible causes:
-
-1. **Vertex Ordering Issue:**
-   - TubeCap order: `[bl_bottom, br_bottom, br_right, tr_right, tr_top, tl_top, tl_left, bl_left]`
-   - Each vertex appears TWICE with different normals (8 vertices per cross-section)
-   - Start/end cap vertices might be misaligned causing twist
-
-2. **Triangle Strip Winding:**
-   - Face strips connect start→end vertices in strips
-   - If vertex order differs between start/end caps, causes twist
-   - Lines 697-708 define strips: bottom, right, top, left faces
-
-3. **Cross-Section Calculation:**
-   - Perpendicular vectors computed from direction (lines 473-485)
-   - `perp_horizontal = cross(direction, up)`
-   - `perp_vertical = cross(direction, perp_horizontal)`
-   - May need verification for horizontal lines
-
-**Test File:** `assets/single_line_test.gcode`
-```gcode
-G1 X0 Y0 F7800
-G1 X10 Y0 E1.0 F1800 ; single 10mm extrusion from (0,0,0.2) to (10,0,0.2)
-```
-
-**Expected Result:** Straight rectangular tube from (0,0,0.2) to (10,0,0.2)
-- Dimensions: 10mm × 0.42mm × 0.2mm (length × width × height)
-- Should appear perfectly straight when viewed from Az=85.5°, El=-2.5°
-
-**Actual Result:** Twisted/kinked tube with gaps
-
-**Next Steps (HIGH PRIORITY):**
-
-1. **Investigate Vertex Generation Logic:**
-   - Examine `generate_ribbon_vertices()` vertex ordering
-   - Verify start/end cap vertices match in position and order
-   - Check if vertex reuse (`prev_start_cap`) introduces misalignment
-
-2. **Verify Triangle Strip Construction:**
-   - Lines 697-708: bottom/right/top/left face strips
-   - Ensure strips connect corresponding vertices correctly
-   - Check winding order (CCW vs CW)
-
-3. **Cross-Section Geometry Validation:**
-   - Add debug logging for vertex positions
-   - Verify perpendicular vectors for horizontal direction
-   - Check if normal calculations affect vertex positioning
-
-4. **Consider Simplification:**
-   - Current approach: 8 vertices per cross-section (duplicate corners for different face normals)
-   - May need to separate vertex positions from normals
-   - Could use indexed geometry with unique positions + per-vertex normals
-
-**Files to Focus On:**
-- `src/gcode_geometry_builder.cpp:451-720` - `generate_ribbon_vertices()`
-- `src/gcode_geometry_builder.cpp:697-715` - Triangle strip construction
-- Review vertex ordering and strip winding documentation
+**G-Code 3D Rendering - Geometry Fixes (Earlier 2025-11-20)**
+- ✅ Fixed tube geometry cross-section calculation (perpendicular vectors)
+- ✅ Corrected end cap rendering (proper vertex ordering)
+- ✅ Fixed tube proportions using `layer_height_mm` from G-code metadata
+- ✅ Corrected face normals to point outward (top=UP, bottom=DOWN)
+- ✅ Added per-face debug coloring system for geometry diagnosis
+- ✅ Added camera debug overlay showing Az/El/Zoom (only with -vv flag)
 
 **Commits:**
-- (Pending) - feat(gcode): add per-face debug coloring for geometry diagnosis
-- (Pending) - docs: document discovered tube geometry issues
-
----
-
-### Previously Completed (Earlier This Session)
-
-**G-Code Rendering: Layer Height and Normal Fixes**
-- ✅ Fixed tube proportions using `layer_height_mm` from G-code (was using width*0.25)
-- ✅ Corrected face normals to point outward (top=UP, bottom=DOWN)
-- ✅ Added camera debug overlay showing Az/El/Zoom (only with -vv flag)
-- ✅ Set layer height from G-code metadata in TinyGL renderer
-- ✅ Camera preset to exact test angle (Az=85.5°, El=-2.5°, Zoom=10.0x)
-
-**Files Modified:**
-- `include/gcode_parser.h:163` - Added `layer_height_mm` field
-- `include/gcode_geometry_builder.h:256-265, 309` - Added `set_layer_height()` method
-- `src/gcode_geometry_builder.cpp:453-455, 498-502` - Layer height usage, corrected normals
-- `src/gcode_tinygl_renderer.cpp:364-366, 540-559` - Layer height config, camera overlay
-- `src/gcode_camera.cpp:28-38` - Exact test camera angle
+- (Pending) - feat(gcode): add command-line options for camera and debug controls
+- `d02b140` - fix(gcode): correct tube geometry cross-section and end cap rendering
+- `f56edde` - Add single extrusion test G-code file
 
 ### Recently Completed (Previous Sessions)
 
@@ -169,45 +77,32 @@ G1 X10 Y0 E1.0 F1800 ; single 10mm extrusion from (0,0,0.2) to (10,0,0.2)
 
 ## 🚀 NEXT PRIORITIES
 
-### 1. **FIX G-Code Tube Geometry (CRITICAL - BLOCKING)**
+### 1. **G-Code Viewer - Layer Controls** (HIGH PRIORITY)
 
-**Status:** Major geometry bugs discovered via debug coloring system
+**Remaining Tasks:**
+- [ ] Add layer slider/scrubber for preview-by-layer
+- [ ] Add layer range selector (start/end layer)
+- [ ] Show current layer number in UI
+- [ ] Test with complex multi-color G-code files
 
-**Problem:** Rectangular tubes rendering twisted/kinked instead of straight
-
-**Investigation Tasks:**
-1. [ ] Add vertex position debug logging to `generate_ribbon_vertices()`
-2. [ ] Verify start/end cap vertex alignment (8 vertices each)
-3. [ ] Check triangle strip winding in face construction (lines 697-708)
-4. [ ] Validate perpendicular vector calculation for horizontal lines
-5. [ ] Test with multiple simple cases (horizontal, vertical, diagonal lines)
-
-**Potential Fixes:**
-- Ensure start_cap and end_cap vertices have identical ordering
-- Verify cross-section calculation doesn't introduce rotation
-- Check if vertex reuse (`prev_start_cap`) preserves order correctly
-- Consider separating vertex positions from normal assignments
-
-**Test Command:**
+**Command-Line Testing:**
 ```bash
-./build/bin/helix-ui-proto -p gcode-test -vv --test
-# Camera should show: Az: 85.5° El: -2.5° Zoom: 10.0x
-# Expected: Straight rectangular tube 10mm long
+# Test with custom camera angles
+./build/bin/helix-ui-proto -p gcode-test --test --gcode-az 90 --gcode-el -10 --gcode-zoom 5
+
+# Test with multi-color file and debug colors
+./build/bin/helix-ui-proto -p gcode-test --test \
+  --gcode-file assets/test_gcode/multi_color_cube.gcode \
+  --gcode-debug-colors
+
+# Test specific camera position for screenshots
+./build/bin/helix-ui-proto -p gcode-test --test \
+  --gcode-file my_print.gcode \
+  --gcode-az 45 --gcode-el 30 --gcode-zoom 2.0 \
+  --screenshot 2
 ```
 
-**Reference:**
-- Screenshot: `/tmp/ui-screenshot-gcode-debug-colors.png` - Shows twisted tube
-- Test file: `assets/single_line_test.gcode` - Single 10mm horizontal line
-- Code: `src/gcode_geometry_builder.cpp:451-720` - Vertex generation
-
-### 2. **Disable Debug Coloring After Fix**
-
-Once geometry is corrected:
-- [ ] Set `debug_face_colors(false)` in `gcode_tinygl_renderer.cpp:31`
-- [ ] Or make it runtime-configurable via UI toggle
-- [ ] Keep implementation for future debugging
-
-### 3. **Complete Bed Mesh UI Features** (MEDIUM PRIORITY)
+### 2. **Complete Bed Mesh UI Features** (MEDIUM PRIORITY)
 
 **Goal:** Match feature parity with GuppyScreen bed mesh visualization
 
@@ -221,7 +116,7 @@ Once geometry is corrected:
 2. [ ] Add mesh profile selector dropdown
 3. [ ] Display additional statistics (variance/deviation)
 
-### 4. **Integrate G-code Viewer with Print Select Panel**
+### 3. **Print Select Integration**
 
 **Goal:** Add "Preview" button to print file browser
 
@@ -405,37 +300,6 @@ ui_gcode_viewer_reset_view(viewer);
 
 ## 🐛 Known Issues
 
-### CRITICAL: G-Code Tube Geometry Bugs (BLOCKING)
-
-**Discovered:** 2025-11-20 via per-face debug coloring system
-
-**Symptoms:**
-- Tubes render twisted/kinked instead of straight
-- Black triangular gaps in geometry
-- Wrong overall shape despite correct layer height and normals
-
-**Evidence:**
-- Screenshot: `/tmp/ui-screenshot-gcode-debug-colors.png`
-- Test case: `assets/single_line_test.gcode` (10mm horizontal line)
-- Camera angle: Az=85.5°, El=-2.5°, Zoom=10.0x
-
-**Debug System Active:**
-- Per-face coloring enabled (Top=Red, Bottom=Blue, Left=Green, Right=Yellow, StartCap=Magenta, EndCap=Cyan)
-- Colors render correctly, confirming geometry generation is the issue
-- Run with: `./build/bin/helix-ui-proto -p gcode-test -vv --test`
-
-**Investigation Focus:**
-- `src/gcode_geometry_builder.cpp:451-720` - `generate_ribbon_vertices()`
-- Vertex ordering in TubeCap (8 vertices with duplicated positions, different normals)
-- Triangle strip winding (lines 697-708)
-- Cross-section calculation for horizontal lines
-
-**Impact:** Blocks all G-code 3D visualization work
-
----
-
-### Other Known Issues
-
 1. **Missing Bed Mesh UI Features**
    - ✅ Grid lines - IMPLEMENTED
    - ✅ Info labels - IMPLEMENTED
@@ -457,39 +321,32 @@ ui_gcode_viewer_reset_view(viewer);
 
 ## 🔍 Debugging Tips
 
-**G-Code Geometry Issues:**
+**G-Code Viewer Testing:**
 ```bash
-# Run with debug logging
+# Run with debug logging and camera overlay
 ./build/bin/helix-ui-proto -p gcode-test -vv --test
 
-# Check for debug output
-grep "DEBUG FACE COLORS" /tmp/gcode-debug.log
-grep "Setting debug face colors" /tmp/gcode-debug.log
+# Test multi-color files
+./build/bin/helix-ui-proto -p gcode-test --test-file assets/test_gcode/multi_color_cube.gcode
 
-# Camera overlay should show:
-# "Az: 85.5° El: -2.5° Zoom: 10.0x" (upper-left, only with -vv)
+# Camera overlay shows (upper-left, only with -vv):
+# "Az: 85.5° El: -2.5° Zoom: 10.0x"
 ```
 
 **Screenshot Current State:**
 ```bash
-# Take screenshot (may open new instance)
-./scripts/screenshot.sh helix-ui-proto gcode-debug gcode-test
+# Take screenshot
+./scripts/screenshot.sh helix-ui-proto gcode-test gcode-test
 
 # View screenshot
-open /tmp/ui-screenshot-gcode-debug.png
+open /tmp/ui-screenshot-gcode-test.png
 ```
 
-**Add Vertex Debug Logging:**
+**Per-Face Debug Coloring (if needed):**
 ```cpp
-// In generate_ribbon_vertices() after vertex creation
-spdlog::debug("Start cap vertices:");
-for (int i = 0; i < 8; i++) {
-    const auto& v = geometry.vertices[start_cap[i]];
-    spdlog::debug("  [{}] pos=({},{},{})", i,
-        quant.dequantize(v.position.x, quant.min_bounds.x),
-        quant.dequantize(v.position.y, quant.min_bounds.y),
-        quant.dequantize(v.position.z, quant.min_bounds.z));
-}
-```
+// Enable in gcode_tinygl_renderer.cpp:31
+geometry_builder_->set_debug_face_colors(true);
 
-**Next Session:** PRIORITY #1 is fixing the tube geometry bugs. Use the per-face debug coloring to diagnose vertex ordering and strip winding issues. Once geometry is correct, can proceed with bed mesh features and G-code viewer integration.
+// Colors: Top=Red, Bottom=Blue, Left=Green, Right=Yellow,
+//         StartCap=Magenta, EndCap=Cyan
+```

@@ -494,6 +494,46 @@ void ui_gcode_viewer_set_view(lv_obj_t* obj, gcode_viewer_preset_view_t preset) 
     lv_obj_invalidate(obj);
 }
 
+void ui_gcode_viewer_set_camera_azimuth(lv_obj_t* obj, float azimuth) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->camera->set_azimuth(azimuth);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_camera_elevation(lv_obj_t* obj, float elevation) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->camera->set_elevation(elevation);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_camera_zoom(lv_obj_t* obj, float zoom) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->camera->set_zoom_level(zoom);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_debug_colors(lv_obj_t* obj, bool enable) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+#ifdef ENABLE_TINYGL_3D
+    st->renderer->set_debug_face_colors(enable);
+    lv_obj_invalidate(obj);
+#else
+    (void)enable;
+#endif
+}
+
 // ==============================================
 // Rendering Options
 // ==============================================
