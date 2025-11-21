@@ -210,8 +210,10 @@ void GCodeTinyGLRenderer::setup_lighting() {
     // - Intensity correction factor (0.6) to prevent oversaturation
     // - Matches OrcaSlicer's exact light directions
 
-    constexpr float INTENSITY_CORRECTION = 0.6f;
-    constexpr float INTENSITY_AMBIENT = 0.3f;
+    // Lower ambient for better shadow contrast
+    // Higher diffuse intensity for stronger directional lighting
+    constexpr float INTENSITY_CORRECTION = 0.8f;  // Increased from 0.6 for brighter diffuse
+    constexpr float INTENSITY_AMBIENT = 0.2f;     // Reduced from 0.3 for darker shadows
 
     // Top light: Primary light from above-right (matches OrcaSlicer LIGHT_TOP_DIR)
     // Direction: normalized(-0.6, 0.6, 1.0) = (-0.4574957, 0.4574957, 0.7624929)
@@ -483,16 +485,14 @@ void GCodeTinyGLRenderer::render_geometry(const GCodeCamera& camera) {
         bool is_first = !logged_first_strip && current_strip_idx == 0;
         bool is_last = !logged_last_strip && current_strip_idx == (total_strips - 1);
 
-        // Log the first strip in detail (the start cap)
+        // Debug logging for first/last strips (end caps)
         if (is_first) {
-            spdlog::info("=== RENDERER: Processing first strip (start cap) ===");
-            spdlog::info("Strip indices: [{}, {}, {}, {}]", strip[0], strip[1], strip[2], strip[3]);
+            spdlog::debug("Rendering first strip (start cap): indices [{}, {}, {}, {}]",
+                         strip[0], strip[1], strip[2], strip[3]);
         }
-
-        // Log the last strip in detail (the end cap)
         if (is_last) {
-            spdlog::info("=== RENDERER: Processing last strip (end cap) ===");
-            spdlog::info("Strip indices: [{}, {}, {}, {}]", strip[0], strip[1], strip[2], strip[3]);
+            spdlog::debug("Rendering last strip (end cap): indices [{}, {}, {}, {}]",
+                         strip[0], strip[1], strip[2], strip[3]);
         }
 
         glBegin(GL_TRIANGLE_STRIP);
@@ -515,10 +515,10 @@ void GCodeTinyGLRenderer::render_geometry(const GCodeCamera& camera) {
             // Dequantize position
             glm::vec3 pos = geometry_->quantization.dequantize_vec3(vertex.position);
 
-            // Log first or last strip vertices in detail
+            // Detailed vertex logging at trace level
             if (is_first || is_last) {
-                spdlog::info("  strip[{}]=vertex[{}]: pos=({:.3f},{:.3f},{:.3f}) normal=({:.3f},{:.3f},{:.3f}) color=0x{:06X}",
-                            i, strip[i], pos.x, pos.y, pos.z, normal.x, normal.y, normal.z, color_rgb);
+                spdlog::trace("  strip[{}]=vertex[{}]: pos=({:.3f},{:.3f},{:.3f}) normal=({:.3f},{:.3f},{:.3f}) color=0x{:06X}",
+                             i, strip[i], pos.x, pos.y, pos.z, normal.x, normal.y, normal.z, color_rgb);
             }
 
             glVertex3f(pos.x, pos.y, pos.z);
@@ -528,12 +528,10 @@ void GCodeTinyGLRenderer::render_geometry(const GCodeCamera& camera) {
 
         if (is_first) {
             logged_first_strip = true;
-            spdlog::info("=== RENDERER: First strip submitted to OpenGL ===");
         }
 
         if (is_last) {
             logged_last_strip = true;
-            spdlog::info("=== RENDERER: Last strip submitted to OpenGL ===");
         }
 
         strip_count++;
