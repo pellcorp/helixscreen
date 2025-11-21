@@ -726,11 +726,11 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
 
     // ========== PREV SIDE FACE VERTICES ==========
     // Generate 2N prev vertices (2 vertices per face, N faces)
-    // Each face connects vertex i to vertex (i+1)%N
+    // Each face connects vertex (i+1)%N to vertex i (going backwards around circle for correct winding)
     for (int i = 0; i < N; i++) {
         int next_i = (i + 1) % N;
-        glm::vec3 pos_v1 = prev_pos + vertex_offsets[i];
-        glm::vec3 pos_v2 = prev_pos + vertex_offsets[next_i];
+        glm::vec3 pos_v1 = prev_pos + vertex_offsets[next_i];  // REVERSED: next_i first
+        glm::vec3 pos_v2 = prev_pos + vertex_offsets[i];       // then i
         uint16_t normal_idx = add_to_normal_palette(geometry, face_normals[i]);
 
         geometry.vertices.push_back({
@@ -748,10 +748,11 @@ GeometryBuilder::generate_ribbon_vertices(const ToolpathSegment& segment, Ribbon
 
     // ========== CURR SIDE FACE VERTICES ==========
     // Generate 2N curr vertices (2 vertices per face, N faces)
+    // Each face connects vertex (i+1)%N to vertex i (going backwards around circle for correct winding)
     for (int i = 0; i < N; i++) {
         int next_i = (i + 1) % N;
-        glm::vec3 pos_v1 = curr_pos + vertex_offsets[i];
-        glm::vec3 pos_v2 = curr_pos + vertex_offsets[next_i];
+        glm::vec3 pos_v1 = curr_pos + vertex_offsets[next_i];  // REVERSED: next_i first
+        glm::vec3 pos_v2 = curr_pos + vertex_offsets[i];       // then i
         uint16_t normal_idx = add_to_normal_palette(geometry, face_normals[i]);
 
         geometry.vertices.push_back({
