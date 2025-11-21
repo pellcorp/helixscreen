@@ -26,6 +26,7 @@
 #include "app_constants.h"
 #include "ui_component_header_bar.h"
 #include "ui_component_keypad.h"
+#include "ui_heater_config.h"
 #include "ui_nav.h"
 #include "ui_temp_graph.h"
 #include "ui_temperature_utils.h"
@@ -36,30 +37,6 @@
 
 #include <math.h>
 #include <string.h>
-
-// Heater type enumeration
-typedef enum { HEATER_NOZZLE, HEATER_BED } heater_type_t;
-
-// Heater configuration structure
-typedef struct {
-    heater_type_t type;
-    const char* name;
-    const char* title;
-    lv_color_t color;
-    float temp_range_max;
-    int y_axis_increment;
-    int default_mock_target;
-    struct {
-        int off;
-        int pla;
-        int petg;
-        int abs;
-    } presets;
-    struct {
-        float min;
-        float max;
-    } keypad_range;
-} heater_config_t;
 
 // Temperature subjects (reactive data binding)
 static lv_subject_t nozzle_current_subject;

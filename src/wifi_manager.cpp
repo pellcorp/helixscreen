@@ -26,6 +26,7 @@
 #include "lvgl/lvgl.h"
 #include "safe_log.h"
 #include "spdlog/spdlog.h"
+#include "ui_async_callback.h"
 
 #include <algorithm>
 #include <cstring>
@@ -318,14 +319,10 @@ void WiFiManager::handle_scan_complete(const std::string& event_data) {
         spdlog::debug("[WiFiManager] Got {} scan results, dispatching to LVGL thread",
                       networks.size());
 
-        // Store weak_ptr for safe async access
-        auto* callback_data = new ScanCallbackData{self_, networks};
-
-        // Dispatch to LVGL thread using lv_async_call
-        lv_async_call(
-            [](void* user_data) {
-                auto* data = static_cast<ScanCallbackData*>(user_data);
-
+        // Use RAII-safe async callback wrapper
+        ui_async_call_safe<ScanCallbackData>(
+            std::make_unique<ScanCallbackData>(ScanCallbackData{self_, networks}),
+            [](ScanCallbackData* data) {
                 spdlog::debug("[WiFiManager] async_call executing in LVGL thread with {} networks",
                               data->networks.size());
 
@@ -342,20 +339,15 @@ void WiFiManager::handle_scan_complete(const std::string& event_data) {
                     spdlog::debug(
                         "[WiFiManager] Manager destroyed before async callback - safely ignored");
                 }
-
-                delete data; // Clean up
-            },
-            callback_data);
+            });
 
     } else {
         spdlog::warn("[WiFiManager] Failed to get scan results: {}", result.technical_msg);
-        // Store weak_ptr for safe async access
-        auto* callback_data = new ScanCallbackData{self_, {}};
 
-        lv_async_call(
-            [](void* user_data) {
-                auto* data = static_cast<ScanCallbackData*>(user_data);
-
+        // Use RAII-safe async callback wrapper
+        ui_async_call_safe<ScanCallbackData>(
+            std::make_unique<ScanCallbackData>(ScanCallbackData{self_, {}}),
+            [](ScanCallbackData* data) {
                 spdlog::warn("[WiFiManager] async_call: calling callback with empty results");
                 if (auto manager = data->manager.lock()) {
                     if (manager->scan_callback_) {
@@ -365,10 +357,7 @@ void WiFiManager::handle_scan_complete(const std::string& event_data) {
                     spdlog::debug(
                         "[WiFiManager] Manager destroyed before async callback - safely ignored");
                 }
-
-                delete data;
-            },
-            callback_data);
+            });
     }
 
     spdlog::debug("[WiFiManager] handle_scan_complete EXIT (dispatch queued)");
@@ -392,11 +381,10 @@ void WiFiManager::handle_connected(const std::string& event_data) {
         return;
     }
 
-    // Store weak_ptr for safe async access
-    auto* data = new ConnectCallbackData{self_, true, ""};
-    lv_async_call(
-        [](void* user_data) {
-            auto* d = static_cast<ConnectCallbackData*>(user_data);
+    // Use RAII-safe async callback wrapper
+    ui_async_call_safe<ConnectCallbackData>(
+        std::make_unique<ConnectCallbackData>(ConnectCallbackData{self_, true, ""}),
+        [](ConnectCallbackData* d) {
             if (auto manager = d->manager.lock()) {
                 if (manager->connect_callback_) {
                     manager->connect_callback_(d->success, d->error);
@@ -406,9 +394,7 @@ void WiFiManager::handle_connected(const std::string& event_data) {
                 spdlog::debug(
                     "[WiFiManager] Manager destroyed before connect callback - safely ignored");
             }
-            delete d;
-        },
-        data);
+        });
 }
 
 void WiFiManager::handle_disconnected(const std::string& event_data) {
@@ -421,11 +407,10 @@ void WiFiManager::handle_disconnected(const std::string& event_data) {
         return;
     }
 
-    // Store weak_ptr for safe async access
-    auto* data = new ConnectCallbackData{self_, false, "Disconnected"};
-    lv_async_call(
-        [](void* user_data) {
-            auto* d = static_cast<ConnectCallbackData*>(user_data);
+    // Use RAII-safe async callback wrapper
+    ui_async_call_safe<ConnectCallbackData>(
+        std::make_unique<ConnectCallbackData>(ConnectCallbackData{self_, false, "Disconnected"}),
+        [](ConnectCallbackData* d) {
             if (auto manager = d->manager.lock()) {
                 if (manager->connect_callback_) {
                     manager->connect_callback_(d->success, d->error);
@@ -435,9 +420,7 @@ void WiFiManager::handle_disconnected(const std::string& event_data) {
                 spdlog::debug(
                     "[WiFiManager] Manager destroyed before disconnect callback - safely ignored");
             }
-            delete d;
-        },
-        data);
+        });
 }
 
 void WiFiManager::handle_auth_failed(const std::string& event_data) {
@@ -450,11 +433,10 @@ void WiFiManager::handle_auth_failed(const std::string& event_data) {
         return;
     }
 
-    // Store weak_ptr for safe async access
-    auto* data = new ConnectCallbackData{self_, false, "Authentication failed"};
-    lv_async_call(
-        [](void* user_data) {
-            auto* d = static_cast<ConnectCallbackData*>(user_data);
+    // Use RAII-safe async callback wrapper
+    ui_async_call_safe<ConnectCallbackData>(
+        std::make_unique<ConnectCallbackData>(ConnectCallbackData{self_, false, "Authentication failed"}),
+        [](ConnectCallbackData* d) {
             if (auto manager = d->manager.lock()) {
                 if (manager->connect_callback_) {
                     manager->connect_callback_(d->success, d->error);
@@ -464,7 +446,5 @@ void WiFiManager::handle_auth_failed(const std::string& event_data) {
                 spdlog::debug(
                     "[WiFiManager] Manager destroyed before auth_failed callback - safely ignored");
             }
-            delete d;
-        },
-        data);
+        });
 }

@@ -79,7 +79,7 @@ void ui_panel_motion_init_subjects() {
     lv_xml_register_subject(NULL, "motion_pos_y", &pos_y_subject);
     lv_xml_register_subject(NULL, "motion_pos_z", &pos_z_subject);
 
-    printf("[Motion] Subjects initialized: X/Y/Z position displays\n");
+    spdlog::info("[Motion] Subjects initialized: X/Y/Z position displays");
 }
 
 // Jog pad callback wrappers (bridge between widget and motion panel)
