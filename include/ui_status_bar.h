@@ -24,6 +24,7 @@
 #pragma once
 
 #include "lvgl.h"
+#include "printer_state.h" // For PrinterStatus and NetworkStatus enums
 
 /**
  * @brief Status bar icon manager for HelixScreen
@@ -33,25 +34,6 @@
  * - Printer connection status
  * - Active notification indicator
  */
-
-/**
- * @brief Network connection status states
- */
-enum class NetworkStatus {
-    DISCONNECTED,  ///< No network connection
-    CONNECTING,    ///< Connecting to network
-    CONNECTED      ///< Connected to network
-};
-
-/**
- * @brief Printer connection status states
- */
-enum class PrinterStatus {
-    DISCONNECTED,  ///< Printer not connected
-    READY,         ///< Printer connected and ready
-    PRINTING,      ///< Printer actively printing
-    ERROR          ///< Printer in error state
-};
 
 /**
  * @brief Active notification status

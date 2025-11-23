@@ -35,6 +35,25 @@
 using json = nlohmann::json;
 
 /**
+ * @brief Network connection status states
+ */
+enum class NetworkStatus {
+    DISCONNECTED,  ///< No network connection
+    CONNECTING,    ///< Connecting to network
+    CONNECTED      ///< Connected to network
+};
+
+/**
+ * @brief Printer connection status states
+ */
+enum class PrinterStatus {
+    DISCONNECTED,  ///< Printer not connected
+    READY,         ///< Printer connected and ready
+    PRINTING,      ///< Printer actively printing
+    ERROR          ///< Printer in error state
+};
+
+/**
  * @brief Printer state manager with LVGL 9 reactive subjects
  *
  * Implements hybrid architecture:
@@ -140,24 +159,39 @@ class PrinterState {
         return &fan_speed_;
     }
 
-    // Connection state subjects
-    lv_subject_t* get_connection_state_subject() {
-        return &connection_state_;
+    // Printer connection state subjects (Moonraker WebSocket)
+    lv_subject_t* get_printer_connection_state_subject() {
+        return &printer_connection_state_;
     } // 0=disconnected, 1=connecting, 2=connected, 3=reconnecting, 4=failed
-    lv_subject_t* get_connection_message_subject() {
-        return &connection_message_;
+    lv_subject_t* get_printer_connection_message_subject() {
+        return &printer_connection_message_;
     } // Status message
 
+    // Network connectivity subject (WiFi/Ethernet)
+    lv_subject_t* get_network_status_subject() {
+        return &network_status_;
+    } // 0=disconnected, 1=connecting, 2=connected (matches NetworkStatus enum)
+
     /**
-     * @brief Set connection state
+     * @brief Set printer connection state (Moonraker WebSocket)
      *
-     * Updates both connection_state and connection_message subjects.
+     * Updates both printer_connection_state and printer_connection_message subjects.
      * Called by main.cpp WebSocket callbacks.
      *
      * @param state 0=disconnected, 1=connecting, 2=connected, 3=reconnecting, 4=failed
      * @param message Status message ("Connecting...", "Ready", "Disconnected", etc.)
      */
-    void set_connection_state(int state, const char* message);
+    void set_printer_connection_state(int state, const char* message);
+
+    /**
+     * @brief Set network connectivity status
+     *
+     * Updates network_status_ subject based on WiFi/Ethernet availability.
+     * Called periodically from main.cpp to reflect actual network state.
+     *
+     * @param status 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED (NetworkStatus enum)
+     */
+    void set_network_status(int status);
 
   private:
     // Temperature subjects
@@ -182,16 +216,18 @@ class PrinterState {
     lv_subject_t flow_factor_;
     lv_subject_t fan_speed_;
 
-    // Connection state subjects
-    lv_subject_t connection_state_;   // Integer: 0=disconnected, 1=connecting, 2=connected,
-                                      // 3=reconnecting, 4=failed
-    lv_subject_t connection_message_; // String buffer
+    // Printer connection state subjects (Moonraker WebSocket)
+    lv_subject_t printer_connection_state_;   // Integer: uses PrinterStatus enum values
+    lv_subject_t printer_connection_message_; // String buffer
+
+    // Network connectivity subject (WiFi/Ethernet)
+    lv_subject_t network_status_; // Integer: uses NetworkStatus enum values
 
     // String buffers for subject storage
     char print_filename_buf_[256];
     char print_state_buf_[32];
     char homed_axes_buf_[8];
-    char connection_message_buf_[128];
+    char printer_connection_message_buf_[128];
 
     // JSON cache for complex data
     json json_state_;

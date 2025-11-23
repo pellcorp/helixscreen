@@ -404,13 +404,15 @@ class MoonrakerClient : public hv::WebSocketClient {
         check_request_timeouts();
     }
 
-  private:
+  protected:
     /**
      * @brief Transition to new connection state
      *
      * @param new_state The new state to transition to
      */
     void set_connection_state(ConnectionState new_state);
+
+  private:
 
     /**
      * @brief Check for timed out requests and invoke error callbacks

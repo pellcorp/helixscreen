@@ -44,7 +44,15 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
                                  [[maybe_unused]] std::function<void()> on_disconnected) {
     spdlog::info("[MoonrakerClientMock] Simulating connection to: {}", url ? url : "(null)");
 
-    // Immediately invoke connection callback (no async delay in mock)
+    // Simulate connection state change (same as real client)
+    set_connection_state(ConnectionState::CONNECTING);
+
+    // Small delay to simulate realistic connection (250ms)
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+    set_connection_state(ConnectionState::CONNECTED);
+
+    // Immediately invoke connection callback
     if (on_connected) {
         spdlog::info("[MoonrakerClientMock] Simulated connection successful");
         on_connected();

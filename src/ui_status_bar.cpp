@@ -25,6 +25,7 @@
 #include "ui_theme.h"
 #include "ui_nav.h"
 #include "ui_panel_notification_history.h"
+#include "app_globals.h"
 #include <spdlog/spdlog.h>
 
 // Cached widget references
@@ -33,6 +34,37 @@ static lv_obj_t* printer_icon = nullptr;
 static lv_obj_t* notification_icon = nullptr;
 static lv_obj_t* notification_badge = nullptr;
 static lv_obj_t* notification_badge_count = nullptr;
+
+// Observer callback for printer connection state changes
+static void printer_connection_observer(lv_observer_t* observer, lv_subject_t* subject) {
+    int32_t connection_state = lv_subject_get_int(subject);
+
+    spdlog::debug("[StatusBar] Observer fired! Connection state changed to: {}", connection_state);
+
+    // Map MoonrakerClient::ConnectionState to PrinterStatus
+    // ConnectionState: 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED, 3=RECONNECTING, 4=FAILED
+    PrinterStatus status;
+    switch (connection_state) {
+        case 2: // CONNECTED
+            status = PrinterStatus::READY;
+            spdlog::debug("[StatusBar] Mapped state 2 (CONNECTED) -> PrinterStatus::READY");
+            break;
+        case 4: // FAILED
+            status = PrinterStatus::ERROR;
+            spdlog::debug("[StatusBar] Mapped state 4 (FAILED) -> PrinterStatus::ERROR");
+            break;
+        case 0: // DISCONNECTED
+        case 1: // CONNECTING
+        case 3: // RECONNECTING
+        default:
+            status = PrinterStatus::DISCONNECTED;
+            spdlog::debug("[StatusBar] Mapped state {} -> PrinterStatus::DISCONNECTED", connection_state);
+            break;
+    }
+
+    spdlog::debug("[StatusBar] Calling ui_status_bar_update_printer() with status={}", static_cast<int>(status));
+    ui_status_bar_update_printer(status);
+}
 
 // Event callback for notification history button
 static void status_notification_history_clicked(lv_event_t* e) {
@@ -44,6 +76,8 @@ static void status_notification_history_clicked(lv_event_t* e) {
 }
 
 void ui_status_bar_init() {
+    spdlog::debug("[StatusBar] ui_status_bar_init() called");
+
     // Register notification history callback
     lv_xml_register_event_cb(NULL, "status_notification_history_clicked", status_notification_history_clicked);
 
@@ -54,16 +88,32 @@ void ui_status_bar_init() {
     notification_badge = lv_obj_find_by_name(lv_screen_active(), "notification_badge");
     notification_badge_count = lv_obj_find_by_name(lv_screen_active(), "notification_badge_count");
 
+    spdlog::debug("[StatusBar] Widget lookup: network_icon={}, printer_icon={}, notification_icon={}",
+                  (void*)network_icon, (void*)printer_icon, (void*)notification_icon);
+
     if (!network_icon || !printer_icon || !notification_icon) {
-        spdlog::error("Failed to find status bar icon widgets");
+        spdlog::error("[StatusBar] Failed to find status bar icon widgets");
         return;
     }
 
     if (!notification_badge || !notification_badge_count) {
-        spdlog::warn("Failed to find notification badge widgets");
+        spdlog::warn("[StatusBar] Failed to find notification badge widgets");
     }
 
-    spdlog::debug("Status bar initialized successfully");
+    // Observe printer connection state for reactive icon updates
+    PrinterState& printer_state = get_printer_state();
+    lv_subject_t* conn_subject = printer_state.get_printer_connection_state_subject();
+
+    spdlog::debug("[StatusBar] Registering observer on printer_connection_state_subject at {}", (void*)conn_subject);
+    lv_subject_add_observer(conn_subject, printer_connection_observer, nullptr);
+
+    // Trigger initial update with current state
+    int32_t initial_state = lv_subject_get_int(conn_subject);
+    spdlog::debug("[StatusBar] Initial printer connection state from subject: {}", initial_state);
+    spdlog::debug("[StatusBar] Triggering initial update with PrinterStatus={}", static_cast<int>(static_cast<PrinterStatus>(initial_state)));
+    ui_status_bar_update_printer(static_cast<PrinterStatus>(initial_state));
+
+    spdlog::debug("[StatusBar] Initialization complete");
 }
 
 void ui_status_bar_update_network(NetworkStatus status) {
@@ -96,8 +146,10 @@ void ui_status_bar_update_network(NetworkStatus status) {
 }
 
 void ui_status_bar_update_printer(PrinterStatus status) {
+    spdlog::debug("[StatusBar] ui_status_bar_update_printer() called with status={}", static_cast<int>(status));
+
     if (!printer_icon) {
-        spdlog::warn("Status bar not initialized, cannot update printer icon");
+        spdlog::warn("[StatusBar] printer_icon is NULL, cannot update");
         return;
     }
 
@@ -106,26 +158,32 @@ void ui_status_bar_update_printer(PrinterStatus status) {
 
     switch (status) {
         case PrinterStatus::READY:
-            icon = LV_SYMBOL_SETTINGS;  // Or use a printer-specific icon if available
+            icon = LV_SYMBOL_OK;
             color = ui_theme_parse_color(lv_xml_get_const(NULL, "success_color"));
+            spdlog::debug("[StatusBar] Setting icon to LV_SYMBOL_OK (green checkmark)");
             break;
         case PrinterStatus::PRINTING:
             icon = LV_SYMBOL_PLAY;
             color = ui_theme_parse_color(lv_xml_get_const(NULL, "info_color"));
+            spdlog::debug("[StatusBar] Setting icon to LV_SYMBOL_PLAY (blue play)");
             break;
         case PrinterStatus::ERROR:
             icon = LV_SYMBOL_WARNING;
             color = ui_theme_parse_color(lv_xml_get_const(NULL, "error_color"));
+            spdlog::debug("[StatusBar] Setting icon to LV_SYMBOL_WARNING (red)");
             break;
         case PrinterStatus::DISCONNECTED:
         default:
-            icon = LV_SYMBOL_SETTINGS;
-            color = ui_theme_parse_color(lv_xml_get_const(NULL, "text_secondary"));
+            icon = LV_SYMBOL_WARNING;
+            color = ui_theme_parse_color(lv_xml_get_const(NULL, "warning_color"));
+            spdlog::debug("[StatusBar] Setting icon to LV_SYMBOL_WARNING (yellow)");
             break;
     }
 
+    spdlog::debug("[StatusBar] Setting text on printer_icon widget at {}", (void*)printer_icon);
     lv_label_set_text(printer_icon, icon);
     lv_obj_set_style_text_color(printer_icon, color, 0);
+    spdlog::debug("[StatusBar] Printer icon updated successfully");
 }
 
 void ui_status_bar_update_notification(NotificationStatus status) {

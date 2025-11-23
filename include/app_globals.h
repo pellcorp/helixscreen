@@ -56,16 +56,15 @@ MoonrakerAPI* get_moonraker_api();
 void set_moonraker_api(MoonrakerAPI* api);
 
 /**
- * @brief Get global PrinterState instance
- * @return Reference to global PrinterState (always valid)
+ * @brief Get global PrinterState singleton instance
+ *
+ * Returns a reference to the singleton PrinterState instance.
+ * The instance is created on first call and persists for the lifetime of the program.
+ * Thread-safe initialization guaranteed by C++11 static local variable semantics.
+ *
+ * @return Reference to singleton PrinterState (always valid)
  */
 PrinterState& get_printer_state();
-
-/**
- * @brief Set global PrinterState instance (called by main.cpp during init)
- * @param state Pointer to PrinterState instance
- */
-void set_printer_state(PrinterState* state);
 
 /**
  * @brief Get the global notification subject

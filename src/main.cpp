@@ -25,12 +25,14 @@
 #include "ui_card.h"
 #include "ui_component_header_bar.h"
 #include "ui_component_keypad.h"
+#include "ui_error_reporting.h"
 #include "ui_fonts.h"
 #include "ui_gcode_viewer.h"
 #include "ui_icon.h"
 #include "ui_icon_loader.h"
 #include "ui_keyboard.h"
 #include "ui_nav.h"
+#include "ui_notification.h"
 #include "ui_panel_bed_mesh.h"
 #include "ui_panel_controls.h"
 #include "ui_panel_controls_extrusion.h"
@@ -40,11 +42,13 @@
 #include "ui_panel_glyphs.h"
 #include "ui_panel_home.h"
 #include "ui_panel_motion.h"
+#include "ui_panel_notification_history.h"
 #include "ui_panel_print_select.h"
 #include "ui_panel_print_status.h"
 #include "ui_panel_settings.h"
 #include "ui_panel_step_test.h"
 #include "ui_panel_test.h"
+#include "ui_status_bar.h"
 #include "ui_switch.h"
 #include "ui_text.h"
 #include "ui_theme.h"
@@ -84,7 +88,7 @@ static int SCREEN_WIDTH = UI_SCREEN_SMALL_W;
 static int SCREEN_HEIGHT = UI_SCREEN_SMALL_H;
 
 // Local instances (registered with app_globals via setters)
-static PrinterState printer_state;
+// Note: PrinterState is now a singleton accessed via get_printer_state()
 static MoonrakerClient* moonraker_client = nullptr;
 static MoonrakerAPI* moonraker_api = nullptr;
 
@@ -641,6 +645,12 @@ static void register_xml_components() {
 
     lv_xml_register_component_from_file("A:ui_xml/icon.xml");
     lv_xml_register_component_from_file("A:ui_xml/header_bar.xml");
+    lv_xml_register_component_from_file("A:ui_xml/status_bar.xml");
+    lv_xml_register_component_from_file("A:ui_xml/toast_notification.xml");
+    lv_xml_register_component_from_file("A:ui_xml/error_dialog.xml");
+    lv_xml_register_component_from_file("A:ui_xml/warning_dialog.xml");
+    lv_xml_register_component_from_file("A:ui_xml/notification_history_panel.xml");
+    lv_xml_register_component_from_file("A:ui_xml/notification_history_item.xml");
     lv_xml_register_component_from_file("A:ui_xml/confirmation_dialog.xml");
     lv_xml_register_component_from_file("A:ui_xml/tip_detail_dialog.xml");
     lv_xml_register_component_from_file("A:ui_xml/numeric_keypad_modal.xml");
@@ -683,6 +693,7 @@ static void register_xml_components() {
 // Initialize all reactive subjects for data binding
 static void initialize_subjects() {
     spdlog::debug("Initializing reactive subjects...");
+    app_globals_init_subjects();                 // Global subjects (notification subject, etc.)
     ui_nav_init();                               // Navigation system (icon colors, active panel)
     ui_panel_home_init_subjects();               // Home panel data bindings
     ui_panel_print_select_init_subjects();       // Print select panel (none yet)
@@ -694,7 +705,10 @@ static void initialize_subjects() {
     ui_panel_settings_init_subjects();           // Settings panel launcher
     ui_panel_print_status_init_subjects();       // Print status screen
     ui_wizard_init_subjects();                   // Wizard subjects (for first-run config)
-    printer_state.init_subjects(); // Printer state subjects (CRITICAL: must be before XML creation)
+    get_printer_state().init_subjects(); // Printer state subjects (CRITICAL: must be before XML creation)
+
+    // Initialize notification system (after subjects are ready)
+    ui_notification_init();
 }
 
 // Initialize LVGL with SDL
@@ -929,6 +943,9 @@ static void initialize_moonraker_client(Config* config) {
     // Set up state change callback to automatically update PrinterState
     moonraker_client->set_state_change_callback(
         [](ConnectionState old_state, ConnectionState new_state) {
+            spdlog::debug("[main] State change callback invoked: {} -> {}",
+                          static_cast<int>(old_state), static_cast<int>(new_state));
+
             const char* messages[] = {
                 "Disconnected",     // DISCONNECTED
                 "Connecting...",    // CONNECTING
@@ -939,10 +956,12 @@ static void initialize_moonraker_client(Config* config) {
 
             // Convert enum to integer for subject (0-4)
             int state_int = static_cast<int>(new_state);
-            printer_state.set_connection_state(state_int, messages[state_int]);
+            spdlog::debug("[main] Calling get_printer_state().set_printer_connection_state({}, \"{}\")",
+                          state_int, messages[state_int]);
+            get_printer_state().set_printer_connection_state(state_int, messages[state_int]);
 
             // Log state transitions
-            spdlog::debug("Connection state changed: {} -> {}",
+            spdlog::debug("[main] Connection state changed: {} -> {}",
                           messages[static_cast<int>(old_state)], messages[state_int]);
         });
 
@@ -956,11 +975,10 @@ static void initialize_moonraker_client(Config* config) {
 
     // Create MoonrakerAPI instance
     spdlog::info("Creating MoonrakerAPI instance...");
-    moonraker_api = new MoonrakerAPI(*moonraker_client, printer_state);
+    moonraker_api = new MoonrakerAPI(*moonraker_client, get_printer_state());
 
     // Register with app_globals
     set_moonraker_api(moonraker_api);
-    set_printer_state(&printer_state);
 
     spdlog::info("Moonraker client initialized (not connected yet)");
 }
@@ -974,14 +992,14 @@ static void update_mock_printer_data() {
     int nozzle_current = static_cast<int>(std::min(210.0, (tick_count / 30.0) * 210.0));
     int bed_current = static_cast<int>(std::min(60.0, (tick_count / 60.0) * 60.0));
 
-    lv_subject_set_int(printer_state.get_extruder_temp_subject(), nozzle_current);
-    lv_subject_set_int(printer_state.get_extruder_target_subject(), 210);
-    lv_subject_set_int(printer_state.get_bed_temp_subject(), bed_current);
-    lv_subject_set_int(printer_state.get_bed_target_subject(), 60);
+    lv_subject_set_int(get_printer_state().get_extruder_temp_subject(), nozzle_current);
+    lv_subject_set_int(get_printer_state().get_extruder_target_subject(), 210);
+    lv_subject_set_int(get_printer_state().get_bed_temp_subject(), bed_current);
+    lv_subject_set_int(get_printer_state().get_bed_target_subject(), 60);
 
     // Simulate print progress (0-100% over 2 minutes)
     int progress = static_cast<int>(std::min(100.0, (tick_count / 120.0) * 100.0));
-    lv_subject_set_int(printer_state.get_print_progress_subject(), progress);
+    lv_subject_set_int(get_printer_state().get_print_progress_subject(), progress);
 
     // Update print state based on progress
     const char* state = "standby";
@@ -990,27 +1008,27 @@ static void update_mock_printer_data() {
     } else if (progress >= 100) {
         state = "complete";
     }
-    lv_subject_copy_string(printer_state.get_print_state_subject(), state);
+    lv_subject_copy_string(get_printer_state().get_print_state_subject(), state);
 
     // Simulate jog position (slowly increasing)
     int x = 100 + (tick_count % 50);
     int y = 100 + ((tick_count / 2) % 50);
     int z = 10 + ((tick_count / 10) % 20);
-    lv_subject_set_int(printer_state.get_position_x_subject(), x);
-    lv_subject_set_int(printer_state.get_position_y_subject(), y);
-    lv_subject_set_int(printer_state.get_position_z_subject(), z);
+    lv_subject_set_int(get_printer_state().get_position_x_subject(), x);
+    lv_subject_set_int(get_printer_state().get_position_y_subject(), y);
+    lv_subject_set_int(get_printer_state().get_position_z_subject(), z);
 
     // Simulate speed/flow (oscillate between 90-110%)
     int speed = 100 + static_cast<int>(10.0 * std::sin(tick_count / 10.0));
     int flow = 100 + static_cast<int>(5.0 * std::cos(tick_count / 15.0));
     int fan = static_cast<int>(std::min(100.0, (tick_count / 20.0) * 100.0));
-    lv_subject_set_int(printer_state.get_speed_factor_subject(), speed);
-    lv_subject_set_int(printer_state.get_flow_factor_subject(), flow);
-    lv_subject_set_int(printer_state.get_fan_speed_subject(), fan);
+    lv_subject_set_int(get_printer_state().get_speed_factor_subject(), speed);
+    lv_subject_set_int(get_printer_state().get_flow_factor_subject(), flow);
+    lv_subject_set_int(get_printer_state().get_fan_speed_subject(), fan);
 
     // Connection state (simulates connecting → connected after 3 seconds)
     if (tick_count == 3) {
-        printer_state.set_connection_state(2, "Connected");
+        get_printer_state().set_printer_connection_state(2, "Connected");
     }
 }
 
@@ -1198,10 +1216,13 @@ int main(int argc, char** argv) {
     // Register app_layout with navigation system (to prevent hiding it)
     ui_nav_set_app_layout(app_layout);
 
+    // Initialize status bar (must be after XML creation and layout update)
+    ui_status_bar_init();
+
     // Initialize shared overlay backdrop
     ui_nav_init_overlay_backdrop(screen);
 
-    // Find navbar and panel widgets
+    // Find navbar and content area
     // app_layout > navbar (child 0), content_area (child 1)
     lv_obj_t* navbar = lv_obj_get_child(app_layout, 0);
     lv_obj_t* content_area = lv_obj_get_child(app_layout, 1);
@@ -1217,12 +1238,22 @@ int main(int argc, char** argv) {
     // Wire up navigation button click handlers and trigger initial color update
     ui_nav_wire_events(navbar);
 
-    // Find all panel widgets in content area
+    // Find panel container within content area
+    // content_area > status_bar (child 0), panel_container (child 1)
+    lv_obj_t* panel_container = lv_obj_get_child(content_area, 1);
+    if (!panel_container) {
+        spdlog::error("Failed to find panel_container in content_area - XML structure mismatch");
+        spdlog::error("Expected content_area > status_bar (child 0), panel_container (child 1)");
+        lv_deinit();
+        return 1;
+    }
+
+    // Find all panel widgets in panel container
     lv_obj_t* panels[UI_PANEL_COUNT];
     for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        panels[i] = lv_obj_get_child(content_area, i);
+        panels[i] = lv_obj_get_child(panel_container, i);
         if (!panels[i]) {
-            spdlog::error("Missing panel {} in content_area - expected {} panels", i,
+            spdlog::error("Missing panel {} in panel_container - expected {} panels", i,
                           (int)UI_PANEL_COUNT);
             spdlog::error("XML structure changed or panels missing from app_layout.xml");
             lv_deinit();
@@ -1268,6 +1299,12 @@ int main(int argc, char** argv) {
     }
 
     spdlog::info("XML UI created successfully with reactive navigation");
+
+    // Test notification system (commented out - uncomment for testing)
+    // NOTIFY_INFO("Notification system initialized successfully");
+    // NOTIFY_WARNING("This is a test warning notification");
+    // NOTIFY_ERROR("This is a test error notification");
+    // NOTIFY_SUCCESS("Test success notification");
 
     // Initialize Moonraker client EARLY (before wizard, so it's available for connection test)
     // But don't connect yet - just create the instances
@@ -1527,7 +1564,7 @@ int main(int argc, char** argv) {
             while (!notification_queue.empty()) {
                 json notification = notification_queue.front();
                 notification_queue.pop();
-                printer_state.update_from_notification(notification);
+                get_printer_state().update_from_notification(notification);
             }
         }
 

@@ -42,7 +42,6 @@
 // These are set by main.cpp during initialization
 static MoonrakerClient* g_moonraker_client = nullptr;
 static MoonrakerAPI* g_moonraker_api = nullptr;
-static PrinterState* g_printer_state = nullptr;
 
 // Global reactive subjects
 static lv_subject_t g_notification_subject;
@@ -64,13 +63,9 @@ void set_moonraker_api(MoonrakerAPI* api) {
 }
 
 PrinterState& get_printer_state() {
-    // PrinterState is always valid (created at startup)
-    static PrinterState default_state;
-    return g_printer_state ? *g_printer_state : default_state;
-}
-
-void set_printer_state(PrinterState* state) {
-    g_printer_state = state;
+    // Singleton instance - created once, lives for lifetime of program
+    static PrinterState instance;
+    return instance;
 }
 
 lv_subject_t& get_notification_subject() {

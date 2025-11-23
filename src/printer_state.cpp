@@ -30,12 +30,12 @@ PrinterState::PrinterState() {
     std::memset(print_filename_buf_, 0, sizeof(print_filename_buf_));
     std::memset(print_state_buf_, 0, sizeof(print_state_buf_));
     std::memset(homed_axes_buf_, 0, sizeof(homed_axes_buf_));
-    std::memset(connection_message_buf_, 0, sizeof(connection_message_buf_));
+    std::memset(printer_connection_message_buf_, 0, sizeof(printer_connection_message_buf_));
 
     // Set default values
     std::strcpy(print_state_buf_, "standby");
     std::strcpy(homed_axes_buf_, "");
-    std::strcpy(connection_message_buf_, "Disconnected");
+    std::strcpy(printer_connection_message_buf_, "Disconnected");
 }
 
 PrinterState::~PrinterState() {}
@@ -67,10 +67,13 @@ void PrinterState::init_subjects() {
     lv_subject_init_int(&flow_factor_, 100);
     lv_subject_init_int(&fan_speed_, 0);
 
-    // Connection state subjects
-    lv_subject_init_int(&connection_state_, 0); // 0 = disconnected
-    lv_subject_init_string(&connection_message_, connection_message_buf_, nullptr,
-                           sizeof(connection_message_buf_), "Disconnected");
+    // Printer connection state subjects (Moonraker WebSocket)
+    lv_subject_init_int(&printer_connection_state_, 0); // 0 = disconnected
+    lv_subject_init_string(&printer_connection_message_, printer_connection_message_buf_, nullptr,
+                           sizeof(printer_connection_message_buf_), "Disconnected");
+
+    // Network connectivity subject (WiFi/Ethernet)
+    lv_subject_init_int(&network_status_, 0); // 0 = disconnected
 
     // Register all subjects with LVGL XML system (CRITICAL for XML bindings)
     lv_xml_register_subject(NULL, "extruder_temp", &extruder_temp_);
@@ -87,8 +90,9 @@ void PrinterState::init_subjects() {
     lv_xml_register_subject(NULL, "speed_factor", &speed_factor_);
     lv_xml_register_subject(NULL, "flow_factor", &flow_factor_);
     lv_xml_register_subject(NULL, "fan_speed", &fan_speed_);
-    lv_xml_register_subject(NULL, "connection_state", &connection_state_);
-    lv_xml_register_subject(NULL, "connection_message", &connection_message_);
+    lv_xml_register_subject(NULL, "printer_connection_state", &printer_connection_state_);
+    lv_xml_register_subject(NULL, "printer_connection_message", &printer_connection_message_);
+    lv_xml_register_subject(NULL, "network_status", &network_status_);
 
     spdlog::debug("Printer state subjects initialized and registered successfully");
 }
@@ -226,8 +230,17 @@ json& PrinterState::get_json_state() {
     return json_state_;
 }
 
-void PrinterState::set_connection_state(int state, const char* message) {
-    spdlog::info("Connection state changed: {} - {}", state, message);
-    lv_subject_set_int(&connection_state_, state);
-    lv_subject_copy_string(&connection_message_, message);
+void PrinterState::set_printer_connection_state(int state, const char* message) {
+    spdlog::info("[PrinterState] Printer connection state changed: {} - {}", state, message);
+    spdlog::debug("[PrinterState] Setting printer_connection_state_ subject (at {}) to value {}",
+                  (void*)&printer_connection_state_, state);
+    lv_subject_set_int(&printer_connection_state_, state);
+    spdlog::debug("[PrinterState] Subject value now: {}", lv_subject_get_int(&printer_connection_state_));
+    lv_subject_copy_string(&printer_connection_message_, message);
+    spdlog::debug("[PrinterState] Printer connection state update complete, observers should be notified");
+}
+
+void PrinterState::set_network_status(int status) {
+    spdlog::debug("[PrinterState] Network status changed: {}", status);
+    lv_subject_set_int(&network_status_, status);
 }
