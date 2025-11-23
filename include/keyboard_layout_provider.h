@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include <lvgl/lvgl.h>
+#include "lvgl.h"
 
 /**
  * @file keyboard_layout_provider.h
