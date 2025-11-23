@@ -1,13 +1,57 @@
 # Session Handoff Document
 
-**Last Updated:** 2025-01-23 (Evening)
-**Current Focus:** Branch Integration & Linker Fixes
+**Last Updated:** 2025-01-23 (Evening - Final)
+**Current Focus:** Branch Integration Complete
 
 ---
 
 ## 🔥 ACTIVE WORK
 
-### Linker Errors Fixed & Branch Merged (COMPLETED 2025-01-23 Evening)
+### Code Refactoring Branch Merged (COMPLETED 2025-01-23 Evening)
+
+**Goal:** Merge refactoring work that improves code modularity.
+
+**Branch:** `claude/refactor-codebase-01QGDjSWa7QSkKpfKbFAYo6z`
+
+**What Was Merged:**
+
+1. ✅ **Bed Mesh Renderer Refactoring:**
+   - Extracted gradient computation → `bed_mesh_gradient.{h,cpp}`
+   - Extracted 3D projection logic → `bed_mesh_projection.{h,cpp}`
+   - Enhanced coordinate transform with reverse mapping
+   - Reduced `bed_mesh_renderer.cpp` by ~226 lines
+
+2. ✅ **Keyboard Layout Refactoring:**
+   - Extracted layout provider → `keyboard_layout_provider.{h,cpp}`
+   - Separated QWERTY/AZERTY/number pad layouts from UI code
+   - Reduced `ui_keyboard.cpp` by ~508 lines
+   - Fixed missing `LV_KB_BTN` macro after extraction
+
+3. ✅ **Documentation:**
+   - `docs/REFACTORING_SUMMARY.md` (323 lines) - Quick reference
+   - `docs/archive/REFACTORING_COMPLETED.md` (479 lines) - Detailed report (archived)
+
+**Commits:**
+- `d6da4d8` - refactor: extract bed mesh and keyboard components for better modularity
+- `4daaff3` - docs: move REFACTORING_COMPLETED to archive
+
+**Files Created:**
+- `include/bed_mesh_gradient.h`
+- `include/bed_mesh_projection.h`
+- `include/keyboard_layout_provider.h`
+- `src/bed_mesh_gradient.cpp`
+- `src/bed_mesh_projection.cpp`
+- `src/keyboard_layout_provider.cpp`
+- `docs/REFACTORING_SUMMARY.md`
+- `docs/archive/REFACTORING_COMPLETED.md` (archived)
+
+**Net Impact:** +1,812 insertions, -662 deletions
+
+**Build Status:** ✅ Clean build, all refactoring functional
+
+---
+
+### Linker Errors Fixed & SubjectRegistry Merged (COMPLETED 2025-01-23 Evening)
 
 **Problem:** Duplicate symbol linker errors blocking builds.
 
@@ -27,7 +71,7 @@
 
 **Commits:**
 - `3022ede` - refactor: reduce init_subjects boilerplate with SubjectRegistry macros
-- (pending) - fix: resolve duplicate symbol linker errors in app_globals
+- `c3022a2` - fix: resolve duplicate symbol linker errors in app_globals
 
 **Files Modified:**
 - `src/main.cpp` - Removed duplicate implementations, added setter calls
@@ -35,6 +79,7 @@
 - 13 panel/wizard files - Updated to use INIT_SUBJECT macros (from merge)
 
 **Build Status:** ✅ Clean build, no linker errors
+**Deleted Branch:** `claude/cleanup-init-subjects-0189ZAJUrxfBQ2cQZguEzDFE`
 
 ---
 
@@ -211,10 +256,15 @@ src/app_globals.cpp (new)
 
 ### Recently Completed
 
-**Linker Errors & Branch Merge (2025-01-23 Evening)**
-- Fixed duplicate symbol linker errors (app_globals vs main.cpp)
-- Merged SubjectRegistry refactoring branch (cleaner init_subjects)
-- Clean build achieved, ready for testing
+**Branch Integration Complete (2025-01-23 Evening)**
+- ✅ Merged 2 feature branches into main
+- ✅ Fixed duplicate symbol linker errors (app_globals vs main.cpp)
+- ✅ Merged SubjectRegistry refactoring (cleaner init_subjects)
+- ✅ Merged bed mesh & keyboard refactoring (better modularity)
+- ✅ Fixed LV_KB_BTN macro missing after refactoring
+- ✅ Archived detailed refactoring documentation
+- ✅ Deleted both remote feature branches
+- ✅ Clean builds confirmed, ready for testing
 
 **Notification System Foundation (2025-01-23)**
 - Complete toast/modal/status bar infrastructure
@@ -486,6 +536,8 @@ make clean && make -j
 5. Wrote 15K-word implementation plan for notification history
 6. ✅ **Fixed duplicate symbol linker errors** (evening update)
 7. ✅ **Merged SubjectRegistry refactoring branch** (evening update)
+8. ✅ **Merged bed mesh & keyboard refactoring branch** (evening final)
+9. ✅ **Fixed LV_KB_BTN macro and archived docs** (evening final)
 
 **Technical Debt Added:**
 - Notification system needs XML component registration in main.cpp
@@ -499,7 +551,12 @@ make clean && make -j
 
 **Next Developer Should:**
 1. ✅ ~~Fix linker errors~~ (DONE)
-2. Register notification XML components in main.cpp (15 min task)
-3. Test notifications visually
-4. Consider implementing Phase 1 of notification history plan
-5. Start converting high-priority spdlog calls (Moonraker, WiFi, file I/O)
+2. ✅ ~~Merge refactoring branches~~ (DONE)
+3. Register notification XML components in main.cpp (15 min task)
+4. Test notifications visually
+5. Consider implementing Phase 1 of notification history plan
+6. Start converting high-priority spdlog calls (Moonraker, WiFi, file I/O)
+
+**Branches Merged & Deleted:**
+- `claude/cleanup-init-subjects-0189ZAJUrxfBQ2cQZguEzDFE` ✅
+- `claude/refactor-codebase-01QGDjSWa7QSkKpfKbFAYo6z` ✅
