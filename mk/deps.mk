@@ -12,7 +12,7 @@ VENV_PIP := $(VENV)/bin/pip3
 # Dependency checker - comprehensive validation with install instructions
 check-deps:
 	$(ECHO) "$(CYAN)Checking build dependencies...$(RESET)"
-	@ERROR=0; WARN=0; MISSING_DEPS=""; \
+	@ERROR=0; WARN=0; MISSING_DEPS=""; WARN_MSGS=""; \
 	if ! command -v $(CC) >/dev/null 2>&1; then \
 		echo "$(RED)✗ $(CC) not found$(RESET)"; ERROR=1; \
 		MISSING_DEPS="$$MISSING_DEPS $(CC)"; \
@@ -81,6 +81,7 @@ check-deps:
 		echo "$(GREEN)✓ python3 found:$(RESET) $$(python3 --version)"; \
 		if [ ! -f "$(VENV_PYTHON)" ]; then \
 			echo "$(YELLOW)⚠ Python venv not set up$(RESET)"; WARN=1; \
+			WARN_MSGS="$$WARN_MSGS\n  - Python venv"; \
 			echo "  Run: $(YELLOW)make venv-setup$(RESET)"; \
 		else \
 			echo "$(GREEN)✓ Python venv:$(RESET) $(VENV)"; \
@@ -93,6 +94,7 @@ check-deps:
 			fi; \
 			if [ -n "$$MISSING_PY_PKGS" ]; then \
 				echo "$(YELLOW)⚠ Missing Python packages:$$MISSING_PY_PKGS$(RESET)"; WARN=1; \
+				WARN_MSGS="$$WARN_MSGS\n  - Python packages:$$MISSING_PY_PKGS"; \
 				echo "  Run: $(YELLOW)make venv-setup$(RESET)"; \
 			else \
 				echo "$(GREEN)✓ Python packages (pypng, lz4) installed$(RESET)"; \
@@ -109,6 +111,7 @@ check-deps:
 		echo "$(GREEN)✓ npm found:$(RESET) $$(npm --version)"; \
 		if [ ! -f "node_modules/.bin/lv_font_conv" ]; then \
 			echo "$(YELLOW)⚠ lv_font_conv not installed$(RESET)"; WARN=1; \
+			WARN_MSGS="$$WARN_MSGS\n  - lv_font_conv (npm package)"; \
 			echo "  Run: $(YELLOW)npm install$(RESET)"; \
 		else \
 			echo "$(GREEN)✓ lv_font_conv installed$(RESET)"; \
@@ -116,6 +119,7 @@ check-deps:
 	fi; \
 	if ! command -v clang-format >/dev/null 2>&1; then \
 		echo "$(YELLOW)⚠ clang-format not found$(RESET) (needed for code formatting)"; WARN=1; \
+		WARN_MSGS="$$WARN_MSGS\n  - clang-format"; \
 		echo "  Install: $(YELLOW)brew install clang-format$(RESET) (macOS)"; \
 		echo "         $(YELLOW)sudo apt install clang-format$(RESET) (Debian/Ubuntu)"; \
 		echo "         $(YELLOW)sudo dnf install clang-tools-extra$(RESET) (Fedora/RHEL)"; \
@@ -124,6 +128,7 @@ check-deps:
 	fi; \
 	if ! command -v xmllint >/dev/null 2>&1; then \
 		echo "$(YELLOW)⚠ xmllint not found$(RESET) (needed for XML validation/formatting)"; WARN=1; \
+		WARN_MSGS="$$WARN_MSGS\n  - xmllint"; \
 		echo "  Install: $(YELLOW)brew install libxml2$(RESET) (macOS)"; \
 		echo "         $(YELLOW)sudo apt install libxml2-utils$(RESET) (Debian/Ubuntu)"; \
 		echo "         $(YELLOW)sudo dnf install libxml2$(RESET) (Fedora/RHEL)"; \
@@ -132,6 +137,7 @@ check-deps:
 	fi; \
 	if ! command -v pkg-config >/dev/null 2>&1; then \
 		echo "$(YELLOW)⚠ pkg-config not found$(RESET) (needed for canvas/lv_img_conv)"; WARN=1; \
+		WARN_MSGS="$$WARN_MSGS\n  - pkg-config"; \
 		echo "  Install: $(YELLOW)brew install pkg-config$(RESET) (macOS)"; \
 		echo "         $(YELLOW)sudo apt install pkg-config$(RESET) (Debian/Ubuntu)"; \
 		echo "         $(YELLOW)sudo dnf install pkgconfig$(RESET) (Fedora/RHEL)"; \
@@ -140,18 +146,21 @@ check-deps:
 		CANVAS_MISSING=""; \
 		if ! pkg-config --exists cairo 2>/dev/null; then \
 			echo "$(YELLOW)⚠ cairo not found$(RESET) (needed for canvas/lv_img_conv)"; WARN=1; \
+			WARN_MSGS="$$WARN_MSGS\n  - cairo"; \
 			CANVAS_MISSING="$$CANVAS_MISSING cairo"; \
 		else \
 			echo "$(GREEN)✓ cairo found:$(RESET) $$(pkg-config --modversion cairo)"; \
 		fi; \
 		if ! pkg-config --exists pango 2>/dev/null; then \
 			echo "$(YELLOW)⚠ pango not found$(RESET) (needed for canvas text rendering)"; WARN=1; \
+			WARN_MSGS="$$WARN_MSGS\n  - pango"; \
 			CANVAS_MISSING="$$CANVAS_MISSING pango"; \
 		else \
 			echo "$(GREEN)✓ pango found:$(RESET) $$(pkg-config --modversion pango)"; \
 		fi; \
 		if ! pkg-config --exists libpng 2>/dev/null; then \
 			echo "$(YELLOW)⚠ libpng not found$(RESET) (needed for PNG support)"; WARN=1; \
+			WARN_MSGS="$$WARN_MSGS\n  - libpng"; \
 			CANVAS_MISSING="$$CANVAS_MISSING libpng"; \
 		else \
 			echo "$(GREEN)✓ libpng found$(RESET)"; \
@@ -202,8 +211,7 @@ check-deps:
 	if pkg-config --exists libhv 2>/dev/null; then \
 		echo "$(GREEN)✓ libhv:$(RESET) Using system version $$(pkg-config --modversion libhv 2>/dev/null || echo 'unknown')"; \
 	elif [ ! -f "$(LIBHV_DIR)/lib/libhv.a" ]; then \
-		echo "$(YELLOW)⚠ libhv not built$(RESET)"; WARN=1; \
-		echo "  Run: $(YELLOW)make libhv-build$(RESET)"; \
+		echo "$(CYAN)ℹ libhv:$(RESET) Will be built from submodule"; \
 	else \
 		echo "$(GREEN)✓ libhv:$(RESET) Using submodule version"; \
 	fi; \
@@ -219,6 +227,7 @@ check-deps:
 		echo "$(GREEN)✓ fmt:$(RESET) Using system version $$(pkg-config --modversion fmt 2>/dev/null || echo 'unknown')"; \
 	else \
 		echo "$(YELLOW)⚠ fmt not found$(RESET) (required by header-only spdlog)"; WARN=1; \
+		WARN_MSGS="$$WARN_MSGS\n  - fmt"; \
 		echo "  Install: $(YELLOW)brew install fmt$(RESET) (macOS)"; \
 		echo "         $(YELLOW)sudo apt install libfmt-dev$(RESET) (Debian/Ubuntu)"; \
 		echo "         $(YELLOW)sudo dnf install fmt-devel$(RESET) (Fedora/RHEL)"; \
@@ -245,7 +254,8 @@ check-deps:
 		echo "$(CYAN)Or manually install:$(RESET)$$MISSING_DEPS"; \
 		exit 1; \
 	elif [ $$WARN -eq 1 ]; then \
-		echo "$(YELLOW)⚠ Some optional dependencies missing$(RESET)"; \
+		echo "$(YELLOW)⚠ Some optional dependencies missing:$(RESET)"; \
+		echo -e "$$WARN_MSGS"; \
 		echo "$(CYAN)Run$(RESET) $(YELLOW)make install-deps$(RESET) $(CYAN)to install them automatically$(RESET)"; \
 	else \
 		echo "$(GREEN)$(BOLD)✓ All dependencies satisfied!$(RESET)"; \

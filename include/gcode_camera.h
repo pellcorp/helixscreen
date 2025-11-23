@@ -198,6 +198,14 @@ class GCodeCamera {
     void set_projection_type(ProjectionType type);
 
     /**
+     * @brief Get current projection type
+     * @return Current projection type (ORTHOGRAPHIC or PERSPECTIVE)
+     */
+    ProjectionType get_projection_type() const {
+        return projection_type_;
+    }
+
+    /**
      * @brief Set viewport size
      * @param width Viewport width in pixels
      * @param height Viewport height in pixels
