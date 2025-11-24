@@ -40,8 +40,42 @@ PrinterState::PrinterState() {
 
 PrinterState::~PrinterState() {}
 
-void PrinterState::init_subjects() {
-    spdlog::info("Initializing printer state subjects");
+void PrinterState::reset_for_testing() {
+    if (!subjects_initialized_) {
+        spdlog::debug("[PrinterState] reset_for_testing: subjects not initialized, nothing to reset");
+        return;  // Nothing to reset
+    }
+
+    spdlog::info("[PrinterState] reset_for_testing: Deinitializing subjects to clear observers");
+    // Deinitialize all subjects to clear observers
+    lv_subject_deinit(&extruder_temp_);
+    lv_subject_deinit(&extruder_target_);
+    lv_subject_deinit(&bed_temp_);
+    lv_subject_deinit(&bed_target_);
+    lv_subject_deinit(&print_progress_);
+    lv_subject_deinit(&print_filename_);
+    lv_subject_deinit(&print_state_);
+    lv_subject_deinit(&position_x_);
+    lv_subject_deinit(&position_y_);
+    lv_subject_deinit(&position_z_);
+    lv_subject_deinit(&homed_axes_);
+    lv_subject_deinit(&speed_factor_);
+    lv_subject_deinit(&flow_factor_);
+    lv_subject_deinit(&fan_speed_);
+    lv_subject_deinit(&printer_connection_state_);
+    lv_subject_deinit(&printer_connection_message_);
+    lv_subject_deinit(&network_status_);
+
+    subjects_initialized_ = false;
+}
+
+void PrinterState::init_subjects(bool register_xml) {
+    if (subjects_initialized_) {
+        spdlog::debug("Printer state subjects already initialized, skipping");
+        return;
+    }
+
+    spdlog::info("Initializing printer state subjects (register_xml={})", register_xml);
 
     // Temperature subjects (integer, degrees Celsius)
     lv_subject_init_int(&extruder_temp_, 0);
@@ -76,24 +110,30 @@ void PrinterState::init_subjects() {
     lv_subject_init_int(&network_status_, 0); // 0 = disconnected
 
     // Register all subjects with LVGL XML system (CRITICAL for XML bindings)
-    lv_xml_register_subject(NULL, "extruder_temp", &extruder_temp_);
-    lv_xml_register_subject(NULL, "extruder_target", &extruder_target_);
-    lv_xml_register_subject(NULL, "bed_temp", &bed_temp_);
-    lv_xml_register_subject(NULL, "bed_target", &bed_target_);
-    lv_xml_register_subject(NULL, "print_progress", &print_progress_);
-    lv_xml_register_subject(NULL, "print_filename", &print_filename_);
-    lv_xml_register_subject(NULL, "print_state", &print_state_);
-    lv_xml_register_subject(NULL, "position_x", &position_x_);
-    lv_xml_register_subject(NULL, "position_y", &position_y_);
-    lv_xml_register_subject(NULL, "position_z", &position_z_);
-    lv_xml_register_subject(NULL, "homed_axes", &homed_axes_);
-    lv_xml_register_subject(NULL, "speed_factor", &speed_factor_);
-    lv_xml_register_subject(NULL, "flow_factor", &flow_factor_);
-    lv_xml_register_subject(NULL, "fan_speed", &fan_speed_);
-    lv_xml_register_subject(NULL, "printer_connection_state", &printer_connection_state_);
-    lv_xml_register_subject(NULL, "printer_connection_message", &printer_connection_message_);
-    lv_xml_register_subject(NULL, "network_status", &network_status_);
+    if (register_xml) {
+        spdlog::debug("[PrinterState] Registering subjects with XML system");
+        lv_xml_register_subject(NULL, "extruder_temp", &extruder_temp_);
+        lv_xml_register_subject(NULL, "extruder_target", &extruder_target_);
+        lv_xml_register_subject(NULL, "bed_temp", &bed_temp_);
+        lv_xml_register_subject(NULL, "bed_target", &bed_target_);
+        lv_xml_register_subject(NULL, "print_progress", &print_progress_);
+        lv_xml_register_subject(NULL, "print_filename", &print_filename_);
+        lv_xml_register_subject(NULL, "print_state", &print_state_);
+        lv_xml_register_subject(NULL, "position_x", &position_x_);
+        lv_xml_register_subject(NULL, "position_y", &position_y_);
+        lv_xml_register_subject(NULL, "position_z", &position_z_);
+        lv_xml_register_subject(NULL, "homed_axes", &homed_axes_);
+        lv_xml_register_subject(NULL, "speed_factor", &speed_factor_);
+        lv_xml_register_subject(NULL, "flow_factor", &flow_factor_);
+        lv_xml_register_subject(NULL, "fan_speed", &fan_speed_);
+        lv_xml_register_subject(NULL, "printer_connection_state", &printer_connection_state_);
+        lv_xml_register_subject(NULL, "printer_connection_message", &printer_connection_message_);
+        lv_xml_register_subject(NULL, "network_status", &network_status_);
+    } else {
+        spdlog::debug("[PrinterState] Skipping XML registration (tests mode)");
+    }
 
+    subjects_initialized_ = true;
     spdlog::debug("Printer state subjects initialized and registered successfully");
 }
 

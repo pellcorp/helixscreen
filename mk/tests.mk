@@ -48,6 +48,7 @@ TEST_UI_DEPS := \
     $(OBJ_DIR)/ui_nav.o \
     $(OBJ_DIR)/ui_temp_graph.o \
     $(OBJ_DIR)/ui_keyboard.o \
+    $(OBJ_DIR)/keyboard_layout_provider.o \
     $(OBJ_DIR)/ui_modal.o \
     $(OBJ_DIR)/ui_theme.o \
     $(OBJ_DIR)/helix_theme.o \
@@ -66,6 +67,7 @@ TEST_WIFI_DEPS := \
 
 # Moonraker/printer components
 # Note: LIBHV_LIB is in LDFLAGS via LIBHV_LIBS, not needed here
+# Note: app_globals.o excluded - ui_test_utils.o provides stub implementations
 TEST_MOONRAKER_DEPS := \
     $(OBJ_DIR)/moonraker_client.o \
     $(OBJ_DIR)/moonraker_client_mock.o \
@@ -84,7 +86,9 @@ TEST_GCODE_DEPS := \
     $(OBJ_DIR)/gcode_geometry_builder.o \
     $(OBJ_DIR)/gcode_camera.o \
     $(OBJ_DIR)/bed_mesh_coordinate_transform.o \
-    $(OBJ_DIR)/bed_mesh_renderer.o
+    $(OBJ_DIR)/bed_mesh_renderer.o \
+    $(OBJ_DIR)/bed_mesh_gradient.o \
+    $(OBJ_DIR)/bed_mesh_projection.o
 
 # Platform-specific dependencies (Linux wpa_supplicant, macOS frameworks via LDFLAGS)
 TEST_PLATFORM_DEPS := $(WPA_DEPS)
@@ -110,6 +114,15 @@ test-build:
 
 # Unified test binary with all unit tests
 test: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running unit tests...$(RESET)"
+	$(Q)$(TEST_BIN) || { \
+		echo "$(RED)$(BOLD)✗ Tests failed!$(RESET)"; \
+		exit 1; \
+	}
+	$(ECHO) "$(GREEN)$(BOLD)✓ All tests passed!$(RESET)"
+
+# Alias that rebuilds and runs tests (useful for development)
+tests: $(TEST_BIN)
 	$(ECHO) "$(CYAN)$(BOLD)Running unit tests...$(RESET)"
 	$(Q)$(TEST_BIN) || { \
 		echo "$(RED)$(BOLD)✗ Tests failed!$(RESET)"; \

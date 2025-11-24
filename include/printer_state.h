@@ -83,8 +83,20 @@ class PrinterState {
      * @brief Initialize all LVGL subjects
      *
      * MUST be called BEFORE creating XML components that bind to these subjects.
+     * Can be called multiple times safely - subsequent calls are ignored.
+     *
+     * @param register_xml If true, registers subjects with LVGL XML system (default).
+     *                     Set to false in tests to avoid XML observer creation.
      */
-    void init_subjects();
+    void init_subjects(bool register_xml = true);
+
+    /**
+     * @brief Reset initialization state for testing
+     *
+     * FOR TESTING ONLY. Clears the initialization flag so init_subjects()
+     * can be called again after lv_init() creates a new LVGL context.
+     */
+    void reset_for_testing();
 
     /**
      * @brief Update state from Moonraker notification
@@ -232,6 +244,12 @@ class PrinterState {
     // JSON cache for complex data
     json json_state_;
     std::mutex state_mutex_;
+
+    // Initialization guard to prevent multiple subject initializations
+    bool subjects_initialized_ = false;
+
+    // XML registration should only happen once (not reset during testing)
+    bool xml_registered_ = false;
 };
 
 #endif // PRINTER_STATE_H

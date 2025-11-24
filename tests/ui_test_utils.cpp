@@ -316,6 +316,8 @@ int count_children_with_marker(lv_obj_t* parent, const char* marker) {
 // These return nullptr since wizard tests don't actually use Moonraker
 #include "moonraker_client.h"
 #include "moonraker_api.h"
+#include "app_globals.h"
+#include "printer_state.h"
 
 MoonrakerClient* get_moonraker_client() {
     return nullptr;
@@ -323,4 +325,9 @@ MoonrakerClient* get_moonraker_client() {
 
 MoonrakerAPI* get_moonraker_api() {
     return nullptr;
+}
+
+PrinterState& get_printer_state() {
+    static PrinterState instance;
+    return instance;
 }

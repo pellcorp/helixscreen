@@ -476,6 +476,26 @@ Generate code coverage reports:
 make coverage
 ```
 
+## LVGL Observer Testing Gotcha
+
+**CRITICAL:** `lv_subject_add_observer()` immediately fires the callback with the current value (LVGL 9.4 behavior).
+
+Tests must account for this auto-notification:
+
+```cpp
+lv_subject_add_observer(subject, callback, &count);
+REQUIRE(count == 1);  // Fired immediately!
+
+state.set_value(new_value);
+REQUIRE(count == 2);  // Fired again on change
+```
+
+**Source:** `lib/lvgl/src/core/lv_observer.c:459` - `observer->cb(observer, subject);`
+
+**Reference:** `tests/unit/test_printer_state.cpp` observer tests
+
+---
+
 ## Common Issues
 
 ### Issue: "Catch2 header not found"

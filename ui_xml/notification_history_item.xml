@@ -15,7 +15,6 @@
         style_pad_gap="#gap_small"
         style_bg_color="#card_bg"
         style_bg_opa="255"
-        style_border_width="0"
         style_border_color="$border_color"
         style_border_side="left"
         style_border_width="4"

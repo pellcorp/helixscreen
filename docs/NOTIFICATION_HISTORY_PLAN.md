@@ -1,10 +1,10 @@
 # Notification History & Error Reporting System - Implementation Plan
 
-**Status:** ✅ Phase 1 COMPLETE - Ready for Testing
+**Status:** ✅ Phase 1 COMPLETE - Ready for Phase 2
 **Priority:** High
 **Complexity:** Medium
-**Actual Effort:** 1 session (2025-01-23)
-**Blocker:** Linker error (duplicate symbols in app_globals.cpp/main.cpp)
+**Actual Effort:** 2 sessions (2025-01-23, 2025-11-23)
+**Last Updated:** 2025-11-23
 
 ---
 
@@ -12,7 +12,7 @@
 
 For the developer implementing this system, here's a sequential task list:
 
-### Phase 1: Core Infrastructure ✅ COMPLETE
+### Phase 1: Core Infrastructure ✅ COMPLETE (2025-11-23)
 - [x] Design notification history/log data structure
 - [x] Implement notification history manager with circular buffer (`NotificationHistory` class)
 - [x] Create notification history panel XML component (`notification_history_panel.xml`)
@@ -22,11 +22,20 @@ For the developer implementing this system, here's a sequential task list:
 - [x] Wire up history panel navigation
 - [x] Create helper macros/functions for error reporting (`ui_error_reporting.h`)
 - [x] Integrate history tracking with existing notification functions
-- [ ] **BLOCKER:** Fix linker errors (duplicate symbols in app_globals.cpp/main.cpp)
-- [ ] **BLOCKER:** Test the full system end-to-end
+- [x] ~~Fix linker errors~~ (RESOLVED 2025-01-23)
+- [x] Integrate into main.cpp (XML registration, init calls, app layout)
+- [x] Fix XML symbol issues (replaced LV_SYMBOL constants with Unicode entities)
+- [x] Fix keyboard LV_KB_BTN macro errors
+- [x] Add test notifications to verify system triggers
+- [x] Debug status bar initialization (fixed duplicate XML attribute)
+- [x] Fix XML duplicate attribute error (notification_history_item.xml line 21)
+- [x] Verify app_layout structure matches main.cpp expectations
+- [x] Optimize status bar for tiny screens (padding_tiny, gap_small)
+- [x] Remove test notifications from main.cpp (commented out for future testing)
 
 ### Phase 2: Error Reporting Migration (READY TO START)
-- [ ] Test notification system with sample calls
+- [x] Test notification system triggers (4 test messages working)
+- [ ] Verify UI appearance (toasts, status bar, history panel)
 - [ ] Audit Moonraker error sites (~20 calls)
 - [ ] Convert Moonraker errors to use `NOTIFY_ERROR()` / `NOTIFY_WARNING()`
 - [ ] Audit WiFi error sites (~15 calls)
@@ -42,6 +51,83 @@ For the developer implementing this system, here's a sequential task list:
 - [ ] Add user-friendly messages where needed
 - [ ] Comprehensive testing
 - [ ] (Optional) Add spdlog sink/interceptor to auto-capture tagged errors
+
+### Phase 4: Unit Testing & Quality Assurance (HIGH PRIORITY)
+- [ ] **NotificationHistory Unit Tests:**
+  - [ ] Test circular buffer behavior (overflow, wraparound)
+  - [ ] Test thread safety (concurrent add/get operations)
+  - [ ] Test unread count tracking
+  - [ ] Test filter by severity
+  - [ ] Test mark all as read
+  - [ ] Test clear functionality
+  - [ ] Test persistence (save/load from disk)
+  - [ ] Test timestamp formatting
+
+- [ ] **Notification System Unit Tests:**
+  - [ ] Test toast creation and auto-dismiss timers
+  - [ ] Test modal error/warning dialogs
+  - [ ] Test notification subject observer pattern
+  - [ ] Test deduplication logic (same message within time window)
+  - [ ] Test notification severity icon mapping
+  - [ ] Test toast stacking (multiple simultaneous toasts)
+
+- [ ] **Status Bar Unit Tests:**
+  - [ ] Test icon widget lookup and initialization
+  - [ ] Test notification badge visibility toggle
+  - [ ] Test badge count updates
+  - [ ] Test icon click handlers
+  - [ ] Test status icon updates (network, printer, notification)
+
+- [ ] **History Panel Unit Tests:**
+  - [ ] Test panel creation and layout
+  - [ ] Test dynamic list population from history
+  - [ ] Test severity filtering (All, Errors, Warnings, Info)
+  - [ ] Test empty state display
+  - [ ] Test "Clear All" button
+  - [ ] Test mark-as-read on panel open
+  - [ ] Test history item click handlers
+
+- [ ] **Error Reporting Macro Tests:**
+  - [ ] Test NOTIFY_ERROR() creates toast and logs
+  - [ ] Test NOTIFY_WARNING() creates warning toast
+  - [ ] Test NOTIFY_INFO() creates info toast
+  - [ ] Test NOTIFY_SUCCESS() creates success toast
+  - [ ] Test NOTIFY_ERROR_MODAL() creates modal dialog
+  - [ ] Test LOG_ERROR_INTERNAL() logs only (no UI)
+  - [ ] Test ErrorContext RAII class
+
+- [ ] **Integration Tests:**
+  - [ ] Test full notification flow: trigger → history → display → clear
+  - [ ] Test bell icon click opens history panel
+  - [ ] Test unread badge appears/disappears correctly
+  - [ ] Test history survives app restart (if persistence enabled)
+  - [ ] Test concurrent notifications from multiple threads
+  - [ ] Test notification during wizard/overlay states
+
+- [ ] **Test Infrastructure:**
+  - [ ] Create mock notification observer for testing
+  - [ ] Create test fixtures for NotificationHistory
+  - [ ] Create helper functions for generating test notifications
+  - [ ] Add test coverage reports
+  - [ ] Integrate tests into CI/CD pipeline
+
+**Test Framework:** Use existing Catch2 infrastructure (see `docs/TESTING.md`)
+
+**Test File Locations:**
+```
+tests/unit/test_notification_history.cpp
+tests/unit/test_notification_system.cpp
+tests/unit/test_status_bar.cpp
+tests/unit/test_error_reporting_macros.cpp
+tests/integration/test_notification_flow.cpp
+```
+
+**Coverage Goals:**
+- NotificationHistory: 100% (critical infrastructure)
+- Notification system: 95%
+- Status bar: 90%
+- Error reporting macros: 100%
+- Integration tests: Cover all user-facing workflows
 
 ---
 

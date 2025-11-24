@@ -11,26 +11,156 @@
  */
 
 #include "../catch_amalgamated.hpp"
+#include "app_globals.h"
+#include "moonraker_client.h"
 #include "printer_state.h"
 #include "../ui_test_utils.h"
 
 using Catch::Approx;
 
-// Test fixture for PrinterState tests
-class PrinterStateFixture {
-protected:
-    void SetUp() {
-        lv_init();
-        state = std::make_unique<PrinterState>();
-        state->init_subjects();
-    }
+// ============================================================================
+// Singleton Behavior Tests
+// ============================================================================
 
-    void TearDown() {
-        state.reset();
-    }
+TEST_CASE("PrinterState: Singleton returns same instance", "[printer_state][singleton]") {
+    lv_init();
 
-    std::unique_ptr<PrinterState> state;
-};
+    PrinterState& instance1 = get_printer_state();
+    PrinterState& instance2 = get_printer_state();
+
+    // Should be the exact same object (same memory address)
+    REQUIRE(&instance1 == &instance2);
+}
+
+TEST_CASE("PrinterState: Singleton persists modifications", "[printer_state][singleton]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    // Modify a value through one reference
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
+
+    // Read it back through another reference
+    PrinterState& state2 = get_printer_state();
+    REQUIRE(lv_subject_get_int(state2.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::CONNECTED));
+}
+
+TEST_CASE("PrinterState: Singleton subjects have consistent addresses", "[printer_state][singleton]") {
+    lv_init();
+
+    PrinterState& state1 = get_printer_state();
+    state1.init_subjects();
+
+    lv_subject_t* subject1 = state1.get_printer_connection_state_subject();
+
+    PrinterState& state2 = get_printer_state();
+    lv_subject_t* subject2 = state2.get_printer_connection_state_subject();
+
+    // Subject pointers must be identical (not just equal values)
+    REQUIRE(subject1 == subject2);
+}
+
+// ============================================================================
+// Observer Pattern Tests
+// ============================================================================
+
+TEST_CASE("PrinterState: Observer fires when printer connection state changes", "[printer_state][observer]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();  // Allow re-initialization after lv_init()
+    state.init_subjects(false);  // Skip XML registration
+
+    // Register observer
+    auto observer_cb = [](lv_observer_t* observer, lv_subject_t* subject) {
+        int* count_ptr = static_cast<int*>(lv_observer_get_user_data(observer));
+        int* value_ptr = count_ptr + 1;
+
+        (*count_ptr)++;
+        *value_ptr = lv_subject_get_int(subject);
+    };
+
+    int user_data[2] = {0, -1}; // [callback_count, last_value]
+
+    lv_subject_add_observer(state.get_printer_connection_state_subject(),
+                           observer_cb, user_data);
+
+    // LVGL auto-notifies observers when first added (fires immediately with current value)
+    REQUIRE(user_data[0] == 1); // Callback fired immediately with initial value (0)
+    REQUIRE(user_data[1] == 0); // Initial value is DISCONNECTED (0)
+
+    // Change state - should trigger observer again
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTING), "Connecting...");
+
+    REQUIRE(user_data[0] == 2); // Callback fired again with new value
+    REQUIRE(user_data[1] == static_cast<int>(ConnectionState::CONNECTING));
+
+    // Change again
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
+
+    REQUIRE(user_data[0] == 3); // Callback fired three times total (initial + 2 changes)
+    REQUIRE(user_data[1] == static_cast<int>(ConnectionState::CONNECTED));
+}
+
+TEST_CASE("PrinterState: Observer fires when network status changes", "[printer_state][observer][network]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();  // Allow re-initialization after lv_init()
+    state.init_subjects(false);  // Skip XML registration
+
+    int callback_count = 0;
+
+    auto observer_cb = [](lv_observer_t* observer, lv_subject_t*) {
+        int* count_ptr = static_cast<int*>(lv_observer_get_user_data(observer));
+        (*count_ptr)++;
+    };
+
+    lv_subject_add_observer(state.get_network_status_subject(),
+                           observer_cb, &callback_count);
+
+    // LVGL auto-notifies observers when first added (fires immediately with current value)
+    REQUIRE(callback_count == 1); // Callback fired immediately with initial value (0)
+
+    // Change network status - should trigger observer again
+    state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+
+    REQUIRE(callback_count == 2); // Callback fired again with new value
+    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::CONNECTED));
+}
+
+TEST_CASE("PrinterState: Multiple observers on same subject all fire", "[printer_state][observer]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();  // Allow re-initialization after lv_init()
+    state.init_subjects(false);  // Skip XML registration
+
+    int count1 = 0, count2 = 0, count3 = 0;
+
+    auto observer_cb = [](lv_observer_t* observer, lv_subject_t*) {
+        int* count_ptr = static_cast<int*>(lv_observer_get_user_data(observer));
+        (*count_ptr)++;
+    };
+
+    // Register three observers on printer connection state
+    lv_subject_add_observer(state.get_printer_connection_state_subject(), observer_cb, &count1);
+    lv_subject_add_observer(state.get_printer_connection_state_subject(), observer_cb, &count2);
+    lv_subject_add_observer(state.get_printer_connection_state_subject(), observer_cb, &count3);
+
+    // LVGL auto-notifies observers when first added (each fires immediately with current value)
+    REQUIRE(count1 == 1); // First observer fired immediately
+    REQUIRE(count2 == 1); // Second observer fired immediately
+    REQUIRE(count3 == 1); // Third observer fired immediately
+
+    // Single state change should fire all three again
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
+
+    REQUIRE(count1 == 2); // All observers fired again
+    REQUIRE(count2 == 2);
+    REQUIRE(count3 == 2);
+}
 
 // ============================================================================
 // Initialization Tests
@@ -38,7 +168,7 @@ protected:
 
 TEST_CASE("PrinterState: Initialization sets default values", "[printer_state][init]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     // Temperature subjects should be initialized to 0
@@ -66,8 +196,11 @@ TEST_CASE("PrinterState: Initialization sets default values", "[printer_state][i
     // Fan speed should be 0
     REQUIRE(lv_subject_get_int(state.get_fan_speed_subject()) == 0);
 
-    // Connection state should be 0 (disconnected)
-    REQUIRE(lv_subject_get_int(state.get_connection_state_subject()) == 0);
+    // Printer connection state should be DISCONNECTED
+    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::DISCONNECTED));
+
+    // Network status should be DISCONNECTED
+    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::DISCONNECTED));
 }
 
 // ============================================================================
@@ -76,7 +209,7 @@ TEST_CASE("PrinterState: Initialization sets default values", "[printer_state][i
 
 TEST_CASE("PrinterState: Update extruder temperature from notification", "[printer_state][temp]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -100,7 +233,7 @@ TEST_CASE("PrinterState: Update extruder temperature from notification", "[print
 
 TEST_CASE("PrinterState: Update bed temperature from notification", "[printer_state][temp]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -124,7 +257,7 @@ TEST_CASE("PrinterState: Update bed temperature from notification", "[printer_st
 
 TEST_CASE("PrinterState: Temperature rounding edge cases", "[printer_state][temp][edge]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     SECTION("Round down: 205.4 -> 205") {
@@ -161,7 +294,7 @@ TEST_CASE("PrinterState: Temperature rounding edge cases", "[printer_state][temp
 
 TEST_CASE("PrinterState: Update print progress from notification", "[printer_state][progress]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -183,7 +316,7 @@ TEST_CASE("PrinterState: Update print progress from notification", "[printer_sta
 
 TEST_CASE("PrinterState: Update print state and filename", "[printer_state][progress]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -210,7 +343,7 @@ TEST_CASE("PrinterState: Update print state and filename", "[printer_state][prog
 
 TEST_CASE("PrinterState: Progress percentage edge cases", "[printer_state][progress][edge]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     SECTION("0% progress") {
@@ -247,7 +380,7 @@ TEST_CASE("PrinterState: Progress percentage edge cases", "[printer_state][progr
 
 TEST_CASE("PrinterState: Update toolhead position", "[printer_state][motion]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -275,7 +408,7 @@ TEST_CASE("PrinterState: Update toolhead position", "[printer_state][motion]") {
 
 TEST_CASE("PrinterState: Homed axes variations", "[printer_state][motion]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     SECTION("Only X and Y homed") {
@@ -305,7 +438,7 @@ TEST_CASE("PrinterState: Homed axes variations", "[printer_state][motion]") {
 
 TEST_CASE("PrinterState: Update speed and flow factors", "[printer_state][speed]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -329,7 +462,7 @@ TEST_CASE("PrinterState: Update speed and flow factors", "[printer_state][speed]
 
 TEST_CASE("PrinterState: Update fan speed", "[printer_state][fan]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -353,46 +486,114 @@ TEST_CASE("PrinterState: Update fan speed", "[printer_state][fan]") {
 // Connection State Tests
 // ============================================================================
 
-TEST_CASE("PrinterState: Set connection state", "[printer_state][connection]") {
+TEST_CASE("PrinterState: Set printer connection state", "[printer_state][connection]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
-    state.set_connection_state(2, "Connected");
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
 
-    REQUIRE(lv_subject_get_int(state.get_connection_state_subject()) == 2);
+    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::CONNECTED));
 
-    const char* message = lv_subject_get_string(state.get_connection_message_subject());
+    const char* message = lv_subject_get_string(state.get_printer_connection_message_subject());
     REQUIRE(std::string(message) == "Connected");
 }
 
 TEST_CASE("PrinterState: Connection state transitions", "[printer_state][connection]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     SECTION("Disconnected -> Connecting") {
-        state.set_connection_state(0, "Disconnected");
-        state.set_connection_state(1, "Connecting...");
-        REQUIRE(lv_subject_get_int(state.get_connection_state_subject()) == 1);
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::DISCONNECTED), "Disconnected");
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTING), "Connecting...");
+        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::CONNECTING));
     }
 
     SECTION("Connecting -> Connected") {
-        state.set_connection_state(1, "Connecting...");
-        state.set_connection_state(2, "Ready");
-        REQUIRE(lv_subject_get_int(state.get_connection_state_subject()) == 2);
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTING), "Connecting...");
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Ready");
+        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::CONNECTED));
     }
 
     SECTION("Connected -> Reconnecting") {
-        state.set_connection_state(2, "Ready");
-        state.set_connection_state(3, "Reconnecting...");
-        REQUIRE(lv_subject_get_int(state.get_connection_state_subject()) == 3);
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Ready");
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::RECONNECTING), "Reconnecting...");
+        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::RECONNECTING));
     }
 
     SECTION("Failed connection") {
-        state.set_connection_state(4, "Connection failed");
-        REQUIRE(lv_subject_get_int(state.get_connection_state_subject()) == 4);
+        state.set_printer_connection_state(static_cast<int>(ConnectionState::FAILED), "Connection failed");
+        REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::FAILED));
     }
+}
+
+// ============================================================================
+// Network Status Tests
+// ============================================================================
+
+TEST_CASE("PrinterState: Network status initialization", "[printer_state][network]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    // Should start at DISCONNECTED
+    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::DISCONNECTED));
+}
+
+TEST_CASE("PrinterState: Set network status updates subject", "[printer_state][network]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+
+    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::CONNECTED));
+}
+
+TEST_CASE("PrinterState: Network status enum values", "[printer_state][network]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    SECTION("DISCONNECTED") {
+        state.set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
+        REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::DISCONNECTED));
+    }
+
+    SECTION("CONNECTING") {
+        state.set_network_status(static_cast<int>(NetworkStatus::CONNECTING));
+        REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::CONNECTING));
+    }
+
+    SECTION("CONNECTED") {
+        state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+        REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::CONNECTED));
+    }
+}
+
+TEST_CASE("PrinterState: Printer and network status are independent", "[printer_state][integration]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    // Set printer connected but network disconnected
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::CONNECTED), "Connected");
+    state.set_network_status(static_cast<int>(NetworkStatus::DISCONNECTED));
+
+    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::CONNECTED));
+    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::DISCONNECTED));
+
+    // Set network connected but printer disconnected
+    state.set_printer_connection_state(static_cast<int>(ConnectionState::DISCONNECTED), "Disconnected");
+    state.set_network_status(static_cast<int>(NetworkStatus::CONNECTED));
+
+    REQUIRE(lv_subject_get_int(state.get_printer_connection_state_subject()) == static_cast<int>(ConnectionState::DISCONNECTED));
+    REQUIRE(lv_subject_get_int(state.get_network_status_subject()) == static_cast<int>(NetworkStatus::CONNECTED));
 }
 
 // ============================================================================
@@ -401,7 +602,7 @@ TEST_CASE("PrinterState: Connection state transitions", "[printer_state][connect
 
 TEST_CASE("PrinterState: Ignore invalid notification methods", "[printer_state][error]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {
@@ -419,7 +620,7 @@ TEST_CASE("PrinterState: Ignore invalid notification methods", "[printer_state][
 
 TEST_CASE("PrinterState: Handle missing fields gracefully", "[printer_state][error]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     SECTION("Missing 'method' field") {
@@ -456,7 +657,7 @@ TEST_CASE("PrinterState: Handle missing fields gracefully", "[printer_state][err
 
 TEST_CASE("PrinterState: Complete printing state update", "[printer_state][integration]") {
     lv_init();
-    PrinterState state;
+    PrinterState& state = get_printer_state();
     state.init_subjects();
 
     json notification = {

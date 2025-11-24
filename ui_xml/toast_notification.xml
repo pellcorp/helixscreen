@@ -43,8 +43,8 @@
         style_flex_main_place="space_between"
         style_flex_cross_place="center">
 
-    <!-- Severity icon (left) -->
-    <lv_label name="toast_icon" text="&#xF0"
+    <!-- Severity icon (left) - LV_SYMBOL_WARNING -->
+    <lv_label name="toast_icon" text="&#xF071;"
               style_text_font="#font_heading"
               style_text_color="$border_color"/>
 
@@ -65,7 +65,8 @@
                style_pad_all="0"
                clickable="true">
       <event_cb trigger="clicked" callback="toast_close_btn_clicked"/>
-      <lv_label text="&#xF0" align="center" style_text_font="#font_body"/>
+      <!-- LV_SYMBOL_CLOSE -->
+      <lv_label text="&#xF00D;" align="center" style_text_font="#font_body"/>
     </lv_button>
   </view>
 </component>
