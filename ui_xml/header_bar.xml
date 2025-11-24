@@ -29,12 +29,14 @@
         style_border_width="0"
         style_pad_left="#padding_normal"
         style_pad_right="#padding_normal"
+        style_pad_top="#padding_tiny"
+        style_pad_bottom="#padding_tiny"
         flex_flow="row"
         style_flex_main_place="space_between"
         style_flex_cross_place="center"
         scrollable="false">
 
-    <!-- Back button (fixed width, left-aligned) -->
+    <!-- Back button (fixed width, left-aligned) - LV_SYMBOL_LEFT -->
     <lv_button name="back_button"
                width="#header_back_button_size"
                height="#header_back_button_size"
@@ -42,7 +44,9 @@
                style_border_width="0"
                style_shadow_width="0"
                scrollable="false">
-      <icon src="mat_arrow_left" size="md" variant="primary"/>
+      <lv_label text="&#xF053;" align="center"
+                style_text_font="#font_heading"
+                style_text_color="#text_primary"/>
     </lv_button>
 
     <!-- Title (flexible width, centered) -->
