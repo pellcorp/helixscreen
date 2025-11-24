@@ -385,5 +385,5 @@ void ui_switch_register_responsive_constants() {
 void ui_switch_register() {
     ui_switch_init_size_presets();
     lv_xml_register_widget("ui_switch", ui_switch_xml_create, ui_switch_xml_apply);
-    spdlog::info("[Switch] Registered ui_switch widget with XML system");
+    spdlog::debug("[Switch] Registered ui_switch widget with XML system");
 }

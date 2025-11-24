@@ -194,8 +194,8 @@ EthernetInfo EthernetBackendLinux::get_info() {
     if (has_ip && operstate == "up") {
         info.connected = true;
         info.status = "Connected";
-        spdlog::info("[EthernetLinux] Ethernet connected: {} ({}, operstate: {})", info.interface,
-                     info.ip_address, operstate);
+        spdlog::debug("[EthernetLinux] Ethernet connected: {} ({}, operstate: {})", info.interface,
+                      info.ip_address, operstate);
     } else if (has_ip) {
         info.connected = true;
         info.status = "Connected";

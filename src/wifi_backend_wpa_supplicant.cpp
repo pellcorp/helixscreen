@@ -386,7 +386,7 @@ void WifiBackendWpaSupplicant::init_wpa() {
     hio_setcb_read(io, WifiBackendWpaSupplicant::_handle_wpa_events); // Static trampoline
     hio_read_start(io); // Start monitoring socket for events
 
-    spdlog::info("[WifiBackend] wpa_supplicant backend initialized successfully");
+    spdlog::debug("[WifiBackend] wpa_supplicant backend initialized successfully");
 }
 
 void WifiBackendWpaSupplicant::cleanup_wpa() {

@@ -101,9 +101,9 @@ void ui_theme_register_responsive_padding(lv_display_t* display) {
         lv_xml_register_const(scope, "padding_tiny", padding_tiny);
         lv_xml_register_const(scope, "gap_normal", gap_normal);
 
-        spdlog::info("[Theme] Responsive padding: {} ({}px) - normal={}, small={}, tiny={}, gap={}",
-                     size_label, greater_res, padding_normal, padding_small, padding_tiny,
-                     gap_normal);
+        spdlog::debug("[Theme] Responsive padding: {} ({}px) - normal={}, small={}, tiny={}, gap={}",
+                      size_label, greater_res, padding_normal, padding_small, padding_tiny,
+                      gap_normal);
     } else {
         spdlog::warn("[Theme] Failed to get globals scope for padding constants");
     }
@@ -146,18 +146,12 @@ void ui_theme_init(lv_display_t* display, bool use_dark_mode_param) {
     // Register runtime constants based on theme preference
     const char* selected_bg = use_dark_mode ? app_bg_dark : app_bg_light;
     lv_xml_register_const(scope, "app_bg_color", selected_bg);
-    spdlog::debug("[Theme] Registered app_bg_color={} for {} mode", selected_bg,
-                  use_dark_mode ? "dark" : "light");
 
     const char* selected_text = use_dark_mode ? text_primary_dark : text_primary_light;
     lv_xml_register_const(scope, "text_primary", selected_text);
-    spdlog::debug("[Theme] Registered text_primary={} for {} mode", selected_text,
-                  use_dark_mode ? "dark" : "light");
 
     const char* selected_header = use_dark_mode ? header_text_dark : header_text_light;
     lv_xml_register_const(scope, "header_text_color", selected_header);
-    spdlog::debug("[Theme] Registered header_text_color={} for {} mode", selected_header,
-                  use_dark_mode ? "dark" : "light");
 
     spdlog::debug("[Theme] Runtime constants set for {} mode", use_dark_mode ? "dark" : "light");
 
@@ -216,11 +210,10 @@ void ui_theme_init(lv_display_t* display, bool use_dark_mode_param) {
 
     if (current_theme) {
         lv_display_set_theme(display, current_theme);
-        spdlog::info("[Theme] Initialized HelixScreen theme: {} mode, primary={}, secondary={}, "
-                     "base_font={}",
-                     use_dark_mode ? "dark" : "light", primary_str, secondary_str, font_body_name);
-        spdlog::info("[Theme] Colors: screen={}, card={}, grey={}", screen_bg_str, card_bg_str,
-                     theme_grey_str);
+        spdlog::info("[Theme] Initialized HelixScreen theme: {} mode",
+                     use_dark_mode ? "dark" : "light");
+        spdlog::debug("[Theme] Colors: primary={}, secondary={}, screen={}, card={}, grey={}",
+                      primary_str, secondary_str, screen_bg_str, card_bg_str, theme_grey_str);
 
         // Register responsive padding constants AFTER theme init
         ui_theme_register_responsive_padding(display);
@@ -315,8 +308,8 @@ void ui_theme_apply_bg_color(lv_obj_t* obj, const char* base_name, lv_part_t par
     lv_color_t color = ui_theme_get_color(base_name);
     lv_obj_set_style_bg_color(obj, color, part);
 
-    spdlog::info("[Theme] Applied background color {} (0x{:06X}) to object (part={})", base_name,
-                 lv_color_to_u32(color) & 0xFFFFFF, static_cast<int>(part));
+    spdlog::debug("[Theme] Applied background color {} (0x{:06X}) to object (part={})", base_name,
+                  lv_color_to_u32(color) & 0xFFFFFF, static_cast<int>(part));
 }
 
 /**

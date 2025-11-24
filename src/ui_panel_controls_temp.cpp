@@ -158,7 +158,7 @@ void ui_panel_controls_temp_init_subjects() {
     UI_SUBJECT_INIT_AND_REGISTER_STRING(bed_display_subject, bed_display_buf, bed_display_str,
                                         "bed_temp_display");
 
-    spdlog::info("[Temp] Subjects initialized: nozzle={}/{}°C, bed={}/{}°C", nozzle_current,
+    spdlog::debug("[0: nozzle={}/{}°C, bed={}/{}°C", nozzle_current,
                  nozzle_target, bed_current, bed_target);
 }
 

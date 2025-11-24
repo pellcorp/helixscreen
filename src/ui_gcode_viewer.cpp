@@ -306,7 +306,7 @@ static void gcode_viewer_size_changed_cb(lv_event_t* e) {
     // Trigger redraw with new aspect ratio
     lv_obj_invalidate(obj);
 
-    spdlog::info("GCodeViewer SIZE_CHANGED: {}x{}, aspect={:.3f}", width, height,
+    spdlog::debug("GCodeViewer SIZE_CHANGED: {}x{}, aspect={:.3f}", width, height,
                  (float)width / (float)height);
 }
 
@@ -370,7 +370,7 @@ lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent) {
     if (width > 0 && height > 0) {
         st->camera->set_viewport_size(width, height);
         st->renderer->set_viewport_size(width, height);
-        spdlog::info("GCodeViewer INIT: viewport={}x{}, aspect={:.3f}", width, height,
+        spdlog::debug("GCodeViewer INIT: viewport={}x{}, aspect={:.3f}", width, height,
                      (float)width / (float)height);
     } else {
         spdlog::error("GCodeViewer INIT: Invalid size {}x{}, using defaults", width, height);
@@ -1078,5 +1078,5 @@ static void gcode_viewer_xml_apply(lv_xml_parser_state_t* state, const char** at
  */
 extern "C" void ui_gcode_viewer_register(void) {
     lv_xml_register_widget("gcode_viewer", gcode_viewer_xml_create, gcode_viewer_xml_apply);
-    spdlog::info("[GCodeViewer] Registered <gcode_viewer> widget with LVGL XML system");
+    spdlog::debug("[GCodeViewer] Registered <gcode_viewer> widget with LVGL XML system");
 }

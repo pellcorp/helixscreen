@@ -40,7 +40,7 @@ std::unique_ptr<EthernetBackend> EthernetBackend::create() {
     auto backend = std::make_unique<EthernetBackendMacOS>();
 
     if (backend->has_interface()) {
-        spdlog::info("[EthernetBackend] macOS backend initialized (interface found)");
+        spdlog::debug("[EthernetBackend] macOS backend initialized (interface found)");
         return backend;
     }
 
@@ -53,7 +53,7 @@ std::unique_ptr<EthernetBackend> EthernetBackend::create() {
     auto backend = std::make_unique<EthernetBackendLinux>();
 
     if (backend->has_interface()) {
-        spdlog::info("[EthernetBackend] Linux backend initialized (interface found)");
+        spdlog::debug("[EthernetBackend] Linux backend initialized (interface found)");
         return backend;
     }
 

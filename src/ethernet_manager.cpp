@@ -36,7 +36,7 @@ EthernetManager::EthernetManager() {
         return;
     }
 
-    spdlog::info("[EthernetManager] Ethernet manager initialized");
+    spdlog::debug("[EthernetManager] Ethernet manager initialized");
 }
 
 EthernetManager::~EthernetManager() {

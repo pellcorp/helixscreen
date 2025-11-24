@@ -351,7 +351,7 @@ void ui_panel_print_status_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         spdlog::error("[PrintStatus]   ✗ Progress bar NOT FOUND");
     }
 
-    spdlog::info("[PrintStatus] Panel setup complete!");
+    spdlog::debug("[0!");
 }
 
 void ui_panel_print_status_set_filename(const char* filename) {

@@ -102,5 +102,5 @@ static void ui_card_xml_apply(lv_xml_parser_state_t* state, const char** attrs) 
 
 void ui_card_register(void) {
     lv_xml_register_widget("ui_card", ui_card_xml_create, ui_card_xml_apply);
-    spdlog::info("[Card] Registered <ui_card> widget with LVGL XML system");
+    spdlog::debug("[Card] Registered <ui_card> widget with LVGL XML system");
 }

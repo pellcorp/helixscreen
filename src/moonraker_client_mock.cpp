@@ -74,8 +74,8 @@ void MoonrakerClientMock::discover_printer(std::function<void()> on_complete) {
     generate_mock_bed_mesh();
 
     // Log discovered hardware
-    spdlog::info("[MoonrakerClientMock] Discovered: {} heaters, {} sensors, {} fans, {} LEDs",
-                 heaters_.size(), sensors_.size(), fans_.size(), leds_.size());
+    spdlog::debug("[MoonrakerClientMock] Discovered: {} heaters, {} sensors, {} fans, {} LEDs",
+                  heaters_.size(), sensors_.size(), fans_.size(), leds_.size());
 
     // Invoke completion callback immediately (no async delay in mock)
     if (on_complete) {

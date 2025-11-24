@@ -72,7 +72,7 @@ void ui_panel_motion_init_subjects() {
     UI_SUBJECT_INIT_AND_REGISTER_STRING(pos_y_subject, pos_y_buf, "Y:    --  mm", "motion_pos_y");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(pos_z_subject, pos_z_buf, "Z:    --  mm", "motion_pos_z");
 
-    spdlog::info("[Motion] Subjects initialized: X/Y/Z position displays");
+    spdlog::debug("[0: X/Y/Z position displays");
 }
 
 // Jog pad callback wrappers (bridge between widget and motion panel)

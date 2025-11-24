@@ -216,7 +216,7 @@ void ui_panel_setup_standard_layout(lv_obj_t* panel, lv_obj_t* parent_screen,
         return;
     }
 
-    spdlog::info("[PanelCommon] Setting up standard panel layout");
+    spdlog::debug("[PanelCommon] Setting up standard panel layout");
 
     // 1. Setup header bar
     ui_panel_setup_header(panel, parent_screen, header_name);
@@ -237,7 +237,7 @@ void ui_panel_setup_standard_layout(lv_obj_t* panel, lv_obj_t* parent_screen,
     // 4. Setup back button
     ui_panel_setup_back_button(panel, back_button_name);
 
-    spdlog::info("[PanelCommon] Standard panel layout setup complete");
+    spdlog::debug("[PanelCommon] Standard panel layout setup complete");
 }
 
 // ============================================================================
@@ -276,7 +276,7 @@ void ui_overlay_panel_setup_standard(lv_obj_t* panel, lv_obj_t* parent_screen,
         spdlog::warn("[PanelCommon] Content area '{}' not found in overlay panel", content_name);
     }
 
-    spdlog::info("[PanelCommon] Overlay panel setup complete");
+    spdlog::debug("[PanelCommon] Overlay panel setup complete");
 }
 
 lv_obj_t* ui_overlay_panel_wire_back_button(lv_obj_t* panel, const char* header_name) {

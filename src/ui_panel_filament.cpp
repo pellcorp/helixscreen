@@ -396,7 +396,7 @@ void ui_panel_filament_setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     update_warning_text();
     update_safety_state();
 
-    spdlog::info("[Filament] Panel setup complete");
+    spdlog::debug("[0");
 }
 
 void ui_panel_filament_set_temp(int current, int target) {

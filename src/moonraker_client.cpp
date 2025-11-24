@@ -161,8 +161,7 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
             }
 
             const HttpResponsePtr& resp = getHttpResponse();
-            spdlog::info("[Moonraker Client] WebSocket connected to {}: {}", url,
-                         resp->body.c_str());
+            spdlog::debug("[Moonraker Client] WebSocket connected to {}", url);
             was_connected_ = true;
             set_connection_state(ConnectionState::CONNECTED);
 
@@ -579,7 +578,7 @@ int MoonrakerClient::gcode_script(const std::string& gcode) {
 }
 
 void MoonrakerClient::discover_printer(std::function<void()> on_complete) {
-    spdlog::info("[Moonraker Client] Starting printer auto-discovery");
+    spdlog::debug("[Moonraker Client] Starting printer auto-discovery");
 
     // Step 1: Query available printer objects (no params required)
     send_jsonrpc("printer.objects.list", json(), [this, on_complete](json response) {
@@ -609,8 +608,8 @@ void MoonrakerClient::discover_printer(std::function<void()> on_complete) {
                 std::string klippy_version = result.value("klippy_version", "unknown");
                 std::string moonraker_version = result.value("moonraker_version", "unknown");
 
-                spdlog::info("[Moonraker Client] Moonraker version: {}", moonraker_version);
-                spdlog::info("[Moonraker Client] Klippy version: {}", klippy_version);
+                spdlog::debug("[Moonraker Client] Moonraker version: {}", moonraker_version);
+                spdlog::debug("[Moonraker Client] Klippy version: {}", klippy_version);
 
                 if (result.contains("components")) {
                     std::vector<std::string> components =
@@ -628,8 +627,8 @@ void MoonrakerClient::discover_printer(std::function<void()> on_complete) {
                     std::string software_version = result.value("software_version", "unknown");
                     std::string state_message = result.value("state_message", "");
 
-                    spdlog::info("[Moonraker Client] Printer hostname: {}", hostname_);
-                    spdlog::info("[Moonraker Client] Klipper software version: {}",
+                    spdlog::debug("[Moonraker Client] Printer hostname: {}", hostname_);
+                    spdlog::debug("[Moonraker Client] Klipper software version: {}",
                                  software_version);
                     if (!state_message.empty()) {
                         spdlog::info("[Moonraker Client] Printer state: {}", state_message);
@@ -676,7 +675,7 @@ void MoonrakerClient::discover_printer(std::function<void()> on_complete) {
                     "printer.objects.subscribe", subscribe_params,
                     [on_complete, subscription_objects](json sub_response) {
                         if (sub_response.contains("result")) {
-                            spdlog::info(
+                            spdlog::debug(
                                 "[Moonraker Client] Subscription complete: {} objects subscribed",
                                 subscription_objects.size());
                         } else if (sub_response.contains("error")) {
@@ -755,7 +754,7 @@ void MoonrakerClient::parse_objects(const json& objects) {
         }
     }
 
-    spdlog::info("[Moonraker Client] Discovered: {} heaters, {} sensors, {} fans, {} LEDs",
+    spdlog::debug("[Moonraker Client] Discovered: {} heaters, {} sensors, {} fans, {} LEDs",
                  heaters_.size(), sensors_.size(), fans_.size(), leds_.size());
 
     // Debug output of discovered objects

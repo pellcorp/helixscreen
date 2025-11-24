@@ -239,7 +239,7 @@ static void bed_mesh_size_changed_cb(lv_event_t* e) {
     int width = lv_area_get_width(&coords);
     int height = lv_area_get_height(&coords);
 
-    spdlog::info("[bed_mesh] SIZE_CHANGED: {}x{}", width, height);
+    spdlog::debug("[bed_mesh] SIZE_CHANGED: {}x{}", width, height);
 
     // Trigger redraw with new dimensions
     lv_obj_invalidate(obj);
@@ -358,7 +358,7 @@ static void bed_mesh_xml_apply(lv_xml_parser_state_t* state, const char** attrs)
  */
 void ui_bed_mesh_register(void) {
     lv_xml_register_widget("bed_mesh", bed_mesh_xml_create, bed_mesh_xml_apply);
-    spdlog::info("[bed_mesh] Registered <bed_mesh> widget with XML system");
+    spdlog::debug("[bed_mesh] Registered <bed_mesh> widget with XML system");
 }
 
 /**

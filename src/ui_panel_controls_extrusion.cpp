@@ -82,7 +82,7 @@ void ui_panel_controls_extrusion_init_subjects() {
     UI_SUBJECT_INIT_AND_REGISTER_STRING(temp_status_subject, temp_status_buf, temp_status_val, "extrusion_temp_status");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(warning_temps_subject, warning_temps_buf, warning_temps_val, "extrusion_warning_temps");
 
-    spdlog::info("[Extrusion] Subjects initialized: temp={}/{}°C, amount={}mm", nozzle_current,
+    spdlog::debug("[0: temp={}/{}°C, amount={}mm", nozzle_current,
                  nozzle_target, selected_amount);
 }
 
@@ -274,7 +274,7 @@ void ui_panel_controls_extrusion_setup(lv_obj_t* panel, lv_obj_t* parent_screen)
     update_warning_text();
     update_safety_state();
 
-    spdlog::info("[Extrusion] Panel setup complete!");
+    spdlog::debug("[0!");
 }
 
 void ui_panel_controls_extrusion_set_temp(int current, int target) {
