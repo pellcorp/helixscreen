@@ -26,43 +26,47 @@
 #include "lvgl/lvgl.h"
 
 /**
- * @brief Initialize subjects for hotend select screen
+ * @brief Initialize subjects for heater select screen
  *
  * Creates and registers reactive subjects:
- * - hotend_heater_selected (int) - Selected heater index in dropdown
- * - hotend_sensor_selected (int) - Selected sensor index in dropdown
+ * - bed_heater_selected (int) - Selected bed heater index in dropdown
+ * - hotend_heater_selected (int) - Selected hotend heater index in dropdown
+ *
+ * Note: This screen does not use separate sensor dropdowns. The selected
+ * heater names are automatically used as sensor names since Klipper heater
+ * objects inherently provide temperature readings.
  */
-void ui_wizard_hotend_select_init_subjects();
+void ui_wizard_heater_select_init_subjects();
 
 /**
- * @brief Register event callbacks for hotend select screen
+ * @brief Register event callbacks for heater select screen
  *
- * Registers callbacks:
- * - on_hotend_heater_changed - When heater dropdown selection changes
- * - on_hotend_sensor_changed - When sensor dropdown selection changes
+ * Registers callbacks for dropdown changes (attached programmatically)
  */
-void ui_wizard_hotend_select_register_callbacks();
+void ui_wizard_heater_select_register_callbacks();
 
 /**
- * @brief Create hotend select screen UI
+ * @brief Create heater select screen UI
  *
- * Creates the hotend selection form from wizard_hotend_select.xml
+ * Creates the combined bed + hotend heater selection form from
+ * wizard_heater_select.xml
  *
  * @param parent Parent container (wizard_content)
  * @return Root object of the screen, or nullptr on failure
  */
-lv_obj_t* ui_wizard_hotend_select_create(lv_obj_t* parent);
+lv_obj_t* ui_wizard_heater_select_create(lv_obj_t* parent);
 
 /**
- * @brief Cleanup hotend select screen resources
+ * @brief Cleanup heater select screen resources
  *
- * Clears any temporary state and releases resources
+ * Saves heater selections to config (both heater and sensor paths)
+ * and releases resources
  */
-void ui_wizard_hotend_select_cleanup();
+void ui_wizard_heater_select_cleanup();
 
 /**
- * @brief Check if hotend selection is complete
+ * @brief Check if heater selection is complete
  *
  * @return true (always validated for baseline implementation)
  */
-bool ui_wizard_hotend_select_is_validated();
+bool ui_wizard_heater_select_is_validated();

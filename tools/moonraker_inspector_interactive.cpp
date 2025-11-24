@@ -11,38 +11,33 @@
  * - Color-coded status indicators
  * - Real-time data display
  *
- * Built with tuibox - single-header C library using pure ANSI escape sequences
+ * Built with cpp-terminal - modern C++ TUI library
  */
 
 #include "moonraker_client.h"
-#include "ansi_colors.h"
-#include "terminal_raw.h"
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
+
+#include "cpp-terminal/color.hpp"
+#include "cpp-terminal/exception.hpp"
+#include "cpp-terminal/input.hpp"
+#include "cpp-terminal/iostream.hpp"
+#include "cpp-terminal/key.hpp"
+#include "cpp-terminal/options.hpp"
+#include "cpp-terminal/screen.hpp"
+#include "cpp-terminal/style.hpp"
+#include "cpp-terminal/terminal.hpp"
+#include "cpp-terminal/tty.hpp"
 
 #include <chrono>
 #include <cstring>
-#include <iomanip>
-#include <iostream>
+#include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
-#include <string>
-#include <sys/ioctl.h>
-#include <unistd.h>
 
 using json = nlohmann::json;
-
-// Get terminal size
-struct TermSize {
-    int rows;
-    int cols;
-};
-
-TermSize get_terminal_size() {
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-    return {w.ws_row, w.ws_col};
-}
 
 // Tree node for hierarchical data display
 struct TreeNode {
@@ -57,15 +52,14 @@ struct TreeNode {
     std::vector<TreeNode> children;
 
     TreeNode(const std::string& k, const std::string& v = "", bool section = false, int indent = 0, const std::string& obj_name = "")
-        : key(k), value(v), expanded(section), is_section(section), indent_level(indent),
+        : key(k), value(v), expanded(false), is_section(section), indent_level(indent),
           object_name(obj_name), data_fetched(false) {}
 };
 
 // Global state for interactive mode
 struct InteractiveState {
     std::vector<TreeNode> tree;
-    int selected_index;
-    int scroll_offset;
+    size_t selected_index;
     json server_info;
     json printer_info;
     json objects_list;
@@ -73,14 +67,16 @@ struct InteractiveState {
     MoonrakerClient* client;  // For querying object details
     TreeNode* selected_node;  // Track actual selected node (not just index)
     bool need_redraw;  // Flag to trigger redraw from async callbacks
+    size_t spinner_frame;  // For animated spinner
+    int pending_queries;  // Track pending async queries
 
-    InteractiveState() : selected_index(0), scroll_offset(0), data_ready(false), client(nullptr), selected_node(nullptr), need_redraw(false) {}
+    InteractiveState() : selected_index(0), data_ready(false), client(nullptr), selected_node(nullptr), need_redraw(false), spinner_frame(0), pending_queries(0) {}
 };
 
 static InteractiveState* g_state = nullptr;
 
-// Format a value from Moonraker JSON response
-std::string format_value(const json& val) {
+// Format a scalar value (not array/object)
+std::string format_scalar(const json& val) {
     if (val.is_number()) {
         if (val.is_number_float()) {
             char buf[32];
@@ -92,12 +88,62 @@ std::string format_value(const json& val) {
         return val.get<bool>() ? "true" : "false";
     } else if (val.is_string()) {
         return val.get<std::string>();
-    } else if (val.is_array()) {
-        return "[array]";
-    } else if (val.is_object()) {
-        return "[object]";
+    } else if (val.is_null()) {
+        return "null";
     }
     return "?";
+}
+
+// Create tree nodes recursively for complex data structures
+void add_json_to_tree(TreeNode* parent, const std::string& key, const json& val, int indent) {
+    if (val.is_array()) {
+        size_t size = val.size();
+        if (size == 0) {
+            parent->children.push_back(TreeNode(key, "[]", false, indent));
+        } else if (size <= 3 && size > 0 && val[0].is_number()) {
+            // Show small numeric arrays inline (not expandable)
+            std::string result = "[";
+            for (size_t i = 0; i < size; i++) {
+                if (i > 0) result += ", ";
+                result += format_scalar(val[i]);
+            }
+            result += "]";
+            parent->children.push_back(TreeNode(key, result, false, indent));
+        } else {
+            // Create expandable array node
+            char summary[64];
+            snprintf(summary, sizeof(summary), "[%zu items]", size);
+            TreeNode array_node(key, summary, true, indent);
+
+            // Add array items as children
+            for (size_t i = 0; i < size; i++) {
+                std::string item_key = "[" + std::to_string(i) + "]";
+                add_json_to_tree(&array_node, item_key, val[i], indent + 1);
+            }
+
+            parent->children.push_back(array_node);
+        }
+    } else if (val.is_object()) {
+        size_t size = val.size();
+        if (size == 0) {
+            parent->children.push_back(TreeNode(key, "{}", false, indent));
+        } else {
+            // Create expandable object node
+            char summary[64];
+            snprintf(summary, sizeof(summary), "{%zu fields}", size);
+            TreeNode obj_node(key, summary, true, indent);
+
+            // Add object fields as children
+            for (auto it = val.begin(); it != val.end(); ++it) {
+                add_json_to_tree(&obj_node, it.key(), it.value(), indent + 1);
+            }
+
+            parent->children.push_back(obj_node);
+        }
+    } else {
+        // Scalar value - not expandable
+        parent->children.push_back(TreeNode(key, format_scalar(val), false, indent));
+    }
 }
 
 // Query Moonraker for detailed object data
@@ -106,11 +152,14 @@ void query_object_data(TreeNode* node, MoonrakerClient* client) {
         return;
     }
 
-    // Add loading indicator
+    spdlog::debug("Querying Moonraker for object: {}", node->object_name);
+
+    // Add loading indicator with spinner
     node->children.clear();
-    node->children.push_back(TreeNode("⏳ Loading data...", "", false, 3));
+    node->children.push_back(TreeNode("Loading data...", "", false, 3));
     if (g_state) {
         g_state->need_redraw = true;
+        g_state->pending_queries++;  // Track pending query
     }
 
     // Query this specific object
@@ -120,63 +169,103 @@ void query_object_data(TreeNode* node, MoonrakerClient* client) {
 
     client->send_jsonrpc("printer.objects.query", params,
         [node](json response) {
+            if (g_state) {
+                g_state->pending_queries--;  // Query completed
+            }
+            spdlog::debug("Received response for object: {}", node->object_name);
+            spdlog::debug("Response JSON: {}", response.dump());
+
             if (response.contains("result") && response["result"].contains("status")) {
                 node->object_data = response["result"]["status"];
                 node->data_fetched = true;
+
+                spdlog::debug("Status data: {}", node->object_data.dump());
 
                 // Clear loading indicator and populate with detailed data
                 node->children.clear();
 
                 if (node->object_data.contains(node->object_name)) {
                     const auto& obj_data = node->object_data[node->object_name];
+                    spdlog::debug("Found object data for '{}', has {} fields", node->object_name, obj_data.size());
 
-                    // Add each field as a child
+                    // Add each field as a child (using recursive tree builder)
                     for (auto it = obj_data.begin(); it != obj_data.end(); ++it) {
                         std::string key = it.key();
-                        std::string value = format_value(it.value());
+                        const auto& val = it.value();
 
-                        // Add descriptive labels for common fields
+                        // Add descriptive labels and units for common fields
+                        std::string display_key = key;
+                        json modified_val = val;
+                        bool add_unit = false;
+                        std::string unit;
+
                         if (key == "temperature") {
-                            key = "🌡️  Current Temp";
-                            value += "°C";
+                            display_key = "🌡️  Current Temp";
+                            add_unit = true;
+                            unit = "°C";
                         } else if (key == "target") {
-                            key = "🎯 Target Temp";
-                            value += "°C";
-                        } else if (key == "power") {
-                            key = "⚡ Heater Power";
-                            double pct = it.value().get<double>() * 100.0;
+                            display_key = "🎯 Target Temp";
+                            add_unit = true;
+                            unit = "°C";
+                        } else if (key == "power" && val.is_number()) {
+                            display_key = "⚡ Heater Power";
+                            double pct = val.get<double>() * 100.0;
                             char buf[32];
                             snprintf(buf, sizeof(buf), "%.1f%%", pct);
-                            value = buf;
-                        } else if (key == "speed") {
-                            key = "💨 Fan Speed";
-                            double pct = it.value().get<double>() * 100.0;
+                            node->children.push_back(TreeNode(display_key, buf, false, 3));
+                            continue;
+                        } else if (key == "speed" && val.is_number()) {
+                            display_key = "💨 Fan Speed";
+                            double pct = val.get<double>() * 100.0;
                             char buf[32];
                             snprintf(buf, sizeof(buf), "%.0f%%", pct);
-                            value = buf;
+                            node->children.push_back(TreeNode(display_key, buf, false, 3));
+                            continue;
                         } else if (key == "rpm") {
-                            key = "🔄 RPM";
+                            display_key = "🔄 RPM";
                         } else if (key == "run_current") {
-                            key = "⚡ Run Current";
-                            value += "A";
+                            display_key = "⚡ Run Current";
+                            add_unit = true;
+                            unit = "A";
                         } else if (key == "hold_current") {
-                            key = "⏸️  Hold Current";
-                            value += "A";
+                            display_key = "⏸️  Hold Current";
+                            add_unit = true;
+                            unit = "A";
                         } else if (key == "microsteps") {
-                            key = "📐 Microsteps";
+                            display_key = "📐 Microsteps";
                         }
 
-                        node->children.push_back(TreeNode(key, value, false, 3));
+                        // For simple scalars with units, add inline
+                        if (add_unit && val.is_number()) {
+                            std::string value = format_scalar(val) + unit;
+                            node->children.push_back(TreeNode(display_key, value, false, 3));
+                        } else {
+                            // Use recursive tree builder for everything else
+                            add_json_to_tree(node, display_key, val, 3);
+                        }
                     }
+
+                    spdlog::debug("Total children added: {}", node->children.size());
+                } else {
+                    spdlog::debug("Object name '{}' NOT found in status data. Available keys: {}",
+                                 node->object_name, node->object_data.dump());
                 }
 
                 // Trigger redraw to show new data
                 if (g_state) {
+                    spdlog::debug("Setting need_redraw flag");
                     g_state->need_redraw = true;
+                } else {
+                    spdlog::debug("WARNING: g_state is null, cannot trigger redraw!");
                 }
+            } else {
+                spdlog::debug("Response doesn't contain result.status");
             }
         },
         [node](const MoonrakerError&) {
+            if (g_state) {
+                g_state->pending_queries--;  // Query completed (with error)
+            }
             // Query failed - show error
             node->children.clear();
             node->children.push_back(TreeNode("❌ Failed to fetch data", "", false, 3));
@@ -374,7 +463,12 @@ void build_tree(InteractiveState* state) {
         for (const auto& obj : obj_array) {
             std::string name = obj.get<std::string>();
 
-            if (name.find("gcode_macro") != std::string::npos) {
+            // Check TMC/stepper FIRST before checking for extruder
+            // (to avoid "tmc2209 extruder" being categorized as heater)
+            if (name.find("stepper") != std::string::npos ||
+                name.find("tmc") != std::string::npos) {
+                steppers.push_back(name);
+            } else if (name.find("gcode_macro") != std::string::npos) {
                 macros.push_back(name);
             } else if (name.find("extruder") != std::string::npos ||
                 name.find("heater_bed") != std::string::npos ||
@@ -389,9 +483,6 @@ void build_tree(InteractiveState* state) {
                        name.find("neopixel") != std::string::npos ||
                        name.find("dotstar") != std::string::npos) {
                 leds.push_back(name);
-            } else if (name.find("stepper") != std::string::npos ||
-                       name.find("tmc") != std::string::npos) {
-                steppers.push_back(name);
             } else if (name.find("probe") != std::string::npos ||
                        name.find("bltouch") != std::string::npos ||
                        name.find("bed_mesh") != std::string::npos) {
@@ -493,466 +584,358 @@ void build_tree(InteractiveState* state) {
     }
 }
 
+// Flatten tree for rendering (only visible nodes) - recursive helper
+void flatten_tree_recursive(TreeNode& node, std::vector<TreeNode*>& flat) {
+    flat.push_back(&node);
+
+    if (node.expanded && !node.children.empty()) {
+        for (auto& child : node.children) {
+            flatten_tree_recursive(child, flat);
+        }
+    }
+}
+
 // Flatten tree for rendering (only visible nodes)
 std::vector<TreeNode*> flatten_tree(std::vector<TreeNode>& tree) {
     std::vector<TreeNode*> flat;
 
     for (auto& node : tree) {
-        flat.push_back(&node);
-
-        if (node.expanded && !node.children.empty()) {
-            for (auto& child : node.children) {
-                flat.push_back(&child);
-
-                if (child.expanded && !child.children.empty()) {
-                    for (auto& grandchild : child.children) {
-                        flat.push_back(&grandchild);
-                    }
-                }
-            }
-        }
+        flatten_tree_recursive(node, flat);
     }
 
     return flat;
 }
 
 // Find node in tree by flattened index
-TreeNode* find_node_by_index(std::vector<TreeNode>& tree, int index) {
+TreeNode* find_node_by_index(std::vector<TreeNode>& tree, size_t index) {
     auto flat = flatten_tree(tree);
-    if (index >= 0 && index < static_cast<int>(flat.size())) {
+    if (index < flat.size()) {
         return flat[index];
     }
     return nullptr;
 }
 
-// Re-sync selected_index to match selected_node after tree structure changes
-void resync_selected_index(InteractiveState* state) {
-    if (!state->selected_node) {
-        // No node selected, default to first item
-        state->selected_index = 0;
-        auto flat = flatten_tree(state->tree);
-        if (!flat.empty()) {
-            state->selected_node = flat[0];
-        }
-        return;
-    }
+// Render the tree using cpp-terminal
+std::string render_tree(InteractiveState* state, const Term::Screen& term_size) {
+    std::stringstream ss;
 
-    // Find where selected_node is in the current flattened tree
-    auto flat = flatten_tree(state->tree);
-    for (int i = 0; i < static_cast<int>(flat.size()); i++) {
-        if (flat[i] == state->selected_node) {
-            state->selected_index = i;
-            return;
-        }
-    }
+    // Move to top-left
+    ss << Term::cursor_move(1, 1);
 
-    // Node not found (shouldn't happen), reset to first item
-    state->selected_index = 0;
-    if (!flat.empty()) {
-        state->selected_node = flat[0];
-    }
-}
-
-// Truncate string to fit within max_len, adding "..." if truncated
-std::string truncate_line(const std::string& text, int max_len) {
-    if (max_len < 3) return "";
-    if (static_cast<int>(text.length()) <= max_len) {
-        return text;
-    }
-    return text.substr(0, max_len - 3) + "...";
-}
-
-// Render the tree with scrolling viewport
-void render_tree(InteractiveState* state) {
-    // Get terminal size
-    TermSize term = get_terminal_size();
-
-    // Reserve space for header (4 lines) and footer (3 lines)
-    int header_lines = 4;
-    int footer_lines = 3;
-    int available_lines = term.rows - header_lines - footer_lines;
-    if (available_lines < 5) available_lines = 5;  // Minimum viewport
-
-    // Clear screen
-    printf("\033[2J\033[H");
-
-    // Header (64 chars wide for proper alignment)
-    printf("%s%s╔══════════════════════════════════════════════════════════════╗%s\n",
-           ansi::BOLD, ansi::BRIGHT_CYAN, ansi::RESET);
-    printf("%s%s║ Moonraker Inspector - Interactive Mode                       ║%s\n",
-           ansi::BOLD, ansi::BRIGHT_CYAN, ansi::RESET);
-    printf("%s%s╚══════════════════════════════════════════════════════════════╝%s\n",
-           ansi::BOLD, ansi::BRIGHT_CYAN, ansi::RESET);
-    printf("\n");
+    // Header
+    ss << Term::color_fg(Term::Color::Name::Cyan);
+    ss << Term::style(Term::Style::Bold);
+    ss << "╔══════════════════════════════════════════════════════════════╗\n";
+    ss << "║ Moonraker Inspector - Interactive Mode                       ║\n";
+    ss << "╚══════════════════════════════════════════════════════════════╝\n";
+    ss << Term::style(Term::Style::Reset);
+    ss << "\n";
 
     if (!state->data_ready) {
-        printf("%sLoading data...%s\n", ansi::YELLOW, ansi::RESET);
-        return;
+        ss << Term::color_fg(Term::Color::Name::Yellow);
+        ss << "Loading data...";
+        ss << Term::color_fg(Term::Color::Name::Default);
+        return ss.str();
     }
 
     auto flat_tree = flatten_tree(state->tree);
-    int total_items = flat_tree.size();
+    // Uncomment for render debugging:
+    // spdlog::debug("Rendering {} nodes from flattened tree", flat_tree.size());
 
-    // Adjust scroll offset to keep selected item visible
-    if (state->selected_index < state->scroll_offset) {
-        state->scroll_offset = state->selected_index;
-    } else if (state->selected_index >= state->scroll_offset + available_lines) {
-        state->scroll_offset = state->selected_index - available_lines + 1;
-    }
+    // Update spinner animation
+    const char* spinner_chars[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+    const char* current_spinner = spinner_chars[state->spinner_frame % 10];
+    state->spinner_frame++;
 
-    // Clamp scroll offset
-    int max_scroll = std::max(0, total_items - available_lines);
-    if (state->scroll_offset > max_scroll) {
-        state->scroll_offset = max_scroll;
-    }
-    if (state->scroll_offset < 0) {
-        state->scroll_offset = 0;
-    }
-
-    // Render visible window of nodes
-    int end_index = std::min(state->scroll_offset + available_lines, total_items);
-    for (int i = state->scroll_offset; i < end_index; i++) {
+    // Render visible nodes
+    for (size_t i = 0; i < flat_tree.size(); i++) {
         TreeNode* node = flat_tree[i];
-
-        // Highlight selected row
         bool selected = (i == state->selected_index);
+
+        // Highlight selected
         if (selected) {
-            printf("%s", ansi::BRIGHT_WHITE);
+            ss << Term::color_bg(Term::Color::Name::Gray);
+            ss << Term::color_fg(Term::Color::Name::White);
+            ss << Term::style(Term::Style::Bold);
         }
 
-        // Build the line text (without ANSI codes) to calculate length
-        std::string indent_str(node->indent_level * 2, ' ');
-        std::string line_text;
-
-        if (node->is_section) {
-            line_text = indent_str + (node->expanded ? "▼ " : "▶ ") + node->key;
-            if (!node->value.empty()) {
-                line_text += " - " + node->value;
-            }
-        } else {
-            line_text = indent_str + "  " + node->key;
-            if (!node->value.empty()) {
-                line_text += ": " + node->value;
-            }
-        }
-
-        // Add cursor indicator length if selected
-        int cursor_len = selected ? 3 : 0;  // " ◀"
-
-        // Truncate if needed (leave room for cursor)
-        int max_text_len = term.cols - cursor_len - 1;  // -1 for safety
-        std::string display_text = truncate_line(line_text, max_text_len);
-
-        // Now render with proper formatting
-        // Print indent
+        // Indent
         for (int j = 0; j < node->indent_level; j++) {
-            printf("  ");
+            ss << "  ";
         }
 
-        // Print icon and content with colors
-        if (node->is_section) {
-            printf("%s ", node->expanded ? "▼" : "▶");
-
-            // Extract key and value parts for coloring
-            std::string key_part = node->key;
-            std::string value_part = node->value;
-
-            // Truncate if combined is too long
-            int used = indent_str.length() + 2;  // icon + space
-            int remaining = max_text_len - used;
-
-            if (!value_part.empty()) {
-                int separator_len = 3;  // " - "
-                int key_len = key_part.length();
-                int val_len = value_part.length();
-
-                if (key_len + separator_len + val_len > remaining) {
-                    // Need to truncate
-                    if (key_len + separator_len + 3 <= remaining) {
-                        // Truncate value
-                        value_part = truncate_line(value_part, remaining - key_len - separator_len);
-                    } else {
-                        // Truncate key, omit value
-                        key_part = truncate_line(key_part, remaining);
-                        value_part = "";
-                    }
-                }
-            } else {
-                key_part = truncate_line(key_part, remaining);
+        // Show spinner for loading indicators
+        bool is_loading = (node->key.find("Loading data") == 0);
+        if (is_loading) {
+            ss << current_spinner << " " << node->key;
+            if (selected) {
+                ss << " ◀";
             }
+            ss << Term::style(Term::Style::Reset);
+            ss << Term::color_bg(Term::Color::Name::Default);
+            ss << Term::color_fg(Term::Color::Name::Default);
+            ss << "\n";
+            continue;
+        }
 
-            printf("%s%s%s%s", ansi::BOLD, ansi::CYAN, key_part.c_str(), ansi::RESET);
-            if (!value_part.empty()) {
-                printf(" %s- %s%s", ansi::DIM, value_part.c_str(), ansi::RESET);
+        // Render node
+        if (node->is_section) {
+            ss << (node->expanded ? "▼ " : "▶ ");
+            ss << Term::color_fg(selected ? Term::Color::Name::White : Term::Color::Name::Cyan);
+            ss << Term::style(Term::Style::Bold);
+            ss << node->key;
+            if (!node->value.empty()) {
+                ss << Term::style(Term::Style::Reset);
+                if (selected) {
+                    ss << Term::color_bg(Term::Color::Name::Gray);
+                }
+                ss << " - " << node->value;
             }
         } else {
-            printf("  ");
-
-            // Extract key and value
-            std::string key_part = node->key;
-            std::string value_part = node->value;
-
-            int used = indent_str.length() + 2;  // "  "
-            int remaining = max_text_len - used;
-
-            if (!value_part.empty()) {
-                int separator_len = 2;  // ": "
-                int key_len = key_part.length();
-                int val_len = value_part.length();
-
-                if (key_len + separator_len + val_len > remaining) {
-                    if (key_len + separator_len + 3 <= remaining) {
-                        value_part = truncate_line(value_part, remaining - key_len - separator_len);
-                    } else {
-                        key_part = truncate_line(key_part, remaining);
-                        value_part = "";
-                    }
-                }
-            } else {
-                key_part = truncate_line(key_part, remaining);
-            }
-
-            printf("%s%s%s", ansi::BRIGHT_BLUE, key_part.c_str(), ansi::RESET);
-            if (!value_part.empty()) {
-                printf(": %s%s%s", ansi::WHITE, value_part.c_str(), ansi::RESET);
+            ss << "  ";
+            ss << node->key;
+            if (!node->value.empty()) {
+                ss << ": " << node->value;
             }
         }
 
         if (selected) {
-            printf(" ◀");
+            ss << " ◀";
         }
 
-        printf("%s\n", ansi::RESET);
-    }
-
-    // Scroll indicator
-    if (total_items > available_lines) {
-        int visible_start = state->scroll_offset + 1;
-        int visible_end = end_index;
-        printf("\n%s[%d-%d of %d items]%s",
-               ansi::DIM, visible_start, visible_end, total_items, ansi::RESET);
+        ss << Term::style(Term::Style::Reset);
+        ss << Term::color_bg(Term::Color::Name::Default);
+        ss << Term::color_fg(Term::Color::Name::Default);
+        ss << "\n";
     }
 
     // Controls footer
-    printf("\n%s────────────────────────────────────────────────────────────────%s\n",
-           ansi::DIM, ansi::RESET);
-    printf("%s↑/↓%s Navigate  %sEnter/Space%s Expand/Collapse  %sq%s Quit\n",
-           ansi::BRIGHT_CYAN, ansi::RESET,
-           ansi::BRIGHT_CYAN, ansi::RESET,
-           ansi::BRIGHT_CYAN, ansi::RESET);
+    ss << "\n";
+    ss << Term::color_fg(Term::Color::Name::Gray);
+    ss << "────────────────────────────────────────────────────────────────\n";
+    ss << Term::style(Term::Style::Reset);
+    ss << Term::color_fg(Term::Color::Name::Cyan);
+    ss << "↑/↓";
+    ss << Term::color_fg(Term::Color::Name::Default);
+    ss << " Navigate  ";
+    ss << Term::color_fg(Term::Color::Name::Cyan);
+    ss << "Enter/Space";
+    ss << Term::color_fg(Term::Color::Name::Default);
+    ss << " Expand/Collapse  ";
+    ss << Term::color_fg(Term::Color::Name::Cyan);
+    ss << "q";
+    ss << Term::color_fg(Term::Color::Name::Default);
+    ss << " Quit";
 
-    fflush(stdout);
+    return ss.str();
 }
 
 // Handle keyboard input
-void handle_input(InteractiveState* state, char key) {
+void handle_input(InteractiveState* state, Term::Key key) {
     auto flat_tree = flatten_tree(state->tree);
-    int max_index = flat_tree.size() - 1;
+    size_t max_index = flat_tree.empty() ? 0 : flat_tree.size() - 1;
 
     switch (key) {
-        case 'A':  // Up arrow
-        case 'k':
+        case Term::Key::ArrowUp:
             if (state->selected_index > 0) {
                 state->selected_index--;
-                // Skip over non-expandable items (data items)
+                // Skip non-sections
                 while (state->selected_index > 0) {
                     TreeNode* node = find_node_by_index(state->tree, state->selected_index);
                     if (node && node->is_section) {
-                        state->selected_node = node;  // Update selected node
-                        break;  // Found a section (expandable), stop here
+                        state->selected_node = node;
+                        break;
                     }
                     state->selected_index--;
                 }
             }
             break;
 
-        case 'B':  // Down arrow
-        case 'j':
+        case Term::Key::ArrowDown:
             if (state->selected_index < max_index) {
                 state->selected_index++;
-                // Skip over non-expandable items (data items)
+                // Skip non-sections
                 while (state->selected_index < max_index) {
                     TreeNode* node = find_node_by_index(state->tree, state->selected_index);
                     if (node && node->is_section) {
-                        state->selected_node = node;  // Update selected node
-                        break;  // Found a section (expandable), stop here
+                        state->selected_node = node;
+                        break;
                     }
                     state->selected_index++;
                 }
             }
             break;
 
-        case '\n':  // Enter
-        case '\r':
-        case ' ':   // Space
-            {
-                TreeNode* node = find_node_by_index(state->tree, state->selected_index);
-                if (node && node->is_section) {
-                    bool was_expanded = node->expanded;
-                    node->expanded = !node->expanded;
+        case Term::Key::Enter:
+        case Term::Key::Space:
+        {
+            TreeNode* node = find_node_by_index(state->tree, state->selected_index);
+            spdlog::debug("Enter/Space pressed on node: {} (is_section={}, object_name='{}', data_fetched={}, expanded={})",
+                         node ? node->key : "null",
+                         node ? node->is_section : false,
+                         node ? node->object_name : "",
+                         node ? node->data_fetched : false,
+                         node ? node->expanded : false);
 
-                    // If expanding and has object name, query Moonraker for details
-                    if (!was_expanded && !node->object_name.empty() && !node->data_fetched && state->client) {
-                        query_object_data(node, state->client);
-                    }
+            if (node && node->is_section) {
+                bool was_expanded = node->expanded;
+                node->expanded = !node->expanded;
 
-                    // After expand/collapse, resync selected_index to match selected_node
-                    state->selected_node = node;
-                    resync_selected_index(state);
+                spdlog::debug("Toggled expansion: was_expanded={}, now_expanded={}", was_expanded, node->expanded);
+
+                // If expanding and has object name, query Moonraker for details
+                if (!was_expanded && !node->object_name.empty() && !node->data_fetched && state->client) {
+                    spdlog::debug("Triggering query_object_data for: {}", node->object_name);
+                    query_object_data(node, state->client);
+                } else {
+                    spdlog::debug("NOT querying: was_expanded={}, object_name='{}', data_fetched={}, client={}",
+                                 was_expanded, node->object_name, node->data_fetched, state->client != nullptr);
                 }
+
+                state->selected_node = node;
             }
+        }
+        break;
+
+        default:
             break;
-    }
-}
-
-// Debug: dump tree structure to verify it's built correctly
-void dump_tree_debug(const std::vector<TreeNode>& tree, int indent = 0) {
-    for (const auto& node : tree) {
-        for (int i = 0; i < indent; i++) printf("  ");
-        printf("%s %s", node.is_section ? "[SECTION]" : "[DATA]", node.key.c_str());
-        if (!node.value.empty()) {
-            printf(" = \"%s\"", node.value.c_str());
-        }
-        if (!node.object_name.empty()) {
-            printf(" (object: %s)", node.object_name.c_str());
-        }
-        printf("\n");
-
-        if (!node.children.empty()) {
-            dump_tree_debug(node.children, indent + 1);
-        }
     }
 }
 
 // Interactive main loop
 int run_interactive(const std::string& ip, int port) {
-    InteractiveState state;
-    g_state = &state;
-
-    spdlog::set_level(spdlog::level::off);  // Silence logs in interactive mode
-
-    // Initial render
-    render_tree(&state);
-
-    // Connect to Moonraker
-    std::string url = "ws://" + ip + ":" + std::to_string(port) + "/websocket";
-    MoonrakerClient client;
-    client.configure_timeouts(5000, 10000, 10000, 200, 2000);
-    state.client = &client;  // Store client pointer for querying
-
-    bool connected = false;
-
-    auto on_connect = [&]() {
-        connected = true;
-
-        // Query all data
-        client.send_jsonrpc("server.info", json::object(),
-            [&](json response) {
-                if (response.contains("result")) {
-                    state.server_info = response["result"];
-                }
-            },
-            [](const MoonrakerError&) {});
-
-        client.send_jsonrpc("printer.info", json::object(),
-            [&](json response) {
-                if (response.contains("result")) {
-                    state.printer_info = response["result"];
-                }
-            },
-            [](const MoonrakerError&) {});
-
-        client.send_jsonrpc("printer.objects.list", json::object(),
-            [&](json response) {
-                if (response.contains("result")) {
-                    state.objects_list = response["result"];
-                    state.data_ready = true;
-                    build_tree(&state);
-                }
-            },
-            [](const MoonrakerError&) {});
-    };
-
-    auto on_disconnect = []() {};
-
-    int result = client.connect(url.c_str(), on_connect, on_disconnect);
-    if (result != 0) {
-        printf("%sFailed to connect to %s%s\n", ansi::RED, url.c_str(), ansi::RESET);
-        return 1;
-    }
-
-    // Wait for data to load (for debug mode)
-    const char* debug_env = getenv("MOONRAKER_DEBUG_TREE");
-    if (debug_env && strcmp(debug_env, "1") == 0) {
-        printf("Debug mode: waiting for data...\n");
-        int wait_count = 0;
-        while (!state.data_ready && wait_count < 50) {  // Wait up to 5 seconds
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            wait_count++;
+    try {
+        // Check TTY
+        if (!Term::is_stdin_a_tty()) {
+            throw Term::Exception("The terminal is not attached to a TTY. Exiting...");
         }
-        if (state.data_ready) {
-            printf("\n=== DEBUG: Tree Structure ===\n");
-            dump_tree_debug(state.tree);
-            printf("=== END DEBUG ===\n\n");
-            return 0;  // Exit after dumping
+
+        InteractiveState state;
+        g_state = &state;
+
+        // Enable debug logging if MOONRAKER_DEBUG env var is set
+        const char* debug_env = std::getenv("MOONRAKER_DEBUG");
+        if (debug_env && strcmp(debug_env, "1") == 0) {
+            // Create file sink to avoid corrupting TUI
+            auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/tmp/moonraker-inspector-debug.log", true);
+            auto logger = std::make_shared<spdlog::logger>("moonraker", file_sink);
+            logger->set_level(spdlog::level::debug);
+            spdlog::set_default_logger(logger);
+            spdlog::info("Debug logging enabled - output to /tmp/moonraker-inspector-debug.log");
         } else {
-            printf("Timed out waiting for data\n");
+            spdlog::set_level(spdlog::level::off);
+        }
+
+        // Set terminal options
+        Term::terminal.setOptions(Term::Option::Raw, Term::Option::NoSignalKeys, Term::Option::ClearScreen, Term::Option::NoCursor);
+
+        Term::Screen term_size = Term::screen_size();
+        bool need_to_render = true;
+
+        // Connect to Moonraker
+        std::string url = "ws://" + ip + ":" + std::to_string(port) + "/websocket";
+        MoonrakerClient client;
+        client.configure_timeouts(5000, 10000, 10000, 200, 2000);
+        state.client = &client;
+
+        bool connected = false;
+
+        auto on_connect = [&]() {
+            connected = true;
+
+            // Query all data
+            client.send_jsonrpc("server.info", json::object(),
+                [&](json response) {
+                    if (response.contains("result")) {
+                        state.server_info = response["result"];
+                    }
+                },
+                [](const MoonrakerError&) {});
+
+            client.send_jsonrpc("printer.info", json::object(),
+                [&](json response) {
+                    if (response.contains("result")) {
+                        state.printer_info = response["result"];
+                    }
+                },
+                [](const MoonrakerError&) {});
+
+            client.send_jsonrpc("printer.objects.list", json::object(),
+                [&](json response) {
+                    if (response.contains("result")) {
+                        state.objects_list = response["result"];
+                        state.data_ready = true;
+                        build_tree(&state);
+                        state.need_redraw = true;
+                    }
+                },
+                [](const MoonrakerError&) {});
+        };
+
+        auto on_disconnect = []() {};
+
+        int result = client.connect(url.c_str(), on_connect, on_disconnect);
+        if (result != 0) {
+            Term::cerr << Term::color_fg(Term::Color::Name::Red) << "Failed to connect to " << url
+                      << Term::color_fg(Term::Color::Name::Default) << std::endl;
             return 1;
         }
-    }
 
-    // Enable raw terminal mode
-    terminal::RawMode raw_mode;
-    if (!raw_mode.enable()) {
-        printf("%sFailed to enable raw terminal mode%s\n", ansi::RED, ansi::RESET);
-        return 1;
-    }
+        // Main event loop
+        bool running = true;
 
-    terminal::ansi::hide_cursor();
+        while (running) {
+            // Render if needed (or if we have pending queries - for spinner animation)
+            if (need_to_render || state.need_redraw || state.pending_queries > 0) {
+                Term::cout << Term::clear_screen() << render_tree(&state, term_size) << std::flush;
+                need_to_render = false;
+                state.need_redraw = false;
+            }
 
-    // Main event loop
-    bool running = true;
-    bool need_redraw = true;  // Initial draw needed
-    bool last_data_ready = false;
+            // Poll for events with timeout (don't block indefinitely)
+            // This allows async callbacks to trigger redraws
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    while (running) {
-        // Check if data became ready (trigger initial render)
-        if (state.data_ready && !last_data_ready) {
-            last_data_ready = true;
-            need_redraw = true;
-        }
+            // Check for input events (using a small timeout via select/poll internally)
+            Term::Event event = Term::read_event();
 
-        // Check if async callbacks triggered a redraw
-        if (state.need_redraw) {
-            need_redraw = true;
-            state.need_redraw = false;
-        }
-
-        // Only redraw if needed
-        if (need_redraw) {
-            render_tree(&state);
-            need_redraw = false;
-        }
-
-        // Check for keyboard input
-        char key = raw_mode.read_key();
-        if (key != 0) {
-            if (key == 'q' || key == 'Q' || key == '\033') {
-                running = false;
-            } else {
-                handle_input(&state, key);
-                need_redraw = true;  // User input requires redraw
+            switch (event.type()) {
+                case Term::Event::Type::Key:
+                {
+                    Term::Key key(event);
+                    if (key == Term::Key::q || key == Term::Key::Esc) {
+                        running = false;
+                    } else {
+                        handle_input(&state, key);
+                        need_to_render = true;
+                    }
+                    break;
+                }
+                case Term::Event::Type::Screen:
+                {
+                    term_size = Term::Screen(event);
+                    need_to_render = true;
+                    break;
+                }
+                case Term::Event::Type::Empty:
+                    // No event - continue loop to check for async updates
+                    break;
+                default:
+                    break;
             }
         }
 
-        // Small delay to prevent CPU spinning
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        Term::cout << "\n" << Term::color_fg(Term::Color::Name::Green) << "Exited interactive mode."
+                  << Term::color_fg(Term::Color::Name::Default) << std::endl;
+
+        return 0;
     }
-
-    terminal::ansi::show_cursor();
-    raw_mode.disable();
-
-    printf("\n%sExited interactive mode.%s\n", ansi::GREEN, ansi::RESET);
-
-    return 0;
+    catch (const Term::Exception& e) {
+        Term::cerr << "cpp-terminal error: " << e.what() << std::endl;
+        return 2;
+    }
+    catch (...) {
+        Term::cerr << "Unknown error." << std::endl;
+        return 1;
+    }
 }

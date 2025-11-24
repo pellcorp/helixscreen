@@ -36,6 +36,7 @@
 #include "moonraker_client.h"
 #include "printer_detector.h"
 #include "printer_types.h"
+#include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
 
@@ -79,9 +80,9 @@ static bool printer_identify_validated = false;
  * use pattern matching to suggest printer type.
  */
 struct PrinterDetectionHint {
-    int type_index;     // Index into PrinterTypes::PRINTER_TYPES_ROLLER
-    int confidence;     // 0-100 (≥70 = auto-select, <70 = suggest)
-    std::string reason; // Human-readable detection reasoning
+    int type_index;        // Index into PrinterTypes::PRINTER_TYPES_ROLLER
+    int confidence;        // 0-100 (≥70 = auto-select, <70 = suggest)
+    std::string type_name; // Detected printer type name (e.g., "FlashForge Adventurer 5M")
 };
 
 /**
@@ -132,7 +133,7 @@ static PrinterDetectionHint detect_printer_type() {
 
     if (result.confidence == 0) {
         // No match found
-        return {PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX, 0, result.reason};
+        return {PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX, 0, result.type_name};
     }
 
     // Map detected type_name to roller index
@@ -144,14 +145,13 @@ static PrinterDetectionHint detect_printer_type() {
             "[Wizard Printer] Detected '{}' ({}% confident) but not found in PRINTER_TYPES_ROLLER",
             result.type_name, result.confidence);
         return {PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX, result.confidence,
-                "Detected: " + result.type_name + " (" + result.reason +
-                    ") - not in dropdown list"};
+                result.type_name + " (not in dropdown list)"};
     }
 
-    spdlog::info("[Wizard Printer] Auto-detected: {} (confidence: {}, reason: {})",
-                 result.type_name, result.confidence, result.reason);
+    spdlog::debug("[Wizard Printer] Auto-detected: {} (confidence: {})",
+                  result.type_name, result.confidence);
 
-    return {type_index, result.confidence, result.reason};
+    return {type_index, result.confidence, result.type_name};
 }
 
 // ============================================================================
@@ -168,8 +168,8 @@ void ui_wizard_printer_identify_init_subjects() {
     int default_type = PrinterTypes::DEFAULT_PRINTER_TYPE_INDEX;
 
     try {
-        default_name = config->get<std::string>("/printer/name", "");
-        saved_type = config->get<std::string>("/printer/type", "");
+        default_name = config->get<std::string>(WizardConfigPaths::PRINTER_NAME, "");
+        saved_type = config->get<std::string>(WizardConfigPaths::PRINTER_TYPE, "");
 
         // Dynamic lookup: find index by type name
         if (!saved_type.empty()) {
@@ -198,13 +198,13 @@ void ui_wizard_printer_identify_init_subjects() {
         if (hint.confidence >= 70) {
             // High-confidence detection overrides default
             default_type = hint.type_index;
-            spdlog::info("[Wizard Printer] Auto-detection: {} (confidence: {}%)", hint.reason,
-                         hint.confidence);
+            spdlog::debug("[Wizard Printer] Auto-detection: {} (confidence: {}%)", hint.type_name,
+                          hint.confidence);
         } else if (hint.confidence > 0) {
-            spdlog::info("[Wizard Printer] Auto-detection suggestion: {} (confidence: {}%)",
-                         hint.reason, hint.confidence);
+            spdlog::debug("[Wizard Printer] Auto-detection suggestion: {} (confidence: {}%)",
+                          hint.type_name, hint.confidence);
         } else {
-            spdlog::debug("[Wizard Printer] Auto-detection: {}", hint.reason);
+            spdlog::debug("[Wizard Printer] Auto-detection: {}", hint.type_name);
         }
     }
 
@@ -215,14 +215,14 @@ void ui_wizard_printer_identify_init_subjects() {
     if (!saved_type.empty()) {
         status_msg = "Loaded from configuration";
     } else if (hint.confidence >= 70) {
-        // High-confidence detection: show what was detected
+        // High-confidence detection: show printer name
         snprintf(printer_detection_status_buffer, sizeof(printer_detection_status_buffer),
-                 "Detected: %s", hint.reason.c_str());
+                 "%s", hint.type_name.c_str());
         status_msg = printer_detection_status_buffer;
     } else if (hint.confidence > 0) {
         // Low-confidence suggestion
         snprintf(printer_detection_status_buffer, sizeof(printer_detection_status_buffer),
-                 "Possible: %s (low confidence)", hint.reason.c_str());
+                 "%s (low confidence)", hint.type_name.c_str());
         status_msg = printer_detection_status_buffer;
     } else {
         // No detection results
@@ -238,7 +238,7 @@ void ui_wizard_printer_identify_init_subjects() {
     int button_state = printer_identify_validated ? 1 : 0;
     lv_subject_set_int(&connection_test_passed, button_state);
 
-    spdlog::info("[Wizard Printer] Subjects initialized (validation: {}, button_state: {})",
+    spdlog::debug("[Wizard Printer] Subjects initialized (validation: {}, button_state: {})",
                  printer_identify_validated ? "valid" : "invalid", button_state);
 }
 
@@ -335,7 +335,7 @@ void ui_wizard_printer_identify_register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_printer_name_changed", on_printer_name_changed);
     lv_xml_register_event_cb(nullptr, "on_printer_type_changed", on_printer_type_changed);
 
-    spdlog::info("[Wizard Printer] Event callbacks registered");
+    spdlog::debug("[Wizard Printer] Event callbacks registered");
 }
 
 // ============================================================================
@@ -393,7 +393,7 @@ lv_obj_t* ui_wizard_printer_identify_create(lv_obj_t* parent) {
     // Update layout
     lv_obj_update_layout(printer_identify_screen_root);
 
-    spdlog::info("[Wizard Printer] Screen created successfully");
+    spdlog::debug("[Wizard Printer] Screen created successfully");
     return printer_identify_screen_root;
 }
 
@@ -416,7 +416,7 @@ void ui_wizard_printer_identify_cleanup() {
 
         // Save printer name if valid
         if (current_name.length() > 0) {
-            config->set("/printer/name", current_name);
+            config->set<std::string>(WizardConfigPaths::PRINTER_NAME, current_name);
             spdlog::debug("[Wizard Printer] Saving printer name to config: '{}'", current_name);
         }
 
@@ -438,13 +438,13 @@ void ui_wizard_printer_identify_cleanup() {
         }
 
         // Save printer type name (not index)
-        config->set("/printer/type", type_name);
+        config->set<std::string>(WizardConfigPaths::PRINTER_TYPE, type_name);
         spdlog::debug("[Wizard Printer] Saving printer type to config: '{}' (index {})", type_name,
                       type_index);
 
         // Persist config changes to disk
         if (config->save()) {
-            spdlog::info("[Wizard Printer] Saved printer identification settings to config");
+            spdlog::debug("[Wizard Printer] Saved printer identification settings to config");
         } else {
             NOTIFY_ERROR("Failed to save printer configuration");
             LOG_ERROR_INTERNAL("[Wizard Printer] Failed to save printer configuration to disk!");
@@ -460,7 +460,7 @@ void ui_wizard_printer_identify_cleanup() {
     // Reset connection_test_passed to enabled (1) for other wizard steps
     lv_subject_set_int(&connection_test_passed, 1);
 
-    spdlog::info("[Wizard Printer] Cleanup complete");
+    spdlog::debug("[Wizard Printer] Cleanup complete");
 }
 
 // ============================================================================

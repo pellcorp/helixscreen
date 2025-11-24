@@ -92,7 +92,7 @@ int restore_dropdown_selection(lv_obj_t* dropdown, lv_subject_t* subject,
             if (!guessed.empty()) {
                 selected_index = find_item_index(items, guessed, 0);
                 if (selected_index > 0 || (!items.empty() && items[0] == guessed)) {
-                    spdlog::info("{} Auto-selected: {}", log_prefix, guessed);
+                    spdlog::debug("{} Auto-selected: {}", log_prefix, guessed);
                 }
             }
         }
@@ -136,7 +136,7 @@ bool save_dropdown_selection(lv_subject_t* subject, const std::vector<std::strin
     // Save item name (not index) to config
     const std::string& item_name = items[index];
     config->set(config_path, item_name);
-    spdlog::info("{} Saved selection: {}", log_prefix, item_name);
+    spdlog::debug("{} Saved selection: {}", log_prefix, item_name);
 
     return true;
 }

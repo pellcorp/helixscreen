@@ -127,7 +127,7 @@ void ui_wizard_connection_init_subjects() {
         spdlog::debug("[Wizard Connection] Have saved config, but needs validation");
     }
 
-    spdlog::info("[Wizard Connection] Subjects initialized (IP: {}, Port: {})",
+    spdlog::debug("[Wizard Connection] Subjects initialized (IP: {}, Port: {})",
                  default_ip.empty() ? "<empty>" : default_ip, default_port);
 }
 
@@ -253,7 +253,7 @@ static void on_test_connection_clicked(lv_event_t* e) {
                 config->set(printer_path + "/moonraker_host", saved_ip);
                 config->set(printer_path + "/moonraker_port", std::stoi(saved_port));
                 if (config->save()) {
-                    spdlog::info("[Wizard Connection] Saved configuration: {}:{}", saved_ip,
+                    spdlog::debug("[Wizard Connection] Saved configuration: {}:{}", saved_ip,
                                  saved_port);
                 } else {
                     spdlog::error("[Wizard Connection] Failed to save configuration to disk!");
@@ -269,7 +269,7 @@ static void on_test_connection_clicked(lv_event_t* e) {
             MoonrakerClient* client = get_moonraker_client();
             if (client) {
                 client->discover_printer([]() {
-                    spdlog::info("[Wizard Connection] Hardware discovery complete!");
+                    spdlog::debug("[Wizard Connection] Hardware discovery complete!");
 
                     // Log discovered hardware counts
                     MoonrakerClient* client = get_moonraker_client();
@@ -278,7 +278,7 @@ static void on_test_connection_clicked(lv_event_t* e) {
                         auto sensors = client->get_sensors();
                         auto fans = client->get_fans();
 
-                        spdlog::info(
+                        spdlog::debug(
                             "[Wizard Connection] Discovered {} heaters, {} sensors, {} fans",
                             heaters.size(), sensors.size(), fans.size());
                     }
@@ -384,7 +384,7 @@ void ui_wizard_connection_register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_ip_input_changed", on_ip_input_changed);
     lv_xml_register_event_cb(nullptr, "on_port_input_changed", on_port_input_changed);
 
-    spdlog::info("[Wizard Connection] Event callbacks registered");
+    spdlog::debug("[Wizard Connection] Event callbacks registered");
 }
 
 // ============================================================================
@@ -446,7 +446,7 @@ lv_obj_t* ui_wizard_connection_create(lv_obj_t* parent) {
     // Update layout
     lv_obj_update_layout(connection_screen_root);
 
-    spdlog::info("[Wizard Connection] Screen created successfully");
+    spdlog::debug("[Wizard Connection] Screen created successfully");
     return connection_screen_root;
 }
 
@@ -473,7 +473,7 @@ void ui_wizard_connection_cleanup() {
     // Reset UI references
     connection_screen_root = nullptr;
 
-    spdlog::info("[Wizard Connection] Cleanup complete");
+    spdlog::debug("[Wizard Connection] Cleanup complete");
 }
 
 // ============================================================================

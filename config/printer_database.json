@@ -3,8 +3,8 @@
   "description": "Printer auto-detection database with hardware fingerprints",
   "printers": [
     {
-      "id": "flashforge_ad5m_pro",
-      "name": "FlashForge AD5M Pro",
+      "id": "flashforge_adventurer_5m",
+      "name": "FlashForge Adventurer 5M",
       "manufacturer": "FlashForge",
       "heuristics": [
         {
@@ -12,14 +12,14 @@
           "field": "sensors",
           "pattern": "tvocValue",
           "confidence": 95,
-          "reason": "Detected tvocValue sensor (FlashForge AD5M Pro signature)"
+          "reason": "Detected tvocValue sensor (FlashForge Adventurer 5M signature)"
         },
         {
           "type": "sensor_match",
           "field": "sensors",
           "pattern": "tvoc",
           "confidence": 95,
-          "reason": "Detected TVOC air quality sensor (FlashForge AD5M Pro signature)"
+          "reason": "Detected TVOC air quality sensor (FlashForge Adventurer 5M signature)"
         },
         {
           "type": "sensor_match",
@@ -47,7 +47,7 @@
           "field": "hostname",
           "pattern": "ad5m",
           "confidence": 80,
-          "reason": "Hostname suggests FlashForge AD5M Pro"
+          "reason": "Hostname suggests FlashForge Adventurer 5M"
         }
       ]
     },

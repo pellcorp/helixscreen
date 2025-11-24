@@ -41,7 +41,7 @@ namespace PrinterTypes {
  * @brief Printer type names as newline-separated string for LVGL roller
  *
  * Format: Each line is a printer type option
- * Default selection: Index 32 ("Unknown")
+ * Default selection: Index 34 ("Unknown")
  */
 inline constexpr const char* PRINTER_TYPES_ROLLER = "Anycubic i3 Mega\n"
                                                     "Anycubic Kobra\n"
@@ -52,6 +52,8 @@ inline constexpr const char* PRINTER_TYPES_ROLLER = "Anycubic i3 Mega\n"
                                                     "Creality Ender 3\n"
                                                     "Creality Ender 5\n"
                                                     "Creality K1\n"
+                                                    "FlashForge Adventurer 5M\n"
+                                                    "FlashForge Adventurer 5M Pro\n"
                                                     "FlashForge Creator Pro\n"
                                                     "FlashForge Dreamer\n"
                                                     "LulzBot TAZ\n"
@@ -80,11 +82,11 @@ inline constexpr const char* PRINTER_TYPES_ROLLER = "Anycubic i3 Mega\n"
 /**
  * @brief Number of printer types in the list
  */
-inline constexpr int PRINTER_TYPE_COUNT = 33;
+inline constexpr int PRINTER_TYPE_COUNT = 35;
 
 /**
  * @brief Default printer type index (Unknown)
  */
-inline constexpr int DEFAULT_PRINTER_TYPE_INDEX = 32;
+inline constexpr int DEFAULT_PRINTER_TYPE_INDEX = 34;
 
 } // namespace PrinterTypes

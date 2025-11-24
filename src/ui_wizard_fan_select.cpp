@@ -66,7 +66,7 @@ void ui_wizard_fan_select_init_subjects() {
     WizardHelpers::init_int_subject(&hotend_fan_selected, 0, "hotend_fan_selected");
     WizardHelpers::init_int_subject(&part_fan_selected, 0, "part_fan_selected");
 
-    spdlog::info("[Wizard Fan] Subjects initialized");
+    spdlog::debug("[0");
 }
 
 // ============================================================================
@@ -83,7 +83,7 @@ void ui_wizard_fan_select_register_callbacks() {
 // ============================================================================
 
 lv_obj_t* ui_wizard_fan_select_create(lv_obj_t* parent) {
-    spdlog::info("[Wizard Fan] Creating fan select screen");
+    spdlog::debug("[Wizard Fan] Creating fan select screen");
 
     // Safety check: cleanup should have been called by wizard navigation
     if (fan_select_screen_root) {
@@ -179,7 +179,7 @@ lv_obj_t* ui_wizard_fan_select_create(lv_obj_t* parent) {
                             LV_EVENT_VALUE_CHANGED, &part_fan_selected);
     }
 
-    spdlog::info("[Wizard Fan] Screen created successfully");
+    spdlog::debug("[0");
     return fan_select_screen_root;
 }
 
@@ -210,7 +210,7 @@ void ui_wizard_fan_select_cleanup() {
     // object deletion when clearing wizard_content container
     fan_select_screen_root = nullptr;
 
-    spdlog::info("[Wizard Fan] Cleanup complete");
+    spdlog::debug("[0");
 }
 
 // ============================================================================

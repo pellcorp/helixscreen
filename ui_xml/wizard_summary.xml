@@ -12,7 +12,7 @@
     <ui_card width="100%" flex_grow="1" style_bg_opa="255" style_radius="12" style_pad_all="#padding_normal" style_pad_gap="#gap_small" flex_flow="column" style_flex_main_place="start" style_flex_cross_place="start">
       <!-- Connection settings -->
       <text_heading text="Printer Connection" style_pad_bottom="8"/>
-      <lv_obj width="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="8" flex_flow="row">
+      <lv_obj width="100%" height="LV_SIZE_CONTENT" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="8" flex_flow="row">
         <text_body text="Printer Name:"/>
         <lv_label name="summary_printer_name_label" bind_text="summary_printer_name" style_text_font="#font_body" style_text_color="#text_primary"/>
       </lv_obj>
@@ -58,6 +58,6 @@
       </lv_obj>
     </ui_card>
     <!-- Success message -->
-    <text_body text="&#x2713; Configuration will be saved when you click Finish" width="100%" style_pad_top="#padding_normal"/>
+    <text_body text="&#xF00C; Configuration will be saved when you click Finish" width="100%" style_pad_top="#padding_normal"/>
   </view>
 </component>

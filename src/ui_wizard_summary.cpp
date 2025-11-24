@@ -195,7 +195,7 @@ void ui_wizard_summary_init_subjects() {
     UI_SUBJECT_INIT_AND_REGISTER_STRING(summary_led_strip, led_strip_buffer, led_strip_buffer, "summary_led_strip");
     UI_SUBJECT_INIT_AND_REGISTER_INT(summary_led_strip_visible, led_strip_visible, "summary_led_strip_visible");
 
-    spdlog::info("[Wizard Summary] Subjects initialized with config values");
+    spdlog::debug("[0 with config values");
 }
 
 // ============================================================================
@@ -212,7 +212,7 @@ void ui_wizard_summary_register_callbacks() {
 // ============================================================================
 
 lv_obj_t* ui_wizard_summary_create(lv_obj_t* parent) {
-    spdlog::info("[Wizard Summary] Creating summary screen");
+    spdlog::debug("[Wizard Summary] Creating summary screen");
 
     // Safety check: cleanup should have been called by wizard navigation
     if (summary_screen_root) {
@@ -231,7 +231,7 @@ lv_obj_t* ui_wizard_summary_create(lv_obj_t* parent) {
         return nullptr;
     }
 
-    spdlog::info("[Wizard Summary] Screen created successfully");
+    spdlog::debug("[0");
     return summary_screen_root;
 }
 

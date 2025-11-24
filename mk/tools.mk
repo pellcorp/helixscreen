@@ -23,7 +23,8 @@ INSPECTOR_STUB_OBJ := $(OBJ_DIR)/tools/ui_notification_stub.o
 INSPECTOR_DEPS := \
 	$(OBJ_DIR)/moonraker_client.o \
 	$(INSPECTOR_INTERACTIVE_OBJ) \
-	$(INSPECTOR_STUB_OBJ)
+	$(INSPECTOR_STUB_OBJ) \
+	$(CPP_TERMINAL_OBJS)
 
 # Simplified linker flags (no SDL2, no UI frameworks)
 INSPECTOR_LDFLAGS := $(LIBHV_LIBS) -lm -lpthread
@@ -49,9 +50,9 @@ $(INSPECTOR_OBJ): $(INSPECTOR_SRC) $(HEADERS) $(LIBHV_LIB)
 	$(Q)mkdir -p $(dir $@)
 	$(ECHO) "$(BLUE)[CXX]$(RESET) $<"
 ifeq ($(V),1)
-	$(Q)echo "$(YELLOW)Command:$(RESET) $(CXX) $(CXXFLAGS) $(INCLUDES) -I$(TOOLS_DIR) -c $< -o $@"
+	$(Q)echo "$(YELLOW)Command:$(RESET) $(CXX) $(CXXFLAGS) $(INCLUDES) $(CPP_TERMINAL_INC) -I$(TOOLS_DIR) -c $< -o $@"
 endif
-	$(Q)$(CXX) $(CXXFLAGS) $(INCLUDES) -I$(TOOLS_DIR) -c $< -o $@ || { \
+	$(Q)$(CXX) $(CXXFLAGS) $(INCLUDES) $(CPP_TERMINAL_INC) -I$(TOOLS_DIR) -c $< -o $@ || { \
 		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
 		exit 1; \
 	}
@@ -61,9 +62,21 @@ $(INSPECTOR_INTERACTIVE_OBJ): $(INSPECTOR_INTERACTIVE_SRC) $(HEADERS) $(LIBHV_LI
 	$(Q)mkdir -p $(dir $@)
 	$(ECHO) "$(BLUE)[CXX]$(RESET) $<"
 ifeq ($(V),1)
-	$(Q)echo "$(YELLOW)Command:$(RESET) $(CXX) $(CXXFLAGS) $(INCLUDES) -I$(TOOLS_DIR) -c $< -o $@"
+	$(Q)echo "$(YELLOW)Command:$(RESET) $(CXX) $(CXXFLAGS) $(INCLUDES) $(CPP_TERMINAL_INC) -I$(TOOLS_DIR) -c $< -o $@"
 endif
-	$(Q)$(CXX) $(CXXFLAGS) $(INCLUDES) -I$(TOOLS_DIR) -c $< -o $@ || { \
+	$(Q)$(CXX) $(CXXFLAGS) $(INCLUDES) $(CPP_TERMINAL_INC) -I$(TOOLS_DIR) -c $< -o $@ || { \
+		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
+		exit 1; \
+	}
+
+# Compile cpp-terminal library
+$(OBJ_DIR)/cpp-terminal/%.o: $(CPP_TERMINAL_DIR)/%.cpp
+	$(Q)mkdir -p $(dir $@)
+	$(ECHO) "$(BLUE)[CXX]$(RESET) $<"
+ifeq ($(V),1)
+	$(Q)echo "$(YELLOW)Command:$(RESET) $(CXX) $(CXXFLAGS) $(CPP_TERMINAL_INC) -c $< -o $@"
+endif
+	$(Q)$(CXX) $(CXXFLAGS) $(CPP_TERMINAL_INC) -c $< -o $@ || { \
 		echo "$(RED)$(BOLD)✗ Compilation failed:$(RESET) $<"; \
 		exit 1; \
 	}

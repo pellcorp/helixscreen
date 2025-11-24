@@ -130,6 +130,13 @@ LVGL_OBJS := $(patsubst $(LVGL_DIR)/%.c,$(OBJ_DIR)/lvgl/%.o,$(LVGL_SRCS))
 THORVG_SRCS := $(shell find $(LVGL_DIR)/src/libs/thorvg -name "*.cpp" 2>/dev/null)
 THORVG_OBJS := $(patsubst $(LVGL_DIR)/%.cpp,$(OBJ_DIR)/lvgl/%.o,$(THORVG_SRCS))
 
+# cpp-terminal (modern TUI library)
+CPP_TERMINAL_DIR := lib/cpp-terminal
+CPP_TERMINAL_INC := -I$(CPP_TERMINAL_DIR)
+CPP_TERMINAL_SRCS := $(wildcard $(CPP_TERMINAL_DIR)/cpp-terminal/*.cpp) \
+                     $(wildcard $(CPP_TERMINAL_DIR)/cpp-terminal/private/*.cpp)
+CPP_TERMINAL_OBJS := $(patsubst $(CPP_TERMINAL_DIR)/%.cpp,$(OBJ_DIR)/cpp-terminal/%.o,$(CPP_TERMINAL_SRCS))
+
 # LVGL Demos (separate target)
 LVGL_DEMO_SRCS := $(shell find $(LVGL_DIR)/demos -name "*.c" 2>/dev/null)
 LVGL_DEMO_OBJS := $(patsubst $(LVGL_DIR)/%.c,$(OBJ_DIR)/lvgl/%.o,$(LVGL_DEMO_SRCS))

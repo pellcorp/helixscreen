@@ -63,7 +63,7 @@ void ui_wizard_led_select_init_subjects() {
     // Actual selection will be restored from config during create() after hardware is discovered
     WizardHelpers::init_int_subject(&led_strip_selected, 0, "led_strip_selected");
 
-    spdlog::info("[Wizard LED] Subjects initialized");
+    spdlog::debug("[0");
 }
 
 // ============================================================================
@@ -80,7 +80,7 @@ void ui_wizard_led_select_register_callbacks() {
 // ============================================================================
 
 lv_obj_t* ui_wizard_led_select_create(lv_obj_t* parent) {
-    spdlog::info("[Wizard LED] Creating LED select screen");
+    spdlog::debug("[Wizard LED] Creating LED select screen");
 
     // Safety check: cleanup should have been called by wizard navigation
     if (led_select_screen_root) {
@@ -113,7 +113,7 @@ lv_obj_t* ui_wizard_led_select_create(lv_obj_t* parent) {
                             LV_EVENT_VALUE_CHANGED, &led_strip_selected);
     }
 
-    spdlog::info("[Wizard LED] Screen created successfully");
+    spdlog::debug("[0");
     return led_select_screen_root;
 }
 
@@ -141,7 +141,7 @@ void ui_wizard_led_select_cleanup() {
     // object deletion when clearing wizard_content container
     led_select_screen_root = nullptr;
 
-    spdlog::info("[Wizard LED] Cleanup complete");
+    spdlog::debug("[0");
 }
 
 // ============================================================================
