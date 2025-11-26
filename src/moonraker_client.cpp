@@ -496,6 +496,29 @@ void MoonrakerClient::register_notify_update(std::function<void(json)> cb) {
     notify_callbacks_.push_back(cb);
 }
 
+void MoonrakerClient::dispatch_status_update(const json& status) {
+    // Wrap raw status into notify_status_update format
+    json notification = {
+        {"method", "notify_status_update"},
+        {"params", json::array({status, 0.0})}  // [status, eventtime]
+    };
+
+    // Dispatch to all registered callbacks
+    std::vector<std::function<void(json)>> callbacks_copy;
+    {
+        std::lock_guard<std::mutex> lock(callbacks_mutex_);
+        callbacks_copy = notify_callbacks_;
+    }
+
+    for (const auto& cb : callbacks_copy) {
+        if (cb) {
+            cb(notification);
+        }
+    }
+
+    spdlog::debug("[Moonraker Client] Dispatched status update to {} callbacks", callbacks_copy.size());
+}
+
 void MoonrakerClient::register_method_callback(const std::string& method,
                                                const std::string& handler_name,
                                                std::function<void(json)> cb) {
@@ -693,11 +716,18 @@ void MoonrakerClient::discover_printer(std::function<void()> on_complete) {
 
                 send_jsonrpc(
                     "printer.objects.subscribe", subscribe_params,
-                    [on_complete, subscription_objects](json sub_response) {
+                    [this, on_complete, subscription_objects](json sub_response) {
                         if (sub_response.contains("result")) {
                             spdlog::debug(
                                 "[Moonraker Client] Subscription complete: {} objects subscribed",
                                 subscription_objects.size());
+
+                            // Process initial state from subscription response
+                            // Moonraker returns current values in result.status
+                            if (sub_response["result"].contains("status")) {
+                                spdlog::info("[Moonraker Client] Processing initial printer state from subscription");
+                                dispatch_status_update(sub_response["result"]["status"]);
+                            }
                         } else if (sub_response.contains("error")) {
                             spdlog::error("[Moonraker Client] Subscription failed: {}",
                                           sub_response["error"].dump());

@@ -28,8 +28,8 @@
 #include "ui_event_safety.h"
 #include "ui_nav.h"
 #include "ui_panel_controls_extrusion.h"
-#include "ui_panel_controls_temp.h"
 #include "ui_panel_motion.h"
+#include "ui_temp_control_panel.h"
 
 #include <spdlog/spdlog.h>
 
@@ -40,6 +40,9 @@ static lv_obj_t* nozzle_temp_panel = nullptr;
 static lv_obj_t* bed_temp_panel = nullptr;
 static lv_obj_t* extrusion_panel = nullptr;
 static lv_obj_t* parent_screen = nullptr;
+
+// Temperature panel reference (passed in via wire_events)
+static TempControlPanel* temp_control_panel = nullptr;
 
 // ============================================================================
 // Card Click Event Handlers
@@ -76,6 +79,12 @@ LVGL_SAFE_EVENT_CB(card_motion_clicked, {
 LVGL_SAFE_EVENT_CB(card_nozzle_temp_clicked, {
     spdlog::debug("Nozzle Temp card clicked - opening Nozzle Temperature sub-screen");
 
+    if (!temp_control_panel) {
+        LOG_ERROR_INTERNAL("TempControlPanel not initialized");
+        NOTIFY_ERROR("Temperature panel not available");
+        return;
+    }
+
     // Create nozzle temp panel on first access
     if (!nozzle_temp_panel && parent_screen) {
         spdlog::debug("Creating nozzle temperature panel...");
@@ -88,7 +97,7 @@ LVGL_SAFE_EVENT_CB(card_nozzle_temp_clicked, {
         }
 
         // Setup event handlers for nozzle temp panel
-        ui_panel_controls_temp_nozzle_setup(nozzle_temp_panel, parent_screen);
+        temp_control_panel->setup_nozzle_panel(nozzle_temp_panel, parent_screen);
 
         // Initially hidden
         lv_obj_add_flag(nozzle_temp_panel, LV_OBJ_FLAG_HIDDEN);
@@ -104,6 +113,12 @@ LVGL_SAFE_EVENT_CB(card_nozzle_temp_clicked, {
 LVGL_SAFE_EVENT_CB(card_bed_temp_clicked, {
     spdlog::debug("Bed Temp card clicked - opening Heatbed Temperature sub-screen");
 
+    if (!temp_control_panel) {
+        LOG_ERROR_INTERNAL("TempControlPanel not initialized");
+        NOTIFY_ERROR("Temperature panel not available");
+        return;
+    }
+
     // Create bed temp panel on first access
     if (!bed_temp_panel && parent_screen) {
         spdlog::debug("Creating bed temperature panel...");
@@ -116,7 +131,7 @@ LVGL_SAFE_EVENT_CB(card_bed_temp_clicked, {
         }
 
         // Setup event handlers for bed temp panel
-        ui_panel_controls_temp_bed_setup(bed_temp_panel, parent_screen);
+        temp_control_panel->setup_bed_panel(bed_temp_panel, parent_screen);
 
         // Initially hidden
         lv_obj_add_flag(bed_temp_panel, LV_OBJ_FLAG_HIDDEN);
@@ -177,14 +192,16 @@ void ui_panel_controls_init_subjects() {
     spdlog::debug("Controls panel subjects initialized");
 }
 
-void ui_panel_controls_wire_events(lv_obj_t* panel_obj, lv_obj_t* screen) {
+void ui_panel_controls_wire_events(lv_obj_t* panel_obj, lv_obj_t* screen,
+                                   TempControlPanel& temp_panel) {
     if (!panel_obj) {
         spdlog::error("Cannot wire controls panel events: null panel object");
         return;
     }
 
-    // Store screen reference (needed for overlay panel creation)
+    // Store references (needed for overlay panel creation)
     parent_screen = screen;
+    temp_control_panel = &temp_panel;
 
     // Find launcher card objects by name
     lv_obj_t* card_motion = lv_obj_find_by_name(panel_obj, "card_motion");

@@ -34,7 +34,6 @@ typedef struct {
     lv_color_t color;        ///< Theme color for this heater
     float temp_range_max;    ///< Maximum temperature for graph Y-axis
     int y_axis_increment;    ///< Y-axis label increment (e.g., 50°C, 100°C)
-    int default_mock_target; ///< Default mock target for testing
 
     struct {
         int off;  ///< "Off" preset (0°C)

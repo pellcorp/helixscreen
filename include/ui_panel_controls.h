@@ -25,6 +25,9 @@
 
 #include "lvgl/lvgl.h"
 
+// Forward declaration
+class TempControlPanel;
+
 /**
  * @brief Controls Panel - Launcher and sub-screen management
  *
@@ -46,8 +49,10 @@ void ui_panel_controls_init_subjects();
  *
  * @param panel_obj The controls panel object returned from lv_xml_create()
  * @param screen The screen object (parent for overlay panels)
+ * @param temp_panel Reference to TempControlPanel for temperature sub-screens
  */
-void ui_panel_controls_wire_events(lv_obj_t* panel_obj, lv_obj_t* screen);
+void ui_panel_controls_wire_events(lv_obj_t* panel_obj, lv_obj_t* screen,
+                                   TempControlPanel& temp_panel);
 
 /**
  * @brief Get the controls panel object

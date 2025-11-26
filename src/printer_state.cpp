@@ -139,8 +139,6 @@ void PrinterState::init_subjects(bool register_xml) {
 }
 
 void PrinterState::update_from_notification(const json& notification) {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-
     // Moonraker notifications have structure:
     // {"method": "notify_status_update", "params": [{...printer state...}, eventtime]}
 
@@ -153,117 +151,123 @@ void PrinterState::update_from_notification(const json& notification) {
         return;
     }
 
-    // Extract printer state from params[0]
+    // Extract printer state from params[0] and delegate to update_from_status
     auto params = notification["params"];
     if (params.is_array() && !params.empty()) {
-        const auto& state = params[0];
-
-        // Update extruder temperature
-        if (state.contains("extruder")) {
-            const auto& extruder = state["extruder"];
-
-            if (extruder.contains("temperature")) {
-                int temp = static_cast<int>(extruder["temperature"].get<double>());
-                lv_subject_set_int(&extruder_temp_, temp);
-            }
-
-            if (extruder.contains("target")) {
-                int target = static_cast<int>(extruder["target"].get<double>());
-                lv_subject_set_int(&extruder_target_, target);
-            }
-        }
-
-        // Update bed temperature
-        if (state.contains("heater_bed")) {
-            const auto& bed = state["heater_bed"];
-
-            if (bed.contains("temperature")) {
-                int temp = static_cast<int>(bed["temperature"].get<double>());
-                lv_subject_set_int(&bed_temp_, temp);
-            }
-
-            if (bed.contains("target")) {
-                int target = static_cast<int>(bed["target"].get<double>());
-                lv_subject_set_int(&bed_target_, target);
-            }
-        }
-
-        // Update print progress
-        if (state.contains("virtual_sdcard")) {
-            const auto& sdcard = state["virtual_sdcard"];
-
-            if (sdcard.contains("progress")) {
-                double progress = sdcard["progress"].get<double>();
-                int progress_pct = static_cast<int>(progress * 100.0);
-                lv_subject_set_int(&print_progress_, progress_pct);
-            }
-        }
-
-        // Update print state
-        if (state.contains("print_stats")) {
-            const auto& stats = state["print_stats"];
-
-            if (stats.contains("state")) {
-                std::string state_str = stats["state"].get<std::string>();
-                lv_subject_copy_string(&print_state_, state_str.c_str());
-            }
-
-            if (stats.contains("filename")) {
-                std::string filename = stats["filename"].get<std::string>();
-                lv_subject_copy_string(&print_filename_, filename.c_str());
-            }
-        }
-
-        // Update toolhead position
-        if (state.contains("toolhead")) {
-            const auto& toolhead = state["toolhead"];
-
-            if (toolhead.contains("position") && toolhead["position"].is_array()) {
-                const auto& pos = toolhead["position"];
-                if (pos.size() >= 3) {
-                    lv_subject_set_int(&position_x_, static_cast<int>(pos[0].get<double>()));
-                    lv_subject_set_int(&position_y_, static_cast<int>(pos[1].get<double>()));
-                    lv_subject_set_int(&position_z_, static_cast<int>(pos[2].get<double>()));
-                }
-            }
-
-            if (toolhead.contains("homed_axes")) {
-                std::string axes = toolhead["homed_axes"].get<std::string>();
-                lv_subject_copy_string(&homed_axes_, axes.c_str());
-            }
-        }
-
-        // Update speed factor
-        if (state.contains("gcode_move")) {
-            const auto& gcode_move = state["gcode_move"];
-
-            if (gcode_move.contains("speed_factor")) {
-                double factor = gcode_move["speed_factor"].get<double>();
-                int factor_pct = static_cast<int>(factor * 100.0);
-                lv_subject_set_int(&speed_factor_, factor_pct);
-            }
-
-            if (gcode_move.contains("extrude_factor")) {
-                double factor = gcode_move["extrude_factor"].get<double>();
-                int factor_pct = static_cast<int>(factor * 100.0);
-                lv_subject_set_int(&flow_factor_, factor_pct);
-            }
-        }
-
-        // Update fan speed
-        if (state.contains("fan")) {
-            const auto& fan = state["fan"];
-
-            if (fan.contains("speed")) {
-                double speed = fan["speed"].get<double>();
-                int speed_pct = static_cast<int>(speed * 100.0);
-                lv_subject_set_int(&fan_speed_, speed_pct);
-            }
-        }
-
-        // Cache full state for complex queries
-        json_state_.merge_patch(state);
+        update_from_status(params[0]);
     }
+}
+
+void PrinterState::update_from_status(const json& state) {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    // Update extruder temperature
+    if (state.contains("extruder")) {
+        const auto& extruder = state["extruder"];
+
+        if (extruder.contains("temperature")) {
+            int temp = static_cast<int>(extruder["temperature"].get<double>());
+            lv_subject_set_int(&extruder_temp_, temp);
+        }
+
+        if (extruder.contains("target")) {
+            int target = static_cast<int>(extruder["target"].get<double>());
+            lv_subject_set_int(&extruder_target_, target);
+        }
+    }
+
+    // Update bed temperature
+    if (state.contains("heater_bed")) {
+        const auto& bed = state["heater_bed"];
+
+        if (bed.contains("temperature")) {
+            int temp = static_cast<int>(bed["temperature"].get<double>());
+            lv_subject_set_int(&bed_temp_, temp);
+            spdlog::trace("[PrinterState] Bed temp: {}°C", temp);
+        }
+
+        if (bed.contains("target")) {
+            int target = static_cast<int>(bed["target"].get<double>());
+            lv_subject_set_int(&bed_target_, target);
+            spdlog::trace("[PrinterState] Bed target: {}°C", target);
+        }
+    }
+
+    // Update print progress
+    if (state.contains("virtual_sdcard")) {
+        const auto& sdcard = state["virtual_sdcard"];
+
+        if (sdcard.contains("progress")) {
+            double progress = sdcard["progress"].get<double>();
+            int progress_pct = static_cast<int>(progress * 100.0);
+            lv_subject_set_int(&print_progress_, progress_pct);
+        }
+    }
+
+    // Update print state
+    if (state.contains("print_stats")) {
+        const auto& stats = state["print_stats"];
+
+        if (stats.contains("state")) {
+            std::string state_str = stats["state"].get<std::string>();
+            lv_subject_copy_string(&print_state_, state_str.c_str());
+        }
+
+        if (stats.contains("filename")) {
+            std::string filename = stats["filename"].get<std::string>();
+            lv_subject_copy_string(&print_filename_, filename.c_str());
+        }
+    }
+
+    // Update toolhead position
+    if (state.contains("toolhead")) {
+        const auto& toolhead = state["toolhead"];
+
+        if (toolhead.contains("position") && toolhead["position"].is_array()) {
+            const auto& pos = toolhead["position"];
+            if (pos.size() >= 3) {
+                lv_subject_set_int(&position_x_, static_cast<int>(pos[0].get<double>()));
+                lv_subject_set_int(&position_y_, static_cast<int>(pos[1].get<double>()));
+                lv_subject_set_int(&position_z_, static_cast<int>(pos[2].get<double>()));
+            }
+        }
+
+        if (toolhead.contains("homed_axes")) {
+            std::string axes = toolhead["homed_axes"].get<std::string>();
+            lv_subject_copy_string(&homed_axes_, axes.c_str());
+        }
+    }
+
+    // Update speed factor
+    if (state.contains("gcode_move")) {
+        const auto& gcode_move = state["gcode_move"];
+
+        if (gcode_move.contains("speed_factor")) {
+            double factor = gcode_move["speed_factor"].get<double>();
+            int factor_pct = static_cast<int>(factor * 100.0);
+            lv_subject_set_int(&speed_factor_, factor_pct);
+        }
+
+        if (gcode_move.contains("extrude_factor")) {
+            double factor = gcode_move["extrude_factor"].get<double>();
+            int factor_pct = static_cast<int>(factor * 100.0);
+            lv_subject_set_int(&flow_factor_, factor_pct);
+        }
+    }
+
+    // Update fan speed
+    if (state.contains("fan")) {
+        const auto& fan = state["fan"];
+
+        if (fan.contains("speed")) {
+            double speed = fan["speed"].get<double>();
+            int speed_pct = static_cast<int>(speed * 100.0);
+            lv_subject_set_int(&fan_speed_, speed_pct);
+        }
+    }
+
+    // Cache full state for complex queries
+    json_state_.merge_patch(state);
 }
 
 json& PrinterState::get_json_state() {

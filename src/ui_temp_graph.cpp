@@ -47,6 +47,64 @@ static ui_temp_series_meta_t* find_series(ui_temp_graph_t* graph, int series_id)
     return nullptr;
 }
 
+// Helper: Create a muted (reduced opacity) version of a color
+// Since LVGL chart cursors don't support opacity, we blend toward the background
+static lv_color_t mute_color(lv_color_t color, lv_opa_t opa) {
+    // Blend toward dark gray (chart background) based on opacity
+    // opa=255 = full color, opa=0 = full background
+    lv_color_t bg = lv_color_hex(0x2D2D2D); // Dark chart background
+    uint8_t r = (color.red * opa + bg.red * (255 - opa)) / 255;
+    uint8_t g = (color.green * opa + bg.green * (255 - opa)) / 255;
+    uint8_t b = (color.blue * opa + bg.blue * (255 - opa)) / 255;
+    return lv_color_make(r, g, b);
+}
+
+// Helper: Convert temperature value to pixel Y coordinate
+// LVGL chart cursor position is relative to object's top-left corner,
+// but data is plotted in the content area (after padding).
+// So we need to add padding offset to match where data points are drawn.
+static int32_t temp_to_pixel_y(ui_temp_graph_t* graph, float temp) {
+    int32_t chart_height = lv_obj_get_content_height(graph->chart);
+    if (chart_height <= 0) {
+        return 0; // Chart not laid out yet
+    }
+
+    // Get padding offset (cursor coords are relative to object, not content area)
+    int32_t pad_top = lv_obj_get_style_pad_top(graph->chart, LV_PART_MAIN);
+    int32_t border_w = lv_obj_get_style_border_width(graph->chart, LV_PART_MAIN);
+    int32_t y_ofs = pad_top + border_w;
+
+    // Map temperature to pixel position within content area (inverted for Y axis)
+    // lv_map(value, in_min, in_max, out_min, out_max)
+    int32_t content_y = chart_height - lv_map((int32_t)temp, (int32_t)graph->min_temp,
+                                               (int32_t)graph->max_temp, 0, chart_height);
+
+    // Add offset to convert from content-relative to object-relative coordinates
+    return content_y + y_ofs;
+}
+
+// Helper: Update all cursor positions (called on resize)
+static void update_all_cursor_positions(ui_temp_graph_t* graph) {
+    if (!graph) return;
+
+    for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
+        ui_temp_series_meta_t* meta = &graph->series_meta[i];
+        if (meta->chart_series && meta->target_cursor && meta->show_target) {
+            int32_t pixel_y = temp_to_pixel_y(graph, meta->target_temp);
+            lv_chart_set_cursor_pos_y(graph->chart, meta->target_cursor, pixel_y);
+        }
+    }
+}
+
+// Event callback: Recalculate cursor positions when chart is resized
+static void chart_resize_cb(lv_event_t* e) {
+    lv_obj_t* chart = lv_event_get_target_obj(e);
+    ui_temp_graph_t* graph = static_cast<ui_temp_graph_t*>(lv_obj_get_user_data(chart));
+    if (graph) {
+        update_all_cursor_positions(graph);
+    }
+}
+
 // Event callback for drawing gradient fills under curves (LVGL 9 draw task system)
 // TODO: Currently disabled - needs complete rewrite for LVGL 9's new draw task system
 #if 0
@@ -210,6 +268,9 @@ ui_temp_graph_t* ui_temp_graph_create(lv_obj_t* parent) {
     // Store graph pointer in chart user data for retrieval
     lv_obj_set_user_data(graph->chart, graph);
 
+    // Register resize callback to recalculate value-based cursor positions
+    lv_obj_add_event_cb(graph->chart, chart_resize_cb, LV_EVENT_SIZE_CHANGED, nullptr);
+
     spdlog::info("[TempGraph] Created: {} points, {:.0f}-{:.0f}°C range", graph->point_count,
                  graph->min_temp, graph->max_temp);
 
@@ -293,10 +354,12 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
     meta->gradient_top_opa = UI_TEMP_GRAPH_GRADIENT_TOP_OPA;
 
     // Create target temperature cursor (horizontal line, initially hidden)
-    meta->target_cursor = lv_chart_add_cursor(graph->chart, color, LV_DIR_HOR);
-    if (meta->target_cursor) {
-        lv_chart_set_cursor_point(graph->chart, meta->target_cursor, ser, 0);
-    }
+    // Note: We don't use lv_chart_set_cursor_point because that binds the cursor
+    // to a data point which scrolls. Instead we use lv_chart_set_cursor_pos for
+    // a fixed Y position representing the target temperature.
+    // Use muted color (50% opacity) so target line is visually distinct from actual data
+    lv_color_t cursor_color = mute_color(color, LV_OPA_20); // Very subtle target line
+    meta->target_cursor = lv_chart_add_cursor(graph->chart, cursor_color, LV_DIR_HOR);
 
     graph->series_count++;
 
@@ -436,12 +499,16 @@ void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, int series_id, floa
         return;
     }
 
+    // Store the value (used for recalculation on resize)
     meta->target_temp = target;
     meta->show_target = show;
 
     if (meta->target_cursor && show) {
-        // Update cursor position using public API
-        lv_chart_set_cursor_pos_y(graph->chart, meta->target_cursor, (int32_t)target);
+        // Convert temperature value to pixel coordinate
+        // This abstraction allows callers to work with temperatures, not pixels
+        lv_obj_update_layout(graph->chart); // Ensure dimensions are current
+        int32_t pixel_y = temp_to_pixel_y(graph, target);
+        lv_chart_set_cursor_pos_y(graph->chart, meta->target_cursor, pixel_y);
 
         lv_obj_invalidate(graph->chart);
     }
@@ -472,6 +539,9 @@ void ui_temp_graph_set_temp_range(ui_temp_graph_t* graph, float min, float max) 
     graph->max_temp = max;
 
     lv_chart_set_axis_range(graph->chart, LV_CHART_AXIS_PRIMARY_Y, (int32_t)min, (int32_t)max);
+
+    // Recalculate all cursor positions since value-to-pixel mapping changed
+    update_all_cursor_positions(graph);
 
     spdlog::debug("[TempGraph] Temperature range set: {:.0f} - {:.0f}°C", min, max);
 }

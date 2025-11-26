@@ -26,7 +26,10 @@
 
 #include "moonraker_client.h"
 
+#include <atomic>
+#include <chrono>
 #include <string>
+#include <thread>
 #include <vector>
 
 /**
@@ -51,7 +54,11 @@ class MoonrakerClientMock : public MoonrakerClient {
     };
 
     MoonrakerClientMock(PrinterType type = PrinterType::VORON_24);
-    ~MoonrakerClientMock() = default;
+    ~MoonrakerClientMock();
+
+    // Prevent copying (has thread state)
+    MoonrakerClientMock(const MoonrakerClientMock&) = delete;
+    MoonrakerClientMock& operator=(const MoonrakerClientMock&) = delete;
 
     /**
      * @brief Simulate WebSocket connection (no real network I/O)
@@ -154,6 +161,41 @@ class MoonrakerClientMock : public MoonrakerClient {
         printer_type_ = type;
     }
 
+    /**
+     * @brief Start temperature simulation loop
+     *
+     * Begins a background thread that simulates temperature changes
+     * and pushes updates via notify_status_update callback.
+     * Called automatically on connect().
+     */
+    void start_temperature_simulation();
+
+    /**
+     * @brief Stop temperature simulation loop
+     *
+     * Stops the background simulation thread.
+     * Called automatically on disconnect() and destructor.
+     */
+    void stop_temperature_simulation();
+
+    /**
+     * @brief Set simulated extruder target temperature
+     *
+     * Starts heating/cooling simulation toward target.
+     *
+     * @param target Target temperature in Celsius
+     */
+    void set_extruder_target(double target);
+
+    /**
+     * @brief Set simulated bed target temperature
+     *
+     * Starts heating/cooling simulation toward target.
+     *
+     * @param target Target temperature in Celsius
+     */
+    void set_bed_target(double target);
+
   private:
     /**
      * @brief Populate hardware lists based on configured printer type
@@ -171,8 +213,71 @@ class MoonrakerClientMock : public MoonrakerClient {
      */
     void generate_mock_bed_mesh();
 
+    /**
+     * @brief Temperature simulation loop (runs in background thread)
+     */
+    void temperature_simulation_loop();
+
+    /**
+     * @brief Dispatch initial printer state to observers
+     *
+     * Called during connect() to send initial state, matching the behavior
+     * of the real MoonrakerClient which sends initial state from the
+     * subscription response. Uses dispatch_status_update() from base class.
+     */
+    void dispatch_initial_state();
+
+    /**
+     * @brief Get print state as string for Moonraker-compatible notifications
+     *
+     * @return String representation: "standby", "printing", "paused", "complete", "cancelled", "error"
+     */
+    std::string get_print_state_string() const;
+
   private:
     PrinterType printer_type_;
+
+    // Temperature simulation state
+    std::atomic<double> extruder_temp_{25.0};   // Current temperature
+    std::atomic<double> extruder_target_{0.0};  // Target temperature (0 = off)
+    std::atomic<double> bed_temp_{25.0};        // Current temperature
+    std::atomic<double> bed_target_{0.0};       // Target temperature (0 = off)
+
+    // Position simulation state
+    std::atomic<double> pos_x_{0.0};
+    std::atomic<double> pos_y_{0.0};
+    std::atomic<double> pos_z_{0.0};
+
+    // Motion mode state
+    std::atomic<bool> relative_mode_{false};  // G90=absolute (false), G91=relative (true)
+
+    // Homing state (needs mutex since std::string is not atomic)
+    mutable std::mutex homed_axes_mutex_;
+    std::string homed_axes_;
+
+    // Print simulation state
+    std::atomic<int> print_state_{0};           // 0=standby, 1=printing, 2=paused, 3=complete, 4=cancelled, 5=error
+    std::string print_filename_;                // Current print file (protected by print_mutex_)
+    mutable std::mutex print_mutex_;            // Protects print_filename_
+    std::atomic<double> print_progress_{0.0};   // 0.0 to 1.0
+    std::atomic<int> speed_factor_{100};        // Percentage
+    std::atomic<int> flow_factor_{100};         // Percentage
+    std::atomic<int> fan_speed_{0};             // 0-255
+
+    // Simulation tick counter
+    std::atomic<uint32_t> tick_count_{0};
+
+    // Simulation thread control
+    std::thread simulation_thread_;
+    std::atomic<bool> simulation_running_{false};
+
+    // Simulation parameters (realistic heating rates)
+    static constexpr double ROOM_TEMP = 25.0;
+    static constexpr double EXTRUDER_HEAT_RATE = 3.0;  // °C/sec when heating
+    static constexpr double EXTRUDER_COOL_RATE = 1.5;  // °C/sec when cooling
+    static constexpr double BED_HEAT_RATE = 1.0;       // °C/sec when heating
+    static constexpr double BED_COOL_RATE = 0.3;       // °C/sec when cooling
+    static constexpr int SIMULATION_INTERVAL_MS = 500; // Update frequency
 };
 
 #endif // MOONRAKER_CLIENT_MOCK_H

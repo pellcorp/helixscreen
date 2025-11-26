@@ -8,10 +8,8 @@
     <!-- Navigation bar (left side) -->
     <navigation_bar/>
     <!-- Content area (right side, grows to fill remaining space) -->
-    <!-- Vertical layout: status bar at top, panels below -->
+    <!-- Status icons moved to sidebar bottom - full height for panels -->
     <lv_obj name="content_area" flex_grow="1" height="100%" style_bg_opa="0%" style_border_width="0" style_pad_all="0" flex_flow="column">
-      <!-- Status bar (top) -->
-      <status_bar name="status_bar"/>
       <!-- Panel container (grows to fill remaining space) -->
       <!-- All panels are stacked here, navigation controls visibility -->
       <lv_obj name="panel_container" width="100%" flex_grow="1" style_bg_opa="0%" style_border_width="0" style_pad_all="0">

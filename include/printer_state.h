@@ -109,6 +109,17 @@ class PrinterState {
     void update_from_notification(const json& notification);
 
     /**
+     * @brief Update state from raw status data
+     *
+     * Updates subjects from a printer status object. Can be called directly
+     * with subscription response data or extracted from notifications.
+     * This is the core update logic used by both initial state and notifications.
+     *
+     * @param status Printer status object (e.g., from result.status or params[0])
+     */
+    void update_from_status(const json& status);
+
+    /**
      * @brief Get raw JSON state for complex queries
      *
      * Thread-safe access to cached printer state.
@@ -256,9 +267,6 @@ class PrinterState {
 
     // Initialization guard to prevent multiple subject initializations
     bool subjects_initialized_ = false;
-
-    // XML registration should only happen once (not reset during testing)
-    bool xml_registered_ = false;
 
     // Track if we've ever successfully connected (for UI display)
     bool was_ever_connected_ = false;

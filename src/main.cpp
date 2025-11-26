@@ -38,7 +38,7 @@
 #include "ui_panel_bed_mesh.h"
 #include "ui_panel_controls.h"
 #include "ui_panel_controls_extrusion.h"
-#include "ui_panel_controls_temp.h"
+#include "ui_temp_control_panel.h"
 #include "ui_panel_filament.h"
 #include "ui_panel_gcode_test.h"
 #include "ui_panel_glyphs.h"
@@ -145,6 +145,7 @@ static int SCREEN_HEIGHT = UI_SCREEN_SMALL_H;
 // Note: PrinterState is now a singleton accessed via get_printer_state()
 static MoonrakerClient* moonraker_client = nullptr;
 static MoonrakerAPI* moonraker_api = nullptr;
+static std::unique_ptr<TempControlPanel> temp_control_panel;
 
 // Runtime configuration
 static RuntimeConfig g_runtime_config;
@@ -761,13 +762,16 @@ static void initialize_subjects() {
     ui_panel_print_select_init_subjects();       // Print select panel (none yet)
     ui_panel_controls_init_subjects();           // Controls panel launcher
     ui_panel_motion_init_subjects();             // Motion sub-screen position display
-    ui_panel_controls_temp_init_subjects();      // Temperature sub-screens
     ui_panel_controls_extrusion_init_subjects(); // Extrusion sub-screen
     ui_panel_filament_init_subjects();           // Filament panel
     ui_panel_settings_init_subjects();           // Settings panel launcher
     ui_panel_print_status_init_subjects();       // Print status screen
     ui_wizard_init_subjects();                   // Wizard subjects (for first-run config)
     get_printer_state().init_subjects(); // Printer state subjects (CRITICAL: must be before XML creation)
+
+    // Initialize TempControlPanel (needs PrinterState ready)
+    temp_control_panel = std::make_unique<TempControlPanel>(get_printer_state(), nullptr);
+    temp_control_panel->init_subjects();
 
     // Initialize notification system (after subjects are ready)
     ui_notification_init();
@@ -1037,57 +1041,12 @@ static void initialize_moonraker_client(Config* config) {
     // Register with app_globals
     set_moonraker_api(moonraker_api);
 
+    // Update TempControlPanel with API reference
+    temp_control_panel->set_api(moonraker_api);
+
     spdlog::debug("Moonraker client initialized (not connected yet)");
 }
 
-// Mock data generator (simulates printer state changes for testing)
-static void update_mock_printer_data() {
-    static uint32_t tick_count = 0;
-    tick_count++;
-
-    // Simulate temperature ramping (0-210°C over 30 seconds for nozzle, 0-60°C for bed)
-    int nozzle_current = static_cast<int>(std::min(210.0, (tick_count / 30.0) * 210.0));
-    int bed_current = static_cast<int>(std::min(60.0, (tick_count / 60.0) * 60.0));
-
-    lv_subject_set_int(get_printer_state().get_extruder_temp_subject(), nozzle_current);
-    lv_subject_set_int(get_printer_state().get_extruder_target_subject(), 210);
-    lv_subject_set_int(get_printer_state().get_bed_temp_subject(), bed_current);
-    lv_subject_set_int(get_printer_state().get_bed_target_subject(), 60);
-
-    // Simulate print progress (0-100% over 2 minutes)
-    int progress = static_cast<int>(std::min(100.0, (tick_count / 120.0) * 100.0));
-    lv_subject_set_int(get_printer_state().get_print_progress_subject(), progress);
-
-    // Update print state based on progress
-    const char* state = "standby";
-    if (progress > 0 && progress < 100) {
-        state = "printing";
-    } else if (progress >= 100) {
-        state = "complete";
-    }
-    lv_subject_copy_string(get_printer_state().get_print_state_subject(), state);
-
-    // Simulate jog position (slowly increasing)
-    int x = 100 + (tick_count % 50);
-    int y = 100 + ((tick_count / 2) % 50);
-    int z = 10 + ((tick_count / 10) % 20);
-    lv_subject_set_int(get_printer_state().get_position_x_subject(), x);
-    lv_subject_set_int(get_printer_state().get_position_y_subject(), y);
-    lv_subject_set_int(get_printer_state().get_position_z_subject(), z);
-
-    // Simulate speed/flow (oscillate between 90-110%)
-    int speed = 100 + static_cast<int>(10.0 * std::sin(tick_count / 10.0));
-    int flow = 100 + static_cast<int>(5.0 * std::cos(tick_count / 15.0));
-    int fan = static_cast<int>(std::min(100.0, (tick_count / 20.0) * 100.0));
-    lv_subject_set_int(get_printer_state().get_speed_factor_subject(), speed);
-    lv_subject_set_int(get_printer_state().get_flow_factor_subject(), flow);
-    lv_subject_set_int(get_printer_state().get_fan_speed_subject(), fan);
-
-    // Connection state (simulates connecting → connected after 3 seconds)
-    if (tick_count == 3) {
-        get_printer_state().set_printer_connection_state(2, "Connected");
-    }
-}
 
 // Main application
 int main(int argc, char** argv) {
@@ -1289,15 +1248,12 @@ int main(int argc, char** argv) {
     // Initialize shared overlay backdrop
     ui_nav_init_overlay_backdrop(screen);
 
-    // Find navbar and content area
-    // app_layout > navbar (child 0), content_area (child 1)
-    lv_obj_t* navbar = lv_obj_get_child(app_layout, 0);
-    lv_obj_t* content_area = lv_obj_get_child(app_layout, 1);
+    // Find widgets by name (robust to XML structure changes)
+    lv_obj_t* navbar = lv_obj_get_child(app_layout, 0); // navbar is first child (no name attr on component)
+    lv_obj_t* content_area = lv_obj_find_by_name(app_layout, "content_area");
 
-    // Defensive programming: verify XML structure matches expectations
     if (!navbar || !content_area) {
-        spdlog::error("Failed to find navbar/content_area in app_layout - XML structure mismatch");
-        spdlog::error("Expected app_layout > navbar (child 0), content_area (child 1)");
+        spdlog::error("Failed to find navbar/content_area in app_layout");
         lv_deinit();
         return 1;
     }
@@ -1305,24 +1261,32 @@ int main(int argc, char** argv) {
     // Wire up navigation button click handlers and trigger initial color update
     ui_nav_wire_events(navbar);
 
-    // Find panel container within content area
-    // content_area > status_bar (child 0), panel_container (child 1)
-    lv_obj_t* panel_container = lv_obj_get_child(content_area, 1);
+    // Wire up status icons (printer, network, notification) with responsive scaling
+    ui_nav_wire_status_icons(navbar);
+
+    // Find panel container by name (robust to layout changes like removing status_bar)
+    lv_obj_t* panel_container = lv_obj_find_by_name(content_area, "panel_container");
     if (!panel_container) {
-        spdlog::error("Failed to find panel_container in content_area - XML structure mismatch");
-        spdlog::error("Expected content_area > status_bar (child 0), panel_container (child 1)");
+        spdlog::error("Failed to find panel_container in content_area");
         lv_deinit();
         return 1;
     }
 
-    // Find all panel widgets in panel container
+    // Find all panel widgets by name (robust to child order changes)
+    static const char* panel_names[UI_PANEL_COUNT] = {
+        "home_panel",
+        "print_select_panel",
+        "controls_panel",
+        "filament_panel",
+        "settings_panel",
+        "advanced_panel"
+    };
+
     lv_obj_t* panels[UI_PANEL_COUNT];
     for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        panels[i] = lv_obj_get_child(panel_container, i);
+        panels[i] = lv_obj_find_by_name(panel_container, panel_names[i]);
         if (!panels[i]) {
-            spdlog::error("Missing panel {} in panel_container - expected {} panels", i,
-                          (int)UI_PANEL_COUNT);
-            spdlog::error("XML structure changed or panels missing from app_layout.xml");
+            spdlog::error("Missing panel '{}' in panel_container", panel_names[i]);
             lv_deinit();
             return 1;
         }
@@ -1336,7 +1300,7 @@ int main(int argc, char** argv) {
 
     // Setup controls panel (wire launcher card click handlers)
     ui_panel_controls_set(panels[UI_PANEL_CONTROLS]);
-    ui_panel_controls_wire_events(panels[UI_PANEL_CONTROLS], screen);
+    ui_panel_controls_wire_events(panels[UI_PANEL_CONTROLS], screen, *temp_control_panel);
 
     // Setup print select panel (wires up events, creates overlays, NOTE: data populated later)
     ui_panel_print_select_setup(panels[UI_PANEL_PRINT_SELECT], screen);
@@ -1367,11 +1331,10 @@ int main(int argc, char** argv) {
 
     spdlog::debug("XML UI created successfully with reactive navigation");
 
-    // Test notifications disabled - uncomment to test notification history panel
+    // Test notifications - uncomment to demonstrate notification badge in status bar
     // NOTIFY_INFO("Notification system initialized successfully");
     // NOTIFY_WARNING("This is a test warning notification");
     // NOTIFY_ERROR("This is a test error notification");
-    // NOTIFY_SUCCESS("Test success notification");
 
     // Initialize Moonraker client EARLY (before wizard, so it's available for connection test)
     // But don't connect yet - just create the instances
@@ -1434,7 +1397,7 @@ int main(int argc, char** argv) {
             overlay_panels.nozzle_temp =
                 (lv_obj_t*)lv_xml_create(screen, "nozzle_temp_panel", nullptr);
             if (overlay_panels.nozzle_temp) {
-                ui_panel_controls_temp_nozzle_setup(overlay_panels.nozzle_temp, screen);
+                temp_control_panel->setup_nozzle_panel(overlay_panels.nozzle_temp, screen);
                 ui_nav_push_overlay(overlay_panels.nozzle_temp);
             }
         }
@@ -1442,7 +1405,7 @@ int main(int argc, char** argv) {
             spdlog::debug("Opening bed temp overlay as requested by command-line flag");
             overlay_panels.bed_temp = (lv_obj_t*)lv_xml_create(screen, "bed_temp_panel", nullptr);
             if (overlay_panels.bed_temp) {
-                ui_panel_controls_temp_bed_setup(overlay_panels.bed_temp, screen);
+                temp_control_panel->setup_bed_panel(overlay_panels.bed_temp, screen);
                 ui_nav_push_overlay(overlay_panels.bed_temp);
             }
         }
@@ -1583,12 +1546,6 @@ int main(int argc, char** argv) {
     uint32_t start_time = SDL_GetTicks();
     uint32_t timeout_ms = timeout_sec * 1000;
 
-    // Mock print simulation timer (tick every second)
-    uint32_t last_tick_time = SDL_GetTicks();
-
-    // Mock printer data timer (tick every second)
-    uint32_t last_mock_data_time = SDL_GetTicks();
-
     // Request timeout check timer (check every 2 seconds)
     uint32_t last_timeout_check = SDL_GetTicks();
     uint32_t timeout_check_interval =
@@ -1617,20 +1574,8 @@ int main(int argc, char** argv) {
             break;
         }
 
-        // Tick mock print simulation (once per second)
-        uint32_t current_time = SDL_GetTicks();
-        if (current_time - last_tick_time >= 1000) {
-            ui_panel_print_status_tick_mock_print();
-            last_tick_time = current_time;
-        }
-
-        // Tick mock printer data (once per second)
-        if (current_time - last_mock_data_time >= 1000) {
-            update_mock_printer_data();
-            last_mock_data_time = current_time;
-        }
-
         // Check for request timeouts (using configured interval)
+        uint32_t current_time = SDL_GetTicks();
         if (current_time - last_timeout_check >= timeout_check_interval) {
             moonraker_client->process_timeouts();
             last_timeout_check = current_time;

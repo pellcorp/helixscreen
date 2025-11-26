@@ -412,6 +412,17 @@ class MoonrakerClient : public hv::WebSocketClient {
      */
     void set_connection_state(ConnectionState new_state);
 
+    /**
+     * @brief Dispatch printer status to all registered notify callbacks
+     *
+     * Wraps raw status data (e.g., from subscription response) into a
+     * notify_status_update notification format and dispatches to callbacks.
+     * Used for both initial subscription state and incremental updates.
+     *
+     * @param status Raw printer status object
+     */
+    void dispatch_status_update(const json& status);
+
   private:
 
     /**
@@ -436,14 +447,14 @@ class MoonrakerClient : public hv::WebSocketClient {
     BedMeshProfile active_bed_mesh_;             // Currently active mesh profile
     std::vector<std::string> bed_mesh_profiles_; // Available profile names
 
+    // Notification callbacks (protected to allow mock to trigger notifications)
+    std::vector<std::function<void(json)>> notify_callbacks_;
+    std::mutex callbacks_mutex_; // Protect notify_callbacks_ and method_callbacks_
+
   private:
     // Pending requests keyed by request ID
     std::map<uint64_t, PendingRequest> pending_requests_;
     std::mutex requests_mutex_; // Protect pending_requests_ map
-
-    // Persistent notify_status_update callbacks
-    std::vector<std::function<void(json)>> notify_callbacks_;
-    std::mutex callbacks_mutex_; // Protect notify_callbacks_ and method_callbacks_
 
     // Persistent method-specific callbacks
     // method_name : { handler_name : callback }

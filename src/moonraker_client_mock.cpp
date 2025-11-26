@@ -40,6 +40,10 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type) : printer_type_(type)
     generate_mock_bed_mesh();
 }
 
+MoonrakerClientMock::~MoonrakerClientMock() {
+    stop_temperature_simulation();
+}
+
 int MoonrakerClientMock::connect(const char* url, std::function<void()> on_connected,
                                  [[maybe_unused]] std::function<void()> on_disconnected) {
     spdlog::info("[MoonrakerClientMock] Simulating connection to: {}", url ? url : "(null)");
@@ -51,6 +55,13 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
     set_connection_state(ConnectionState::CONNECTED);
+
+    // Start temperature simulation
+    start_temperature_simulation();
+
+    // Dispatch initial state BEFORE calling on_connected (matches real Moonraker behavior)
+    // Real client sends initial state from subscription response - mock does it here
+    dispatch_initial_state();
 
     // Immediately invoke connection callback
     if (on_connected) {
@@ -229,8 +240,9 @@ void MoonrakerClientMock::generate_mock_bed_mesh() {
 }
 
 void MoonrakerClientMock::disconnect() {
-    spdlog::info("[MoonrakerClientMock] Simulating disconnection (no-op)");
-    // Mock does nothing for disconnect - no real connection to tear down
+    spdlog::info("[MoonrakerClientMock] Simulating disconnection");
+    stop_temperature_simulation();
+    set_connection_state(ConnectionState::DISCONNECTED);
 }
 
 int MoonrakerClientMock::send_jsonrpc(const std::string& method) {
@@ -248,7 +260,12 @@ int MoonrakerClientMock::send_jsonrpc(const std::string& method,
                                       [[maybe_unused]] const json& params,
                                       [[maybe_unused]] std::function<void(json)> cb) {
     spdlog::debug("[MoonrakerClientMock] Mock send_jsonrpc: {} (with callback)", method);
-    // Note: callback is not invoked in mock
+    // STUB: Callback NOT invoked - caller will not receive response!
+    // TODO: Implement response simulation for specific methods:
+    //   - server.files.list → mock file list
+    //   - server.files.metadata → mock file metadata
+    //   - printer.objects.query → mock printer state
+    spdlog::warn("[MoonrakerClientMock] STUB: Callback for '{}' NOT INVOKED - response simulation not implemented", method);
     return 0; // Success
 }
 
@@ -259,11 +276,586 @@ int MoonrakerClientMock::send_jsonrpc(
     [[maybe_unused]] uint32_t timeout_ms) {
     spdlog::debug("[MoonrakerClientMock] Mock send_jsonrpc: {} (with success/error callbacks)",
                   method);
-    // Note: callbacks are not invoked in mock
+    // STUB: Callbacks NOT invoked - caller will not receive response or error!
+    // TODO: Implement response simulation for specific methods
+    spdlog::warn("[MoonrakerClientMock] STUB: Callbacks for '{}' NOT INVOKED - response simulation not implemented", method);
     return 0; // Success
 }
 
 int MoonrakerClientMock::gcode_script(const std::string& gcode) {
     spdlog::debug("[MoonrakerClientMock] Mock gcode_script: {}", gcode);
+
+    // Parse temperature commands to update simulation targets
+    // M104 Sxxx - Set extruder temp (no wait)
+    // M109 Sxxx - Set extruder temp (wait)
+    // M140 Sxxx - Set bed temp (no wait)
+    // M190 Sxxx - Set bed temp (wait)
+    // SET_HEATER_TEMPERATURE HEATER=extruder TARGET=xxx
+    // SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=xxx
+
+    // Check for Klipper-style SET_HEATER_TEMPERATURE commands
+    if (gcode.find("SET_HEATER_TEMPERATURE") != std::string::npos) {
+        double target = 0.0;
+        size_t target_pos = gcode.find("TARGET=");
+        if (target_pos != std::string::npos) {
+            target = std::stod(gcode.substr(target_pos + 7));
+        }
+
+        if (gcode.find("HEATER=extruder") != std::string::npos) {
+            set_extruder_target(target);
+            spdlog::info("[MoonrakerClientMock] Extruder target set to {}°C", target);
+        } else if (gcode.find("HEATER=heater_bed") != std::string::npos) {
+            set_bed_target(target);
+            spdlog::info("[MoonrakerClientMock] Bed target set to {}°C", target);
+        }
+    }
+    // Check for M-code style temperature commands
+    else if (gcode.find("M104") != std::string::npos || gcode.find("M109") != std::string::npos) {
+        size_t s_pos = gcode.find('S');
+        if (s_pos != std::string::npos) {
+            double target = std::stod(gcode.substr(s_pos + 1));
+            set_extruder_target(target);
+            spdlog::info("[MoonrakerClientMock] Extruder target set to {}°C (M-code)", target);
+        }
+    } else if (gcode.find("M140") != std::string::npos || gcode.find("M190") != std::string::npos) {
+        size_t s_pos = gcode.find('S');
+        if (s_pos != std::string::npos) {
+            double target = std::stod(gcode.substr(s_pos + 1));
+            set_bed_target(target);
+            spdlog::info("[MoonrakerClientMock] Bed target set to {}°C (M-code)", target);
+        }
+    }
+
+    // Parse motion mode commands (G90/G91)
+    // G90 - Absolute positioning mode
+    // G91 - Relative positioning mode
+    if (gcode.find("G90") != std::string::npos) {
+        relative_mode_.store(false);
+        spdlog::info("[MoonrakerClientMock] Set absolute positioning mode (G90)");
+    } else if (gcode.find("G91") != std::string::npos) {
+        relative_mode_.store(true);
+        spdlog::info("[MoonrakerClientMock] Set relative positioning mode (G91)");
+    }
+
+    // Parse homing command (G28)
+    // G28 - Home all axes
+    // G28 X - Home X axis only
+    // G28 Y - Home Y axis only
+    // G28 Z - Home Z axis only
+    // G28 X Y - Home X and Y axes
+    if (gcode.find("G28") != std::string::npos) {
+        // Check if specific axes are mentioned after G28
+        // Need to look after the G28 to avoid false matches
+        size_t g28_pos = gcode.find("G28");
+        std::string after_g28 = gcode.substr(g28_pos + 3);
+
+        // Check for specific axis letters (case insensitive search)
+        bool has_x = after_g28.find('X') != std::string::npos ||
+                     after_g28.find('x') != std::string::npos;
+        bool has_y = after_g28.find('Y') != std::string::npos ||
+                     after_g28.find('y') != std::string::npos;
+        bool has_z = after_g28.find('Z') != std::string::npos ||
+                     after_g28.find('z') != std::string::npos;
+
+        // If no specific axis mentioned, home all
+        bool home_all = !has_x && !has_y && !has_z;
+
+        {
+            std::lock_guard<std::mutex> lock(homed_axes_mutex_);
+
+            if (home_all) {
+                // Home all axes
+                homed_axes_ = "xyz";
+                pos_x_.store(0.0);
+                pos_y_.store(0.0);
+                pos_z_.store(0.0);
+                spdlog::info("[MoonrakerClientMock] Homed all axes (G28), homed_axes='xyz'");
+            } else {
+                // Home specific axes and update position
+                if (has_x) {
+                    if (homed_axes_.find('x') == std::string::npos) {
+                        homed_axes_ += 'x';
+                    }
+                    pos_x_.store(0.0);
+                }
+                if (has_y) {
+                    if (homed_axes_.find('y') == std::string::npos) {
+                        homed_axes_ += 'y';
+                    }
+                    pos_y_.store(0.0);
+                }
+                if (has_z) {
+                    if (homed_axes_.find('z') == std::string::npos) {
+                        homed_axes_ += 'z';
+                    }
+                    pos_z_.store(0.0);
+                }
+                spdlog::info("[MoonrakerClientMock] Homed axes: X={} Y={} Z={}, homed_axes='{}'",
+                             has_x, has_y, has_z, homed_axes_);
+            }
+        }
+    }
+
+    // Parse movement commands (G0/G1)
+    // G0 X100 Y50 Z10 - Rapid move
+    // G1 X100 Y50 Z10 E5 F3000 - Linear move (E and F ignored for now)
+    if (gcode.find("G0") != std::string::npos || gcode.find("G1") != std::string::npos) {
+        bool is_relative = relative_mode_.load();
+
+        // Helper lambda to parse axis value from gcode string
+        auto parse_axis = [&gcode](char axis) -> std::pair<bool, double> {
+            // Look for the axis letter followed by a number
+            size_t pos = gcode.find(axis);
+            if (pos == std::string::npos) {
+                // Try lowercase
+                pos = gcode.find(static_cast<char>(axis + 32));
+            }
+            if (pos != std::string::npos && pos + 1 < gcode.length()) {
+                // Skip any spaces after the axis letter
+                size_t value_start = pos + 1;
+                while (value_start < gcode.length() && gcode[value_start] == ' ') {
+                    value_start++;
+                }
+                if (value_start < gcode.length()) {
+                    try {
+                        double value = std::stod(gcode.substr(value_start));
+                        return {true, value};
+                    } catch (...) {
+                        // Parse error, ignore this axis
+                    }
+                }
+            }
+            return {false, 0.0};
+        };
+
+        auto [has_x, x_val] = parse_axis('X');
+        auto [has_y, y_val] = parse_axis('Y');
+        auto [has_z, z_val] = parse_axis('Z');
+
+        if (has_x) {
+            if (is_relative) {
+                pos_x_.store(pos_x_.load() + x_val);
+            } else {
+                pos_x_.store(x_val);
+            }
+        }
+        if (has_y) {
+            if (is_relative) {
+                pos_y_.store(pos_y_.load() + y_val);
+            } else {
+                pos_y_.store(y_val);
+            }
+        }
+        if (has_z) {
+            if (is_relative) {
+                pos_z_.store(pos_z_.load() + z_val);
+            } else {
+                pos_z_.store(z_val);
+            }
+        }
+
+        if (has_x || has_y || has_z) {
+            spdlog::debug("[MoonrakerClientMock] Move {} X={} Y={} Z={} (mode={})",
+                          gcode.find("G0") != std::string::npos ? "G0" : "G1", pos_x_.load(),
+                          pos_y_.load(), pos_z_.load(), is_relative ? "relative" : "absolute");
+        }
+    }
+
+    // Parse print job commands
+    // SDCARD_PRINT_FILE FILENAME=xxx - Start printing a file
+    if (gcode.find("SDCARD_PRINT_FILE") != std::string::npos) {
+        size_t filename_pos = gcode.find("FILENAME=");
+        if (filename_pos != std::string::npos) {
+            // Extract filename (ends at space or end of string)
+            size_t start = filename_pos + 9;
+            size_t end = gcode.find(' ', start);
+            std::string filename =
+                (end != std::string::npos) ? gcode.substr(start, end - start) : gcode.substr(start);
+
+            {
+                std::lock_guard<std::mutex> lock(print_mutex_);
+                print_filename_ = filename;
+            }
+            print_state_.store(1); // printing
+            print_progress_.store(0.0);
+            spdlog::info("[MoonrakerClientMock] Started print: {}", filename);
+        }
+    }
+    // PAUSE - Pause current print
+    else if (gcode == "PAUSE" || gcode.find("PAUSE ") == 0) {
+        if (print_state_.load() == 1) { // Only pause if printing
+            print_state_.store(2);      // paused
+            spdlog::info("[MoonrakerClientMock] Print paused");
+        }
+    }
+    // RESUME - Resume paused print
+    else if (gcode == "RESUME" || gcode.find("RESUME ") == 0) {
+        if (print_state_.load() == 2) { // Only resume if paused
+            print_state_.store(1);      // printing
+            spdlog::info("[MoonrakerClientMock] Print resumed");
+        }
+    }
+    // CANCEL_PRINT - Cancel current print
+    else if (gcode == "CANCEL_PRINT" || gcode.find("CANCEL_PRINT ") == 0) {
+        print_state_.store(4); // cancelled
+        spdlog::info("[MoonrakerClientMock] Print cancelled");
+        // Note: Transition to standby is handled in simulation loop after brief delay
+    }
+    // M112 - Emergency stop
+    else if (gcode.find("M112") != std::string::npos) {
+        print_state_.store(5); // error
+        spdlog::warn("[MoonrakerClientMock] Emergency stop (M112)!");
+    }
+
+    // ========================================================================
+    // UNIMPLEMENTED G-CODE STUBS - Log warnings for missing features
+    // ========================================================================
+
+    // Fan control (NOT IMPLEMENTED)
+    if (gcode.find("M106") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: M106 (fan speed) NOT IMPLEMENTED - fan_speed_ unchanged");
+    } else if (gcode.find("M107") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: M107 (fan off) NOT IMPLEMENTED - fan_speed_ unchanged");
+    } else if (gcode.find("SET_FAN_SPEED") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: SET_FAN_SPEED NOT IMPLEMENTED - fan_speed_ unchanged");
+    }
+
+    // Extrusion control (NOT IMPLEMENTED)
+    if (gcode.find("G92") != std::string::npos && gcode.find('E') != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: G92 E (set extruder position) NOT IMPLEMENTED");
+    }
+    if ((gcode.find("G0") != std::string::npos || gcode.find("G1") != std::string::npos) &&
+        gcode.find('E') != std::string::npos) {
+        spdlog::debug("[MoonrakerClientMock] Note: Extrusion (E parameter) ignored in G0/G1");
+    }
+
+    // Bed mesh (NOT IMPLEMENTED)
+    if (gcode.find("BED_MESH_CALIBRATE") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: BED_MESH_CALIBRATE NOT IMPLEMENTED");
+    } else if (gcode.find("BED_MESH_PROFILE") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: BED_MESH_PROFILE NOT IMPLEMENTED");
+    } else if (gcode.find("BED_MESH_CLEAR") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: BED_MESH_CLEAR NOT IMPLEMENTED");
+    }
+
+    // Z offset (NOT IMPLEMENTED)
+    if (gcode.find("SET_GCODE_OFFSET") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: SET_GCODE_OFFSET NOT IMPLEMENTED");
+    }
+
+    // Input shaping (NOT IMPLEMENTED)
+    if (gcode.find("SET_INPUT_SHAPER") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: SET_INPUT_SHAPER NOT IMPLEMENTED");
+    }
+
+    // Pressure advance (NOT IMPLEMENTED)
+    if (gcode.find("SET_PRESSURE_ADVANCE") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: SET_PRESSURE_ADVANCE NOT IMPLEMENTED");
+    }
+
+    // LED control (NOT IMPLEMENTED)
+    if (gcode.find("SET_LED") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: SET_LED NOT IMPLEMENTED");
+    }
+
+    // Firmware restart (NOT IMPLEMENTED)
+    if (gcode.find("FIRMWARE_RESTART") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: FIRMWARE_RESTART NOT IMPLEMENTED");
+    } else if (gcode.find("RESTART") != std::string::npos && gcode.find("FIRMWARE") == std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: RESTART NOT IMPLEMENTED");
+    }
+
+    // QGL / Z-tilt (NOT IMPLEMENTED)
+    if (gcode.find("QUAD_GANTRY_LEVEL") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: QUAD_GANTRY_LEVEL NOT IMPLEMENTED");
+    } else if (gcode.find("Z_TILT_ADJUST") != std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: Z_TILT_ADJUST NOT IMPLEMENTED");
+    }
+
+    // Probe (NOT IMPLEMENTED)
+    if (gcode.find("PROBE") != std::string::npos && gcode.find("BED_MESH") == std::string::npos) {
+        spdlog::warn("[MoonrakerClientMock] STUB: PROBE NOT IMPLEMENTED");
+    }
+
     return 0; // Success
+}
+
+std::string MoonrakerClientMock::get_print_state_string() const {
+    switch (print_state_.load()) {
+    case 0:
+        return "standby";
+    case 1:
+        return "printing";
+    case 2:
+        return "paused";
+    case 3:
+        return "complete";
+    case 4:
+        return "cancelled";
+    case 5:
+        return "error";
+    default:
+        return "standby";
+    }
+}
+
+// ============================================================================
+// Temperature Simulation
+// ============================================================================
+
+void MoonrakerClientMock::dispatch_initial_state() {
+    // Build initial state JSON matching real Moonraker subscription response format
+    // Uses current simulated values (room temp by default, or preset values if set)
+    double ext_temp = extruder_temp_.load();
+    double ext_target = extruder_target_.load();
+    double bed_temp_val = bed_temp_.load();
+    double bed_target_val = bed_target_.load();
+    double x = pos_x_.load();
+    double y = pos_y_.load();
+    double z = pos_z_.load();
+    int speed = speed_factor_.load();
+    int flow = flow_factor_.load();
+    int fan = fan_speed_.load();
+
+    // Get homed_axes with thread safety
+    std::string homed;
+    {
+        std::lock_guard<std::mutex> lock(homed_axes_mutex_);
+        homed = homed_axes_;
+    }
+
+    // Get print state with thread safety
+    std::string print_state_str = get_print_state_string();
+    std::string filename;
+    {
+        std::lock_guard<std::mutex> lock(print_mutex_);
+        filename = print_filename_;
+    }
+    double progress = print_progress_.load();
+
+    json initial_status = {
+        {"extruder", {
+            {"temperature", ext_temp},
+            {"target", ext_target}
+        }},
+        {"heater_bed", {
+            {"temperature", bed_temp_val},
+            {"target", bed_target_val}
+        }},
+        {"toolhead", {
+            {"position", {x, y, z, 0.0}},
+            {"homed_axes", homed}
+        }},
+        {"gcode_move", {
+            {"speed_factor", speed / 100.0},
+            {"extrude_factor", flow / 100.0}
+        }},
+        {"fan", {
+            {"speed", fan / 255.0}
+        }},
+        {"print_stats", {
+            {"state", print_state_str},
+            {"filename", filename}
+        }},
+        {"virtual_sdcard", {
+            {"progress", progress}
+        }}
+    };
+
+    spdlog::info("[MoonrakerClientMock] Dispatching initial state: extruder={}/{}°C, bed={}/{}°C, homed_axes='{}'",
+                 ext_temp, ext_target, bed_temp_val, bed_target_val, homed);
+
+    // Use the base class dispatch method (same as real client)
+    dispatch_status_update(initial_status);
+}
+
+void MoonrakerClientMock::set_extruder_target(double target) {
+    extruder_target_.store(target);
+}
+
+void MoonrakerClientMock::set_bed_target(double target) {
+    bed_target_.store(target);
+}
+
+void MoonrakerClientMock::start_temperature_simulation() {
+    if (simulation_running_.load()) {
+        return; // Already running
+    }
+
+    simulation_running_.store(true);
+    simulation_thread_ = std::thread(&MoonrakerClientMock::temperature_simulation_loop, this);
+    spdlog::info("[MoonrakerClientMock] Temperature simulation started");
+}
+
+void MoonrakerClientMock::stop_temperature_simulation() {
+    if (!simulation_running_.load()) {
+        return; // Not running
+    }
+
+    simulation_running_.store(false);
+    if (simulation_thread_.joinable()) {
+        simulation_thread_.join();
+    }
+    spdlog::info("[MoonrakerClientMock] Temperature simulation stopped");
+}
+
+void MoonrakerClientMock::temperature_simulation_loop() {
+    const double dt = SIMULATION_INTERVAL_MS / 1000.0; // Convert to seconds
+
+    while (simulation_running_.load()) {
+        uint32_t tick = tick_count_.fetch_add(1);
+
+        // Get current temperature state
+        double ext_temp = extruder_temp_.load();
+        double ext_target = extruder_target_.load();
+        double bed_temp_val = bed_temp_.load();
+        double bed_target_val = bed_target_.load();
+
+        // Simulate extruder temperature change
+        if (ext_target > 0) {
+            if (ext_temp < ext_target) {
+                ext_temp += EXTRUDER_HEAT_RATE * dt;
+                if (ext_temp > ext_target) ext_temp = ext_target;
+            } else if (ext_temp > ext_target) {
+                ext_temp -= EXTRUDER_COOL_RATE * dt;
+                if (ext_temp < ext_target) ext_temp = ext_target;
+            }
+        } else {
+            if (ext_temp > ROOM_TEMP) {
+                ext_temp -= EXTRUDER_COOL_RATE * dt;
+                if (ext_temp < ROOM_TEMP) ext_temp = ROOM_TEMP;
+            }
+        }
+        extruder_temp_.store(ext_temp);
+
+        // Simulate bed temperature change
+        if (bed_target_val > 0) {
+            if (bed_temp_val < bed_target_val) {
+                bed_temp_val += BED_HEAT_RATE * dt;
+                if (bed_temp_val > bed_target_val) bed_temp_val = bed_target_val;
+            } else if (bed_temp_val > bed_target_val) {
+                bed_temp_val -= BED_COOL_RATE * dt;
+                if (bed_temp_val < bed_target_val) bed_temp_val = bed_target_val;
+            }
+        } else {
+            if (bed_temp_val > ROOM_TEMP) {
+                bed_temp_val -= BED_COOL_RATE * dt;
+                if (bed_temp_val < ROOM_TEMP) bed_temp_val = ROOM_TEMP;
+            }
+        }
+        bed_temp_.store(bed_temp_val);
+
+        // Get current position (set by G-code commands, not auto-simulated)
+        double x = pos_x_.load();
+        double y = pos_y_.load();
+        double z = pos_z_.load();
+
+        // Get homed_axes with thread safety
+        std::string homed;
+        {
+            std::lock_guard<std::mutex> lock(homed_axes_mutex_);
+            homed = homed_axes_;
+        }
+
+        // Simulate speed/flow oscillation (90-110%)
+        int speed = 100 + static_cast<int>(10.0 * std::sin(tick / 20.0));
+        int flow = 100 + static_cast<int>(5.0 * std::cos(tick / 30.0));
+        speed_factor_.store(speed);
+        flow_factor_.store(flow);
+
+        // Simulate fan ramping up (0-255 over 60 ticks)
+        int fan = std::min(255, static_cast<int>((tick / 60.0) * 255.0));
+        fan_speed_.store(fan);
+
+        // Simulate print progress
+        int current_print_state = print_state_.load();
+        double progress = print_progress_.load();
+
+        // Static counter for cancelled->standby transition delay
+        static int cancelled_ticks = 0;
+
+        if (current_print_state == 1) { // printing
+            // Increment progress by small amount each tick (complete in ~100 ticks = 50 seconds)
+            progress += 0.01;
+            if (progress >= 1.0) {
+                progress = 1.0;
+                print_state_.store(3); // complete
+                spdlog::info("[MoonrakerClientMock] Print complete");
+            }
+            print_progress_.store(progress);
+        } else if (current_print_state == 4) { // cancelled
+            // Transition to standby after 2 ticks (1 second)
+            cancelled_ticks++;
+            if (cancelled_ticks >= 2) {
+                print_state_.store(0); // standby
+                {
+                    std::lock_guard<std::mutex> lock(print_mutex_);
+                    print_filename_.clear();
+                }
+                print_progress_.store(0.0);
+                cancelled_ticks = 0;
+                spdlog::info("[MoonrakerClientMock] Print state reset to standby after cancel");
+            }
+        } else {
+            cancelled_ticks = 0; // Reset counter if not in cancelled state
+        }
+
+        // Get print state string and filename with thread safety
+        std::string print_state_str = get_print_state_string();
+        std::string filename;
+        {
+            std::lock_guard<std::mutex> lock(print_mutex_);
+            filename = print_filename_;
+        }
+
+        // Build notification JSON (same format as real Moonraker)
+        // Real Moonraker sends: {"params": [status_object, eventtime]}
+        json status_obj = {
+            {"extruder", {
+                {"temperature", ext_temp},
+                {"target", ext_target}
+            }},
+            {"heater_bed", {
+                {"temperature", bed_temp_val},
+                {"target", bed_target_val}
+            }},
+            {"toolhead", {
+                {"position", {x, y, z, 0.0}},
+                {"homed_axes", homed}
+            }},
+            {"gcode_move", {
+                {"speed_factor", speed / 100.0},
+                {"extrude_factor", flow / 100.0}
+            }},
+            {"fan", {
+                {"speed", fan / 255.0}
+            }},
+            {"print_stats", {
+                {"state", print_state_str},
+                {"filename", filename}
+            }},
+            {"virtual_sdcard", {
+                {"progress", print_progress_.load()}
+            }}
+        };
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", json::array({status_obj, tick * dt})}  // [status, eventtime]
+        };
+
+        // Push notification through all registered callbacks
+        std::vector<std::function<void(json)>> callbacks_copy;
+        {
+            std::lock_guard<std::mutex> lock(callbacks_mutex_);
+            callbacks_copy = notify_callbacks_;
+        }
+        for (const auto& cb : callbacks_copy) {
+            if (cb) {
+                cb(notification);
+            }
+        }
+
+        // Sleep until next update
+        std::this_thread::sleep_for(std::chrono::milliseconds(SIMULATION_INTERVAL_MS));
+    }
 }

@@ -35,10 +35,13 @@ INCLUDE_DIR = PROJECT_ROOT / "include"
 SRC_DIR = PROJECT_ROOT / "src"
 LVGLIMAGE_PY = SCRIPTS_DIR / "LVGLImage.py"
 
-# Material Design Icons GitHub
+# Material Design Icons GitHub (Google official)
 MD_ICONS_BASE = "https://raw.githubusercontent.com/google/material-design-icons/master/src"
 
-# Icon categories in Material Design
+# MDI Community (Pictogrammers/Templarian) - has many more icons
+MDI_COMMUNITY_BASE = "https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg"
+
+# Icon categories in Google Material Design
 MD_CATEGORIES = [
     "action", "alert", "av", "communication", "content", "device", "editor",
     "file", "hardware", "home", "image", "maps", "navigation", "notification",
@@ -105,18 +108,23 @@ def sanitize_icon_name(name: str) -> str:
 
 def download_svg(icon_name: str, category: Optional[str] = None) -> Optional[Path]:
     """
-    Download SVG from Material Design Icons GitHub.
+    Download SVG from Material Design Icons sources.
+
+    Tries Google Material Design Icons first, then falls back to
+    MDI Community (Pictogrammers/Templarian) which has many more icons.
 
     Args:
-        icon_name: Icon name (e.g., 'wifi-strength-1', 'lock')
-        category: Optional category hint (e.g., 'device', 'action')
+        icon_name: Icon name (e.g., 'wifi-strength-1', 'printer-3d')
+        category: Optional category hint for Google MD (e.g., 'device', 'action')
 
     Returns:
         Path to downloaded SVG or None if failed
     """
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Try specified category first
+    output_path = ASSETS_DIR / f"{sanitize_icon_name(icon_name)}.svg"
+
+    # First, try Google Material Design Icons
     categories_to_try = [category] if category else MD_CATEGORIES
 
     for cat in categories_to_try:
@@ -124,13 +132,10 @@ def download_svg(icon_name: str, category: Optional[str] = None) -> Optional[Pat
             continue
 
         # Material Design uses 'materialicons' and 'materialiconsoutlined' variants
-        # Try regular first, then outlined
         for variant in ["materialicons", "materialiconsoutlined"]:
-            # URL format: src/{category}/{icon_name}/{variant}/24px.svg
             url = f"{MD_ICONS_BASE}/{cat}/{icon_name}/{variant}/24px.svg"
-            output_path = ASSETS_DIR / f"{sanitize_icon_name(icon_name)}.svg"
 
-            log_info(f"Trying {cat}/{icon_name}/{variant}...")
+            log_info(f"Trying Google MD: {cat}/{icon_name}/{variant}...")
 
             result = subprocess.run(
                 ["curl", "-f", "-s", "-L", "-o", str(output_path), url],
@@ -138,19 +143,39 @@ def download_svg(icon_name: str, category: Optional[str] = None) -> Optional[Pat
             )
 
             if result.returncode == 0:
-                # Verify it's actually an SVG
                 with open(output_path, 'r') as f:
                     content = f.read(100)
                     if '<svg' in content:
-                        log_success(f"Downloaded: {icon_name} ({cat}/{variant})")
+                        log_success(f"Downloaded from Google MD: {icon_name} ({cat}/{variant})")
                         return output_path
 
-            # Clean up failed attempt
             if output_path.exists():
                 output_path.unlink()
 
-    log_error(f"Could not find icon '{icon_name}' in Material Design Icons")
-    log_info(f"Search URL pattern: {MD_ICONS_BASE}/{{category}}/{icon_name}/{{variant}}/24px.svg")
+    # Fallback: Try MDI Community (Pictogrammers/Templarian)
+    # Has many more icons including printer-3d, wifi variants with signals, etc.
+    log_info(f"Trying MDI Community: {icon_name}...")
+
+    url = f"{MDI_COMMUNITY_BASE}/{icon_name}.svg"
+    result = subprocess.run(
+        ["curl", "-f", "-s", "-L", "-o", str(output_path), url],
+        capture_output=True
+    )
+
+    if result.returncode == 0:
+        with open(output_path, 'r') as f:
+            content = f.read(100)
+            if '<svg' in content:
+                log_success(f"Downloaded from MDI Community: {icon_name}")
+                return output_path
+
+    if output_path.exists():
+        output_path.unlink()
+
+    log_error(f"Could not find icon '{icon_name}' in any icon source")
+    log_info(f"Google MD pattern: {MD_ICONS_BASE}/{{category}}/{icon_name}/{{variant}}/24px.svg")
+    log_info(f"MDI Community pattern: {MDI_COMMUNITY_BASE}/{icon_name}.svg")
+    log_info(f"Browse MDI icons: https://pictogrammers.com/library/mdi/")
     return None
 
 def convert_svg_to_png(svg_path: Path, size: int = 64) -> Optional[Path]:
@@ -310,9 +335,32 @@ def add_icon_to_cpp(icon_c_name: str, xml_name: str) -> bool:
     lines = content.split('\n')
     insert_idx = None
 
-    for i in range(len(lines) - 1, -1, -1):
-        if lines[i].strip() == '}' and 'material_icons_register' in ''.join(lines[max(0, i-20):i]):
-            insert_idx = i
+    # First find the function definition
+    func_start = None
+    for i, line in enumerate(lines):
+        if 'void material_icons_register()' in line:
+            func_start = i
+            break
+
+    if func_start is None:
+        log_error("Could not find material_icons_register() function")
+        return False
+
+    # Track braces to find the closing brace
+    brace_count = 0
+    started = False
+    for i in range(func_start, len(lines)):
+        line = lines[i]
+        for ch in line:
+            if ch == '{':
+                brace_count += 1
+                started = True
+            elif ch == '}':
+                brace_count -= 1
+                if started and brace_count == 0:
+                    insert_idx = i
+                    break
+        if insert_idx is not None:
             break
 
     if insert_idx is None:

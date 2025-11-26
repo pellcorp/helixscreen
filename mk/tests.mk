@@ -67,7 +67,7 @@ TEST_UI_DEPS := \
 TEST_PANEL_DEPS := \
     $(OBJ_DIR)/ui_panel_home.o \
     $(OBJ_DIR)/ui_panel_controls.o \
-    $(OBJ_DIR)/ui_panel_controls_temp.o \
+    $(OBJ_DIR)/ui_temp_control_panel.o \
     $(OBJ_DIR)/ui_panel_controls_extrusion.o \
     $(OBJ_DIR)/ui_panel_motion.o \
     $(OBJ_DIR)/ui_panel_filament.o \
@@ -127,9 +127,9 @@ clean-tests:
 
 # Build tests in parallel
 test-build:
-	$(ECHO) "$(CYAN)$(BOLD)Building tests in parallel ($(NPROC) jobs)...$(RESET)"
+	$(ECHO) "$(CYAN)$(BOLD)Building tests (use -j for parallel builds)...$(RESET)"
 	@START_TIME=$$(date +%s); \
-	$(MAKE) -j$(NPROC) $(TEST_BIN) && \
+	$(MAKE) $(TEST_BIN) && \
 	END_TIME=$$(date +%s); \
 	DURATION=$$((END_TIME - START_TIME)); \
 	echo "$(GREEN)✓ Tests built in $${DURATION}s$(RESET)"
