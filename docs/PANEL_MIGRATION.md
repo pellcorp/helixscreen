@@ -31,10 +31,11 @@ This file tracks the migration of function-based panels to the class-based `Pane
 | `ui_panel_controls_extrusion` | `ExtrusionPanel` | 423 | Cross-panel observer, temperature safety, Phase 4 |
 | `ui_panel_print_status` | `PrintStatusPanel` | 555 | 10 subjects, mock simulation, resize callback, Phase 5 |
 | `ui_panel_gcode_test` | `GcodeTestPanel` | 666 | File picker overlay, async loading, no subjects, Phase 5 |
+| `ui_panel_print_select` | `PrintSelectPanel` | 1087 | 5 subjects, card/list views, sorting, detail overlay, Phase 5 |
 
 ### 🔄 In Progress
 
-*None currently*
+*None currently - Phase 5 complete!*
 
 ### 📋 Phase 2: Simple Panels (Next)
 
@@ -50,11 +51,13 @@ This file tracks the migration of function-based panels to the class-based `Pane
 
 ### 📋 Phase 5: High Complexity
 
+*Phase 5 complete - all high complexity panels migrated!*
+
 | Panel | Target Class | Lines | Key Pattern |
 |-------|--------------|-------|-------------|
 | ~~`ui_panel_print_status`~~ | ~~`PrintStatusPanel`~~ | ~~468~~ | ✅ Completed |
 | ~~`ui_panel_gcode_test`~~ | ~~`GcodeTestPanel`~~ | ~~533~~ | ✅ Completed |
-| `ui_panel_print_select` | `PrintSelectPanel` | 1167 | File browser, thumbnails |
+| ~~`ui_panel_print_select`~~ | ~~`PrintSelectPanel`~~ | ~~1167~~ | ✅ Completed - 5 subjects, file browser |
 
 ### 📋 Phase 6: Wizard Steps
 
@@ -82,6 +85,7 @@ This file tracks the migration of function-based panels to the class-based `Pane
 | `ExtrusionPanel` | `ui_panel_controls_extrusion_init_subjects()`, `ui_panel_controls_extrusion_setup()`, etc. | `src/ui_panel_controls_extrusion.cpp` |
 | `PrintStatusPanel` | `ui_panel_print_status_init_subjects()`, `ui_panel_print_status_setup()`, etc. | `src/ui_panel_print_status.cpp` |
 | `GcodeTestPanel` | `ui_panel_gcode_test_create()`, `ui_panel_gcode_test_cleanup()` | `src/ui_panel_gcode_test.cpp` |
+| `PrintSelectPanel` | `ui_panel_print_select_init_subjects()`, `ui_panel_print_select_setup()`, etc. | `src/ui_panel_print_select.cpp` |
 
 ## Clean Break Checklist
 
