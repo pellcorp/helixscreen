@@ -1173,10 +1173,10 @@ This pattern is used extensively (wizard screens, settings pages, etc.):
    - If one column is short, it constrains the entire row
    - **Solution:** Add `height="100%"` to ALL columns
 
-2. **LV_SIZE_CONTENT in nested flex:**
-   - `LV_SIZE_CONTENT` evaluates to 0 before `lv_obj_update_layout()` is called
-   - In deeply nested flex layouts, this causes collapse
-   - **Solution:** Use fixed heights or `style_min_height` for cards
+2. **LV_SIZE_CONTENT in nested grid (not flex):**
+   - Grid layouts don't have the propagation patch that flex has
+   - Nested grid containers with SIZE_CONTENT may need `lv_obj_update_layout()`
+   - **Note:** Nested flex with SIZE_CONTENT now works thanks to our propagation patch
 
 3. **Missing flex_grow chain:**
    - Every level needs proper sizing: `wrapper → row → columns`

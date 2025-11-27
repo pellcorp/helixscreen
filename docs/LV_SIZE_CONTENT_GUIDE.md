@@ -90,18 +90,35 @@ static int32_t calc_content_height(lv_obj_t * obj)
 </lv_obj>
 ```
 
-### ❌ FAILS: Complex Nested Flex
+### ✅ WORKS: Complex Nested Flex (With Propagation Patch)
+
+**HelixScreen includes a custom patch** (`patches/lvgl_flex_size_content_propagate.patch`) that fixes the classic SIZE_CONTENT collapse issue with nested flex containers. This is enabled by default via `LV_FLEX_PROPAGATE_SIZE_CONTENT=1` in `lv_conf.h`.
 
 ```xml
-<!-- Parent SIZE_CONTENT + nested flex children = collapse -->
+<!-- ✅ NOW WORKS - Nested flex with SIZE_CONTENT parent -->
 <lv_obj height="LV_SIZE_CONTENT" flex_flow="column">
     <lv_obj flex_flow="row">  <!-- Nested flex -->
         <lv_label>Item 1</lv_label>
         <lv_label>Item 2</lv_label>
     </lv_obj>
 </lv_obj>
+```
 
-<!-- Parent SIZE_CONTENT + child percentage = circular dependency -->
+**How the Patch Works:** After a flex container finishes layout, it propagates size refresh upward to any ancestor that also uses SIZE_CONTENT. This ensures parent sizes are recalculated after children are positioned.
+
+**Runtime Control:**
+```cpp
+// Disable if needed for debugging or performance tuning
+lv_flex_set_propagate_size_content(false);
+
+// Check current state
+bool enabled = lv_flex_get_propagate_size_content();
+```
+
+### ⚠️ CAUTION: Percentage Children
+
+```xml
+<!-- Still requires care - circular dependency -->
 <lv_obj width="LV_SIZE_CONTENT">
     <lv_obj width="50%">  <!-- 50% of what? -->
         Content
@@ -109,18 +126,11 @@ static int32_t calc_content_height(lv_obj_t * obj)
 </lv_obj>
 ```
 
-### ⚠️ SPECIAL CASE: Flex Containers
+LVGL handles this intelligently in most cases, but it's cleaner to avoid mixing SIZE_CONTENT parents with percentage children.
 
-Flex containers have special handling (`lv_flex.c:221-223`):
+### ⚠️ SPECIAL CASE: Flex Wrapping
 
-```c
-// After flex layout completes
-if(w_set == LV_SIZE_CONTENT || h_set == LV_SIZE_CONTENT) {
-    lv_obj_refr_size(cont);  // Recalculates size
-}
-```
-
-**BUT** flex also disables features with SIZE_CONTENT (`lv_flex.c:239-242`):
+Flex containers disable wrapping when SIZE_CONTENT is used (`lv_flex.c`):
 ```c
 // Disables wrapping if SIZE_CONTENT
 if(f->wrap && w_set == LV_SIZE_CONTENT) {
@@ -128,28 +138,30 @@ if(f->wrap && w_set == LV_SIZE_CONTENT) {
 }
 ```
 
-## The Root Cause: Layout Timing
+If you need wrapping, use explicit dimensions instead of SIZE_CONTENT.
 
-### The Circular Dependency Problem
+## How SIZE_CONTENT Layout Works
+
+### The Layout Pipeline
 
 ```
-Parent needs child coordinates to calculate SIZE_CONTENT
+1. Flex layout positions children
     ↓
-Children need parent size to position themselves (especially flex/grid)
+2. If container has SIZE_CONTENT, recalculate size
     ↓
-If children haven't laid out yet, coords = 0,0
+3. [WITH PATCH] Propagate refresh to SIZE_CONTENT ancestors
     ↓
-Parent calculates size as 0
+4. All levels have correct sizes
 ```
 
-### Why It's Not a Bug
+### Historical Context (Pre-Patch Behavior)
 
-LVGL uses **deferred layout calculation** for performance:
-- Batches multiple changes
-- Calculates layout once at end
-- Avoids redundant calculations
+Before our patch, LVGL had a timing issue where:
+- Parent needed child coordinates to calculate SIZE_CONTENT
+- Children needed parent size to position themselves
+- Without ancestor propagation, nested SIZE_CONTENT containers collapsed to 0
 
-The issue: **XML instantiation doesn't guarantee correct order**, especially with complex nested structures.
+**This is now fixed** with our propagation patch, making nested SIZE_CONTENT the **preferred pattern** for content-driven layouts.
 
 ## Three Proven Solutions
 
@@ -280,10 +292,10 @@ lv_obj_update_layout(panel);  // CRITICAL!
 | `lv_checkbox` | ✅ EXCELLENT | Fixed size components |
 | `lv_img` | ✅ EXCELLENT | Intrinsic size from image |
 | `lv_obj` (simple) | ✅ GOOD | Works with positioned children |
-| `lv_obj` (flex) | ⚠️ CONDITIONAL | Needs `lv_obj_update_layout()` |
-| `lv_obj` (grid) | ⚠️ CONDITIONAL | Needs `lv_obj_update_layout()` |
-| `lv_obj` (nested flex) | ❌ PROBLEMATIC | Use `flex_grow` instead |
-| `lv_textarea` | ❌ PROBLEMATIC | Often collapses |
+| `lv_obj` (flex) | ✅ EXCELLENT | Propagation patch handles this |
+| `lv_obj` (grid) | ⚠️ CONDITIONAL | No propagation patch; may need `lv_obj_update_layout()` |
+| `lv_obj` (nested flex) | ✅ EXCELLENT | **PREFERRED** - propagation patch fixes ancestor sizing |
+| `lv_textarea` | ⚠️ CONDITIONAL | May need explicit min-height |
 | `lv_dropdown` | ✅ GOOD | Sizes to selected item |
 | Custom widgets | ⚠️ VARIES | Depends on implementation |
 
@@ -346,27 +358,19 @@ lv_obj_update_layout(lv_screen_active());
 
 ### DON'T ❌
 
-1. **Don't use SIZE_CONTENT with deeply nested flex layouts**
-2. **Don't mix SIZE_CONTENT parent with percentage-width children**
-3. **Don't assume layout is calculated immediately after XML creation**
-4. **Don't use SIZE_CONTENT when wrap is needed in flex**
-5. **Don't forget to handle empty content cases**
-
-## Historical Context
-
-This issue has been encountered and solved multiple times in HelixScreen:
-
-- **Commit 03bc301**: Fixed wizard screens collapsing with SIZE_CONTENT
-- **Commit (wizard)**: Added strategic `lv_obj_update_layout()` calls
-- **Pattern #0 in HANDOFF.md**: Documents the flex + SIZE_CONTENT issue
-- **10+ locations**: Strategic layout updates throughout codebase
+1. **Don't use SIZE_CONTENT with deeply nested grid layouts** (grid has no propagation patch)
+2. **Don't mix SIZE_CONTENT parent with percentage-width children** (can create circular dependencies)
+3. **Don't assume layout is calculated immediately after XML creation** (call `lv_obj_update_layout()` when needed)
+4. **Don't use SIZE_CONTENT when wrap is needed in flex** (flex disables wrapping with SIZE_CONTENT)
+5. **Don't forget to handle empty content cases** (SIZE_CONTENT with no children = 0 size)
 
 ## Summary
 
-`LV_SIZE_CONTENT` is a powerful feature that works reliably when you understand the layout timing. The key is knowing when to:
+`LV_SIZE_CONTENT` is a powerful feature for content-driven layouts. With our propagation patch (`LV_FLEX_PROPAGATE_SIZE_CONTENT=1`), nested flex containers with SIZE_CONTENT are now the **preferred pattern**.
 
-1. Use it directly (simple widgets)
-2. Help it with `lv_obj_update_layout()` (complex layouts)
-3. Avoid it entirely (deeply nested flex)
+**Key points:**
+1. **Use freely with flex layouts** - the propagation patch handles ancestor sizing automatically
+2. **Use `lv_obj_update_layout()` for grid layouts** - grid doesn't have the propagation patch
+3. **Avoid with flex wrapping** - flex disables wrap when SIZE_CONTENT is used
 
 Remember: **It's not a bug, it's a timing issue.** The feature works perfectly when layout calculation happens in the correct order.
