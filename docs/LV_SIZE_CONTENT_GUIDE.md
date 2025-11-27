@@ -61,7 +61,7 @@ lv_obj_set_height(obj, LV_SIZE_CONTENT);
 
 ### ✅ Flex Containers (Preferred Pattern)
 
-HelixScreen includes a **custom propagation patch** that makes nested flex containers with SIZE_CONTENT the **preferred pattern**:
+**LVGL natively handles nested flex containers with SIZE_CONTENT** - this is the **preferred pattern**:
 
 ```xml
 <!-- ✅ EXCELLENT - Flex container auto-sizes to children -->
@@ -78,7 +78,7 @@ HelixScreen includes a **custom propagation patch** that makes nested flex conta
     <lv_label>Item 3</lv_label>
 </lv_obj>
 
-<!-- ✅ NOW WORKS - Nested flex with SIZE_CONTENT parent -->
+<!-- ✅ WORKS NATIVELY - Nested flex with SIZE_CONTENT parent -->
 <lv_obj height="content" flex_flow="column">
     <lv_obj flex_flow="row">  <!-- Nested flex -->
         <lv_label>Item 1</lv_label>
@@ -87,16 +87,7 @@ HelixScreen includes a **custom propagation patch** that makes nested flex conta
 </lv_obj>
 ```
 
-**How the Patch Works:** After a flex container finishes layout, it propagates size refresh upward to any ancestor that also uses SIZE_CONTENT. This ensures parent sizes are recalculated after children are positioned.
-
-**Runtime Control:**
-```cpp
-// Check if enabled (default: true)
-bool enabled = lv_flex_get_propagate_size_content();
-
-// Disable if needed for debugging or performance tuning
-lv_flex_set_propagate_size_content(false);
-```
+**How It Works:** LVGL's flex layout engine properly propagates SIZE_CONTENT through nested containers. Parent sizes are automatically recalculated after children are positioned.
 
 ### ⚠️ Flex Wrapping Not Supported
 
@@ -118,7 +109,7 @@ Flex containers automatically disable wrapping when SIZE_CONTENT is used:
 
 ### Grid Layouts (Needs Manual Update)
 
-Grid layouts don't have the propagation patch. For nested grids with SIZE_CONTENT, call `lv_obj_update_layout()`:
+Grid layouts may need explicit layout updates. For nested grids with SIZE_CONTENT, call `lv_obj_update_layout()`:
 
 ```cpp
 // After creating grid container with SIZE_CONTENT
@@ -152,9 +143,9 @@ int32_t width = lv_obj_get_width(panel);  // Now accurate
 | `lv_checkbox` | ✅ EXCELLENT | Fixed size components |
 | `lv_img` | ✅ EXCELLENT | Intrinsic size from image |
 | `lv_obj` (simple) | ✅ GOOD | Works with positioned children |
-| `lv_obj` (flex) | ✅ EXCELLENT | **PREFERRED** - propagation patch handles this |
-| `lv_obj` (grid) | ⚠️ CONDITIONAL | No propagation patch; needs `lv_obj_update_layout()` |
-| `lv_obj` (nested flex) | ✅ EXCELLENT | **PREFERRED** - propagation patch fixes ancestor sizing |
+| `lv_obj` (flex) | ✅ EXCELLENT | **PREFERRED** - LVGL handles this natively |
+| `lv_obj` (grid) | ⚠️ CONDITIONAL | May need `lv_obj_update_layout()` |
+| `lv_obj` (nested flex) | ✅ EXCELLENT | **PREFERRED** - LVGL handles nested propagation |
 | `lv_textarea` | ⚠️ CONDITIONAL | May need explicit min-height |
 | `lv_dropdown` | ✅ GOOD | Sizes to selected item |
 
@@ -199,7 +190,7 @@ spdlog::debug("After update: {}x{}",
 ### DO ✅
 
 1. **Use `"content"` syntax in XML** (NOT `"LV_SIZE_CONTENT"`)
-2. **Use SIZE_CONTENT freely with flex layouts** - the propagation patch handles this
+2. **Use SIZE_CONTENT freely with flex layouts** - LVGL handles nested propagation natively
 3. **Call `lv_obj_update_layout()` for grid layouts** or complex dynamic content
 4. **Test with different content sizes** to ensure dynamic sizing works
 5. **Define minimum sizes** when content might be empty
@@ -251,8 +242,8 @@ lv_obj_update_layout(panel);  // CRITICAL!
 SIZE_CONTENT is a powerful feature for content-driven layouts. The key points:
 
 1. **XML uses `"content"`, C++ uses `LV_SIZE_CONTENT`** - this is the #1 source of confusion
-2. **Flex layouts with SIZE_CONTENT are the preferred pattern** - the propagation patch makes this reliable
-3. **Grid layouts need manual `lv_obj_update_layout()`** - grid doesn't have the propagation patch
+2. **Flex layouts with SIZE_CONTENT are the preferred pattern** - LVGL handles nested propagation natively
+3. **Grid layouts may need manual `lv_obj_update_layout()`** - for complex nested scenarios
 4. **Test your syntax first** - using `"LV_SIZE_CONTENT"` in XML is the most common mistake
 
 Remember: It's not a bug, it's about using the right syntax and ensuring layout calculation happens at the right time.
