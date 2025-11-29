@@ -261,6 +261,16 @@ class PrinterState {
      */
     void set_network_status(int status);
 
+    /**
+     * @brief Update printer capability subjects from PrinterCapabilities
+     *
+     * Updates subjects that control visibility of pre-print option checkboxes.
+     * Called by main.cpp after MoonrakerClient::discover_printer() completes.
+     *
+     * @param caps PrinterCapabilities populated from printer.objects.list
+     */
+    void set_printer_capabilities(const class PrinterCapabilities& caps);
+
   private:
     // Temperature subjects
     lv_subject_t extruder_temp_;
@@ -293,6 +303,12 @@ class PrinterState {
 
     // LED state subject
     lv_subject_t led_state_; // Integer: 0=off, 1=on
+
+    // Printer capability subjects (for pre-print options visibility)
+    lv_subject_t printer_has_qgl_;          // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_z_tilt_;       // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_bed_mesh_;     // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_nozzle_clean_; // Integer: 0=no, 1=yes
 
     // Tracked LED name (e.g., "neopixel chamber_light")
     std::string tracked_led_name_;

@@ -423,6 +423,13 @@ static bool parse_command_line_args(
             g_runtime_config.use_real_moonraker = true;
         } else if (strcmp(argv[i], "--real-files") == 0) {
             g_runtime_config.use_real_files = true;
+        } else if (strcmp(argv[i], "--select-file") == 0) {
+            if (i + 1 < argc) {
+                g_runtime_config.select_file = argv[++i];
+            } else {
+                printf("Error: --select-file requires a filename argument\n");
+                return false;
+            }
         } else if (strcmp(argv[i], "--gcode-file") == 0) {
             if (i + 1 < argc) {
                 g_runtime_config.gcode_test_file = argv[++i];
@@ -586,6 +593,7 @@ static bool parse_command_line_args(
             printf("    --real-ethernet    Use real Ethernet hardware (requires --test)\n");
             printf("    --real-moonraker   Connect to real printer (requires --test)\n");
             printf("    --real-files       Use real files from printer (requires --test)\n");
+            printf("    --select-file <name>  Auto-select file in print-select panel and show detail view\n");
             printf("\nG-code Viewer Options:\n");
             printf("  --gcode-file <path>  Load specific G-code file on startup\n");
             printf("  --camera <params>    Set camera params: \"az:90.5,el:4.0,zoom:15.5\"\n");
@@ -1527,8 +1535,18 @@ int main(int argc, char** argv) {
         if (show_file_detail) {
             spdlog::debug("File detail view requested - navigating to print select panel first");
             ui_nav_set_active(UI_PANEL_PRINT_SELECT);
-            // Note: File detail requires selecting a specific file, which can't be automated via
-            // CLI flag
+        }
+
+        // Handle --select-file flag: auto-select a file in the print select panel
+        if (g_runtime_config.select_file != nullptr) {
+            spdlog::info("--select-file flag: Will auto-select file '{}'",
+                         g_runtime_config.select_file);
+            ui_nav_set_active(UI_PANEL_PRINT_SELECT);
+            // Set pending selection - will trigger when file list is loaded
+            auto* print_panel = get_print_select_panel(get_printer_state(), moonraker_api);
+            if (print_panel) {
+                print_panel->set_pending_file_selection(g_runtime_config.select_file);
+            }
         }
     }
 
@@ -1584,8 +1602,11 @@ int main(int argc, char** argv) {
                 // State change callback will handle updating PrinterState
 
                 // Start auto-discovery (must be called AFTER connection is established)
-                moonraker_client->discover_printer(
-                    []() { spdlog::info("✓ Printer auto-discovery complete"); });
+                moonraker_client->discover_printer([]() {
+                    spdlog::info("✓ Printer auto-discovery complete");
+                    // Update PrinterState with discovered capabilities for reactive UI bindings
+                    get_printer_state().set_printer_capabilities(moonraker_client->capabilities());
+                });
             },
             []() {
                 spdlog::warn("✗ Disconnected from Moonraker");

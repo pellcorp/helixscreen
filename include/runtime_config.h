@@ -43,6 +43,9 @@ struct RuntimeConfig {
         false;                   ///< Use real Moonraker client (--real-moonraker, requires --test)
     bool use_real_files = false; ///< Use real file listing (--real-files, requires --test)
 
+    // Print select panel options
+    const char* select_file = nullptr; ///< File to auto-select in print select panel (--select-file)
+
     // G-code viewer options
     const char* gcode_test_file = nullptr;   ///< G-code file to load on startup (--gcode-file)
     bool gcode_camera_azimuth_set = false;   ///< Whether azimuth was set via command line

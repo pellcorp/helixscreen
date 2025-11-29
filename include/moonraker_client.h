@@ -28,6 +28,7 @@
 #include "hv/WebSocketClient.h"
 #include "moonraker_error.h"
 #include "moonraker_request.h"
+#include "printer_capabilities.h"
 #include "spdlog/spdlog.h"
 
 #include <atomic>
@@ -238,6 +239,15 @@ class MoonrakerClient : public hv::WebSocketClient {
     }
 
     /**
+     * @brief Get printer capabilities (QGL, Z-tilt, bed mesh, macros, etc.)
+     *
+     * Populated during discover_printer() from printer.objects.list response.
+     */
+    const PrinterCapabilities& capabilities() const {
+        return capabilities_;
+    }
+
+    /**
      * @brief Guess the most likely bed heater from discovered hardware
      *
      * Searches heaters_ for names containing "bed", "heated_bed", "heater_bed".
@@ -441,6 +451,7 @@ class MoonrakerClient : public hv::WebSocketClient {
     std::vector<std::string> fans_;    // All fan types
     std::vector<std::string> leds_;    // LED outputs
     std::string hostname_;             // Printer hostname from printer.info
+    PrinterCapabilities capabilities_; // QGL, Z-tilt, bed mesh, macros
 
     // Bed mesh data
     BedMeshProfile active_bed_mesh_;             // Currently active mesh profile

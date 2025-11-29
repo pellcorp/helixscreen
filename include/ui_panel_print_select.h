@@ -225,6 +225,27 @@ class PrintSelectPanel : public PanelBase {
     void show_detail_view();
 
     /**
+     * @brief Programmatically select a file by name and show detail view
+     *
+     * Searches for the file in the current file list and opens its detail view.
+     * Used by --select-file CLI flag for testing the detail view.
+     *
+     * @param filename File name to select (matches against filename field)
+     * @return true if file was found and selected, false otherwise
+     */
+    bool select_file_by_name(const std::string& filename);
+
+    /**
+     * @brief Set a pending file selection (for --select-file flag)
+     *
+     * The file will be auto-selected when the file list is populated.
+     * Used because files are loaded asynchronously.
+     *
+     * @param filename File name to select when list is loaded
+     */
+    void set_pending_file_selection(const std::string& filename);
+
+    /**
      * @brief Hide detail view overlay
      */
     void hide_detail_view();
@@ -298,6 +319,7 @@ class PrintSelectPanel : public PanelBase {
     std::vector<PrintFileData> file_list_;
     std::string current_path_;           ///< Current directory path (empty = root gcodes dir)
     std::string selected_filament_type_; ///< Filament type of selected file (for dropdown default)
+    std::string pending_file_selection_; ///< File to auto-select when list is populated (--select-file)
     PrintSelectViewMode current_view_mode_ = PrintSelectViewMode::CARD;
     PrintSelectSortColumn current_sort_column_ = PrintSelectSortColumn::FILENAME;
     PrintSelectSortDirection current_sort_direction_ = PrintSelectSortDirection::ASCENDING;

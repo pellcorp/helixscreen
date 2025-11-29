@@ -14,6 +14,7 @@
 
 #include "app_globals.h"
 #include "config.h"
+#include "runtime_config.h"
 #include "lvgl/src/xml/lv_xml.h"
 #include "moonraker_api.h"
 #include "printer_state.h"
@@ -349,6 +350,26 @@ void PrintSelectPanel::refresh_files() {
             self->populate_list_view();
             self->update_empty_state();
 
+            // Check for pending file selection (--select-file flag or API call)
+            std::string pending;
+            if (!self->pending_file_selection_.empty()) {
+                pending = self->pending_file_selection_;
+                self->pending_file_selection_.clear(); // Clear to avoid repeat
+            } else if (get_runtime_config().select_file != nullptr) {
+                // Check runtime config on first load (--select-file CLI flag)
+                static bool select_file_checked = false;
+                if (!select_file_checked) {
+                    pending = get_runtime_config().select_file;
+                    select_file_checked = true;
+                }
+            }
+            if (!pending.empty()) {
+                if (!self->select_file_by_name(pending)) {
+                    spdlog::warn("[{}] Pending file selection '{}' not found in file list",
+                                 self->get_name(), pending);
+                }
+            }
+
             // Count files vs directories
             size_t dir_count = 0, file_count = 0;
             for (const auto& item : self->file_list_) {
@@ -407,6 +428,18 @@ void PrintSelectPanel::refresh_files() {
                         // Re-render views to show updated metadata
                         self->populate_card_view();
                         self->populate_list_view();
+
+                        // Also update detail view if this file is currently selected
+                        if (strcmp(self->selected_filename_buffer_, filename.c_str()) == 0) {
+                            spdlog::debug(
+                                "[{}] Updating detail view for selected file: {}", self->get_name(),
+                                filename);
+                            self->set_selected_file(
+                                filename.c_str(),
+                                self->file_list_[i].thumbnail_path.c_str(),
+                                self->file_list_[i].print_time_str.c_str(),
+                                self->file_list_[i].filament_str.c_str());
+                        }
                     },
                     // Metadata error callback
                     [self, filename](const MoonrakerError& error) {
@@ -1095,4 +1128,25 @@ void PrintSelectPanel::on_cancel_delete_static(lv_event_t* e) {
     if (self) {
         self->hide_delete_confirmation();
     }
+}
+
+bool PrintSelectPanel::select_file_by_name(const std::string& filename) {
+    // Search for the file in the current file list
+    for (size_t i = 0; i < file_list_.size(); ++i) {
+        const auto& file = file_list_[i];
+        if (!file.is_dir && file.filename == filename) {
+            // Found it - simulate a file click
+            spdlog::info("[{}] Programmatically selecting file: {}", get_name(), filename);
+            handle_file_click(i);
+            return true;
+        }
+    }
+
+    spdlog::warn("[{}] File not found for selection: {}", get_name(), filename);
+    return false;
+}
+
+void PrintSelectPanel::set_pending_file_selection(const std::string& filename) {
+    pending_file_selection_ = filename;
+    spdlog::info("[{}] Set pending file selection: '{}'", get_name(), filename);
 }

@@ -98,16 +98,20 @@ TEST_MOONRAKER_DEPS := \
     $(OBJ_DIR)/moonraker_client_mock.o \
     $(OBJ_DIR)/moonraker_api.o \
     $(OBJ_DIR)/printer_state.o \
-    $(OBJ_DIR)/printer_detector.o
+    $(OBJ_DIR)/printer_detector.o \
+    $(OBJ_DIR)/printer_capabilities.o \
+    $(OBJ_DIR)/command_sequencer.o
 
 # Configuration and utilities
 TEST_CONFIG_DEPS := \
     $(OBJ_DIR)/config.o \
     $(OBJ_DIR)/tips_manager.o
 
-# GCode parsing and geometry (for gcode tests and bed mesh)
+# GCode parsing, geometry, and file modification (for gcode tests and bed mesh)
 TEST_GCODE_DEPS := \
     $(OBJ_DIR)/gcode_parser.o \
+    $(OBJ_DIR)/gcode_ops_detector.o \
+    $(OBJ_DIR)/gcode_file_modifier.o \
     $(OBJ_DIR)/gcode_geometry_builder.o \
     $(OBJ_DIR)/gcode_camera.o \
     $(OBJ_DIR)/bed_mesh_coordinate_transform.o \

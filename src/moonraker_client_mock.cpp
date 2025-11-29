@@ -305,6 +305,33 @@ void MoonrakerClientMock::discover_printer(std::function<void()> on_complete) {
     // Generate synthetic bed mesh data
     generate_mock_bed_mesh();
 
+    // Populate capabilities by creating mock Klipper object list
+    json mock_objects = json::array();
+
+    // Add common objects
+    mock_objects.push_back("heater_bed");
+    mock_objects.push_back("extruder");
+    mock_objects.push_back("bed_mesh");
+
+    // Add printer-specific objects
+    switch (printer_type_) {
+    case PrinterType::VORON_24:
+        mock_objects.push_back("quad_gantry_level");
+        mock_objects.push_back("gcode_macro CLEAN_NOZZLE");
+        mock_objects.push_back("gcode_macro PRINT_START");
+        break;
+    case PrinterType::VORON_TRIDENT:
+        mock_objects.push_back("z_tilt");
+        mock_objects.push_back("gcode_macro CLEAN_NOZZLE");
+        mock_objects.push_back("gcode_macro PRINT_START");
+        break;
+    default:
+        // Other printers may not have these features
+        break;
+    }
+
+    capabilities_.parse_objects(mock_objects);
+
     // Log discovered hardware
     spdlog::debug("[MoonrakerClientMock] Discovered: {} heaters, {} sensors, {} fans, {} LEDs",
                   heaters_.size(), sensors_.size(), fans_.size(), leds_.size());

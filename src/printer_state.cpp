@@ -23,6 +23,8 @@
 
 #include "printer_state.h"
 
+#include "printer_capabilities.h"
+
 #include <cstring>
 
 PrinterState::PrinterState() {
@@ -116,6 +118,12 @@ void PrinterState::init_subjects(bool register_xml) {
     // LED state subject (0=off, 1=on, derived from LED color data)
     lv_subject_init_int(&led_state_, 0);
 
+    // Printer capability subjects (all default to 0=not available)
+    lv_subject_init_int(&printer_has_qgl_, 0);
+    lv_subject_init_int(&printer_has_z_tilt_, 0);
+    lv_subject_init_int(&printer_has_bed_mesh_, 0);
+    lv_subject_init_int(&printer_has_nozzle_clean_, 0);
+
     // Register all subjects with LVGL XML system (CRITICAL for XML bindings)
     if (register_xml) {
         spdlog::debug("[PrinterState] Registering subjects with XML system");
@@ -137,6 +145,10 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "printer_connection_message", &printer_connection_message_);
         lv_xml_register_subject(NULL, "network_status", &network_status_);
         lv_xml_register_subject(NULL, "led_state", &led_state_);
+        lv_xml_register_subject(NULL, "printer_has_qgl", &printer_has_qgl_);
+        lv_xml_register_subject(NULL, "printer_has_z_tilt", &printer_has_z_tilt_);
+        lv_xml_register_subject(NULL, "printer_has_bed_mesh", &printer_has_bed_mesh_);
+        lv_xml_register_subject(NULL, "printer_has_nozzle_clean", &printer_has_nozzle_clean_);
     } else {
         spdlog::debug("[PrinterState] Skipping XML registration (tests mode)");
     }
@@ -344,4 +356,16 @@ void PrinterState::set_tracked_led(const std::string& led_name) {
     } else {
         spdlog::debug("[PrinterState] LED tracking disabled");
     }
+}
+
+void PrinterState::set_printer_capabilities(const PrinterCapabilities& caps) {
+    // Update capability subjects for reactive UI bindings
+    lv_subject_set_int(&printer_has_qgl_, caps.has_qgl() ? 1 : 0);
+    lv_subject_set_int(&printer_has_z_tilt_, caps.has_z_tilt() ? 1 : 0);
+    lv_subject_set_int(&printer_has_bed_mesh_, caps.has_bed_mesh() ? 1 : 0);
+    lv_subject_set_int(&printer_has_nozzle_clean_, caps.has_nozzle_clean_macro() ? 1 : 0);
+
+    spdlog::info("[PrinterState] Capabilities updated: QGL={}, Z-tilt={}, BedMesh={}, NozzleClean={}",
+                 caps.has_qgl(), caps.has_z_tilt(), caps.has_bed_mesh(),
+                 caps.has_nozzle_clean_macro());
 }

@@ -46,17 +46,28 @@
       <!-- RIGHT SECTION: Options and buttons (4/9 width)                    -->
       <!-- ================================================================== -->
       <lv_obj name="options_section" flex_grow="4" height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="#gap_small" style_pad_gap="#gap_large" flex_flow="column" scrollable="false">
-        <!-- Options card -->
-        <ui_card name="options_card" width="100%" style_radius="#border_radius" flex_flow="column">
+        <!-- Options card - flex_grow ensures it expands to fit all checkboxes -->
+        <ui_card name="options_card" width="100%" flex_grow="1" style_radius="#border_radius" flex_flow="column">
           <!-- Filament type dropdown -->
           <text_body text="Filament Type" width="100%"/>
           <lv_dropdown name="filament_dropdown" options="PLA&#10;PETG&#10;ABS&#10;TPU&#10;Nylon&#10;ASA&#10;PC&#10;" width="100%" height="#button_height"/>
-          <!-- Automatic bed leveling checkbox -->
-          <lv_checkbox name="bed_leveling_checkbox" text="Automatic Bed Leveling" width="100%"/>
+          <!-- Pre-print options (visibility controlled by reactive bindings to capability subjects) -->
+          <lv_checkbox name="bed_leveling_checkbox" text="Automatic Bed Leveling" width="100%">
+            <lv_obj-bind_flag_if_eq subject="printer_has_bed_mesh" flag="hidden" ref_value="0"/>
+          </lv_checkbox>
+          <lv_checkbox name="qgl_checkbox" text="Quad Gantry Level" width="100%">
+            <lv_obj-bind_flag_if_eq subject="printer_has_qgl" flag="hidden" ref_value="0"/>
+          </lv_checkbox>
+          <lv_checkbox name="z_tilt_checkbox" text="Z-Tilt Adjust" width="100%">
+            <lv_obj-bind_flag_if_eq subject="printer_has_z_tilt" flag="hidden" ref_value="0"/>
+          </lv_checkbox>
+          <lv_checkbox name="nozzle_clean_checkbox" text="Clean Nozzle" width="100%">
+            <lv_obj-bind_flag_if_eq subject="printer_has_nozzle_clean" flag="hidden" ref_value="0"/>
+          </lv_checkbox>
         </ui_card>
 
-        <!-- Button row -->
-        <lv_obj name="button_row" width="100%" flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="#button_padding" flex_flow="row">
+        <!-- Button row - fixed height, not flex_grow since buttons don't expand -->
+        <lv_obj name="button_row" width="100%" height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="#button_padding" flex_flow="row">
           <!-- Delete button -->
           <lv_button name="delete_button" flex_grow="1" height="#button_height">
             <text_body text="Delete" align="center"/>

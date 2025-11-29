@@ -840,6 +840,9 @@ void MoonrakerClient::parse_objects(const json& objects) {
     if (!leds_.empty()) {
         spdlog::debug("[Moonraker Client] LEDs: {}", json(leds_).dump());
     }
+
+    // Parse printer capabilities (QGL, Z-tilt, bed mesh, macros)
+    capabilities_.parse_objects(objects);
 }
 
 void MoonrakerClient::parse_bed_mesh(const json& bed_mesh) {
