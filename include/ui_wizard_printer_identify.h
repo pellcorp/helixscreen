@@ -109,6 +109,14 @@ class WizardPrinterIdentifyStep {
     }
 
     /**
+     * @brief Get detection status message for header subtitle
+     * @return Detection status string (e.g., "Loaded from configuration", "Voron 2.4")
+     */
+    const char* get_detection_status() const {
+        return printer_detection_status_buffer_;
+    }
+
+    /**
      * @brief Find printer type index by name
      *
      * @param printer_name Name to search for in PRINTER_TYPES_ROLLER

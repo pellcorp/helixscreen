@@ -781,6 +781,7 @@ static void register_xml_components() {
     lv_xml_register_component_from_file("A:ui_xml/glyphs_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/gradient_test_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/app_layout.xml");
+    lv_xml_register_component_from_file("A:ui_xml/wizard_header_bar.xml");  // Must come before wizard_container
     lv_xml_register_component_from_file("A:ui_xml/wizard_container.xml");
     lv_xml_register_component_from_file("A:ui_xml/network_list_item.xml");
     lv_xml_register_component_from_file("A:ui_xml/wifi_password_modal.xml");

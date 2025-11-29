@@ -5,16 +5,18 @@
 <component>
   <!-- First-Run Wizard: LED Select Screen (Optional) -->
   <!-- User selects main LED strip, or skips if not present -->
+  <consts>
+    <!-- Step metadata (read by wizard orchestrator) -->
+    <str name="step_title" value="Printer Setup: LEDs"/>
+    <str name="step_subtitle" value="Optional - select your LED strip, or skip if your printer doesn't have one"/>
+    <int name="step_order" value="6"/>
+  </consts>
   <view extends="lv_obj" width="100%" height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column" style_flex_main_place="start" style_flex_cross_place="center" name="wizard_led_select_root">
-    <!-- Help text -->
-    <text_body text="Choose your main LED strip (skip if you don't have LEDs)" width="100%" style_pad_bottom="#gap_small"/>
     <!-- Selection container -->
     <ui_card width="100%" flex_grow="1" style_radius="#border_radius_large" style_pad_all="#padding_normal" style_pad_gap="#gap_normal" flex_flow="column" style_flex_main_place="start" style_flex_cross_place="start">
       <!-- LED selection -->
       <text_body text="Main LED Strip" style_pad_bottom="#gap_small"/>
       <lv_dropdown name="led_main_dropdown" options="(None)" width="100%" height="#header_height" style_border_width="#input_border_width" style_border_opa="100%" style_radius="#border_radius" style_pad_all="#padding_card"/>
     </ui_card>
-    <!-- Note about optional -->
-    <text_body text="This is optional - you can configure LEDs later" width="100%" style_text_color="#text_secondary" style_pad_top="#gap_normal"/>
   </view>
 </component>

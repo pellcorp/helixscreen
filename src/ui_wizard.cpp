@@ -51,6 +51,7 @@ static lv_subject_t total_steps;
 static lv_subject_t wizard_title;
 static lv_subject_t wizard_progress;
 static lv_subject_t wizard_next_button_text;
+static lv_subject_t wizard_subtitle;
 
 // Non-static: accessible from ui_wizard_connection.cpp
 lv_subject_t connection_test_passed; // Global: 0=connection not validated, 1=validated or N/A
@@ -59,6 +60,7 @@ lv_subject_t connection_test_passed; // Global: 0=connection not validated, 1=va
 static char wizard_title_buffer[64];
 static char wizard_progress_buffer[32];
 static char wizard_next_button_text_buffer[16];
+static char wizard_subtitle_buffer[128];
 
 // Wizard container instance
 static lv_obj_t* wizard_container = nullptr;
@@ -71,6 +73,83 @@ static void on_back_clicked(lv_event_t* e);
 static void on_next_clicked(lv_event_t* e);
 static void ui_wizard_load_screen(int step);
 static void ui_wizard_cleanup_current_screen();
+static const char* get_step_title_from_xml(int step);
+static const char* get_step_subtitle_from_xml(int step);
+
+// ============================================================================
+// Step Metadata (read from XML <consts>)
+// ============================================================================
+
+/**
+ * Map step number to XML component name
+ * Each component defines its own step_title in its <consts> block
+ */
+static const char* const STEP_COMPONENT_NAMES[] = {
+    nullptr,                   // 0 (unused, 1-indexed)
+    "wizard_wifi_setup",       // 1
+    "wizard_connection",       // 2
+    "wizard_printer_identify", // 3
+    "wizard_heater_select",    // 4
+    "wizard_fan_select",       // 5
+    "wizard_led_select",       // 6
+    "wizard_summary"           // 7
+};
+static constexpr int STEP_COMPONENT_COUNT = 7;
+
+/**
+ * Get step title from XML component's <consts> block
+ *
+ * Each wizard step XML file defines:
+ *   <consts>
+ *     <str name="step_title" value="WiFi Setup"/>
+ *     <int name="step_order" value="1"/>
+ *   </consts>
+ *
+ * This function reads step_title from the component's scope at runtime,
+ * eliminating hardcoded title strings in C++.
+ */
+static const char* get_step_title_from_xml(int step) {
+    if (step < 1 || step > STEP_COMPONENT_COUNT) {
+        spdlog::warn("[Wizard] Invalid step {} for title lookup", step);
+        return "Unknown Step";
+    }
+
+    const char* comp_name = STEP_COMPONENT_NAMES[step];
+    lv_xml_component_scope_t* scope = lv_xml_component_get_scope(comp_name);
+    if (!scope) {
+        spdlog::warn("[Wizard] Component scope not found for '{}'", comp_name);
+        return "Unknown Step";
+    }
+
+    const char* title = lv_xml_get_const(scope, "step_title");
+    if (!title) {
+        spdlog::warn("[Wizard] step_title not found in '{}' consts", comp_name);
+        return "Unknown Step";
+    }
+
+    return title;
+}
+
+/**
+ * Get step subtitle from XML component's <consts> block
+ *
+ * Subtitles provide contextual hints (e.g., "Skip if using Ethernet")
+ * that appear below the title in the wizard header.
+ */
+static const char* get_step_subtitle_from_xml(int step) {
+    if (step < 1 || step > STEP_COMPONENT_COUNT) {
+        return "";
+    }
+
+    const char* comp_name = STEP_COMPONENT_NAMES[step];
+    lv_xml_component_scope_t* scope = lv_xml_component_get_scope(comp_name);
+    if (!scope) {
+        return "";
+    }
+
+    const char* subtitle = lv_xml_get_const(scope, "step_subtitle");
+    return subtitle ? subtitle : "";
+}
 
 void ui_wizard_init_subjects() {
     spdlog::debug("[Wizard] Initializing subjects");
@@ -87,6 +166,8 @@ void ui_wizard_init_subjects() {
                                         "wizard_progress");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(wizard_next_button_text, wizard_next_button_text_buffer,
                                         "Next", "wizard_next_button_text");
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(wizard_subtitle, wizard_subtitle_buffer,
+                                        "", "wizard_subtitle");
 
     // Initialize connection_test_passed to 1 (enabled by default for all steps)
     // Step 2 (connection) will set it to 0 until test passes
@@ -367,18 +448,23 @@ static void ui_wizard_load_screen(int step) {
     lv_obj_clean(content);
     spdlog::debug("[Wizard] Cleared wizard_content container");
 
+    // Set title and subtitle from XML metadata (no more hardcoded strings!)
+    const char* title = get_step_title_from_xml(step);
+    ui_wizard_set_title(title);
+    const char* subtitle = get_step_subtitle_from_xml(step);
+    lv_subject_copy_string(&wizard_subtitle, subtitle);
+
     // Create appropriate screen based on step
+    // Note: Step-specific initialization remains in switch because each step
+    // has unique logic (WiFi needs init_wifi_manager, etc.)
     switch (step) {
     case 1: // WiFi Setup
         spdlog::debug("[Wizard] Creating WiFi setup screen");
         get_wizard_wifi_step()->init_subjects();
         get_wizard_wifi_step()->register_callbacks();
-        // Note: WiFi constants now registered by
-        // ui_wizard_container_register_responsive_constants()
         get_wizard_wifi_step()->create(content);
         lv_obj_update_layout(content);
         get_wizard_wifi_step()->init_wifi_manager();
-        ui_wizard_set_title("WiFi Setup");
         break;
 
     case 2: // Moonraker Connection
@@ -387,7 +473,6 @@ static void ui_wizard_load_screen(int step) {
         get_wizard_connection_step()->register_callbacks();
         get_wizard_connection_step()->create(content);
         lv_obj_update_layout(content);
-        ui_wizard_set_title("Moonraker Connection");
         break;
 
     case 3: // Printer Identification
@@ -396,7 +481,9 @@ static void ui_wizard_load_screen(int step) {
         get_wizard_printer_identify_step()->register_callbacks();
         get_wizard_printer_identify_step()->create(content);
         lv_obj_update_layout(content);
-        ui_wizard_set_title("Printer Identification");
+        // Override subtitle with dynamic detection status
+        lv_subject_copy_string(&wizard_subtitle,
+                               get_wizard_printer_identify_step()->get_detection_status());
         break;
 
     case 4: // Heater Select (combined bed + hotend)
@@ -405,7 +492,6 @@ static void ui_wizard_load_screen(int step) {
         get_wizard_heater_select_step()->register_callbacks();
         get_wizard_heater_select_step()->create(content);
         lv_obj_update_layout(content);
-        ui_wizard_set_title("Heater Configuration");
         break;
 
     case 5: // Fan Select
@@ -414,7 +500,6 @@ static void ui_wizard_load_screen(int step) {
         get_wizard_fan_select_step()->register_callbacks();
         get_wizard_fan_select_step()->create(content);
         lv_obj_update_layout(content);
-        ui_wizard_set_title("Fan Configuration");
         break;
 
     case 6: // LED Select
@@ -423,7 +508,6 @@ static void ui_wizard_load_screen(int step) {
         get_wizard_led_select_step()->register_callbacks();
         get_wizard_led_select_step()->create(content);
         lv_obj_update_layout(content);
-        ui_wizard_set_title("LED Configuration");
         break;
 
     case 7: // Summary
@@ -432,7 +516,6 @@ static void ui_wizard_load_screen(int step) {
         get_wizard_summary_step()->register_callbacks();
         get_wizard_summary_step()->create(content);
         lv_obj_update_layout(content);
-        ui_wizard_set_title("Configuration Summary");
         break;
 
     default:
