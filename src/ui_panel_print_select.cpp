@@ -997,6 +997,17 @@ void PrintSelectPanel::handle_file_click(size_t file_index) {
 }
 
 void PrintSelectPanel::start_print() {
+    // Stage 9: Concurrent Print Prevention
+    // Check if a print is already active before allowing a new one to start
+    if (!printer_state_.can_start_new_print()) {
+        PrintJobState current_state = printer_state_.get_print_job_state();
+        const char* state_str = print_job_state_to_string(current_state);
+        NOTIFY_ERROR("Cannot start print: printer is {}", state_str);
+        spdlog::warn("[{}] Attempted to start print while printer is in {} state",
+                     get_name(), state_str);
+        return;
+    }
+
     std::string filename_to_print(selected_filename_buffer_);
     auto* self = this;
 
