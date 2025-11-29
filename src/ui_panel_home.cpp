@@ -157,8 +157,8 @@ void HomePanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         std::string printer_type =
             cfg->get<std::string>(WizardConfigPaths::PRINTER_TYPE, "Unknown");
         int type_index = PrinterTypes::find_printer_type_index(printer_type);
-        const char* image_path = PrinterImages::get_image_path(type_index);
-        lv_image_set_src(printer_image_, image_path);
+        std::string image_path = PrinterImages::get_validated_image_path(type_index);
+        lv_image_set_src(printer_image_, image_path.c_str());
         spdlog::debug("[{}] Printer image set: type='{}' (idx={}) -> {}", get_name(), printer_type,
                       type_index, image_path);
     }

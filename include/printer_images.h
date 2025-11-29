@@ -3,120 +3,134 @@
 
 #pragma once
 
+#include "printer_detector.h"
+#include "printer_types.h"
+
+#include <filesystem>
+#include <sstream>
+#include <string>
+
 /**
  * @file printer_images.h
  * @brief Printer type to image path mapping
  *
- * Maps printer type indices (from printer_types.h) to their corresponding
- * image asset paths. Uses generic fallback for unknown/unmapped printers.
+ * Provides image path lookups for printer types using the unified printer database
+ * (config/printer_database.json). Falls back to generic CoreXY image when a printer
+ * image is not found or the file doesn't exist on disk.
+ *
+ * Image paths are stored in the database as just filenames (e.g., "voron-24r2.png").
+ * This header adds the full LVGL path prefix "A:assets/images/printers/".
  */
 
 namespace PrinterImages {
 
-/// Default fallback image for unknown/unmapped printers
-inline constexpr const char* DEFAULT_IMAGE = "A:assets/images/printers/generic-corexy-750x930.png";
+/// Base path for printer images (LVGL filesystem prefix)
+inline constexpr const char* IMAGE_BASE_PATH = "A:assets/images/printers/";
+
+/// Default fallback image for unknown/unmapped printers (generic CoreXY)
+inline constexpr const char* DEFAULT_IMAGE = "A:assets/images/printers/generic-corexy.png";
+
+/// Default image filename (without path)
+inline constexpr const char* DEFAULT_IMAGE_FILENAME = "generic-corexy.png";
 
 /**
- * @brief Printer type indices (must match printer_types.h order)
+ * @brief Get printer name from type index
+ *
+ * @param printer_type_index Index from printer type roller (0-39)
+ * @return Printer name string (e.g., "Voron 2.4")
  */
-enum PrinterTypeIndex {
-    ANYCUBIC_CHIRON = 0,
-    ANYCUBIC_I3_MEGA = 1,
-    ANYCUBIC_KOBRA = 2,
-    ANYCUBIC_VYPER = 3,
-    BAMBU_LAB_P1P = 4,
-    BAMBU_LAB_X1 = 5,
-    CREALITY_CR10 = 6,
-    CREALITY_ENDER_3 = 7,
-    CREALITY_ENDER_5 = 8,
-    CREALITY_K1 = 9,
-    DORON_VELTA = 10,
-    FLASHFORGE_ADVENTURER_5M = 11,
-    FLASHFORGE_ADVENTURER_5M_PRO = 12,
-    FLASHFORGE_CREATOR_PRO = 13,
-    FLASHFORGE_DREAMER = 14,
-    FLSUN_DELTA = 15,
-    LULZBOT_MINI = 16,
-    LULZBOT_TAZ = 17,
-    MAKERBOT_REPLICATOR = 18,
-    PRUSA_I3_MK3 = 19,
-    PRUSA_I3_MK4 = 20,
-    PRUSA_MINI = 21,
-    PRUSA_XL = 22,
-    QIDI_TECH_X_MAX = 23,
-    QIDI_TECH_X_PLUS = 24,
-    RAISE3D_E2 = 25,
-    RAISE3D_PRO2 = 26,
-    RATRIG_VCORE3 = 27,
-    RATRIG_VMINION = 28,
-    SOVOL_SV01 = 29,
-    SOVOL_SV06 = 30,
-    ULTIMAKER_2_PLUS = 31,
-    ULTIMAKER_3 = 32,
-    ULTIMAKER_S3 = 33,
-    VORON_0_1 = 34,
-    VORON_2_4 = 35,
-    VORON_SWITCHWIRE = 36,
-    VORON_TRIDENT = 37,
-    CUSTOM_OTHER = 38,
-    UNKNOWN = 39
-};
+inline std::string get_printer_name(int printer_type_index) {
+    std::istringstream stream(PrinterTypes::PRINTER_TYPES_ROLLER);
+    std::string line;
+    int index = 0;
+
+    while (std::getline(stream, line)) {
+        if (index == printer_type_index) {
+            return line;
+        }
+        ++index;
+    }
+    return "Unknown";
+}
+
+/**
+ * @brief Convert LVGL path (A:...) to filesystem path
+ *
+ * @param lvgl_path Path with "A:" prefix
+ * @return Filesystem path without prefix
+ */
+inline std::string lvgl_to_fs_path(const char* lvgl_path) {
+    if (lvgl_path && lvgl_path[0] == 'A' && lvgl_path[1] == ':') {
+        return std::string(lvgl_path + 2); // Skip "A:" prefix
+    }
+    return lvgl_path ? lvgl_path : "";
+}
+
+/**
+ * @brief Check if a file exists at the given LVGL path
+ *
+ * @param lvgl_path Path with "A:" prefix
+ * @return true if file exists, false otherwise
+ */
+inline bool image_file_exists(const std::string& lvgl_path) {
+    std::string fs_path = lvgl_to_fs_path(lvgl_path.c_str());
+    return !fs_path.empty() && std::filesystem::exists(fs_path);
+}
+
+/**
+ * @brief Get image path for a printer name (from database)
+ *
+ * Looks up the image in the printer database JSON and constructs the full
+ * LVGL path. Falls back to DEFAULT_IMAGE if not found or file doesn't exist.
+ *
+ * @param printer_name Printer name (e.g., "Voron 2.4", "FlashForge Adventurer 5M")
+ * @return Full LVGL path to printer image
+ */
+inline std::string get_image_path_for_name(const std::string& printer_name) {
+    // Look up image filename from database
+    std::string image_filename = PrinterDetector::get_image_for_printer(printer_name);
+
+    if (!image_filename.empty()) {
+        std::string full_path = std::string(IMAGE_BASE_PATH) + image_filename;
+
+        // Verify file exists
+        if (image_file_exists(full_path)) {
+            return full_path;
+        }
+    }
+
+    // Fall back to default
+    return DEFAULT_IMAGE;
+}
 
 /**
  * @brief Get image path for a printer type index
  *
- * @param printer_type_index Index from printer type roller (0-39)
- * @return Path to printer image asset (uses "A:" prefix for LVGL filesystem)
+ * Converts index to printer name, then looks up image in database.
+ * Falls back to DEFAULT_IMAGE if not found or file doesn't exist.
  *
- * Returns DEFAULT_IMAGE for unknown indices or printers without specific images.
- * Custom/Other printers will later support user-uploaded images.
+ * @param printer_type_index Index from printer type roller (0-39)
+ * @return Full LVGL path to printer image
  */
-inline const char* get_image_path(int printer_type_index) {
-    switch (printer_type_index) {
-    // Anycubic
-    case ANYCUBIC_CHIRON:
-        return "A:assets/images/printers/anycubic-chiron.png";
-    case ANYCUBIC_KOBRA:
-        return "A:assets/images/printers/anycubic-kobra.png";
-    case ANYCUBIC_VYPER:
-        return "A:assets/images/printers/anycubic-vyper.png";
+inline std::string get_image_path(int printer_type_index) {
+    std::string printer_name = get_printer_name(printer_type_index);
+    return get_image_path_for_name(printer_name);
+}
 
-    // Creality
-    case CREALITY_K1:
-        return "A:assets/images/printers/creality-k1-2-750x930.png";
-
-    // Doron
-    case DORON_VELTA:
-        return "A:assets/images/printers/doron_velta_794x794.png";
-
-    // FlashForge
-    case FLASHFORGE_ADVENTURER_5M:
-        return "A:assets/images/printers/flashforge-adventurer-5m-1-750x930.png";
-    case FLASHFORGE_ADVENTURER_5M_PRO:
-        return "A:assets/images/printers/flashforge-adventurer-5m-pro-2-750x930.png";
-
-    // FLSUN
-    case FLSUN_DELTA:
-        return "A:assets/images/printers/flsun-delta.png";
-
-    // RatRig
-    case RATRIG_VCORE3:
-        return "A:assets/images/printers/ratrig-vcore3.png";
-    case RATRIG_VMINION:
-        return "A:assets/images/printers/ratrig-vminion.png";
-
-    // Voron
-    case VORON_0_1:
-        return "A:assets/images/printers/voron-0-2-4-750x930.png";
-    case VORON_2_4:
-        return "A:assets/images/printers/voron-24r2-pro-5-750x930.png";
-    case VORON_TRIDENT:
-        return "A:assets/images/printers/voron-trident-pro-1-750x930.png";
-
-    // All others use generic fallback
-    default:
-        return DEFAULT_IMAGE;
-    }
+/**
+ * @brief Get validated image path for a printer type, with fallback
+ *
+ * This is the primary function to use for displaying printer images.
+ * It handles all lookup and validation logic internally.
+ *
+ * @param printer_type_index Index from printer type roller (0-39)
+ * @return Full LVGL path to printer image (guaranteed to exist or be default)
+ *
+ * @note Returns a std::string that manages its own memory. The caller
+ *       must keep the string alive while using the path.
+ */
+inline std::string get_validated_image_path(int printer_type_index) {
+    return get_image_path(printer_type_index);
 }
 
 } // namespace PrinterImages

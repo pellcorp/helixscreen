@@ -351,10 +351,10 @@ void WizardPrinterIdentifyStep::handle_printer_type_changed(lv_event_t* event) {
     // Update subject
     lv_subject_set_int(&printer_type_selected_, selected);
 
-    // Update printer preview image
+    // Update printer preview image (with fallback to generic CoreXY if missing)
     if (printer_preview_image_) {
-        const char* image_path = PrinterImages::get_image_path(selected);
-        lv_image_set_src(printer_preview_image_, image_path);
+        std::string image_path = PrinterImages::get_validated_image_path(selected);
+        lv_image_set_src(printer_preview_image_, image_path.c_str());
         spdlog::debug("[{}] Preview image updated: {}", get_name(), image_path);
     }
 
@@ -422,12 +422,12 @@ lv_obj_t* WizardPrinterIdentifyStep::create(lv_obj_t* parent) {
                       printer_name_buffer_);
     }
 
-    // Find and set up the printer preview image
+    // Find and set up the printer preview image (with fallback to generic CoreXY if missing)
     printer_preview_image_ = lv_obj_find_by_name(screen_root_, "printer_preview_image");
     if (printer_preview_image_) {
         int selected = lv_subject_get_int(&printer_type_selected_);
-        const char* image_path = PrinterImages::get_image_path(selected);
-        lv_image_set_src(printer_preview_image_, image_path);
+        std::string image_path = PrinterImages::get_validated_image_path(selected);
+        lv_image_set_src(printer_preview_image_, image_path.c_str());
         spdlog::debug("[{}] Preview image configured: {}", get_name(), image_path);
     } else {
         spdlog::warn("[{}] Printer preview image not found in XML", get_name());

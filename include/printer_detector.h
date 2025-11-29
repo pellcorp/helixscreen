@@ -94,4 +94,26 @@ class PrinterDetector {
      * @return Detection result with type name, confidence, and reasoning
      */
     static PrinterDetectionResult detect(const PrinterHardwareData& hardware);
+
+    /**
+     * @brief Get image filename for a printer type
+     *
+     * Looks up the image field from the printer database JSON.
+     * Returns just the filename (e.g., "voron-24r2.png"), not the full path.
+     *
+     * @param printer_name Printer name (e.g., "Voron 2.4", "FlashForge Adventurer 5M")
+     * @return Image filename if found, empty string if not found
+     */
+    static std::string get_image_for_printer(const std::string& printer_name);
+
+    /**
+     * @brief Get image filename for a printer by ID
+     *
+     * Looks up the image field from the printer database JSON using the printer ID.
+     * Returns just the filename (e.g., "voron-24r2.png"), not the full path.
+     *
+     * @param printer_id Printer ID (e.g., "voron_2_4", "flashforge_adventurer_5m")
+     * @return Image filename if found, empty string if not found
+     */
+    static std::string get_image_for_printer_id(const std::string& printer_id);
 };

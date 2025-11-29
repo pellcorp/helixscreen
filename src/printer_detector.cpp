@@ -225,3 +225,79 @@ PrinterDetectionResult PrinterDetector::detect(const PrinterHardwareData& hardwa
 
     return best_match;
 }
+
+// ============================================================================
+// Image Lookup Functions
+// ============================================================================
+
+std::string PrinterDetector::get_image_for_printer(const std::string& printer_name) {
+    // Load database if not already loaded
+    if (!g_database.load()) {
+        spdlog::warn("[PrinterDetector] Cannot lookup image without database");
+        return "";
+    }
+
+    if (!g_database.data.contains("printers") || !g_database.data["printers"].is_array()) {
+        return "";
+    }
+
+    // Case-insensitive search by printer name
+    std::string name_lower = printer_name;
+    std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    for (const auto& printer : g_database.data["printers"]) {
+        std::string db_name = printer.value("name", "");
+        std::string db_name_lower = db_name;
+        std::transform(db_name_lower.begin(), db_name_lower.end(), db_name_lower.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        if (db_name_lower == name_lower) {
+            std::string image = printer.value("image", "");
+            if (!image.empty()) {
+                spdlog::debug("[PrinterDetector] Found image '{}' for printer '{}'", image,
+                              printer_name);
+            }
+            return image;
+        }
+    }
+
+    spdlog::debug("[PrinterDetector] No image found for printer '{}'", printer_name);
+    return "";
+}
+
+std::string PrinterDetector::get_image_for_printer_id(const std::string& printer_id) {
+    // Load database if not already loaded
+    if (!g_database.load()) {
+        spdlog::warn("[PrinterDetector] Cannot lookup image without database");
+        return "";
+    }
+
+    if (!g_database.data.contains("printers") || !g_database.data["printers"].is_array()) {
+        return "";
+    }
+
+    // Case-insensitive search by printer ID
+    std::string id_lower = printer_id;
+    std::transform(id_lower.begin(), id_lower.end(), id_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    for (const auto& printer : g_database.data["printers"]) {
+        std::string db_id = printer.value("id", "");
+        std::string db_id_lower = db_id;
+        std::transform(db_id_lower.begin(), db_id_lower.end(), db_id_lower.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        if (db_id_lower == id_lower) {
+            std::string image = printer.value("image", "");
+            if (!image.empty()) {
+                spdlog::debug("[PrinterDetector] Found image '{}' for printer ID '{}'", image,
+                              printer_id);
+            }
+            return image;
+        }
+    }
+
+    spdlog::debug("[PrinterDetector] No image found for printer ID '{}'", printer_id);
+    return "";
+}
