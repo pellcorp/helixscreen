@@ -23,6 +23,7 @@
 
 #include "printer_state.h"
 
+#include "capability_overrides.h"
 #include "printer_capabilities.h"
 
 #include <cstring>
@@ -38,6 +39,9 @@ PrinterState::PrinterState() {
     std::strcpy(print_state_buf_, "standby");
     std::strcpy(homed_axes_buf_, "");
     std::strcpy(printer_connection_message_buf_, "Disconnected");
+
+    // Load user-configured capability overrides from helixconfig.json
+    capability_overrides_.load_from_config();
 }
 
 PrinterState::~PrinterState() {}
@@ -382,13 +386,18 @@ void PrinterState::set_tracked_led(const std::string& led_name) {
 }
 
 void PrinterState::set_printer_capabilities(const PrinterCapabilities& caps) {
-    // Update capability subjects for reactive UI bindings
-    lv_subject_set_int(&printer_has_qgl_, caps.has_qgl() ? 1 : 0);
-    lv_subject_set_int(&printer_has_z_tilt_, caps.has_z_tilt() ? 1 : 0);
-    lv_subject_set_int(&printer_has_bed_mesh_, caps.has_bed_mesh() ? 1 : 0);
-    lv_subject_set_int(&printer_has_nozzle_clean_, caps.has_nozzle_clean_macro() ? 1 : 0);
+    // Pass auto-detected capabilities to the override layer
+    capability_overrides_.set_printer_capabilities(caps);
 
-    spdlog::info("[PrinterState] Capabilities updated: QGL={}, Z-tilt={}, BedMesh={}, NozzleClean={}",
-                 caps.has_qgl(), caps.has_z_tilt(), caps.has_bed_mesh(),
-                 caps.has_nozzle_clean_macro());
+    // Update subjects using effective values (auto-detect + user overrides)
+    // This allows users to force-enable features that weren't detected
+    // (e.g., heat soak macro without chamber heater) or force-disable
+    // features they don't want to see in the UI.
+    lv_subject_set_int(&printer_has_qgl_, capability_overrides_.has_qgl() ? 1 : 0);
+    lv_subject_set_int(&printer_has_z_tilt_, capability_overrides_.has_z_tilt() ? 1 : 0);
+    lv_subject_set_int(&printer_has_bed_mesh_, capability_overrides_.has_bed_leveling() ? 1 : 0);
+    lv_subject_set_int(&printer_has_nozzle_clean_, capability_overrides_.has_nozzle_clean() ? 1 : 0);
+
+    spdlog::info("[PrinterState] Capabilities set (with overrides): {}",
+                 capability_overrides_.summary());
 }

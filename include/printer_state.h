@@ -24,6 +24,7 @@
 #ifndef PRINTER_STATE_H
 #define PRINTER_STATE_H
 
+#include "capability_overrides.h"
 #include "lvgl/lvgl.h"
 #include "spdlog/spdlog.h"
 
@@ -273,11 +274,24 @@ class PrinterState {
      * @brief Update printer capability subjects from PrinterCapabilities
      *
      * Updates subjects that control visibility of pre-print option checkboxes.
+     * Applies user-configured overrides from helixconfig.json before updating subjects.
      * Called by main.cpp after MoonrakerClient::discover_printer() completes.
      *
      * @param caps PrinterCapabilities populated from printer.objects.list
      */
-    void set_printer_capabilities(const class PrinterCapabilities& caps);
+    void set_printer_capabilities(const PrinterCapabilities& caps);
+
+    /**
+     * @brief Get the capability overrides for external access
+     *
+     * Allows other components to check effective capability availability
+     * with user overrides applied.
+     *
+     * @return Reference to the CapabilityOverrides instance
+     */
+    [[nodiscard]] const CapabilityOverrides& get_capability_overrides() const {
+        return capability_overrides_;
+    }
 
   private:
     // Temperature subjects
@@ -340,6 +354,9 @@ class PrinterState {
 
     // Track if we've ever successfully connected (for UI display)
     bool was_ever_connected_ = false;
+
+    // Capability override layer (user config overrides for auto-detected capabilities)
+    CapabilityOverrides capability_overrides_;
 };
 
 #endif // PRINTER_STATE_H
