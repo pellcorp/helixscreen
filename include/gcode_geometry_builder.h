@@ -124,6 +124,12 @@ struct RibbonGeometry {
     std::vector<glm::vec3> normal_palette; ///< Unique normals (max 256)
     std::vector<uint32_t> color_palette;   ///< Unique colors in RGB format (max 256)
 
+    // Layer tracking for two-pass ghost layer rendering
+    std::vector<uint16_t> strip_layer_index; ///< Layer index per strip (parallel to strips vector)
+    /// Layer strip ranges: [layer_idx] -> (first_strip_idx, strip_count)
+    std::vector<std::pair<size_t, size_t>> layer_strip_ranges;
+    uint16_t max_layer_index{0}; ///< Maximum layer index in geometry
+
     // Palette lookup caches (O(1) lookup instead of O(N) linear search)
     // NOTE: These use raw pointer types to avoid template bloat in header
     // Actual types: std::unordered_map<glm::vec3, uint16_t, Vec3Hash, Vec3Equal>
@@ -141,7 +147,9 @@ struct RibbonGeometry {
     size_t memory_usage() const {
         return vertices.size() * sizeof(RibbonVertex) + indices.size() * sizeof(TriangleIndices) +
                strips.size() * sizeof(TriangleStrip) + normal_palette.size() * sizeof(glm::vec3) +
-               color_palette.size() * sizeof(uint32_t);
+               color_palette.size() * sizeof(uint32_t) +
+               strip_layer_index.size() * sizeof(uint16_t) +
+               layer_strip_ranges.size() * sizeof(std::pair<size_t, size_t>);
     }
 
     /**

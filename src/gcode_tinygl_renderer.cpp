@@ -33,6 +33,15 @@ GCodeTinyGLRenderer::GCodeTinyGLRenderer()
     geometry_builder_->set_use_height_gradient(false); // Use actual G-code filament colors
     geometry_builder_->set_debug_face_colors(false);   // Production: use actual G-code colors
 
+    // Initialize 50% checkerboard stipple pattern for ghost layer transparency
+    // Pattern is 32x32 bits = 128 bytes, alternating 0xAA/0x55 rows
+    for (int row = 0; row < 32; ++row) {
+        uint8_t byte_val = (row % 2 == 0) ? 0xAA : 0x55;
+        for (int col = 0; col < 4; ++col) {
+            ghost_stipple_pattern_[row * 4 + col] = byte_val;
+        }
+    }
+
     spdlog::debug("GCodeTinyGLRenderer created");
 }
 
@@ -462,25 +471,24 @@ void GCodeTinyGLRenderer::set_prebuilt_geometry(std::unique_ptr<RibbonGeometry> 
         return;
     }
 
+    spdlog::info("[GCode::Renderer] set_prebuilt_geometry: incoming max_layer_index={}",
+                 geometry->max_layer_index);
+
     geometry_ = std::move(*geometry); // Move the value from unique_ptr into optional
     current_gcode_filename_ = filename;
 
     spdlog::info("[GCode::Renderer] Pre-built geometry set: {} vertices, {} triangles (extrusion: "
-                 "{}, travel: {})",
+                 "{}, travel: {}), max_layer_index={}",
                  geometry_->vertices.size(),
                  geometry_->extrusion_triangle_count + geometry_->travel_triangle_count,
-                 geometry_->extrusion_triangle_count, geometry_->travel_triangle_count);
+                 geometry_->extrusion_triangle_count, geometry_->travel_triangle_count,
+                 geometry_->max_layer_index);
 }
 
 void GCodeTinyGLRenderer::render_geometry(const GCodeCamera& camera) {
     if (!geometry_) {
         return; // No geometry to render
     }
-
-    // Performance timing for render operations
-    static bool first_render = true;
-    static int frame_count = 0;
-    auto render_start = std::chrono::high_resolution_clock::now();
 
     // Clear buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -497,94 +505,110 @@ void GCodeTinyGLRenderer::render_geometry(const GCodeCamera& camera) {
     glMatrixMode(GL_MODELVIEW);
     glLoadMatrixf(glm::value_ptr(camera.get_view_matrix()));
 
-    // Render triangle strips
-    static bool logged_first_strip = false;
-    static bool logged_last_strip = false;
-    static size_t strip_count = 0;
-    size_t total_strips = geometry_->strips.size();
-    size_t current_strip_idx = 0;
+    // Check if we need two-pass ghost layer rendering
+    if (ghost_mode_enabled_ && current_progress_layer_ >= 0 &&
+        !geometry_->strip_layer_index.empty()) {
+        // Two-pass rendering for print progress visualization
+        int max_layer = static_cast<int>(geometry_->max_layer_index);
 
-    for (const auto& strip : geometry_->strips) {
-        bool is_first = !logged_first_strip && current_strip_idx == 0;
-        bool is_last = !logged_last_strip && current_strip_idx == (total_strips - 1);
+        // Pass 1: Render solid layers (0 to current_progress_layer_)
+        render_layer_range(0, current_progress_layer_, 1.0f);
 
-        // Debug logging for first/last strips (end caps)
-        if (is_first) {
-            spdlog::debug("Rendering first strip (start cap): indices [{}, {}, {}, {}]", strip[0],
-                          strip[1], strip[2], strip[3]);
+        // Pass 2: Render ghost layers (current_progress_layer_+1 to max) with mode-specific rendering
+        if (current_progress_layer_ < max_layer) {
+            float dim_factor = ghost_opacity_ / 255.0f;
+
+            // Apply stipple pattern for ghost layers (if enabled)
+            if (ghost_render_mode_ == GhostRenderMode::Stipple) {
+                glEnable(GL_POLYGON_STIPPLE);
+                glPolygonStipple(ghost_stipple_pattern_);
+            }
+
+            render_layer_range(current_progress_layer_ + 1, max_layer, dim_factor);
+
+            // Restore state after ghost pass
+            if (ghost_render_mode_ == GhostRenderMode::Stipple) {
+                glDisable(GL_POLYGON_STIPPLE);
+            }
         }
-        if (is_last) {
-            spdlog::debug("Rendering last strip (end cap): indices [{}, {}, {}, {}]", strip[0],
-                          strip[1], strip[2], strip[3]);
+    } else {
+        // Normal rendering - all strips at full brightness
+        render_layer_range(0, static_cast<int>(geometry_->max_layer_index), 1.0f);
+    }
+}
+
+void GCodeTinyGLRenderer::render_layer_range(int start_layer, int end_layer, float dim_factor) {
+    if (!geometry_ || geometry_->strips.empty()) {
+        return;
+    }
+
+    // If we don't have layer tracking data, render all strips
+    if (geometry_->strip_layer_index.empty()) {
+        // Fallback: render all strips with the given dim factor
+        for (size_t i = 0; i < geometry_->strips.size(); ++i) {
+            const auto& strip = geometry_->strips[i];
+
+            glBegin(GL_TRIANGLE_STRIP);
+            for (int j = 0; j < 4; j++) {
+                const auto& vertex = geometry_->vertices[strip[j]];
+
+                // Lookup normal from palette
+                const glm::vec3& normal = geometry_->normal_palette[vertex.normal_index];
+                glNormal3f(normal.x, normal.y, normal.z);
+
+                // Lookup color from palette and apply dimming
+                uint32_t color_rgb = geometry_->color_palette[vertex.color_index];
+                uint8_t r = (color_rgb >> 16) & 0xFF;
+                uint8_t g = (color_rgb >> 8) & 0xFF;
+                uint8_t b = color_rgb & 0xFF;
+
+                glColor3f((r / 255.0f) * dim_factor,
+                          (g / 255.0f) * dim_factor,
+                          (b / 255.0f) * dim_factor);
+
+                // Dequantize position
+                glm::vec3 pos = geometry_->quantization.dequantize_vec3(vertex.position);
+                glVertex3f(pos.x, pos.y, pos.z);
+            }
+            glEnd();
         }
+        return;
+    }
+
+    // Render only strips in the specified layer range
+    for (size_t i = 0; i < geometry_->strips.size(); ++i) {
+        // Check if this strip's layer is in range
+        uint16_t strip_layer = geometry_->strip_layer_index[i];
+        if (static_cast<int>(strip_layer) < start_layer ||
+            static_cast<int>(strip_layer) > end_layer) {
+            continue; // Skip strips outside the layer range
+        }
+
+        const auto& strip = geometry_->strips[i];
 
         glBegin(GL_TRIANGLE_STRIP);
-
-        for (int i = 0; i < 4; i++) {
-            const auto& vertex = geometry_->vertices[strip[i]];
+        for (int j = 0; j < 4; j++) {
+            const auto& vertex = geometry_->vertices[strip[j]];
 
             // Lookup normal from palette
             const glm::vec3& normal = geometry_->normal_palette[vertex.normal_index];
             glNormal3f(normal.x, normal.y, normal.z);
 
-            // Lookup color from palette and unpack RGB
+            // Lookup color from palette and apply dimming
             uint32_t color_rgb = geometry_->color_palette[vertex.color_index];
             uint8_t r = (color_rgb >> 16) & 0xFF;
             uint8_t g = (color_rgb >> 8) & 0xFF;
             uint8_t b = color_rgb & 0xFF;
 
-            glColor3f(r / 255.0f, g / 255.0f, b / 255.0f);
+            glColor3f((r / 255.0f) * dim_factor,
+                      (g / 255.0f) * dim_factor,
+                      (b / 255.0f) * dim_factor);
 
             // Dequantize position
             glm::vec3 pos = geometry_->quantization.dequantize_vec3(vertex.position);
-
-            // Detailed vertex logging at trace level
-            if (is_first || is_last) {
-                spdlog::trace("  strip[{}]=vertex[{}]: pos=({:.3f},{:.3f},{:.3f}) "
-                              "normal=({:.3f},{:.3f},{:.3f}) color=0x{:06X}",
-                              i, strip[i], pos.x, pos.y, pos.z, normal.x, normal.y, normal.z,
-                              color_rgb);
-            }
-
             glVertex3f(pos.x, pos.y, pos.z);
         }
-
         glEnd();
-
-        if (is_first) {
-            logged_first_strip = true;
-        }
-
-        if (is_last) {
-            logged_last_strip = true;
-        }
-
-        strip_count++;
-        current_strip_idx++;
-    }
-
-    static bool logged_strip_count = false;
-    if (!logged_strip_count) {
-        spdlog::info("Total strips rendered: {}", strip_count);
-        logged_strip_count = true;
-    }
-
-    // Log render timing
-    auto render_end = std::chrono::high_resolution_clock::now();
-    auto render_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(render_end - render_start);
-    float render_ms = render_duration.count() / 1000.0f;
-
-    if (first_render) {
-        spdlog::info("[GCode::Renderer] First render completed in {:.1f}ms", render_ms);
-        first_render = false;
-    }
-
-    // Log every 60 frames (debug level only)
-    if (++frame_count >= 60) {
-        spdlog::debug("[GCode::Renderer] Render time: {:.1f}ms ({:.1f} FPS)", render_ms,
-                      render_ms > 0 ? 1000.0f / render_ms : 0.0f);
-        frame_count = 0;
     }
 }
 
@@ -743,6 +767,36 @@ void GCodeTinyGLRenderer::reset_colors() {
 void GCodeTinyGLRenderer::set_global_opacity(lv_opa_t opacity) {
     global_opacity_ = opacity;
     // Opacity affects final rendering - could be applied during draw_to_lvgl
+}
+
+void GCodeTinyGLRenderer::set_print_progress_layer(int current_layer) {
+    current_progress_layer_ = current_layer;
+    ghost_mode_enabled_ = (current_layer >= 0);
+
+    if (ghost_mode_enabled_) {
+        spdlog::debug("[GCode::Renderer] Ghost mode enabled: progress layer = {}", current_layer);
+    } else {
+        spdlog::debug("[GCode::Renderer] Ghost mode disabled");
+    }
+}
+
+void GCodeTinyGLRenderer::set_ghost_opacity(lv_opa_t opacity) {
+    ghost_opacity_ = opacity;
+    spdlog::debug("[GCode::Renderer] Ghost opacity set to {} ({:.0f}%)",
+                  opacity, (opacity / 255.0f) * 100.0f);
+}
+
+void GCodeTinyGLRenderer::set_ghost_render_mode(GhostRenderMode mode) {
+    ghost_render_mode_ = mode;
+    const char* mode_name = (mode == GhostRenderMode::Stipple) ? "Stipple" : "Dimmed";
+    spdlog::debug("[GCode::Renderer] Ghost render mode set to {}", mode_name);
+}
+
+int GCodeTinyGLRenderer::get_max_layer_index() const {
+    if (!geometry_) {
+        return -1;
+    }
+    return static_cast<int>(geometry_->max_layer_index);
 }
 
 std::optional<std::string> GCodeTinyGLRenderer::pick_object(const glm::vec2& screen_pos,

@@ -893,6 +893,50 @@ int ui_gcode_viewer_get_current_layer_end(lv_obj_t* obj) {
 }
 
 // ==============================================
+// Print Progress / Ghost Layer Visualization
+// ==============================================
+
+void ui_gcode_viewer_set_print_progress(lv_obj_t* obj, int current_layer) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->renderer->set_print_progress_layer(current_layer);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_ghost_opacity(lv_obj_t* obj, lv_opa_t opacity) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    st->renderer->set_ghost_opacity(opacity);
+    lv_obj_invalidate(obj);
+}
+
+void ui_gcode_viewer_set_ghost_mode(lv_obj_t* obj, int mode) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    // Map int to enum (0=Dimmed, 1=Stipple)
+    gcode::GhostRenderMode render_mode = (mode == 1)
+        ? gcode::GhostRenderMode::Stipple
+        : gcode::GhostRenderMode::Dimmed;
+
+    st->renderer->set_ghost_render_mode(render_mode);
+    lv_obj_invalidate(obj);
+}
+
+int ui_gcode_viewer_get_max_layer(lv_obj_t* obj) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return -1;
+
+    return st->renderer->get_max_layer_index();
+}
+
+// ==============================================
 // Metadata Access
 // ==============================================
 

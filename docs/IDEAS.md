@@ -11,6 +11,7 @@
 * easy calibration workflow
 * AFC control
 * belt tension: The printer uses controlled belt excitation combined with stroboscopic feedback from the LED to visualize belt resonance
+* LVGL slider knob clipping bug: When `lv_slider` is set to `width="100%"`, the knob extends beyond the widget bounds at min/max positions, getting clipped by parent containers. Currently worked around with extra padding + `flag_overflow_visible`. Root cause: slider doesn't account for knob radius in its size calculation. Should investigate `lv_slider.c` position_knob() and ext_draw_size logic to make the widget self-contained.
 
 ---
 

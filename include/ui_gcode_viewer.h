@@ -336,6 +336,55 @@ int ui_gcode_viewer_get_current_layer_start(lv_obj_t* obj);
 int ui_gcode_viewer_get_current_layer_end(lv_obj_t* obj);
 
 // ==============================================
+// Print Progress / Ghost Layer Visualization
+// ==============================================
+
+/**
+ * @brief Set print progress layer for ghost visualization
+ * @param obj Viewer widget
+ * @param current_layer Layer index representing current print progress.
+ *                      Layers 0..current_layer render solid (printed).
+ *                      Layers current_layer+1..max render as dimmed ghost (unprinted).
+ *                      Set to -1 to disable ghost mode (render all solid).
+ *
+ * This enables a two-pass rendering mode useful for visualizing print progress
+ * during a print job. The "ghost" layers appear dimmed/faded to indicate
+ * they haven't been printed yet.
+ *
+ * Performance: Layer changes are instant (<1ms) - no geometry rebuild needed.
+ */
+void ui_gcode_viewer_set_print_progress(lv_obj_t* obj, int current_layer);
+
+/**
+ * @brief Set ghost layer opacity
+ * @param obj Viewer widget
+ * @param opacity Opacity value (0=invisible, 255=fully opaque, default: 77 = ~30%)
+ *
+ * Controls how visible the ghost (unprinted) layers appear.
+ */
+void ui_gcode_viewer_set_ghost_opacity(lv_obj_t* obj, lv_opa_t opacity);
+
+/**
+ * @brief Set ghost layer rendering mode
+ * @param obj Viewer widget
+ * @param mode Rendering mode: 0=Dimmed, 1=Stipple, 2=Wireframe, 4=DepthOnly
+ *
+ * Controls how ghost (unprinted) layers are rendered:
+ * - 0 (Dimmed): Darker color but fully opaque (default)
+ * - 1 (Stipple): Screen-door transparency pattern
+ * - 2 (Wireframe): Only edges visible
+ * - 4 (DepthOnly): No depth write - see through to solid layers
+ */
+void ui_gcode_viewer_set_ghost_mode(lv_obj_t* obj, int mode);
+
+/**
+ * @brief Get maximum layer index in current geometry
+ * @param obj Viewer widget
+ * @return Max layer index (0-based), or -1 if no geometry loaded
+ */
+int ui_gcode_viewer_get_max_layer(lv_obj_t* obj);
+
+// ==============================================
 // Metadata Access
 // ==============================================
 

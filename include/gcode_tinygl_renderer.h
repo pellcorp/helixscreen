@@ -20,6 +20,19 @@
 namespace gcode {
 
 /**
+ * @brief Ghost layer rendering mode for print progress visualization
+ *
+ * Controls how "unprinted" layers above the current progress layer are rendered.
+ */
+enum class GhostRenderMode : uint8_t {
+    Dimmed = 0,  ///< Darker color but fully opaque
+    Stipple = 1  ///< Polygon stipple pattern (screen-door transparency) - DEFAULT
+};
+
+/// Default ghost render mode (configurable via this constant)
+constexpr GhostRenderMode kDefaultGhostRenderMode = GhostRenderMode::Stipple;
+
+/**
  * @brief TinyGL-based 3D renderer for G-code visualization
  *
  * Provides high-quality 3D rendering with:
@@ -203,6 +216,61 @@ class GCodeTinyGLRenderer {
     void set_global_opacity(lv_opa_t opacity);
 
     // ==============================================
+    // Print Progress / Ghost Layer Visualization
+    // ==============================================
+
+    /**
+     * @brief Set print progress layer for ghost visualization
+     * @param current_layer Layer index representing current print progress.
+     *                      Layers 0..current_layer render solid.
+     *                      Layers current_layer+1..max render as transparent ghost.
+     *                      Set to -1 to disable ghost mode (render all solid).
+     *
+     * This enables a two-pass rendering mode where "printed" layers appear
+     * solid and "unprinted" layers appear ghosted/transparent. Useful for
+     * visualizing print progress during a print job.
+     *
+     * Performance: Layer changes are instant (<1ms) - no geometry rebuild needed.
+     */
+    void set_print_progress_layer(int current_layer);
+
+    /**
+     * @brief Set ghost layer opacity
+     * @param opacity Opacity value (0=invisible, 255=fully opaque, default: 77 = ~30%)
+     *
+     * Controls how visible the ghost (unprinted) layers appear.
+     */
+    void set_ghost_opacity(lv_opa_t opacity);
+
+    /**
+     * @brief Get maximum layer index in current geometry
+     * @return Max layer index, or -1 if no geometry loaded
+     */
+    int get_max_layer_index() const;
+
+    /**
+     * @brief Check if ghost mode is currently enabled
+     * @return true if print progress visualization is active
+     */
+    bool is_ghost_mode_enabled() const {
+        return ghost_mode_enabled_;
+    }
+
+    /**
+     * @brief Set ghost layer rendering mode
+     * @param mode Rendering mode for ghost layers (Dimmed, Stipple, Wireframe, DepthOnly)
+     */
+    void set_ghost_render_mode(GhostRenderMode mode);
+
+    /**
+     * @brief Get current ghost layer rendering mode
+     * @return Current rendering mode
+     */
+    GhostRenderMode get_ghost_render_mode() const {
+        return ghost_render_mode_;
+    }
+
+    // ==============================================
     // Statistics
     // ==============================================
 
@@ -290,6 +358,14 @@ class GCodeTinyGLRenderer {
      */
     void render_bounding_box(const ParsedGCodeFile& gcode);
 
+    /**
+     * @brief Render strips within a layer range (for two-pass ghost mode)
+     * @param start_layer First layer to render (inclusive)
+     * @param end_layer Last layer to render (inclusive)
+     * @param dim_factor Color dimming factor (1.0 = full, 0.3 = 30% brightness for ghost)
+     */
+    void render_layer_range(int start_layer, int end_layer, float dim_factor);
+
     // Configuration
     int viewport_width_{800};
     int viewport_height_{600};
@@ -309,6 +385,13 @@ class GCodeTinyGLRenderer {
     // Material lighting properties
     float specular_intensity_{0.10f}; // Default: subtle highlights (OrcaSlicer: 0.075)
     float specular_shininess_{20.0f}; // Default: soft, broad highlights (OrcaSlicer: 20.0)
+
+    // Ghost layer (print progress) visualization
+    int current_progress_layer_{-1};  ///< Layer up to which solid rendering applies (-1 = all solid)
+    lv_opa_t ghost_opacity_{77};      ///< ~30% opacity for ghost layers
+    bool ghost_mode_enabled_{false};  ///< True when showing print progress visualization
+    GhostRenderMode ghost_render_mode_{kDefaultGhostRenderMode};  ///< How ghost layers are rendered
+    uint8_t ghost_stipple_pattern_[128];  ///< 32x32 bit stipple pattern for screen-door effect
 
     // TinyGL context (opaque pointer to avoid header dependency)
     void* zbuffer_{nullptr};

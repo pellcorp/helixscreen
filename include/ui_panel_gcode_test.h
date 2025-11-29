@@ -115,6 +115,8 @@ class GcodeTestPanel : public PanelBase {
     lv_obj_t* gcode_viewer_ = nullptr;
     lv_obj_t* stats_label_ = nullptr;
     lv_obj_t* file_picker_overlay_ = nullptr;
+    lv_obj_t* layer_slider_ = nullptr;
+    lv_obj_t* layer_value_label_ = nullptr;
 
     //
     // === File Browser State ===
@@ -206,6 +208,16 @@ class GcodeTestPanel : public PanelBase {
      */
     static void on_shininess_changed_static(lv_event_t* e);
 
+    /**
+     * @brief Layer progress slider callback
+     */
+    static void on_layer_slider_changed_static(lv_event_t* e);
+
+    /**
+     * @brief Ghost mode dropdown callback
+     */
+    static void on_ghost_mode_changed_static(lv_event_t* e);
+
     //
     // === Instance Methods (called by trampolines) ===
     //
@@ -216,6 +228,8 @@ class GcodeTestPanel : public PanelBase {
     void handle_zoom(const char* button_name);
     void handle_specular_change(lv_obj_t* slider);
     void handle_shininess_change(lv_obj_t* slider);
+    void handle_layer_slider_change(int32_t value);
+    void update_layer_slider_range();
 };
 
 // ============================================================================

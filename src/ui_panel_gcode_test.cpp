@@ -77,10 +77,20 @@ void GcodeTestPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Get widget references
     gcode_viewer_ = lv_obj_find_by_name(panel_, "gcode_viewer");
     stats_label_ = lv_obj_find_by_name(panel_, "stats_label");
+    layer_slider_ = lv_obj_find_by_name(panel_, "layer_slider");
+    layer_value_label_ = lv_obj_find_by_name(panel_, "layer_value_label");
+
+    spdlog::debug("[{}] Widget lookup: viewer={}, stats={}, layer_slider={}, layer_label={}",
+                  get_name(), (void*)gcode_viewer_, (void*)stats_label_, (void*)layer_slider_,
+                  (void*)layer_value_label_);
 
     if (!gcode_viewer_) {
         LOG_ERROR_INTERNAL("[{}] Failed to find gcode_viewer widget", get_name());
         return;
+    }
+
+    if (!layer_slider_) {
+        spdlog::warn("[{}] Failed to find layer_slider widget", get_name());
     }
 
     // Wire up all callbacks
@@ -318,6 +328,9 @@ void GcodeTestPanel::setup_callbacks() {
     lv_obj_t* specular_slider = lv_obj_find_by_name(panel_, "specular_slider");
     lv_obj_t* shininess_slider = lv_obj_find_by_name(panel_, "shininess_slider");
 
+    // Find dropdowns
+    lv_obj_t* ghost_mode_dropdown = lv_obj_find_by_name(panel_, "ghost_mode_dropdown");
+
     // Register view preset callbacks
     if (btn_isometric)
         lv_obj_add_event_cb(btn_isometric, on_view_preset_clicked_static, LV_EVENT_CLICKED, this);
@@ -351,6 +364,14 @@ void GcodeTestPanel::setup_callbacks() {
     if (shininess_slider)
         lv_obj_add_event_cb(shininess_slider, on_shininess_changed_static, LV_EVENT_VALUE_CHANGED,
                             this);
+    if (layer_slider_)
+        lv_obj_add_event_cb(layer_slider_, on_layer_slider_changed_static, LV_EVENT_VALUE_CHANGED,
+                            this);
+
+    // Register dropdown callbacks
+    if (ghost_mode_dropdown)
+        lv_obj_add_event_cb(ghost_mode_dropdown, on_ghost_mode_changed_static,
+                            LV_EVENT_VALUE_CHANGED, this);
 
     spdlog::debug("[{}] Callbacks registered", get_name());
 }
@@ -486,6 +507,34 @@ void GcodeTestPanel::on_shininess_changed_static(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
+void GcodeTestPanel::on_layer_slider_changed_static(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[GcodeTestPanel] on_layer_slider_changed");
+    auto* self = static_cast<GcodeTestPanel*>(lv_event_get_user_data(e));
+    lv_obj_t* slider = lv_event_get_target_obj(e);
+
+    if (self && slider) {
+        int32_t value = lv_slider_get_value(slider);
+        self->handle_layer_slider_change(value);
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void GcodeTestPanel::on_ghost_mode_changed_static(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[GcodeTestPanel] on_ghost_mode_changed");
+    auto* self = static_cast<GcodeTestPanel*>(lv_event_get_user_data(e));
+    lv_obj_t* dropdown = lv_event_get_target_obj(e);
+
+    if (self && dropdown && self->gcode_viewer_) {
+        uint32_t selected = lv_dropdown_get_selected(dropdown);
+        // Dropdown: 0=Stipple (default), 1=Solid/Dimmed
+        int mode = (selected == 0) ? 1 : 0; // Stipple=1, Dimmed=0
+        spdlog::debug("[GcodeTestPanel] Ghost mode changed to: {} (dropdown idx {})",
+                      (mode == 1) ? "Stipple" : "Solid", selected);
+        ui_gcode_viewer_set_ghost_mode(self->gcode_viewer_, mode);
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
 // ============================================================================
 // INSTANCE METHODS (CALLED BY TRAMPOLINES)
 // ============================================================================
@@ -511,6 +560,9 @@ void GcodeTestPanel::handle_gcode_load_complete(bool success) {
     filename = filename ? filename + 1 : (full_path ? full_path : "Unknown");
 
     update_stats_label(filename, layer_count, filament_type);
+
+    // Update layer slider range for ghost layer testing
+    update_layer_slider_range();
 }
 
 void GcodeTestPanel::handle_file_selected(uint32_t index) {
@@ -617,6 +669,68 @@ void GcodeTestPanel::handle_shininess_change(lv_obj_t* slider) {
 
     // Update TinyGL material
     ui_gcode_viewer_set_specular(gcode_viewer_, intensity, (float)value);
+}
+
+void GcodeTestPanel::handle_layer_slider_change(int32_t value) {
+    if (!gcode_viewer_) {
+        return;
+    }
+
+    int max_layer = ui_gcode_viewer_get_max_layer(gcode_viewer_);
+    if (max_layer < 0) {
+        return; // No geometry loaded
+    }
+
+    // Slider at max = show all layers solid (disable ghost mode)
+    // Slider at 0 = layer 0 solid, rest ghost
+    // Slider at N = layers 0..N solid, rest ghost
+    if (value >= max_layer) {
+        // Disable ghost mode - all layers solid
+        ui_gcode_viewer_set_print_progress(gcode_viewer_, -1);
+    } else {
+        // Enable ghost mode at this layer
+        ui_gcode_viewer_set_print_progress(gcode_viewer_, value);
+    }
+
+    // Update label
+    if (layer_value_label_) {
+        lv_label_set_text_fmt(layer_value_label_, " %d / %d", value, max_layer);
+    }
+
+    spdlog::trace("[{}] Layer slider: {} / {} (ghost={})", get_name(), value, max_layer,
+                  value < max_layer);
+}
+
+void GcodeTestPanel::update_layer_slider_range() {
+    spdlog::info("[{}] update_layer_slider_range() called: viewer={}, slider={}", get_name(),
+                 (void*)gcode_viewer_, (void*)layer_slider_);
+
+    if (!gcode_viewer_ || !layer_slider_) {
+        spdlog::warn("[{}] update_layer_slider_range: missing widget (viewer={}, slider={})",
+                     get_name(), (void*)gcode_viewer_, (void*)layer_slider_);
+        return;
+    }
+
+    int max_layer = ui_gcode_viewer_get_max_layer(gcode_viewer_);
+    spdlog::info("[{}] ui_gcode_viewer_get_max_layer returned: {}", get_name(), max_layer);
+
+    if (max_layer < 0) {
+        max_layer = 0;
+    }
+
+    // Set slider range and initialize to max (all layers visible, no ghost)
+    lv_slider_set_range(layer_slider_, 0, max_layer);
+    lv_slider_set_value(layer_slider_, max_layer, LV_ANIM_OFF);
+
+    // Update label
+    if (layer_value_label_) {
+        lv_label_set_text_fmt(layer_value_label_, " %d / %d", max_layer, max_layer);
+    }
+
+    // Disable ghost mode initially
+    ui_gcode_viewer_set_print_progress(gcode_viewer_, -1);
+
+    spdlog::info("[{}] Layer slider range updated: 0-{}", get_name(), max_layer);
 }
 
 // ============================================================================

@@ -141,7 +141,10 @@ RibbonGeometry::~RibbonGeometry() {
 RibbonGeometry::RibbonGeometry(RibbonGeometry&& other) noexcept
     : vertices(std::move(other.vertices)), indices(std::move(other.indices)),
       strips(std::move(other.strips)), normal_palette(std::move(other.normal_palette)),
-      color_palette(std::move(other.color_palette)), normal_cache_ptr(other.normal_cache_ptr),
+      color_palette(std::move(other.color_palette)),
+      strip_layer_index(std::move(other.strip_layer_index)),
+      layer_strip_ranges(std::move(other.layer_strip_ranges)),
+      max_layer_index(other.max_layer_index), normal_cache_ptr(other.normal_cache_ptr),
       color_cache_ptr(other.color_cache_ptr),
       extrusion_triangle_count(other.extrusion_triangle_count),
       travel_triangle_count(other.travel_triangle_count), quantization(other.quantization) {
@@ -162,6 +165,9 @@ RibbonGeometry& RibbonGeometry::operator=(RibbonGeometry&& other) noexcept {
         strips = std::move(other.strips);
         normal_palette = std::move(other.normal_palette);
         color_palette = std::move(other.color_palette);
+        strip_layer_index = std::move(other.strip_layer_index);
+        layer_strip_ranges = std::move(other.layer_strip_ranges);
+        max_layer_index = other.max_layer_index;
         normal_cache_ptr = other.normal_cache_ptr;
         color_cache_ptr = other.color_cache_ptr;
         extrusion_triangle_count = other.extrusion_triangle_count;
@@ -181,6 +187,9 @@ void RibbonGeometry::clear() {
     strips.clear();
     normal_palette.clear();
     color_palette.clear();
+    strip_layer_index.clear();
+    layer_strip_ranges.clear();
+    max_layer_index = 0;
 
     // Clear caches
     if (normal_cache_ptr) {
@@ -322,6 +331,15 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
     spdlog::debug("Expanded quantization bounds by {:.1f}mm for tube width {:.1f}mm",
                   expansion_margin, max_tube_width);
 
+    // Build Z-height to layer index lookup map
+    // Used later to assign layer indices to strips for ghost layer rendering
+    std::unordered_map<int, uint16_t> z_to_layer_index;
+    for (size_t i = 0; i < gcode.layers.size(); ++i) {
+        // Quantize Z to 0.01mm precision for reliable lookups
+        int z_key = static_cast<int>(std::round(gcode.layers[i].z_height * 100.0f));
+        z_to_layer_index[z_key] = static_cast<uint16_t>(i);
+    }
+
     // Collect all segments from all layers
     std::vector<ToolpathSegment> all_segments;
     for (const auto& layer : gcode.layers) {
@@ -389,6 +407,14 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
     size_t segments_shared = 0;
     size_t sharing_candidates = 0; // Segments where prev_end_cap exists
 
+    // Layer tracking for ghost layer rendering
+    // Temporary map to accumulate strips per layer, then convert to ranges
+    std::unordered_map<uint16_t, std::vector<size_t>> layer_to_strip_indices;
+    geometry.max_layer_index = gcode.layers.empty() ? 0 : static_cast<uint16_t>(gcode.layers.size() - 1);
+
+    spdlog::info("[GCode::Builder] Setting max_layer_index = {} (from {} layers)",
+                 geometry.max_layer_index, gcode.layers.size());
+
     for (size_t i = 0; i < simplified.size(); ++i) {
         const auto& segment = simplified[i];
 
@@ -402,6 +428,14 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
         }
 
         segments_processed++;
+
+        // Determine layer index from segment Z-height
+        int z_key = static_cast<int>(std::round(segment.start.z * 100.0f));
+        uint16_t layer_idx = 0;
+        auto it = z_to_layer_index.find(z_key);
+        if (it != z_to_layer_index.end()) {
+            layer_idx = it->second;
+        }
 
         // Track Y range
         seg_y_min = std::min({seg_y_min, segment.start.y, segment.end.y});
@@ -435,14 +469,39 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
             }
         }
 
+        // Track strip count before generating geometry
+        size_t strips_before = geometry.strips.size();
+
         // Generate geometry, reusing previous end cap if segments connect
         TubeCap end_cap = generate_ribbon_vertices(segment, geometry, quant_params_,
                                                    can_share ? prev_end_cap : std::nullopt);
+
+        // Track which strips belong to which layer
+        size_t strips_after = geometry.strips.size();
+        for (size_t s = strips_before; s < strips_after; ++s) {
+            geometry.strip_layer_index.push_back(layer_idx);
+            layer_to_strip_indices[layer_idx].push_back(s);
+        }
 
         // Store for next iteration
         prev_end_cap = end_cap;
         prev_end_pos = segment.end;
     }
+
+    // Build layer_strip_ranges from accumulated data
+    // Initialize with empty ranges for all layers
+    geometry.layer_strip_ranges.resize(gcode.layers.size(), {0, 0});
+    for (const auto& [layer_idx, strip_indices] : layer_to_strip_indices) {
+        if (!strip_indices.empty() && layer_idx < geometry.layer_strip_ranges.size()) {
+            // Find contiguous range (strips should be mostly contiguous per layer)
+            size_t first = strip_indices.front();
+            size_t count = strip_indices.size();
+            geometry.layer_strip_ranges[layer_idx] = {first, count};
+        }
+    }
+
+    spdlog::debug("[GCode::Builder] Layer tracking: {} layers, {} total strips",
+                  geometry.layer_strip_ranges.size(), geometry.strips.size());
 
     spdlog::trace("Segment Y range: [{:.1f}, {:.1f}]", seg_y_min, seg_y_max);
 
