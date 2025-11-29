@@ -55,6 +55,45 @@ enum class PrinterStatus {
 };
 
 /**
+ * @brief Print job state (from Moonraker print_stats.state)
+ *
+ * Represents the state of the current print job as reported by Klipper/Moonraker.
+ * This is the canonical enum for print job state throughout HelixScreen.
+ *
+ * @note Values are chosen to match the integer representation used internally
+ *       by MoonrakerClientMock for backward compatibility.
+ */
+enum class PrintJobState {
+    STANDBY = 0,   ///< No active print, printer idle (Moonraker: "standby")
+    PRINTING = 1,  ///< Actively printing (Moonraker: "printing")
+    PAUSED = 2,    ///< Print paused (Moonraker: "paused")
+    COMPLETE = 3,  ///< Print finished successfully (Moonraker: "complete")
+    CANCELLED = 4, ///< Print cancelled by user (Moonraker: "cancelled")
+    ERROR = 5      ///< Print failed with error (Moonraker: "error")
+};
+
+/**
+ * @brief Parse Moonraker print state string to PrintJobState enum
+ *
+ * Converts Moonraker's print_stats.state string to the corresponding enum.
+ * Unknown strings default to STANDBY.
+ *
+ * @param state_str Moonraker state string (e.g., "printing", "paused")
+ * @return Corresponding PrintJobState enum value
+ */
+PrintJobState parse_print_job_state(const char* state_str);
+
+/**
+ * @brief Convert PrintJobState enum to display string
+ *
+ * Returns a human-readable string for UI display.
+ *
+ * @param state PrintJobState enum value
+ * @return Display string (e.g., "Printing", "Paused")
+ */
+const char* print_job_state_to_string(PrintJobState state);
+
+/**
  * @brief Printer state manager with LVGL 9 reactive subjects
  *
  * Implements hybrid architecture:
@@ -156,7 +195,39 @@ class PrinterState {
     }
     lv_subject_t* get_print_state_subject() {
         return &print_state_;
-    } // "standby", "printing", "paused", "complete"
+    } // "standby", "printing", "paused", "complete" (string for UI display)
+
+    /**
+     * @brief Get print job state enum subject
+     *
+     * Integer subject holding PrintJobState enum value for type-safe comparisons.
+     * Use this for logic, use get_print_state_subject() for UI display binding.
+     *
+     * @return Pointer to integer subject (cast value to PrintJobState)
+     */
+    lv_subject_t* get_print_state_enum_subject() {
+        return &print_state_enum_;
+    }
+
+    /**
+     * @brief Get current print job state as enum
+     *
+     * Convenience method for direct enum access without subject lookup.
+     *
+     * @return Current PrintJobState
+     */
+    PrintJobState get_print_job_state() const;
+
+    /**
+     * @brief Check if a new print can be started
+     *
+     * Returns true if the printer is in a state that allows starting a new print.
+     * A print can be started when the printer is idle (STANDBY), a previous print
+     * finished (COMPLETE, CANCELLED), or the printer recovered from an error (ERROR).
+     *
+     * @return true if start_print() can be called safely
+     */
+    [[nodiscard]] bool can_start_new_print() const;
 
     // Layer tracking subjects (from print_stats.info.current_layer/total_layer)
     lv_subject_t* get_print_layer_current_subject() {
@@ -301,9 +372,10 @@ class PrinterState {
     lv_subject_t bed_target_;
 
     // Print progress subjects
-    lv_subject_t print_progress_; // Integer 0-100
-    lv_subject_t print_filename_; // String buffer
-    lv_subject_t print_state_;    // String buffer
+    lv_subject_t print_progress_;   // Integer 0-100
+    lv_subject_t print_filename_;   // String buffer
+    lv_subject_t print_state_;      // String buffer (for UI display binding)
+    lv_subject_t print_state_enum_; // Integer: PrintJobState enum (for type-safe logic)
 
     // Layer tracking subjects (from Moonraker print_stats.info)
     lv_subject_t print_layer_current_; // Current layer (0-based)

@@ -28,6 +28,57 @@
 
 #include <cstring>
 
+// ============================================================================
+// PrintJobState Free Functions
+// ============================================================================
+
+PrintJobState parse_print_job_state(const char* state_str) {
+    if (!state_str) {
+        return PrintJobState::STANDBY;
+    }
+
+    if (std::strcmp(state_str, "standby") == 0) {
+        return PrintJobState::STANDBY;
+    } else if (std::strcmp(state_str, "printing") == 0) {
+        return PrintJobState::PRINTING;
+    } else if (std::strcmp(state_str, "paused") == 0) {
+        return PrintJobState::PAUSED;
+    } else if (std::strcmp(state_str, "complete") == 0) {
+        return PrintJobState::COMPLETE;
+    } else if (std::strcmp(state_str, "cancelled") == 0) {
+        return PrintJobState::CANCELLED;
+    } else if (std::strcmp(state_str, "error") == 0) {
+        return PrintJobState::ERROR;
+    }
+
+    // Unknown state defaults to STANDBY
+    spdlog::warn("[PrinterState] Unknown print state string: '{}', defaulting to STANDBY", state_str);
+    return PrintJobState::STANDBY;
+}
+
+const char* print_job_state_to_string(PrintJobState state) {
+    switch (state) {
+    case PrintJobState::STANDBY:
+        return "Standby";
+    case PrintJobState::PRINTING:
+        return "Printing";
+    case PrintJobState::PAUSED:
+        return "Paused";
+    case PrintJobState::COMPLETE:
+        return "Complete";
+    case PrintJobState::CANCELLED:
+        return "Cancelled";
+    case PrintJobState::ERROR:
+        return "Error";
+    default:
+        return "Unknown";
+    }
+}
+
+// ============================================================================
+// PrinterState Implementation
+// ============================================================================
+
 PrinterState::PrinterState() {
     // Initialize string buffers
     std::memset(print_filename_buf_, 0, sizeof(print_filename_buf_));
@@ -62,6 +113,7 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&print_progress_);
     lv_subject_deinit(&print_filename_);
     lv_subject_deinit(&print_state_);
+    lv_subject_deinit(&print_state_enum_);
     lv_subject_deinit(&print_layer_current_);
     lv_subject_deinit(&print_layer_total_);
     lv_subject_deinit(&position_x_);
@@ -99,6 +151,7 @@ void PrinterState::init_subjects(bool register_xml) {
                            sizeof(print_filename_buf_), "");
     lv_subject_init_string(&print_state_, print_state_buf_, nullptr, sizeof(print_state_buf_),
                            "standby");
+    lv_subject_init_int(&print_state_enum_, static_cast<int>(PrintJobState::STANDBY));
 
     // Layer tracking subjects (from Moonraker print_stats.info)
     lv_subject_init_int(&print_layer_current_, 0);
@@ -144,6 +197,7 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "print_progress", &print_progress_);
         lv_xml_register_subject(NULL, "print_filename", &print_filename_);
         lv_xml_register_subject(NULL, "print_state", &print_state_);
+        lv_xml_register_subject(NULL, "print_state_enum", &print_state_enum_);
         lv_xml_register_subject(NULL, "print_layer_current", &print_layer_current_);
         lv_xml_register_subject(NULL, "print_layer_total", &print_layer_total_);
         lv_xml_register_subject(NULL, "position_x", &position_x_);
@@ -241,7 +295,11 @@ void PrinterState::update_from_status(const json& state) {
 
         if (stats.contains("state")) {
             std::string state_str = stats["state"].get<std::string>();
+            // Update string subject (for UI display binding)
             lv_subject_copy_string(&print_state_, state_str.c_str());
+            // Update enum subject (for type-safe logic)
+            PrintJobState new_state = parse_print_job_state(state_str.c_str());
+            lv_subject_set_int(&print_state_enum_, static_cast<int>(new_state));
         }
 
         if (stats.contains("filename")) {
@@ -400,4 +458,28 @@ void PrinterState::set_printer_capabilities(const PrinterCapabilities& caps) {
 
     spdlog::info("[PrinterState] Capabilities set (with overrides): {}",
                  capability_overrides_.summary());
+}
+
+PrintJobState PrinterState::get_print_job_state() const {
+    // Note: lv_subject_get_int is thread-safe (atomic read)
+    return static_cast<PrintJobState>(lv_subject_get_int(
+        const_cast<lv_subject_t*>(&print_state_enum_)));
+}
+
+bool PrinterState::can_start_new_print() const {
+    PrintJobState state = get_print_job_state();
+    // A new print can be started when printer is idle or previous print finished
+    switch (state) {
+    case PrintJobState::STANDBY:
+    case PrintJobState::COMPLETE:
+    case PrintJobState::CANCELLED:
+    case PrintJobState::ERROR:
+        return true;
+    case PrintJobState::PRINTING:
+    case PrintJobState::PAUSED:
+        return false;
+    default:
+        // Unknown state - be conservative
+        return false;
+    }
 }

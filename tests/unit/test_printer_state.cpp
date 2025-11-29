@@ -694,3 +694,217 @@ TEST_CASE("PrinterState: Complete printing state update", "[printer_state][integ
     REQUIRE(lv_subject_get_int(state.get_flow_factor_subject()) == 100);
     REQUIRE(lv_subject_get_int(state.get_fan_speed_subject()) == 50);
 }
+
+// ============================================================================
+// PrintJobState Enum Tests
+// ============================================================================
+
+TEST_CASE("PrintJobState: parse_print_job_state parses Moonraker strings", "[printer_state][enum]") {
+    SECTION("Parses all standard Moonraker states") {
+        REQUIRE(parse_print_job_state("standby") == PrintJobState::STANDBY);
+        REQUIRE(parse_print_job_state("printing") == PrintJobState::PRINTING);
+        REQUIRE(parse_print_job_state("paused") == PrintJobState::PAUSED);
+        REQUIRE(parse_print_job_state("complete") == PrintJobState::COMPLETE);
+        REQUIRE(parse_print_job_state("cancelled") == PrintJobState::CANCELLED);
+        REQUIRE(parse_print_job_state("error") == PrintJobState::ERROR);
+    }
+
+    SECTION("Unknown strings default to STANDBY") {
+        REQUIRE(parse_print_job_state("unknown") == PrintJobState::STANDBY);
+        REQUIRE(parse_print_job_state("") == PrintJobState::STANDBY);
+        REQUIRE(parse_print_job_state("PRINTING") == PrintJobState::STANDBY); // Case sensitive
+    }
+
+    SECTION("Handles null input") {
+        REQUIRE(parse_print_job_state(nullptr) == PrintJobState::STANDBY);
+    }
+}
+
+TEST_CASE("PrintJobState: print_job_state_to_string converts to display strings", "[printer_state][enum]") {
+    REQUIRE(std::string(print_job_state_to_string(PrintJobState::STANDBY)) == "Standby");
+    REQUIRE(std::string(print_job_state_to_string(PrintJobState::PRINTING)) == "Printing");
+    REQUIRE(std::string(print_job_state_to_string(PrintJobState::PAUSED)) == "Paused");
+    REQUIRE(std::string(print_job_state_to_string(PrintJobState::COMPLETE)) == "Complete");
+    REQUIRE(std::string(print_job_state_to_string(PrintJobState::CANCELLED)) == "Cancelled");
+    REQUIRE(std::string(print_job_state_to_string(PrintJobState::ERROR)) == "Error");
+}
+
+TEST_CASE("PrintJobState: Enum values match expected integers", "[printer_state][enum]") {
+    // These values are documented and must not change for backward compatibility
+    REQUIRE(static_cast<int>(PrintJobState::STANDBY) == 0);
+    REQUIRE(static_cast<int>(PrintJobState::PRINTING) == 1);
+    REQUIRE(static_cast<int>(PrintJobState::PAUSED) == 2);
+    REQUIRE(static_cast<int>(PrintJobState::COMPLETE) == 3);
+    REQUIRE(static_cast<int>(PrintJobState::CANCELLED) == 4);
+    REQUIRE(static_cast<int>(PrintJobState::ERROR) == 5);
+}
+
+TEST_CASE("PrinterState: Print state enum subject updates from notification", "[printer_state][enum]") {
+    lv_init();
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    // Reset to known state first
+    json standby_notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "standby"}}}}, 0.0}}
+    };
+    state.update_from_notification(standby_notification);
+
+    SECTION("Updates to PRINTING from notification") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "printing"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+
+        REQUIRE(state.get_print_job_state() == PrintJobState::PRINTING);
+        REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+                static_cast<int>(PrintJobState::PRINTING));
+    }
+
+    SECTION("Updates to PAUSED from notification") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "paused"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+
+        REQUIRE(state.get_print_job_state() == PrintJobState::PAUSED);
+    }
+
+    SECTION("Both string and enum subjects update together") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "complete"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+
+        // String subject should have the raw string
+        REQUIRE(std::string(lv_subject_get_string(state.get_print_state_subject())) == "complete");
+        // Enum subject should have the parsed enum value
+        REQUIRE(state.get_print_job_state() == PrintJobState::COMPLETE);
+    }
+}
+
+TEST_CASE("PrinterState: can_start_new_print logic", "[printer_state][enum]") {
+    lv_init();
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    SECTION("Can start from STANDBY") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "standby"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+        REQUIRE(state.can_start_new_print() == true);
+    }
+
+    SECTION("Can start from COMPLETE") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "complete"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+        REQUIRE(state.can_start_new_print() == true);
+    }
+
+    SECTION("Can start from CANCELLED") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "cancelled"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+        REQUIRE(state.can_start_new_print() == true);
+    }
+
+    SECTION("Can start from ERROR") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "error"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+        REQUIRE(state.can_start_new_print() == true);
+    }
+
+    SECTION("Cannot start from PRINTING") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "printing"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+        REQUIRE(state.can_start_new_print() == false);
+    }
+
+    SECTION("Cannot start from PAUSED") {
+        json notification = {
+            {"method", "notify_status_update"},
+            {"params", {{{"print_stats", {{"state", "paused"}}}}, 0.0}}
+        };
+        state.update_from_notification(notification);
+        REQUIRE(state.can_start_new_print() == false);
+    }
+}
+
+TEST_CASE("PrinterState: Enum subject value reflects all state transitions", "[printer_state][enum]") {
+    lv_init();
+    PrinterState& state = get_printer_state();
+    state.init_subjects();
+
+    // Test all state transitions are reflected in the enum subject
+
+    // STANDBY
+    json notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "standby"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+            static_cast<int>(PrintJobState::STANDBY));
+
+    // PRINTING
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "printing"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+            static_cast<int>(PrintJobState::PRINTING));
+
+    // PAUSED
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "paused"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+            static_cast<int>(PrintJobState::PAUSED));
+
+    // COMPLETE
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "complete"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+            static_cast<int>(PrintJobState::COMPLETE));
+
+    // CANCELLED
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "cancelled"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+            static_cast<int>(PrintJobState::CANCELLED));
+
+    // ERROR
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"print_stats", {{"state", "error"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
+            static_cast<int>(PrintJobState::ERROR));
+}

@@ -21,7 +21,10 @@ void CapabilityOverrides::load_from_config() {
     // Try to read capability_overrides from config
     // Path: /printers/<printer>/capability_overrides/<capability>
     auto read_override = [&](const std::string& name) {
-        std::string path = prefix + "capability_overrides/" + name;
+        // Ensure path starts with '/' for valid JSON pointer
+        std::string path = (prefix.empty() || prefix[0] != '/')
+                               ? "/" + prefix + "capability_overrides/" + name
+                               : prefix + "capability_overrides/" + name;
         std::string value = cfg->get<std::string>(path, "auto");
         overrides_[name] = parse_state(value);
     };
@@ -102,7 +105,10 @@ bool CapabilityOverrides::save_to_config() {
     std::string prefix = cfg->df();
 
     for (const auto& [name, state] : overrides_) {
-        std::string path = prefix + "capability_overrides/" + name;
+        // Ensure path starts with '/' for valid JSON pointer
+        std::string path = (prefix.empty() || prefix[0] != '/')
+                               ? "/" + prefix + "capability_overrides/" + name
+                               : prefix + "capability_overrides/" + name;
         cfg->set<std::string>(path, state_to_string(state));
     }
 

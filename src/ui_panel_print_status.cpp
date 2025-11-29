@@ -57,7 +57,8 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, MoonrakerAPI* ap
     // Subscribe to print progress and state
     print_progress_observer_ = lv_subject_add_observer(printer_state_.get_print_progress_subject(),
                                                        print_progress_observer_cb, this);
-    print_state_observer_ = lv_subject_add_observer(printer_state_.get_print_state_subject(),
+    // Subscribe to enum subject for type-safe state tracking
+    print_state_observer_ = lv_subject_add_observer(printer_state_.get_print_state_enum_subject(),
                                                     print_state_observer_cb, this);
     print_filename_observer_ = lv_subject_add_observer(printer_state_.get_print_filename_subject(),
                                                        print_filename_observer_cb, this);
@@ -691,7 +692,9 @@ void PrintStatusPanel::print_progress_observer_cb(lv_observer_t* observer, lv_su
 void PrintStatusPanel::print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
     if (self) {
-        self->on_print_state_changed(lv_subject_get_string(subject));
+        // Read enum from integer subject (type-safe, no string parsing)
+        auto state = static_cast<PrintJobState>(lv_subject_get_int(subject));
+        self->on_print_state_changed(state);
     }
 }
 
@@ -769,35 +772,38 @@ void PrintStatusPanel::on_print_progress_changed(int progress) {
     spdlog::trace("[{}] Progress updated: {}%", get_name(), current_progress_);
 }
 
-void PrintStatusPanel::on_print_state_changed(const char* state) {
-    if (!state) {
-        return;
-    }
-
-    // Map Moonraker state string to PrintState enum
+void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
+    // Map PrintJobState (from PrinterState) to PrintState (UI-specific)
+    // Note: PrintState has a Preparing state that doesn't exist in PrintJobState -
+    // that's managed locally by set_preparing()/end_preparing()
     PrintState new_state = PrintState::Idle;
 
-    if (std::strcmp(state, "standby") == 0) {
+    switch (job_state) {
+    case PrintJobState::STANDBY:
         new_state = PrintState::Idle;
-    } else if (std::strcmp(state, "printing") == 0) {
+        break;
+    case PrintJobState::PRINTING:
         new_state = PrintState::Printing;
-    } else if (std::strcmp(state, "paused") == 0) {
+        break;
+    case PrintJobState::PAUSED:
         new_state = PrintState::Paused;
-    } else if (std::strcmp(state, "complete") == 0) {
+        break;
+    case PrintJobState::COMPLETE:
         new_state = PrintState::Complete;
-    } else if (std::strcmp(state, "error") == 0) {
-        new_state = PrintState::Error;
-    } else if (std::strcmp(state, "cancelled") == 0) {
+        break;
+    case PrintJobState::CANCELLED:
         new_state = PrintState::Cancelled;
-    } else {
-        spdlog::warn("[{}] Unknown print state: {}", get_name(), state);
+        break;
+    case PrintJobState::ERROR:
+        new_state = PrintState::Error;
+        break;
     }
 
     // Only update if state actually changed
     if (new_state != current_state_) {
         set_state(new_state);
-        spdlog::info("[{}] Print state changed: {} -> {}", get_name(), state,
-                     static_cast<int>(new_state));
+        spdlog::info("[{}] Print state changed: {} -> {}", get_name(),
+                     print_job_state_to_string(job_state), static_cast<int>(new_state));
 
         // Toggle G-code viewer visibility based on print state
         // Show viewer during printing/paused, hide during idle/complete

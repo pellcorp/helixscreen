@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "printer_state.h" // For PrintJobState enum
 #include "ui_panel_base.h"
 
 #include <string>
@@ -333,7 +334,7 @@ class PrintStatusPanel : public PanelBase {
 
     void on_temperature_changed();
     void on_print_progress_changed(int progress);
-    void on_print_state_changed(const char* state);
+    void on_print_state_changed(PrintJobState state);
     void on_print_filename_changed(const char* filename);
     void on_speed_factor_changed(int speed);
     void on_flow_factor_changed(int flow);
