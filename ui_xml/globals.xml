@@ -188,6 +188,17 @@
     <!-- Light mode: Medium light grey -->
     <color name="theme_grey_dark" value="#505050"/>
     <!-- Dark mode: Medium dark grey -->
+    <!-- Keyboard key colors (theme-aware) - iOS-style two-tone effect -->
+    <!-- Letter keys: prominent, lighter color -->
+    <color name="keyboard_key_light" value="#FFFFFF"/>
+    <!-- Light: white keys -->
+    <color name="keyboard_key_dark" value="#636366"/>
+    <!-- Dark: iOS medium gray -->
+    <!-- Special/modifier keys (shift, backspace, return, ?123): recessed, darker -->
+    <color name="keyboard_key_special_light" value="#B8BCC4"/>
+    <!-- Light: subtle gray -->
+    <color name="keyboard_key_special_dark" value="#4A4A4C"/>
+    <!-- Dark: iOS darker gray -->
     <!-- Component dimensions -->
     <px name="header_height" value="60"/>
     <!-- Standard header bar height -->
@@ -305,6 +316,12 @@
     <!-- U+F127 wifi-slash -->
     <str name="icon_xmark_circle" value="&#xF057;"/>
     <!-- U+F057 circle-xmark (error/failed) -->
+    <str name="icon_xmark" value="&#xF00D;"/>
+    <!-- U+F00D xmark (close) -->
+    <str name="icon_check" value="&#xF00C;"/>
+    <!-- U+F00C check (ok/success) -->
+    <str name="icon_info_circle" value="&#xF05A;"/>
+    <!-- U+F05A circle-info (info) -->
     <!-- ===================================================================== -->
     <!-- Subjects for reactive data binding                                   -->
     <!-- Subjects are initialized in C++ code before XML loading              -->

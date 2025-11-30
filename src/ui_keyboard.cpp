@@ -546,10 +546,12 @@ static void keyboard_event_cb(lv_event_t* e) {
     lv_obj_t* keyboard = lv_event_get_target_obj(e);
 
     if (code == LV_EVENT_READY) {
-        spdlog::info("[Keyboard] OK pressed - input confirmed");
-        ui_keyboard_hide();
+        // Enter/OK confirms input but keeps keyboard visible (LVGL default behavior)
+        // User can continue typing in another field or tap Close to dismiss
+        spdlog::debug("[Keyboard] Enter pressed - input confirmed, keyboard stays visible");
     } else if (code == LV_EVENT_CANCEL) {
-        spdlog::info("[Keyboard] Cancel pressed");
+        // Close button dismisses the keyboard
+        spdlog::debug("[Keyboard] Close pressed - hiding keyboard");
         ui_keyboard_hide();
     } else if (code == LV_EVENT_VALUE_CHANGED) {
         // Get button info
@@ -830,16 +832,36 @@ void ui_keyboard_init(lv_obj_t* parent) {
     g_mode = MODE_ALPHA_LC;
     apply_keyboard_mode();
 
-    // Apply styling - theme handles colors, set opacity for solid background
-    lv_obj_set_style_bg_opa(g_keyboard, LV_OPA_COVER, LV_PART_MAIN); // Fully opaque background
+    // Get theme-aware colors (reuse existing where possible)
+    lv_color_t keyboard_bg = ui_theme_parse_color(lv_xml_get_const(NULL, "app_bg_color"));
+    lv_color_t key_bg = ui_theme_parse_color(lv_xml_get_const(NULL, "keyboard_key"));
+    lv_color_t key_special_bg = ui_theme_parse_color(lv_xml_get_const(NULL, "keyboard_key_special"));
+    lv_color_t key_text = ui_theme_parse_color(lv_xml_get_const(NULL, "header_text"));
+
+    // Apply keyboard background (container)
+    lv_obj_set_style_bg_color(g_keyboard, keyboard_bg, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_keyboard, LV_OPA_COVER, LV_PART_MAIN);
+
+    // Apply letter key styling (default keys)
+    lv_obj_set_style_bg_color(g_keyboard, key_bg, LV_PART_ITEMS);
     lv_obj_set_style_bg_opa(g_keyboard, LV_OPA_COVER, LV_PART_ITEMS);
-    lv_obj_set_style_radius(g_keyboard, 8, LV_PART_ITEMS); // Rounded key corners
+    lv_obj_set_style_radius(g_keyboard, 8, LV_PART_ITEMS);
 
-    // Ensure text is visible on all buttons (set this BEFORE disabled styling)
+    // iOS-style subtle shadow for raised key appearance
+    lv_obj_set_style_shadow_width(g_keyboard, 2, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_opa(g_keyboard, LV_OPA_30, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_offset_y(g_keyboard, 1, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_color(g_keyboard, lv_color_black(), LV_PART_ITEMS);
+
+    // Apply special key styling (shift, backspace, return, ?123, close)
+    // These keys already have LV_BUTTONMATRIX_CTRL_CHECKED flag in layout maps
+    lv_obj_set_style_bg_color(g_keyboard, key_special_bg, LV_PART_ITEMS | LV_STATE_CHECKED);
+
+    // Key text color (all keys)
+    lv_obj_set_style_text_color(g_keyboard, key_text, LV_PART_ITEMS);
     lv_obj_set_style_text_opa(g_keyboard, LV_OPA_COVER, LV_PART_ITEMS);
-    lv_obj_set_style_text_color(g_keyboard, lv_color_white(), LV_PART_ITEMS);
 
-    // Make disabled buttons (spacers) invisible - set AFTER general styling
+    // Make disabled buttons (spacers) invisible
     lv_obj_set_style_bg_opa(g_keyboard, LV_OPA_TRANSP, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_obj_set_style_border_opa(g_keyboard, LV_OPA_TRANSP, LV_PART_ITEMS | LV_STATE_DISABLED);
     lv_obj_set_style_shadow_opa(g_keyboard, LV_OPA_TRANSP, LV_PART_ITEMS | LV_STATE_DISABLED);
