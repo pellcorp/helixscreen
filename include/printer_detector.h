@@ -44,17 +44,32 @@ struct PrinterDetectionResult {
 };
 
 /**
+ * @brief Build volume dimensions from bed_mesh configuration
+ */
+struct BuildVolume {
+    float x_min = 0.0f;
+    float x_max = 0.0f;
+    float y_min = 0.0f;
+    float y_max = 0.0f;
+    float z_max = 0.0f; ///< Maximum Z height (if available)
+};
+
+/**
  * @brief Printer hardware discovery data
  *
  * Aggregates hardware information from Moonraker for detection analysis.
  */
 struct PrinterHardwareData {
-    std::vector<std::string> heaters; ///< Controllable heaters (extruders, bed, etc.)
-    std::vector<std::string> sensors; ///< Read-only temperature sensors
-    std::vector<std::string> fans;    ///< All fan types
-    std::vector<std::string> leds;    ///< LED outputs
-    std::string hostname;             ///< Printer hostname from printer.info
-    // TODO: Add full objects list, kinematics, build volume
+    std::vector<std::string> heaters{};         ///< Controllable heaters (extruders, bed, etc.)
+    std::vector<std::string> sensors{};         ///< Read-only temperature sensors
+    std::vector<std::string> fans{};            ///< All fan types
+    std::vector<std::string> leds{};            ///< LED outputs
+    std::string hostname{};                     ///< Printer hostname from printer.info
+    std::vector<std::string> printer_objects{}; ///< Full list of Klipper objects from objects/list
+    std::vector<std::string> steppers{};        ///< Stepper motor names (stepper_x, stepper_z, etc.)
+    std::string kinematics{};                   ///< Kinematics type (corexy, cartesian, delta, etc.)
+    std::string mcu{};                          ///< MCU chip type (STM32F103, etc.)
+    BuildVolume build_volume{};                 ///< Build volume dimensions from bed_mesh
 };
 
 /**

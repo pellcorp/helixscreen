@@ -112,8 +112,10 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect FlashForge AD5
 
     REQUIRE(result.detected());
     REQUIRE(result.type_name == "FlashForge AD5M Pro");
-    REQUIRE(result.confidence == 95);
-    REQUIRE(result.reason.find("tvocValue") != std::string::npos);
+    // Hostname "ad5m-pro" matches at 96% to differentiate from Adventurer 5M
+    REQUIRE(result.confidence == 96);
+    // The highest confidence match determines the reason (hostname, not sensor)
+    REQUIRE(result.reason.find("ad5m-pro") != std::string::npos);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect Voron V2 by bed_fans", "[printer_detector][fan_match]") {
@@ -122,12 +124,12 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect Voron V2 by be
 
     REQUIRE(result.detected());
     REQUIRE(result.type_name == "Voron 2.4");
-    // Hostname "voron-v2" matches v2 pattern (85%) before fan_combo (70%)
-    REQUIRE(result.confidence == 85);
-    bool has_v2_in_reason = (result.reason.find("v2") != std::string::npos ||
-                             result.reason.find("V2") != std::string::npos ||
-                             result.reason.find("2.4") != std::string::npos);
-    REQUIRE(has_v2_in_reason);
+    // Fan combo (bed_fans + exhaust) gives 75% confidence
+    REQUIRE(result.confidence == 75);
+    // Reason should mention fans or Voron enclosed signature
+    bool has_voron_reason = (result.reason.find("fan") != std::string::npos ||
+                             result.reason.find("Voron") != std::string::npos);
+    REQUIRE(has_voron_reason);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - FlashForge", "[printer_detector][hostname_match]") {
@@ -142,26 +144,31 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - 
     auto result = PrinterDetector::detect(hardware);
 
     REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge AD5M Pro");
+    // Both FlashForge models have "flashforge" hostname match at 80%
+    // Adventurer 5M comes first in database, so it wins on tie
+    REQUIRE(result.type_name == "FlashForge Adventurer 5M");
     REQUIRE(result.confidence == 80);
     REQUIRE(result.reason.find("Hostname") != std::string::npos);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - Voron V2", "[printer_detector][hostname_match]") {
+    // Use "voron" in hostname to trigger Voron detection
+    // "v2" alone is too generic and doesn't match any database entry
     PrinterHardwareData hardware{
         .heaters = {"extruder"},
         .sensors = {},
         .fans = {},
         .leds = {},
-        .hostname = "my-v2-printer"
+        .hostname = "voron-printer"
     };
 
     auto result = PrinterDetector::detect(hardware);
 
     REQUIRE(result.detected());
     REQUIRE(result.type_name == "Voron 2.4");
-    REQUIRE(result.confidence == 85);
-    REQUIRE(result.reason.find("2.4") != std::string::npos);
+    // "voron" hostname match is at 75% in database
+    REQUIRE(result.confidence == 75);
+    REQUIRE(result.reason.find("voron") != std::string::npos);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - Creality K1", "[printer_detector][hostname_match]") {
@@ -169,14 +176,12 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - 
     auto result = PrinterDetector::detect(hardware);
 
     REQUIRE(result.detected());
-    REQUIRE(result.type_name == "Creality K1");
-    REQUIRE(result.confidence == 80);
+    // Hostname "k1-max" matches K1 Max specifically at higher confidence
+    REQUIRE(result.type_name == "Creality K1 Max");
+    REQUIRE(result.confidence == 90);
 }
 
 TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - Creality Ender 3", "[printer_detector][hostname_match]") {
-    // NOTE: "ender3-v2" hostname has "v2" which matches Voron 2.4 (85%)
-    // before matching Ender 3 (80%). This is a known limitation - hostnames
-    // should be more specific or hardware patterns should be added.
     PrinterHardwareData hardware{
         .heaters = {"extruder", "heater_bed"},
         .sensors = {},
@@ -189,7 +194,8 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Detect by hostname - 
 
     REQUIRE(result.detected());
     REQUIRE(result.type_name == "Creality Ender 3");
-    REQUIRE(result.confidence == 80);
+    // Database has "ender3" hostname match at 85%
+    REQUIRE(result.confidence == 85);
 }
 
 // ============================================================================
@@ -219,7 +225,8 @@ TEST_CASE_METHOD(PrinterDetectorFixture, "PrinterDetector: Multiple matches retu
     auto result = PrinterDetector::detect(hardware);
 
     REQUIRE(result.detected());
-    REQUIRE(result.type_name == "FlashForge AD5M Pro");
+    // tvocValue matches Adventurer 5M at 95% (first in database)
+    REQUIRE(result.type_name == "FlashForge Adventurer 5M");
     REQUIRE(result.confidence == 95);  // Should pick FlashForge (higher confidence)
 }
 

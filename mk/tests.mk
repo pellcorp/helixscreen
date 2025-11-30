@@ -23,7 +23,7 @@
 # - TEST_PLATFORM_DEPS: Platform-specific (wpa_supplicant on Linux)
 
 # Core test infrastructure (always required)
-TEST_CORE_DEPS := $(TEST_MAIN_OBJ) $(CATCH2_OBJ) $(UI_TEST_UTILS_OBJ) $(TEST_OBJS)
+TEST_CORE_DEPS := $(TEST_MAIN_OBJ) $(CATCH2_OBJ) $(UI_TEST_UTILS_OBJ) $(LVGL_TEST_FIXTURE_OBJ) $(TEST_OBJS)
 
 # LVGL + Graphics stack (required for all UI tests)
 TEST_LVGL_DEPS := $(LVGL_OBJS) $(THORVG_OBJS)
@@ -148,26 +148,152 @@ test-build:
 	DURATION=$$((END_TIME - START_TIME)); \
 	echo "$(GREEN)✓ Tests built in $${DURATION}s$(RESET)"
 
-# Unified test binary with all unit tests
+# ============================================================================
+# Main Test Targets
+# ============================================================================
+# IMPORTANT: The ~[.] filter excludes tests with tags starting with '.'
+# including: [.ui_integration], [.disabled], [.benchmark], [.slow], etc.
+# This is Catch2's hidden test convention.
+
+# Run all non-hidden unit tests (default)
 test: $(TEST_BIN)
 	$(ECHO) "$(CYAN)$(BOLD)Running unit tests...$(RESET)"
-	$(Q)$(TEST_BIN) || { \
-		echo "$(RED)$(BOLD)✗ Tests failed!$(RESET)"; \
-		exit 1; \
-	}
-	$(ECHO) "$(GREEN)$(BOLD)✓ All tests passed!$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "~[.]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)$(BOLD)✓ All tests passed in $${DURATION}s$(RESET)"
 
 # Alias that rebuilds and runs tests (useful for development)
 tests: $(TEST_BIN)
 	$(ECHO) "$(CYAN)$(BOLD)Running unit tests...$(RESET)"
-	$(Q)$(TEST_BIN) || { \
-		echo "$(RED)$(BOLD)✗ Tests failed!$(RESET)"; \
-		exit 1; \
-	}
-	$(ECHO) "$(GREEN)$(BOLD)✓ All tests passed!$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "~[.]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)$(BOLD)✓ All tests passed in $${DURATION}s$(RESET)"
+
+# ============================================================================
+# Convenience Test Targets - Run tests by component
+# ============================================================================
+
+# Run tests with per-test timing (shows slow tests)
+test-verbose: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running tests with timing...$(RESET)"
+	$(Q)$(TEST_BIN) --durations yes --use-colour yes
+
+# Run G-code related tests
+test-gcode: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running G-code tests...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "[gcode]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)✓ G-code tests passed in $${DURATION}s$(RESET)"
+
+# Run UI-related tests
+test-ui: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running UI tests...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "[navigation],[theme],[wizard]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)✓ UI tests passed in $${DURATION}s$(RESET)"
+
+# Run Moonraker/mock-related tests
+test-moonraker: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running Moonraker tests...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "[mock],[sequencer],[capabilities]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)✓ Moonraker tests passed in $${DURATION}s$(RESET)"
+
+# Run network-related tests (WiFi, Ethernet)
+test-network: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running network tests...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "[network],[scan],[connect]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)✓ Network tests passed in $${DURATION}s$(RESET)"
+
+# Run security-related tests
+test-security: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running security tests...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "[security],[injection],[safety]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)✓ Security tests passed in $${DURATION}s$(RESET)"
+
+# List all available test tags
+test-list-tags: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Available test tags:$(RESET)"
+	$(Q)$(TEST_BIN) --list-tags
+
+# List all test cases
+test-list: $(TEST_BIN)
+	$(Q)$(TEST_BIN) --list-tests
 
 # Backwards compatibility alias
 test-wizard: test
+
+# ============================================================================
+# Test Timing and Performance Targets
+# ============================================================================
+# Use these targets to identify slow tests and optimize test runtime.
+# Tests tagged [slow] are excluded from test-fast for quick iteration.
+
+# Show slowest tests (top 20) - useful for identifying optimization targets
+test-timing: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Slowest tests (top 20):$(RESET)"
+	@$(TEST_BIN) "~[.]" --durations yes 2>&1 | grep -E "^[0-9]+\.[0-9]+ s:" | sort -rn | head -20
+
+# Run only fast tests (skip hidden and slow tests) - for quick iteration
+# Target: <30s total runtime for rapid development feedback
+test-fast: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running fast tests only (skipping [slow] and hidden)...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "~[.] ~[slow]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)$(BOLD)✓ Fast tests passed in $${DURATION}s$(RESET)"
+
+# Run only slow tests - for thorough validation before commit
+test-slow: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running slow tests only...$(RESET)"
+	@START_TIME=$$(date +%s); \
+	$(TEST_BIN) "[slow]" && \
+	END_TIME=$$(date +%s); \
+	DURATION=$$((END_TIME - START_TIME)); \
+	echo "$(GREEN)$(BOLD)✓ Slow tests passed in $${DURATION}s$(RESET)"
+
+# Show test coverage summary by tag area
+test-summary: $(TEST_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)=== Test Coverage by Tag (top 25) ===$(RESET)"
+	@$(TEST_BIN) --list-tags 2>&1 | grep -E "^\s+[0-9]+" | sort -rn | head -25
+	$(ECHO) ""
+	$(ECHO) "$(CYAN)$(BOLD)=== Test Count ===$(RESET)"
+	@echo -n "  "; $(TEST_BIN) --list-tests 2>&1 | grep -c "^  " || echo "0"
+
+# ============================================================================
+# Slow Test Candidates (>500ms) - Tag with [slow] incrementally
+# ============================================================================
+# Based on timing analysis, these tests are candidates for [slow] tagging:
+#
+# Connection retry tests (~5s each):
+#   - test_moonraker_client.cpp: "Multiple rapid retries all work correctly"
+#   - test_moonraker_client.cpp: "Moonraker connection retries work correctly"
+#
+# Mock print simulation tests (~2-4s each):
+#   - test_mock_print_simulation.cpp: All phase behavior tests
+#   - test_mock_print_simulation.cpp: Progress and layer tracking tests
+#
+# To tag a test as slow, add [slow] to its tags:
+#   TEST_CASE("My slow test", "[feature][slow]") { ... }
+#
+# ============================================================================
 
 # Run only config tests
 test-config: $(TEST_BIN)
@@ -234,6 +360,12 @@ $(CATCH2_OBJ): $(TEST_DIR)/catch_amalgamated.cpp
 $(UI_TEST_UTILS_OBJ): $(TEST_DIR)/ui_test_utils.cpp
 	$(Q)mkdir -p $(dir $@)
 	$(ECHO) "$(CYAN)[UI-TEST]$(RESET) $<"
+	$(Q)$(CXX) $(CXXFLAGS) -I$(TEST_DIR) $(INCLUDES) -c $< -o $@
+
+# Compile LVGL test fixture (shared base class for UI tests)
+$(LVGL_TEST_FIXTURE_OBJ): $(TEST_DIR)/lvgl_test_fixture.cpp $(TEST_DIR)/lvgl_test_fixture.h
+	$(Q)mkdir -p $(dir $@)
+	$(ECHO) "$(CYAN)[LVGL-FIXTURE]$(RESET) $<"
 	$(Q)$(CXX) $(CXXFLAGS) -I$(TEST_DIR) $(INCLUDES) -c $< -o $@
 
 # Compile test sources

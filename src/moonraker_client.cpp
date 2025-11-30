@@ -59,7 +59,11 @@ MoonrakerClient::MoonrakerClient(EventLoopPtr loop)
 MoonrakerClient::~MoonrakerClient() {
     spdlog::debug("[Moonraker Client] Destructor called");
 
-    // Set destroying flag FIRST - this signals set_connection_state() to skip callback invocation
+    // Clean up pending requests FIRST - invoke error callbacks before destruction
+    // This must happen BEFORE is_destroying_ is set so callbacks can still fire
+    cleanup_pending_requests();
+
+    // Set destroying flag AFTER cleanup - this signals set_connection_state() to skip callback invocation
     // even if it has already copied the callback. The check after copying will see this flag.
     is_destroying_.store(true);
 
@@ -745,10 +749,28 @@ RequestId MoonrakerClient::send_jsonrpc(const std::string& method, const json& p
 
     // Return the request ID on success, or INVALID_REQUEST_ID on send failure
     if (result < 0) {
-        // Send failed - remove pending request and return invalid ID
-        std::lock_guard<std::mutex> lock(requests_mutex_);
-        pending_requests_.erase(id);
+        // Send failed - remove pending request and invoke error callback
+        std::function<void(const MoonrakerError&)> error_callback_copy;
+        std::string method_name;
+        {
+            std::lock_guard<std::mutex> lock(requests_mutex_);
+            auto it = pending_requests_.find(id);
+            if (it != pending_requests_.end()) {
+                error_callback_copy = it->second.error_callback;
+                method_name = it->second.method;
+                pending_requests_.erase(it);
+            }
+        }
         spdlog::error("[Moonraker Client] Failed to send request {}, removed from pending", id);
+
+        // Invoke error callback outside lock (prevents deadlock if callback sends new request)
+        if (error_callback_copy) {
+            try {
+                error_callback_copy(MoonrakerError::connection_lost(method_name));
+            } catch (const std::exception& e) {
+                spdlog::error("[Moonraker Client] Error callback threw exception: {}", e.what());
+            }
+        }
         return INVALID_REQUEST_ID;
     }
 

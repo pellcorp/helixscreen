@@ -155,7 +155,7 @@ class MockPrintTestFixture {
                     }
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));  // Fast polling for tests
         }
         return false;
     }
@@ -174,7 +174,7 @@ class MockPrintTestFixture {
             if (mock->get_print_phase() == expected_phase) {
                 return true;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));  // Fast polling for tests
         }
         return false;
     }
@@ -204,7 +204,7 @@ class MockPrintTestFixture {
                     }
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));  // Fast polling for tests
         }
         return false;
     }

@@ -560,7 +560,8 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
 
     // Update final statistics
     stats_.vertices_generated = geometry.vertices.size();
-    stats_.triangles_generated = geometry.indices.size();
+    // Each TriangleStrip has 4 indices forming 2 triangles
+    stats_.triangles_generated = geometry.strips.size() * 2;
     stats_.memory_bytes = geometry.memory_usage();
 
     // Log vertex sharing statistics

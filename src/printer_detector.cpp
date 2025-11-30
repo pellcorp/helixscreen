@@ -103,8 +103,9 @@ bool has_all_patterns(const std::vector<std::string>& objects, const json& patte
 }
 
 // Get field data from hardware based on field name
-const std::vector<std::string>& get_field_data(const PrinterHardwareData& hardware,
-                                               const std::string& field) {
+// Returns a vector by value for string fields, reference for vector fields
+std::vector<std::string> get_field_data(const PrinterHardwareData& hardware,
+                                        const std::string& field) {
     if (field == "sensors")
         return hardware.sensors;
     if (field == "fans")
@@ -113,11 +114,73 @@ const std::vector<std::string>& get_field_data(const PrinterHardwareData& hardwa
         return hardware.heaters;
     if (field == "leds")
         return hardware.leds;
+    if (field == "printer_objects")
+        return hardware.printer_objects;
+    if (field == "steppers")
+        return hardware.steppers;
+    if (field == "hostname")
+        return {hardware.hostname};
+    if (field == "kinematics")
+        return {hardware.kinematics};
+    if (field == "mcu")
+        return {hardware.mcu};
 
-    // For hostname, create temporary vector
-    static std::vector<std::string> hostname_vec;
-    hostname_vec = {hardware.hostname};
-    return hostname_vec;
+    // Unknown field - return empty vector
+    return {};
+}
+
+// Count Z steppers in the steppers list
+int count_z_steppers(const std::vector<std::string>& steppers) {
+    int count = 0;
+    for (const auto& stepper : steppers) {
+        std::string stepper_lower = stepper;
+        std::transform(stepper_lower.begin(), stepper_lower.end(), stepper_lower.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        // Match stepper_z, stepper_z1, stepper_z2, stepper_z3 patterns
+        if (stepper_lower.find("stepper_z") == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Check if build volume is within specified range
+bool check_build_volume_range(const BuildVolume& volume, const json& heuristic) {
+    // Get the dimensions we need to check
+    float x_size = volume.x_max - volume.x_min;
+    float y_size = volume.y_max - volume.y_min;
+
+    // If no volume data, can't match
+    if (x_size <= 0 || y_size <= 0) {
+        return false;
+    }
+
+    // Check X range
+    if (heuristic.contains("min_x")) {
+        float min_x = heuristic["min_x"].get<float>();
+        if (x_size < min_x)
+            return false;
+    }
+    if (heuristic.contains("max_x")) {
+        float max_x = heuristic["max_x"].get<float>();
+        if (x_size > max_x)
+            return false;
+    }
+
+    // Check Y range
+    if (heuristic.contains("min_y")) {
+        float min_y = heuristic["min_y"].get<float>();
+        if (y_size < min_y)
+            return false;
+    }
+    if (heuristic.contains("max_y")) {
+        float max_y = heuristic["max_y"].get<float>();
+        if (y_size > max_y)
+            return false;
+    }
+
+    return true;
 }
 } // namespace
 
@@ -132,7 +195,7 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
     std::string field = heuristic.value("field", "");
     int confidence = heuristic.value("confidence", 0);
 
-    const auto& field_data = get_field_data(hardware, field);
+    auto field_data = get_field_data(hardware, field);
 
     if (type == "sensor_match" || type == "fan_match" || type == "hostname_match") {
         // Simple pattern matching in specified field
@@ -147,6 +210,87 @@ int execute_heuristic(const json& heuristic, const PrinterHardwareData& hardware
         if (heuristic.contains("patterns") && heuristic["patterns"].is_array()) {
             if (has_all_patterns(field_data, heuristic["patterns"])) {
                 spdlog::debug("[PrinterDetector] Matched fan combo (confidence: {})", confidence);
+                return confidence;
+            }
+        }
+    } else if (type == "kinematics_match") {
+        // Match against printer kinematics type (corexy, cartesian, delta, etc.)
+        std::string pattern = heuristic.value("pattern", "");
+        if (!hardware.kinematics.empty()) {
+            std::string kinematics_lower = hardware.kinematics;
+            std::transform(kinematics_lower.begin(), kinematics_lower.end(),
+                           kinematics_lower.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+            std::string pattern_lower = pattern;
+            std::transform(pattern_lower.begin(), pattern_lower.end(), pattern_lower.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+
+            if (kinematics_lower.find(pattern_lower) != std::string::npos) {
+                spdlog::debug("[PrinterDetector] Matched kinematics '{}' (confidence: {})", pattern,
+                              confidence);
+                return confidence;
+            }
+        }
+    } else if (type == "object_exists") {
+        // Check if a Klipper object exists in the printer_objects list
+        std::string pattern = heuristic.value("pattern", "");
+        if (has_pattern(hardware.printer_objects, pattern)) {
+            spdlog::debug("[PrinterDetector] Found object '{}' (confidence: {})", pattern,
+                          confidence);
+            return confidence;
+        }
+    } else if (type == "stepper_count") {
+        // Count Z steppers and match against pattern (z_count_1, z_count_2, z_count_3, z_count_4)
+        std::string pattern = heuristic.value("pattern", "");
+        int z_count = count_z_steppers(hardware.steppers);
+
+        // Also check for delta steppers (stepper_a, stepper_b, stepper_c)
+        if (pattern == "stepper_a") {
+            // Delta printer detection via stepper naming
+            if (has_pattern(hardware.steppers, "stepper_a")) {
+                spdlog::debug("[PrinterDetector] Found delta stepper pattern (confidence: {})",
+                              confidence);
+                return confidence;
+            }
+        } else {
+            // Parse expected count from pattern (z_count_N)
+            int expected_count = 0;
+            if (pattern == "z_count_1")
+                expected_count = 1;
+            else if (pattern == "z_count_2")
+                expected_count = 2;
+            else if (pattern == "z_count_3")
+                expected_count = 3;
+            else if (pattern == "z_count_4")
+                expected_count = 4;
+
+            if (expected_count > 0 && z_count == expected_count) {
+                spdlog::debug("[PrinterDetector] Matched {} Z steppers (confidence: {})", z_count,
+                              confidence);
+                return confidence;
+            }
+        }
+    } else if (type == "build_volume_range") {
+        // Check if build volume is within specified range
+        if (check_build_volume_range(hardware.build_volume, heuristic)) {
+            spdlog::debug("[PrinterDetector] Matched build volume range (confidence: {})",
+                          confidence);
+            return confidence;
+        }
+    } else if (type == "mcu_match") {
+        // Match against MCU chip type
+        std::string pattern = heuristic.value("pattern", "");
+        if (!hardware.mcu.empty()) {
+            std::string mcu_lower = hardware.mcu;
+            std::transform(mcu_lower.begin(), mcu_lower.end(), mcu_lower.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+            std::string pattern_lower = pattern;
+            std::transform(pattern_lower.begin(), pattern_lower.end(), pattern_lower.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+
+            if (mcu_lower.find(pattern_lower) != std::string::npos) {
+                spdlog::debug("[PrinterDetector] Matched MCU '{}' (confidence: {})", pattern,
+                              confidence);
                 return confidence;
             }
         }
@@ -188,8 +332,12 @@ PrinterDetectionResult execute_printer_heuristics(const json& printer,
 // ============================================================================
 
 PrinterDetectionResult PrinterDetector::detect(const PrinterHardwareData& hardware) {
-    spdlog::debug("[PrinterDetector] Running detection with {} sensors, {} fans, hostname '{}'",
-                  hardware.sensors.size(), hardware.fans.size(), hardware.hostname);
+    try {
+        spdlog::debug("[PrinterDetector] Running detection with {} sensors, {} fans, hostname '{}'",
+                      hardware.sensors.size(), hardware.fans.size(), hardware.hostname);
+        spdlog::debug("[PrinterDetector]   printer_objects: {}, steppers: {}, kinematics: '{}'",
+                      hardware.printer_objects.size(), hardware.steppers.size(),
+                      hardware.kinematics);
 
     // Load database if not already loaded
     if (!g_database.load()) {
@@ -224,6 +372,10 @@ PrinterDetectionResult PrinterDetector::detect(const PrinterHardwareData& hardwa
     }
 
     return best_match;
+    } catch (const std::exception& e) {
+        spdlog::error("[PrinterDetector] Exception during detection: {}", e.what());
+        return {"", 0, std::string("Detection error: ") + e.what()};
+    }
 }
 
 // ============================================================================

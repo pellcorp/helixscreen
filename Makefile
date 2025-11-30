@@ -338,6 +338,7 @@ TEST_INTEGRATION_OBJS := $(patsubst $(TEST_UNIT_DIR)/%.cpp,$(OBJ_DIR)/tests/%.o,
 TEST_MAIN_OBJ := $(OBJ_DIR)/tests/test_main.o
 CATCH2_OBJ := $(OBJ_DIR)/tests/catch_amalgamated.o
 UI_TEST_UTILS_OBJ := $(OBJ_DIR)/tests/ui_test_utils.o
+LVGL_TEST_FIXTURE_OBJ := $(OBJ_DIR)/tests/lvgl_test_fixture.o
 
 # Mock objects for integration testing
 MOCK_SRCS := $(wildcard $(TEST_MOCK_DIR)/*.cpp)
@@ -365,6 +366,10 @@ help:
 	echo ""; \
 	echo "$${C}Test Targets:$${X}"; \
 	echo "  $${G}test$${X}             - Run unit tests"; \
+	echo "  $${G}test-fast$${X}        - Run fast tests only (skip [slow])"; \
+	echo "  $${G}test-slow$${X}        - Run only slow tests"; \
+	echo "  $${G}test-timing$${X}      - Show slowest tests (top 20)"; \
+	echo "  $${G}test-summary$${X}     - Show test coverage by tag"; \
 	echo "  $${G}test-integration$${X} - Run integration tests (with mocks)"; \
 	echo "  $${G}test-cards$${X}       - Test dynamic card instantiation"; \
 	echo "  $${G}test-print-select$${X} - Test print select panel"; \
