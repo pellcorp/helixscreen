@@ -915,3 +915,152 @@ TEST_CASE("PrinterState: Enum subject value reflects all state transitions", "[p
     REQUIRE(lv_subject_get_int(state.get_print_state_enum_subject()) ==
             static_cast<int>(PrintJobState::ERROR));
 }
+
+// ============================================================================
+// KlippyState Tests
+// ============================================================================
+
+TEST_CASE("PrinterState: Klippy state initialization defaults to READY", "[printer_state][klippy]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();
+    state.init_subjects(false);
+
+    // Default should be READY (0)
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::READY));
+}
+
+TEST_CASE("PrinterState: set_klippy_state changes subject value", "[printer_state][klippy]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();
+    state.init_subjects(false);
+
+    // Verify initial state
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::READY));
+
+    // Set to STARTUP
+    state.set_klippy_state(KlippyState::STARTUP);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::STARTUP));
+
+    // Set to SHUTDOWN
+    state.set_klippy_state(KlippyState::SHUTDOWN);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::SHUTDOWN));
+
+    // Set to ERROR
+    state.set_klippy_state(KlippyState::ERROR);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::ERROR));
+
+    // Set back to READY
+    state.set_klippy_state(KlippyState::READY);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::READY));
+}
+
+TEST_CASE("PrinterState: Observer fires when klippy state changes", "[printer_state][klippy][observer]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();
+    state.init_subjects(false);
+
+    // Register observer
+    auto observer_cb = [](lv_observer_t* observer, lv_subject_t* subject) {
+        int* count_ptr = static_cast<int*>(lv_observer_get_user_data(observer));
+        int* value_ptr = count_ptr + 1;
+
+        (*count_ptr)++;
+        *value_ptr = lv_subject_get_int(subject);
+    };
+
+    int user_data[2] = {0, -1}; // [callback_count, last_value]
+
+    lv_subject_add_observer(state.get_klippy_state_subject(), observer_cb, user_data);
+
+    // LVGL auto-notifies observers when first added
+    REQUIRE(user_data[0] == 1);
+    REQUIRE(user_data[1] == static_cast<int>(KlippyState::READY));
+
+    // Change to STARTUP
+    state.set_klippy_state(KlippyState::STARTUP);
+    REQUIRE(user_data[0] == 2);
+    REQUIRE(user_data[1] == static_cast<int>(KlippyState::STARTUP));
+
+    // Change back to READY
+    state.set_klippy_state(KlippyState::READY);
+    REQUIRE(user_data[0] == 3);
+    REQUIRE(user_data[1] == static_cast<int>(KlippyState::READY));
+}
+
+TEST_CASE("PrinterState: Update klippy state from webhooks notification", "[printer_state][klippy][webhooks]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();
+    state.init_subjects(false);
+
+    // Test "startup" state (RESTART in progress)
+    nlohmann::json notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"webhooks", {{"state", "startup"}, {"state_message", "Klipper restart"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::STARTUP));
+
+    // Test "ready" state (restart complete)
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"webhooks", {{"state", "ready"}, {"state_message", "Printer is ready"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::READY));
+
+    // Test "shutdown" state (M112 emergency stop)
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"webhooks", {{"state", "shutdown"}, {"state_message", "Emergency stop"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::SHUTDOWN));
+
+    // Test "error" state (Klipper error)
+    notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"webhooks", {{"state", "error"}, {"state_message", "Check klippy.log"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::ERROR));
+}
+
+TEST_CASE("PrinterState: Unknown webhooks state defaults to READY", "[printer_state][klippy][webhooks]") {
+    lv_init();
+
+    PrinterState& state = get_printer_state();
+    state.reset_for_testing();
+    state.init_subjects(false);
+
+    // First set to a known non-ready state
+    state.set_klippy_state(KlippyState::STARTUP);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::STARTUP));
+
+    // Unknown state should default to READY
+    nlohmann::json notification = {
+        {"method", "notify_status_update"},
+        {"params", {{{"webhooks", {{"state", "unknown_state"}}}}, 0.0}}
+    };
+    state.update_from_notification(notification);
+    REQUIRE(lv_subject_get_int(state.get_klippy_state_subject()) ==
+            static_cast<int>(KlippyState::READY));
+}
