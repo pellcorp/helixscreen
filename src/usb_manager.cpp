@@ -73,7 +73,10 @@ void UsbManager::stop() {
 
     backend_->stop();
     backend_.reset();
-    spdlog::info("[UsbManager] Stopped");
+    // Guard against logging during static destruction (spdlog may be gone)
+    if (spdlog::default_logger()) {
+        spdlog::info("[UsbManager] Stopped");
+    }
 }
 
 bool UsbManager::is_running() const {

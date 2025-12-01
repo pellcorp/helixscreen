@@ -53,7 +53,10 @@ void UsbBackendMock::stop() {
     }
 
     running_ = false;
-    spdlog::info("[UsbBackendMock] Stopped");
+    // Guard against logging during static destruction (spdlog may be gone)
+    if (spdlog::default_logger()) {
+        spdlog::info("[UsbBackendMock] Stopped");
+    }
 }
 
 bool UsbBackendMock::is_running() const {
