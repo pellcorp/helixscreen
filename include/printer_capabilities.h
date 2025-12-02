@@ -131,6 +131,28 @@ class PrinterCapabilities {
     }
 
     /**
+     * @brief Check if printer has an accelerometer for input shaping
+     * @return true if adxl345, lis2dw, mpu9250, or resonance_tester was detected
+     */
+    [[nodiscard]] bool has_accelerometer() const { return has_accelerometer_; }
+
+    /**
+     * @brief Check if printer has screws_tilt_adjust for manual bed leveling
+     * @return true if screws_tilt_adjust object was detected
+     */
+    [[nodiscard]] bool has_screws_tilt() const { return has_screws_tilt_; }
+
+    /**
+     * @brief Check if Klippain Shake&Tune is installed
+     *
+     * Detects the AXES_SHAPER_CALIBRATION macro which is part of Klippain's
+     * Shake&Tune plugin for enhanced input shaper calibration.
+     *
+     * @return true if AXES_SHAPER_CALIBRATION macro was detected
+     */
+    [[nodiscard]] bool has_klippain_shaketune() const { return has_klippain_shaketune_; }
+
+    /**
      * @brief Check if printer supports any form of bed leveling
      * @return true if has QGL, Z-tilt, or bed mesh
      */
@@ -264,6 +286,9 @@ class PrinterCapabilities {
     bool has_probe_ = false;
     bool has_heater_bed_ = false;
     bool has_led_ = false;
+    bool has_accelerometer_ = false;
+    bool has_screws_tilt_ = false;
+    bool has_klippain_shaketune_ = false;
 
     // Macro names (stored uppercase for case-insensitive matching)
     std::unordered_set<std::string> macros_;

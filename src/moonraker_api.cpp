@@ -1661,3 +1661,181 @@ void MoonrakerAPI::get_available_objects(
         },
         on_error);
 }
+
+// ============================================================================
+// ADVANCED PANEL STUB IMPLEMENTATIONS
+// ============================================================================
+// These methods are placeholders for future implementation.
+
+void MoonrakerAPI::start_bed_mesh_calibrate(const std::string& /*profile_name*/,
+                                            SuccessCallback /*on_success*/,
+                                            ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] start_bed_mesh_calibrate() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Bed mesh calibration not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::calculate_screws_tilt(ScrewTiltCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] calculate_screws_tilt() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Screws tilt calculation not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::run_qgl(SuccessCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] run_qgl() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "QGL not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::run_z_tilt_adjust(SuccessCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] run_z_tilt_adjust() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Z-tilt adjust not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::start_resonance_test(char /*axis*/,
+                                        AdvancedProgressCallback /*on_progress*/,
+                                        InputShaperCallback /*on_complete*/,
+                                        ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] start_resonance_test() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Resonance testing not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::start_klippain_shaper_calibration(const std::string& /*axis*/,
+                                                     SuccessCallback /*on_success*/,
+                                                     ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] start_klippain_shaper_calibration() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Klippain Shake&Tune not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::set_input_shaper(char /*axis*/, const std::string& /*shaper_type*/,
+                                    double /*frequency*/, SuccessCallback /*on_success*/,
+                                    ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] set_input_shaper() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Input shaper configuration not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::get_spoolman_status(std::function<void(bool, int)> /*on_success*/,
+                                       ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] get_spoolman_status() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Spoolman status not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::get_spoolman_spools(SpoolListCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] get_spoolman_spools() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Spoolman spool list not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::set_active_spool(int /*spool_id*/, SuccessCallback /*on_success*/,
+                                    ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] set_active_spool() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Spoolman spool selection not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::get_spool_usage_history(
+    int /*spool_id*/,
+    std::function<void(const std::vector<FilamentUsageRecord>&)> /*on_success*/,
+    ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] get_spool_usage_history() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Spoolman usage history not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::get_machine_limits(MachineLimitsCallback /*on_success*/,
+                                      ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] get_machine_limits() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Machine limits query not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::set_machine_limits(const MachineLimits& /*limits*/,
+                                      SuccessCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] set_machine_limits() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Machine limits configuration not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::save_config(SuccessCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] save_config() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Save config not yet implemented";
+        on_error(err);
+    }
+}
+
+void MoonrakerAPI::execute_macro(const std::string& /*name*/,
+                                 const std::map<std::string, std::string>& /*params*/,
+                                 SuccessCallback /*on_success*/, ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] execute_macro() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Macro execution not yet implemented";
+        on_error(err);
+    }
+}
+
+std::vector<MacroInfo> MoonrakerAPI::get_user_macros(bool /*include_system*/) const {
+    spdlog::warn("[Moonraker API] get_user_macros() not yet implemented");
+    return {};
+}

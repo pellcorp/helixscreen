@@ -509,13 +509,15 @@ class PrinterState {
     std::unordered_set<std::string> excluded_objects_; // Set of excluded object names
 
     // Printer capability subjects (for pre-print options visibility)
-    lv_subject_t printer_has_qgl_;          // Integer: 0=no, 1=yes
-    lv_subject_t printer_has_z_tilt_;       // Integer: 0=no, 1=yes
-    lv_subject_t printer_has_bed_mesh_;     // Integer: 0=no, 1=yes
-    lv_subject_t printer_has_nozzle_clean_; // Integer: 0=no, 1=yes
-    lv_subject_t printer_has_probe_;        // Integer: 0=no, 1=yes (for Z-offset calibration)
-    lv_subject_t printer_has_heater_bed_;   // Integer: 0=no, 1=yes (for PID bed tuning)
-    lv_subject_t printer_has_led_;          // Integer: 0=no, 1=yes (for LED light control)
+    lv_subject_t printer_has_qgl_;           // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_z_tilt_;        // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_bed_mesh_;      // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_nozzle_clean_;  // Integer: 0=no, 1=yes
+    lv_subject_t printer_has_probe_;         // Integer: 0=no, 1=yes (for Z-offset calibration)
+    lv_subject_t printer_has_heater_bed_;    // Integer: 0=no, 1=yes (for PID bed tuning)
+    lv_subject_t printer_has_led_;           // Integer: 0=no, 1=yes (for LED light control)
+    lv_subject_t printer_has_accelerometer_; // Integer: 0=no, 1=yes (for input shaping)
+    lv_subject_t printer_has_spoolman_;      // Integer: 0=no, 1=yes (for filament tracking)
 
     // Version subjects (for About section)
     lv_subject_t klipper_version_;

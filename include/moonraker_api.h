@@ -24,12 +24,14 @@
 #ifndef MOONRAKER_API_H
 #define MOONRAKER_API_H
 
+#include "advanced_panel_types.h"
 #include "moonraker_client.h"
 #include "moonraker_domain_service.h"
 #include "moonraker_error.h"
 #include "printer_state.h"
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <set>
 #include <vector>
@@ -663,6 +665,204 @@ class MoonrakerAPI {
     MoonrakerClient& get_client() {
         return client_;
     }
+
+    // ========================================================================
+    // Advanced Panel Operations - Bed Leveling
+    // ========================================================================
+
+    /**
+     * @brief Start automatic bed mesh calibration
+     *
+     * Executes BED_MESH_CALIBRATE command with optional profile name.
+     * The operation runs asynchronously; completion is signaled via callback.
+     *
+     * @param profile_name Profile name to save (empty for "default")
+     * @param on_success Called when calibration completes
+     * @param on_error Called on failure
+     */
+    virtual void start_bed_mesh_calibrate(const std::string& profile_name,
+                                          SuccessCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Calculate screw adjustments for manual bed leveling
+     *
+     * Executes SCREWS_TILT_CALCULATE command. Requires [screws_tilt_adjust]
+     * section in printer.cfg.
+     *
+     * @param on_success Called with screw adjustment results
+     * @param on_error Called on failure
+     */
+    virtual void calculate_screws_tilt(ScrewTiltCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Run Quad Gantry Level
+     *
+     * Executes QUAD_GANTRY_LEVEL command for Voron-style printers.
+     *
+     * @param on_success Called when leveling completes
+     * @param on_error Called on failure
+     */
+    virtual void run_qgl(SuccessCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Run Z-Tilt Adjust
+     *
+     * Executes Z_TILT_ADJUST command for multi-motor Z printers.
+     *
+     * @param on_success Called when adjustment completes
+     * @param on_error Called on failure
+     */
+    virtual void run_z_tilt_adjust(SuccessCallback on_success, ErrorCallback on_error);
+
+    // ========================================================================
+    // Advanced Panel Operations - Input Shaping
+    // ========================================================================
+
+    /**
+     * @brief Start resonance test for input shaper calibration
+     *
+     * Executes TEST_RESONANCES command for the specified axis.
+     * Requires accelerometer configuration in printer.cfg.
+     *
+     * @param axis Axis to test ('X' or 'Y')
+     * @param on_progress Called with progress percentage (0-100)
+     * @param on_complete Called with test results
+     * @param on_error Called on failure
+     */
+    virtual void start_resonance_test(char axis, AdvancedProgressCallback on_progress,
+                                      InputShaperCallback on_complete, ErrorCallback on_error);
+
+    /**
+     * @brief Start Klippain Shake&Tune calibration
+     *
+     * Executes AXES_SHAPER_CALIBRATION macro from Klippain.
+     * Provides enhanced calibration with graphs.
+     *
+     * @param axis Axis to calibrate ("X", "Y", or "all")
+     * @param on_success Called when calibration completes
+     * @param on_error Called on failure
+     */
+    virtual void start_klippain_shaper_calibration(const std::string& axis,
+                                                   SuccessCallback on_success,
+                                                   ErrorCallback on_error);
+
+    /**
+     * @brief Apply input shaper settings
+     *
+     * Sets the shaper type and frequency via SET_INPUT_SHAPER command.
+     *
+     * @param axis Axis to configure ('X' or 'Y')
+     * @param shaper_type Shaper algorithm (e.g., "mzv", "ei")
+     * @param freq_hz Shaper frequency in Hz
+     * @param on_success Called when settings are applied
+     * @param on_error Called on failure
+     */
+    virtual void set_input_shaper(char axis, const std::string& shaper_type, double freq_hz,
+                                  SuccessCallback on_success, ErrorCallback on_error);
+
+    // ========================================================================
+    // Advanced Panel Operations - Spoolman
+    // ========================================================================
+
+    /**
+     * @brief Get Spoolman connection status
+     *
+     * @param on_success Called with (connected, active_spool_id)
+     * @param on_error Called on failure
+     */
+    virtual void get_spoolman_status(std::function<void(bool connected, int active_spool_id)> on_success,
+                                     ErrorCallback on_error);
+
+    /**
+     * @brief Get list of spools from Spoolman
+     *
+     * @param on_success Called with spool list
+     * @param on_error Called on failure
+     */
+    virtual void get_spoolman_spools(SpoolListCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Set the active spool for filament tracking
+     *
+     * @param spool_id Spoolman spool ID (0 to clear)
+     * @param on_success Called when spool is set
+     * @param on_error Called on failure
+     */
+    virtual void set_active_spool(int spool_id, SuccessCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Get usage history for a spool
+     *
+     * @param spool_id Spoolman spool ID
+     * @param on_success Called with usage records
+     * @param on_error Called on failure
+     */
+    virtual void get_spool_usage_history(
+        int spool_id, std::function<void(const std::vector<FilamentUsageRecord>&)> on_success,
+        ErrorCallback on_error);
+
+    // ========================================================================
+    // Advanced Panel Operations - Machine Limits
+    // ========================================================================
+
+    /**
+     * @brief Get current machine limits
+     *
+     * Queries toolhead object for velocity and acceleration limits.
+     *
+     * @param on_success Called with current limits
+     * @param on_error Called on failure
+     */
+    virtual void get_machine_limits(MachineLimitsCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Set machine limits (temporary, not saved to config)
+     *
+     * Uses SET_VELOCITY_LIMIT command. Changes are lost on Klipper restart.
+     *
+     * @param limits New limits to apply
+     * @param on_success Called when limits are applied
+     * @param on_error Called on failure
+     */
+    virtual void set_machine_limits(const MachineLimits& limits, SuccessCallback on_success,
+                                    ErrorCallback on_error);
+
+    /**
+     * @brief Save current configuration to printer.cfg
+     *
+     * Executes SAVE_CONFIG command. This will restart Klipper.
+     *
+     * @param on_success Called when save is initiated
+     * @param on_error Called on failure
+     */
+    virtual void save_config(SuccessCallback on_success, ErrorCallback on_error);
+
+    // ========================================================================
+    // Advanced Panel Operations - Macros
+    // ========================================================================
+
+    /**
+     * @brief Execute a G-code macro with optional parameters
+     *
+     * @param name Macro name (e.g., "CLEAN_NOZZLE")
+     * @param params Parameter map (e.g., {"TEMP": "210"})
+     * @param on_success Called when macro execution starts
+     * @param on_error Called on failure
+     */
+    virtual void execute_macro(const std::string& name,
+                               const std::map<std::string, std::string>& params,
+                               SuccessCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Get list of user-visible macros
+     *
+     * Returns macros filtered by category, excluding system macros
+     * (those starting with _) unless explicitly requested.
+     *
+     * @param include_system Include _* system macros
+     * @return Vector of macro information
+     */
+    std::vector<MacroInfo> get_user_macros(bool include_system = false) const;
 
   private:
     std::string http_base_url_; ///< HTTP base URL for file transfers

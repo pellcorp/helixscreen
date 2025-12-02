@@ -44,6 +44,17 @@ void PrinterCapabilities::parse_objects(const json& objects) {
         } else if (name == "heater_bed") {
             has_heater_bed_ = true;
             spdlog::debug("[PrinterCapabilities] Detected heater_bed");
+        } else if (name == "screws_tilt_adjust") {
+            has_screws_tilt_ = true;
+            spdlog::debug("[PrinterCapabilities] Detected screws_tilt_adjust");
+        }
+        // Accelerometer detection for input shaping
+        else if (name == "adxl345" || name.rfind("adxl345 ", 0) == 0 ||
+                 name == "lis2dw" || name.rfind("lis2dw ", 0) == 0 ||
+                 name == "mpu9250" || name.rfind("mpu9250 ", 0) == 0 ||
+                 name == "resonance_tester") {
+            has_accelerometer_ = true;
+            spdlog::debug("[PrinterCapabilities] Detected accelerometer: {}", name);
         }
         // LED/light detection (neopixel, led, or output_pin with light/led in name)
         else if (name.rfind("neopixel ", 0) == 0 || name.rfind("led ", 0) == 0) {
@@ -86,6 +97,12 @@ void PrinterCapabilities::parse_objects(const json& objects) {
             if (upper_macro.rfind("HELIX_", 0) == 0) {
                 helix_macros_.insert(upper_macro);
                 spdlog::debug("[PrinterCapabilities] Detected HelixScreen macro: {}", macro_name);
+            }
+
+            // Check for Klippain Shake&Tune
+            if (upper_macro == "AXES_SHAPER_CALIBRATION") {
+                has_klippain_shaketune_ = true;
+                spdlog::debug("[PrinterCapabilities] Detected Klippain Shake&Tune");
             }
 
             // Check for common macro patterns and cache them
@@ -133,6 +150,9 @@ void PrinterCapabilities::clear() {
     has_probe_ = false;
     has_heater_bed_ = false;
     has_led_ = false;
+    has_accelerometer_ = false;
+    has_screws_tilt_ = false;
+    has_klippain_shaketune_ = false;
     macros_.clear();
     helix_macros_.clear();
     nozzle_clean_macro_.clear();
@@ -204,6 +224,12 @@ std::string PrinterCapabilities::summary() const {
         caps.push_back("heater_bed");
     if (has_led_)
         caps.push_back("LED");
+    if (has_accelerometer_)
+        caps.push_back("accelerometer");
+    if (has_screws_tilt_)
+        caps.push_back("screws_tilt");
+    if (has_klippain_shaketune_)
+        caps.push_back("Klippain");
 
     if (caps.empty()) {
         ss << "none";

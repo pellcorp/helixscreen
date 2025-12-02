@@ -35,6 +35,7 @@
 #include "ui_keyboard.h"
 #include "ui_nav.h"
 #include "ui_notification.h"
+#include "ui_panel_advanced.h"
 #include "ui_panel_bed_mesh.h"
 #include "ui_panel_calibration_pid.h"
 #include "ui_panel_calibration_zoffset.h"
@@ -102,6 +103,7 @@ class ControlsPanel;
 class MotionPanel;
 class SettingsPanel;
 class FilamentPanel;
+class AdvancedPanel;
 class PrintSelectPanel;
 class PrintStatusPanel;
 class ExtrusionPanel;
@@ -116,6 +118,8 @@ ControlsPanel& get_global_controls_panel();
 MotionPanel& get_global_motion_panel();
 SettingsPanel& get_global_settings_panel();
 FilamentPanel& get_global_filament_panel();
+AdvancedPanel& get_global_advanced_panel();
+void init_global_advanced_panel(PrinterState& printer_state, MoonrakerAPI* api);
 PrintSelectPanel* get_print_select_panel(PrinterState& printer_state, MoonrakerAPI* api);
 PrintStatusPanel& get_global_print_status_panel();
 ExtrusionPanel& get_global_extrusion_panel();
@@ -858,6 +862,8 @@ static void initialize_subjects() {
     get_global_controls_panel().init_subjects(); // Controls panel launcher
     get_global_filament_panel().init_subjects(); // Filament panel
     get_global_settings_panel().init_subjects(); // Settings panel launcher
+    init_global_advanced_panel(get_printer_state(), nullptr); // Initialize advanced panel instance
+    get_global_advanced_panel().init_subjects(); // Advanced panel capability subjects
     ui_wizard_init_subjects();                   // Wizard subjects (for first-run config)
 
     // Panels that need MoonrakerAPI - store pointers for deferred set_api()
@@ -1551,6 +1557,9 @@ int main(int argc, char** argv) {
 
     // Setup settings panel (wire launcher card click handlers)
     get_global_settings_panel().setup(panels[UI_PANEL_SETTINGS], screen);
+
+    // Setup advanced panel (wire action row click handlers)
+    get_global_advanced_panel().setup(panels[UI_PANEL_ADVANCED], screen);
 
     // Initialize numeric keypad modal component (creates reusable keypad widget)
     ui_keypad_init(screen);
