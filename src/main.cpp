@@ -754,6 +754,8 @@ static void register_fonts_and_images() {
                           "A:assets/images/thumbnail-placeholder.png");
     lv_xml_register_image(NULL, "A:assets/images/large-extruder-icon.svg",
                           "A:assets/images/large-extruder-icon.svg");
+    lv_xml_register_image(NULL, "A:assets/images/benchy_thumbnail_white.png",
+                          "A:assets/images/benchy_thumbnail_white.png");
 }
 
 // Register XML components from ui_xml/ directory

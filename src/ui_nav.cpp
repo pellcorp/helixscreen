@@ -326,8 +326,8 @@ void ui_nav_wire_events(lv_obj_t* navbar) {
         lv_obj_t* icon_widget = lv_obj_find_by_name(navbar, icon_names[i]);
 
         if (!btn || !icon_widget) {
-            spdlog::error("Failed to find nav button/icon {}: btn={}, icon={}", i, (void*)btn,
-                          (void*)icon_widget);
+            // Some panels (like print_select) may not have navbar buttons - they're accessed via other UI
+            spdlog::debug("Nav button/icon {} not found in navbar (may be intentional)", i);
             continue;
         }
 

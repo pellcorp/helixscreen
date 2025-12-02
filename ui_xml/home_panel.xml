@@ -46,9 +46,11 @@
     </lv_obj>
     <!-- Bottom section: Info cards (40% of height via flex_grow="2", balances with top section's flex_grow="3") -->
     <lv_obj width="100%" flex_grow="2" style_bg_opa="0%" style_border_width="0" style_pad_all="#padding_normal" flex_flow="row" style_pad_gap="#gap_normal" style_flex_cross_place="stretch" scrollable="false">
-      <!-- Print Files Card - content-sized with minimum height -->
-      <lv_button name="print_card" flex_grow="1" height="100%" style_radius="#border_radius" style_border_width="0" style_pad_all="#padding_normal" style_shadow_width="0">
-        <lv_label text="Print Files" style_text_font="#font_body" align="center"/>
+      <!-- Print Files Card - Benchy thumbnail + text in horizontal layout -->
+      <lv_button name="print_card" flex_grow="1" height="100%" style_radius="#border_radius" style_border_width="0" style_pad_all="#padding_normal" style_shadow_width="0" flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center" style_flex_track_place="center" style_pad_gap="#gap_small">
+        <!-- Benchy thumbnail - white silhouette for dark theme -->
+        <lv_image src="A:assets/images/benchy_thumbnail_white.png" width="64" height="64" inner_align="contain"/>
+        <lv_label text="Print Files" style_text_font="#font_body"/>
         <event_cb trigger="clicked" callback="print_card_clicked_cb"/>
       </lv_button>
       <!-- Status Card (Temperature, Network, Light) - uses flex to distribute space evenly -->

@@ -20,7 +20,6 @@ docs/WIFI_WPA_SUPPLICANT_MIGRATION.md
 # Large reference docs (loaded on-demand via lazy-load strategy)
 docs/MOONRAKER_SECURITY_REVIEW.md
 docs/LVGL9_XML_ATTRIBUTES_REFERENCE.md
-docs/LVGL9_STYLE_ELEMENTS_REFERENCE.md
 
 # IDE and temporary files
 .vscode/

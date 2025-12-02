@@ -9,23 +9,19 @@
       <lv_button name="nav_btn_home" style_bg_opa="0" style_shadow_width="0" style_border_width="0" style_radius="0" style_pad_all="0">
         <icon name="nav_icon_home" src="mat_home_img" size="lg"/>
       </lv_button>
-      <!-- Print Select Button (Panel 1 - beneath Home) -->
-      <lv_button name="nav_btn_print_select" style_bg_opa="0" style_shadow_width="0" style_border_width="0" style_radius="0" style_pad_all="0">
-        <icon name="nav_icon_print_select" src="mat_print_img" size="lg"/>
-      </lv_button>
-      <!-- Controls Button (Panel 2) -->
+      <!-- Controls Button (Panel 1) -->
       <lv_button name="nav_btn_controls" style_bg_opa="0" style_shadow_width="0" style_border_width="0" style_radius="0" style_pad_all="0">
         <icon name="nav_icon_controls" src="mat_fine_tune_img" size="lg"/>
       </lv_button>
-      <!-- Filament Button (Panel 3) -->
+      <!-- Filament Button (Panel 2) -->
       <lv_button name="nav_btn_filament" style_bg_opa="0" style_shadow_width="0" style_border_width="0" style_radius="0" style_pad_all="0">
         <icon name="nav_icon_filament" src="mat_filament_img" size="lg"/>
       </lv_button>
-      <!-- Settings Button (Panel 4) -->
+      <!-- Settings Button (Panel 3) -->
       <lv_button name="nav_btn_settings" style_bg_opa="0" style_shadow_width="0" style_border_width="0" style_radius="0" style_pad_all="0">
         <icon name="nav_icon_settings" src="mat_settings_img" size="lg"/>
       </lv_button>
-      <!-- Advanced Button (Panel 5) -->
+      <!-- Advanced Button (Panel 4) -->
       <lv_button name="nav_btn_advanced" style_bg_opa="0" style_shadow_width="0" style_border_width="0" style_radius="0" style_pad_all="0">
         <icon name="nav_icon_advanced" src="mat_sysinfo_img" size="lg"/>
       </lv_button>
