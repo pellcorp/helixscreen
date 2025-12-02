@@ -24,6 +24,7 @@
 #include "ui_bed_mesh.h"
 #include "ui_card.h"
 #include "ui_emergency_stop.h"
+#include "ui_fatal_error.h"
 #include "ui_component_header_bar.h"
 #include "ui_component_keypad.h"
 #include "ui_dialog.h"
@@ -206,7 +207,7 @@ static std::unique_ptr<DisplayBackend> g_display_backend;
 static lv_display_t* display = nullptr;
 static lv_indev_t* indev_mouse = nullptr;
 
-// Screen dimensions (configurable via command line, default to small size)
+// Screen dimensions (configurable via command line, default to small = 800x480)
 static int SCREEN_WIDTH = UI_SCREEN_SMALL_W;
 static int SCREEN_HEIGHT = UI_SCREEN_SMALL_H;
 
@@ -616,7 +617,7 @@ static bool parse_command_line_args(
             printf("Usage: %s [options]\n", argv[0]);
             printf("Options:\n");
             printf("  -s, --size <size>    Screen size: tiny, small, medium, large (default: "
-                   "medium)\n");
+                   "small)\n");
             printf("  -p, --panel <panel>  Initial panel (default: home)\n");
             printf("  -k, --keypad         Show numeric keypad for testing\n");
             printf("  --keyboard           Show keyboard for testing (no textarea)\n");
@@ -655,8 +656,8 @@ static bool parse_command_line_args(
             printf("  print-select, step-test, test, gcode-test, glyphs\n");
             printf("\nScreen sizes:\n");
             printf("  tiny   = %dx%d\n", UI_SCREEN_TINY_W, UI_SCREEN_TINY_H);
-            printf("  small  = %dx%d\n", UI_SCREEN_SMALL_W, UI_SCREEN_SMALL_H);
-            printf("  medium = %dx%d (default)\n", UI_SCREEN_MEDIUM_W, UI_SCREEN_MEDIUM_H);
+            printf("  small  = %dx%d (default)\n", UI_SCREEN_SMALL_W, UI_SCREEN_SMALL_H);
+            printf("  medium = %dx%d\n", UI_SCREEN_MEDIUM_W, UI_SCREEN_MEDIUM_H);
             printf("  large  = %dx%d\n", UI_SCREEN_LARGE_W, UI_SCREEN_LARGE_H);
             printf("\nWizard steps:\n");
             printf("  wifi, connection, printer-identify, bed, hotend, fan, led, summary\n");
@@ -995,8 +996,32 @@ static bool init_lvgl() {
     // Create pointer input device (mouse/touch)
     indev_mouse = g_display_backend->create_input_pointer();
     if (!indev_mouse) {
+#if defined(HELIX_DISPLAY_DRM) || defined(HELIX_DISPLAY_FBDEV)
+        // On embedded platforms (DRM/fbdev), no input device is fatal - show error screen
+        spdlog::error("No input device found - cannot operate touchscreen UI");
+
+        static const char* suggestions[] = {
+            "Check /dev/input/event* devices exist",
+            "Ensure user is in 'input' group: sudo usermod -aG input $USER",
+            "Check touchscreen driver is loaded: dmesg | grep -i touch",
+            "Set HELIX_TOUCH_DEVICE=/dev/input/eventX to override",
+            "Add \"touch_device\": \"/dev/input/event1\" to helixconfig.json",
+            nullptr
+        };
+
+        ui_show_fatal_error(
+            "No Input Device",
+            "Could not find or open a touch/pointer input device.\n"
+            "The UI requires an input device to function.",
+            suggestions,
+            30000  // Show for 30 seconds then exit
+        );
+
+        return false;
+#else
+        // On desktop (SDL), continue without pointer - mouse is optional
         spdlog::warn("No pointer input device created - touch/mouse disabled");
-        // Continue without pointer - some embedded scenarios may not have touch
+#endif
     }
 
     // Configure scroll behavior from config (improves touchpad/touchscreen scrolling feel)

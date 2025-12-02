@@ -79,5 +79,11 @@
     "scroll_limit": 5,
     "_scroll_throw_comment": "Scroll momentum decay rate (1-99). Higher = faster decay. Default LVGL is 10, we use 25 for better touchpad feel.",
     "_scroll_limit_comment": "Pixels of movement before scrolling starts. Lower = more responsive. Default LVGL is 10, we use 5."
+  },
+  "display": {
+    "drm_device": "",
+    "_drm_device_comment": "Override DRM device path (e.g., '/dev/dri/card1'). Empty string enables auto-detection. Pi 5 has multiple DRM cards: card0 (v3d, 3D only), card1 (DSI touchscreen), card2 (vc4/HDMI). Auto-detection finds the first with dumb buffer support and a connected display.",
+    "touch_device": "",
+    "_touch_device_comment": "Override touch/pointer input device (e.g., '/dev/input/event1'). Empty string enables auto-detection. Auto-detection uses libinput to find touch or pointer capable devices."
   }
 }
