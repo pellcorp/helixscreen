@@ -179,7 +179,7 @@ remote-all: remote-sync
 # Remote Status & Diagnostics
 # =============================================================================
 
-.PHONY: remote-status remote-ssh
+.PHONY: remote-status remote-ssh remote-linux-run
 
 # Check remote host status and Docker availability
 remote-status:
@@ -209,6 +209,16 @@ remote-status:
 remote-ssh:
 	@echo "$(CYAN)Connecting to $(REMOTE_HOST)...$(RESET)"
 	ssh -t $(REMOTE_SSH_TARGET) "cd $(REMOTE_DIR) 2>/dev/null || cd ~; exec \$$SHELL -l"
+
+# Run native Linux build on remote with X11 forwarding
+# Requires: XQuartz running locally, X11Forwarding enabled on remote
+# Note: Clears SSH control socket to ensure X11 forwarding is established
+# Use REMOTE_RUN_ARGS to pass additional arguments (e.g., --test, -p motion)
+remote-linux-run:
+	@echo "$(CYAN)Running helix-screen on $(REMOTE_HOST) with X11 forwarding...$(RESET)"
+	@echo "$(YELLOW)Tip: Make sure XQuartz is running locally$(RESET)"
+	@rm -f ~/.ssh/ctl/*$(REMOTE_HOST)* 2>/dev/null || true
+	ssh -Y $(REMOTE_SSH_TARGET) "cd $(REMOTE_DIR) && ./build/bin/helix-screen $(REMOTE_RUN_ARGS)"
 
 # =============================================================================
 # Help
@@ -243,15 +253,19 @@ help-remote:
 	echo "$${C}Utilities:$${X}"; \
 	echo "  $${G}remote-status$${X}         - Check remote host status and Docker"; \
 	echo "  $${G}remote-ssh$${X}            - SSH into remote build host"; \
+	echo "  $${G}remote-linux-run$${X}      - Run native Linux build with X11 forwarding"; \
 	echo "  $${G}remote-clean$${X}          - Clean remote build directory"; \
 	echo ""; \
 	echo "$${C}Configuration (env vars or make args):$${X}"; \
 	echo "  $${Y}REMOTE_HOST$${X}=$(REMOTE_HOST)"; \
 	echo "  $${Y}REMOTE_USER$${X}=$(if $(REMOTE_USER),$(REMOTE_USER),(from SSH config))"; \
 	echo "  $${Y}REMOTE_DIR$${X}=$(REMOTE_DIR)"; \
+	echo "  $${Y}REMOTE_RUN_ARGS$${X}=$(if $(REMOTE_RUN_ARGS),$(REMOTE_RUN_ARGS),(extra args for remote-linux-run))"; \
 	echo ""; \
 	echo "$${C}Examples:$${X}"; \
 	echo "  make remote-pi                          # Build Pi on default remote"; \
 	echo "  make remote-pi REMOTE_HOST=fast.local   # Use different host"; \
 	echo "  make remote-status                      # Check remote is ready"; \
-	echo "  make remote-all                         # Build all cross targets"
+	echo "  make remote-all                         # Build all cross targets"; \
+	echo "  make remote-linux-run                   # Run with X11 forwarding"; \
+	echo "  make remote-linux-run REMOTE_RUN_ARGS=\"-p motion -s large\""
