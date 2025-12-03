@@ -61,6 +61,19 @@
 
 ---
 
+## 🐛 Debugging Principles
+
+**Trust the debug output.** When logs show impossible values (e.g., a 26px font reporting 16px line height), the bug is UPSTREAM of where you're looking. Don't re-check the same fix - look for a second failure point.
+
+**Example:** Font not rendering correctly?
+1. First fix: Enable in `lv_conf.h` → Still broken
+2. Don't re-check `lv_conf.h` - look for the SECOND requirement
+3. Second fix: Register with `lv_xml_register_font()` in `main.cpp` → Fixed!
+
+**When a fix doesn't work, ask:** "What ELSE could cause this?" not "Did I do the first fix wrong?"
+
+---
+
 ## Project Overview
 
 **HelixScreen** - A best-in-class Klipper touchscreen UI designed for a variety of 3D printers. Built with LVGL 9.4 using declarative XML layouts and reactive Subject-Observer data binding. Runs on SDL2 for development, targets framebuffer displays on embedded hardware.
