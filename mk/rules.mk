@@ -17,11 +17,55 @@
 # MAKEFLAGS format: "j" = unlimited, " --jobserver-fds=X,Y -j" = bounded
 # ============================================================================
 
-# Phase 1: Check for unlimited -j and re-invoke if needed
+# ============================================================================
+# ARCHITECTURE CHANGE DETECTION
+# ============================================================================
+# Problem: Switching between native and cross-compilation targets leaves
+# stale object files from the wrong architecture, causing cryptic linker errors.
+#
+# Solution: Track the last build target in .build-target and auto-clean when
+# the target changes. This prevents mixing ARM and x86/ARM64 objects.
+# ============================================================================
+ARCH_MARKER := $(BUILD_DIR)/.build-target
+CURRENT_TARGET := $(if $(PLATFORM_TARGET),$(PLATFORM_TARGET),native)
+
+# Check if architecture changed and clean if needed
+define check-arch-change
+	@mkdir -p $(BUILD_DIR)
+	@if [ -f "$(ARCH_MARKER)" ]; then \
+		LAST_TARGET=$$(cat "$(ARCH_MARKER)"); \
+		if [ "$$LAST_TARGET" != "$(CURRENT_TARGET)" ]; then \
+			echo ""; \
+			echo "$(YELLOW)$(BOLD)⚠️  Build target changed: $$LAST_TARGET → $(CURRENT_TARGET)$(RESET)"; \
+			echo "$(CYAN)Auto-cleaning to avoid mixing architectures...$(RESET)"; \
+			echo ""; \
+			$(MAKE) clean; \
+			mkdir -p $(BUILD_DIR); \
+		fi; \
+	fi
+	@echo "$(CURRENT_TARGET)" > "$(ARCH_MARKER)"
+endef
+
+# Phase 1: Check for unlimited -j AND architecture changes, then re-invoke if needed
 # This target has NO dependencies, so it runs alone even with unlimited -j
 .PHONY: all
 all:
 ifndef _PARALLEL_CHECKED
+	@# First check for architecture change BEFORE anything else
+	@mkdir -p $(BUILD_DIR)
+	@if [ -f "$(ARCH_MARKER)" ]; then \
+		LAST_TARGET=$$(cat "$(ARCH_MARKER)"); \
+		if [ "$$LAST_TARGET" != "$(CURRENT_TARGET)" ]; then \
+			echo ""; \
+			echo "$(YELLOW)$(BOLD)⚠️  Build target changed: $$LAST_TARGET → $(CURRENT_TARGET)$(RESET)"; \
+			echo "$(CYAN)Auto-cleaning to avoid mixing architectures...$(RESET)"; \
+			echo ""; \
+			$(MAKE) clean; \
+			mkdir -p $(BUILD_DIR); \
+		fi; \
+	fi
+	@echo "$(CURRENT_TARGET)" > "$(ARCH_MARKER)"
+	@# Now check for unlimited -j
 	@if echo "$(MAKEFLAGS)" | grep -qE '^j$$'; then \
 		echo ""; \
 		echo "$(YELLOW)$(BOLD)⚠️  'make -j' (unlimited) detected - auto-fixing to -j$(NPROC)$(RESET)"; \

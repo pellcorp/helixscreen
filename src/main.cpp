@@ -1515,6 +1515,29 @@ int main(int argc, char** argv) {
     }
 #endif
 
+    // Signal external splash process to exit BEFORE creating our display
+    // This is critical for DRM - only one process can hold the display at a time
+    if (g_runtime_config.splash_pid > 0) {
+        spdlog::info("Signaling splash process (PID {}) to exit...", g_runtime_config.splash_pid);
+        if (kill(g_runtime_config.splash_pid, SIGUSR1) == 0) {
+            // Wait for splash to actually exit and release DRM resources
+            // We can't use waitpid() since we're not the parent, so poll with kill(pid, 0)
+            int wait_attempts = 50; // 50 * 20ms = 1 second max
+            while (wait_attempts-- > 0 && kill(g_runtime_config.splash_pid, 0) == 0) {
+                usleep(20000); // 20ms
+            }
+            if (wait_attempts <= 0) {
+                spdlog::warn("Splash process did not exit in time, proceeding anyway");
+            } else {
+                spdlog::debug("Splash process exited, proceeding with display init");
+            }
+        } else {
+            spdlog::debug("Splash process already exited (PID {})", g_runtime_config.splash_pid);
+        }
+        // Clear the PID so we don't try to signal it again later
+        g_runtime_config.splash_pid = 0;
+    }
+
     // Initialize LVGL with display backend
     if (!init_lvgl()) {
         return 1;
@@ -1988,18 +2011,6 @@ int main(int argc, char** argv) {
     uint32_t last_timeout_check = helix_get_ticks();
     uint32_t timeout_check_interval =
         config->get<int>(config->df() + "moonraker_timeout_check_interval_ms", 2000);
-
-    // Signal external splash process that we're ready to take over the display
-    // This is a graceful handoff - splash will exit on receiving SIGUSR1
-    if (g_runtime_config.splash_pid > 0) {
-        if (kill(g_runtime_config.splash_pid, SIGUSR1) == 0) {
-            spdlog::debug("Sent SIGUSR1 to splash process (PID {})", g_runtime_config.splash_pid);
-        } else {
-            // Not an error - splash may have already exited or PID invalid
-            spdlog::debug("Could not signal splash process (PID {}): {}",
-                          g_runtime_config.splash_pid, strerror(errno));
-        }
-    }
 
     // Main event loop - LVGL handles display events internally via lv_timer_handler()
     // Loop continues while display exists and quit not requested
