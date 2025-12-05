@@ -1102,15 +1102,22 @@
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "neptune4pro",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'neptune4pro'"
         },
         {
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "neptune-4-pro",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'neptune-4-pro'"
+        },
+        {
+          "type": "hostname_match",
+          "field": "hostname",
+          "pattern": "neptune4-pro",
+          "confidence": 96,
+          "reason": "Hostname contains 'neptune4-pro'"
         }
       ]
     },
@@ -1726,6 +1733,27 @@
         {
           "type": "hostname_match",
           "field": "hostname",
+          "pattern": "super-racer",
+          "confidence": 97,
+          "reason": "Hostname contains 'super-racer'"
+        },
+        {
+          "type": "hostname_match",
+          "field": "hostname",
+          "pattern": "superracer",
+          "confidence": 97,
+          "reason": "Hostname contains 'superracer'"
+        },
+        {
+          "type": "hostname_match",
+          "field": "hostname",
+          "pattern": "flsun-sr",
+          "confidence": 96,
+          "reason": "Hostname contains 'flsun-sr'"
+        },
+        {
+          "type": "hostname_match",
+          "field": "hostname",
           "pattern": "sr",
           "confidence": 85,
           "reason": "Hostname contains 'sr' (Super Racer)"
@@ -1964,8 +1992,15 @@
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "sv08",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'sv08'"
+        },
+        {
+          "type": "hostname_match",
+          "field": "hostname",
+          "pattern": "sovol-sv08",
+          "confidence": 97,
+          "reason": "Hostname contains 'sovol-sv08'"
         },
         {
           "type": "mcu_match",
@@ -2227,14 +2262,14 @@
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "kobra2max",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'kobra2max'"
         },
         {
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "kobra-2-max",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'kobra-2-max'"
         },
         {
@@ -2468,14 +2503,14 @@
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "kobras1",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'kobras1'"
         },
         {
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "kobra-s1",
-          "confidence": 95,
+          "confidence": 96,
           "reason": "Hostname contains 'kobra-s1'"
         },
         {
@@ -2521,14 +2556,14 @@
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "kobras1max",
-          "confidence": 95,
+          "confidence": 97,
           "reason": "Hostname contains 'kobras1max'"
         },
         {
           "type": "hostname_match",
           "field": "hostname",
           "pattern": "kobra-s1-max",
-          "confidence": 95,
+          "confidence": 97,
           "reason": "Hostname contains 'kobra-s1-max'"
         },
         {
