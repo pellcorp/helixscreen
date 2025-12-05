@@ -8,6 +8,11 @@
 
 #include "tips_manager.h"
 
+#include <memory>
+
+// Forward declaration
+class WiFiManager;
+
 /**
  * @brief Home panel - Main dashboard showing printer status and quick actions
  *
@@ -32,6 +37,8 @@ class HomePanel : public PanelBase {
 
     void init_subjects() override;
     void setup(lv_obj_t* panel, lv_obj_t* parent_screen) override;
+    void on_activate() override;
+    void on_deactivate() override;
     const char* get_name() const override {
         return "Home Panel";
     }
@@ -59,9 +66,12 @@ class HomePanel : public PanelBase {
   private:
     lv_subject_t status_subject_;
     lv_subject_t temp_subject_;
-    lv_subject_t network_icon_subject_;
+    lv_subject_t network_icon_state_; // Integer subject: 0-5 for conditional icon visibility
     lv_subject_t network_label_subject_;
-    lv_subject_t network_color_subject_;
+
+    // Legacy string subjects (kept for network_label binding)
+    lv_subject_t network_icon_subject_;  // Unused after migration
+    lv_subject_t network_color_subject_; // Unused after migration
 
     char status_buffer_[512];
     char temp_buffer_[32];
@@ -74,11 +84,17 @@ class HomePanel : public PanelBase {
     PrintingTip current_tip_;
     std::string configured_led_;
     lv_timer_t* tip_rotation_timer_ = nullptr;
+    lv_timer_t* signal_poll_timer_ = nullptr; // Polls WiFi signal strength every 5s
     lv_obj_t* light_button_ = nullptr;
     lv_obj_t* light_divider_ = nullptr;
     lv_obj_t* printer_image_ = nullptr;
 
+    std::shared_ptr<WiFiManager> wifi_manager_; // For signal strength queries
+
     void update_tip_of_day();
+    int compute_network_icon_state(); // Maps network type + signal → 0-5
+    void update_network_icon_state(); // Updates the subject
+    static void signal_poll_timer_cb(lv_timer_t* timer);
     void setup_responsive_icon_fonts();
     void update_printer_image_opacity(int connection_state);
 

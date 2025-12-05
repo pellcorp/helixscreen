@@ -42,6 +42,27 @@ void destroy_wizard_wifi_step() {
 // ============================================================================
 
 /**
+ * @brief Compute signal icon state from signal strength and security status
+ *
+ * @param signal_strength Signal strength (0-100%)
+ * @param is_secured Whether network is password-protected
+ * @return State 1-8: 1-4 unsecured (strength 1-4), 5-8 secured (strength 1-4)
+ */
+static int compute_signal_icon_state(int signal_strength, bool is_secured) {
+    int base_state;
+    if (signal_strength <= 25)
+        base_state = 1;
+    else if (signal_strength <= 50)
+        base_state = 2;
+    else if (signal_strength <= 75)
+        base_state = 3;
+    else
+        base_state = 4;
+
+    return is_secured ? base_state + 4 : base_state; // 1-4 unsecured, 5-8 secured
+}
+
+/**
  * @brief Per-instance network item data for reactive UI updates
  */
 struct NetworkItemData {
@@ -49,6 +70,7 @@ struct NetworkItemData {
     lv_subject_t* ssid;
     lv_subject_t* signal_strength;
     lv_subject_t* is_secured;
+    lv_subject_t* signal_icon_state; // Combined state 1-8 for icon visibility binding
     char ssid_buffer[64];
     WizardWifiStep* parent; // Back-reference for callbacks
 
@@ -56,18 +78,24 @@ struct NetworkItemData {
         ssid = new lv_subject_t();
         signal_strength = new lv_subject_t();
         is_secured = new lv_subject_t();
+        signal_icon_state = new lv_subject_t();
 
         strncpy(ssid_buffer, network.ssid.c_str(), sizeof(ssid_buffer) - 1);
         ssid_buffer[sizeof(ssid_buffer) - 1] = '\0';
         lv_subject_init_string(ssid, ssid_buffer, nullptr, sizeof(ssid_buffer), ssid_buffer);
         lv_subject_init_int(signal_strength, network.signal_strength);
         lv_subject_init_int(is_secured, network.is_secured ? 1 : 0);
+
+        // Compute combined icon state (1-8)
+        int icon_state = compute_signal_icon_state(network.signal_strength, network.is_secured);
+        lv_subject_init_int(signal_icon_state, icon_state);
     }
 
     ~NetworkItemData() {
         delete ssid;
         delete signal_strength;
         delete is_secured;
+        delete signal_icon_state;
     }
 };
 
@@ -304,14 +332,32 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
             }
         }
 
-        // Set signal icon
-        lv_obj_t* signal_icon = lv_obj_find_by_name(item, "signal_icon");
-        if (signal_icon) {
-            const char* icon_name =
-                get_wifi_signal_icon(network.signal_strength, network.is_secured);
-            ui_icon_set_source(signal_icon, icon_name);
-            spdlog::trace("[{}] Set signal icon '{}' for {}% ({})", get_name(), icon_name,
-                          network.signal_strength, network.is_secured ? "secured" : "open");
+        // Bind signal icons - 8 icons in container, show only the one matching state
+        lv_obj_t* signal_icons = lv_obj_find_by_name(item, "signal_icons");
+        if (signal_icons) {
+            // Icon names and their corresponding states
+            static const struct {
+                const char* name;
+                int state;
+            } icon_bindings[] = {
+                {"sig_1", 1},      {"sig_2", 2},      {"sig_3", 3},      {"sig_4", 4},
+                {"sig_1_lock", 5}, {"sig_2_lock", 6}, {"sig_3_lock", 7}, {"sig_4_lock", 8},
+            };
+
+            int current_state = lv_subject_get_int(item_data->signal_icon_state);
+
+            for (const auto& binding : icon_bindings) {
+                lv_obj_t* icon = lv_obj_find_by_name(signal_icons, binding.name);
+                if (icon) {
+                    // Bind visibility: hidden when state != ref_value
+                    lv_obj_bind_flag_if_not_eq(icon, item_data->signal_icon_state,
+                                               LV_OBJ_FLAG_HIDDEN, binding.state);
+                }
+            }
+
+            spdlog::trace("[{}] Bound signal icons for {}% ({}) -> state {}", get_name(),
+                          network.signal_strength, network.is_secured ? "secured" : "open",
+                          current_state);
         }
 
         // Mark connected network with LV_STATE_CHECKED (styling handled by XML)

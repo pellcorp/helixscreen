@@ -18,6 +18,7 @@
 #include "printer_images.h"
 #include "printer_state.h"
 #include "printer_types.h"
+#include "wifi_manager.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -25,6 +26,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+
+// Signal polling interval (5 seconds)
+static constexpr uint32_t SIGNAL_POLL_INTERVAL_MS = 5000;
 
 HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
     : PanelBase(printer_state, api) {
@@ -65,7 +69,9 @@ HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
 
 HomePanel::~HomePanel() {
     // ObserverGuard handles observer cleanup automatically
-    // Timer owned by LVGL - will be cleaned up on shutdown
+    // Timers are owned by LVGL - they will be cleaned up on shutdown
+    // Don't try to delete during static destruction (causes crash after LVGL teardown)
+    signal_poll_timer_ = nullptr;
     tip_rotation_timer_ = nullptr;
 }
 
@@ -82,10 +88,18 @@ void HomePanel::init_subjects() {
     UI_SUBJECT_INIT_AND_REGISTER_STRING(status_subject_, status_buffer_, "Welcome to HelixScreen",
                                         "status_text");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(temp_subject_, temp_buffer_, "-- °C", "temp_text");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(network_icon_subject_, network_icon_buffer_, ICON_WIFI,
-                                        "network_icon");
+
+    // Network icon state: integer 0-5 for conditional icon visibility
+    // 0=disconnected, 1-4=wifi strength, 5=ethernet
+    lv_subject_init_int(&network_icon_state_, 0); // Default: disconnected
+    lv_xml_register_subject(nullptr, "network_icon_state", &network_icon_state_);
+
     UI_SUBJECT_INIT_AND_REGISTER_STRING(network_label_subject_, network_label_buffer_, "Wi-Fi",
                                         "network_label");
+
+    // Legacy string subjects (kept for backwards compatibility, may be removed later)
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(network_icon_subject_, network_icon_buffer_, ICON_WIFI,
+                                        "network_icon");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(network_color_subject_, network_color_buffer_, "0xff4444",
                                         "network_color");
 
@@ -158,7 +172,46 @@ void HomePanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         spdlog::info("[{}] Started tip rotation timer (60s interval)", get_name());
     }
 
+    // Initialize WiFiManager for signal strength queries
+    if (!wifi_manager_) {
+        wifi_manager_ = std::make_shared<WiFiManager>();
+        wifi_manager_->init_self_reference(wifi_manager_);
+        spdlog::debug("[{}] WiFiManager initialized for signal strength queries", get_name());
+    }
+
+    // Set initial network icon state and start polling
+    // Note: on_activate() would normally do this, but nav system doesn't call lifecycle hooks yet
+    update_network_icon_state();
+
+    // Start signal polling timer if on WiFi
+    if (!signal_poll_timer_ && current_network_ == NETWORK_WIFI) {
+        signal_poll_timer_ = lv_timer_create(signal_poll_timer_cb, SIGNAL_POLL_INTERVAL_MS, this);
+        spdlog::debug("[{}] Started signal polling timer ({}ms)", get_name(),
+                      SIGNAL_POLL_INTERVAL_MS);
+    }
+
     spdlog::info("[{}] Setup complete!", get_name());
+}
+
+void HomePanel::on_activate() {
+    // Start signal polling timer when panel becomes visible
+    if (!signal_poll_timer_ && current_network_ == NETWORK_WIFI) {
+        signal_poll_timer_ = lv_timer_create(signal_poll_timer_cb, SIGNAL_POLL_INTERVAL_MS, this);
+        spdlog::debug("[{}] Started signal polling timer ({}ms interval)", get_name(),
+                      SIGNAL_POLL_INTERVAL_MS);
+    }
+
+    // Immediately update network icon state
+    update_network_icon_state();
+}
+
+void HomePanel::on_deactivate() {
+    // Stop signal polling timer when panel is hidden (saves CPU)
+    if (signal_poll_timer_) {
+        lv_timer_delete(signal_poll_timer_);
+        signal_poll_timer_ = nullptr;
+        spdlog::debug("[{}] Stopped signal polling timer", get_name());
+    }
 }
 
 void HomePanel::update_tip_of_day() {
@@ -445,24 +498,74 @@ void HomePanel::update(const char* status_text, int temp) {
 void HomePanel::set_network(network_type_t type) {
     current_network_ = type;
 
+    // Update label text
     switch (type) {
     case NETWORK_WIFI:
-        lv_subject_copy_string(&network_icon_subject_, ICON_WIFI);
         lv_subject_copy_string(&network_label_subject_, "Wi-Fi");
-        lv_subject_copy_string(&network_color_subject_, "0xff4444");
         break;
     case NETWORK_ETHERNET:
-        lv_subject_copy_string(&network_icon_subject_, ICON_ETHERNET);
         lv_subject_copy_string(&network_label_subject_, "Ethernet");
-        lv_subject_copy_string(&network_color_subject_, "0xff4444");
         break;
     case NETWORK_DISCONNECTED:
-        lv_subject_copy_string(&network_icon_subject_, ICON_WIFI_SLASH);
         lv_subject_copy_string(&network_label_subject_, "Disconnected");
-        lv_subject_copy_string(&network_color_subject_, "0x909090");
         break;
     }
-    spdlog::debug("[{}] Updated network status to type {}", get_name(), static_cast<int>(type));
+
+    // Update the icon state (will query WiFi signal strength if connected)
+    update_network_icon_state();
+
+    spdlog::debug("[{}] Network type set to {} (icon state will be computed)", get_name(),
+                  static_cast<int>(type));
+}
+
+int HomePanel::compute_network_icon_state() {
+    // State values:
+    // 0 = Disconnected (wifi_off, disabled variant)
+    // 1 = WiFi strength 1 (≤25%, warning variant)
+    // 2 = WiFi strength 2 (26-50%, accent variant)
+    // 3 = WiFi strength 3 (51-75%, accent variant)
+    // 4 = WiFi strength 4 (>75%, accent variant)
+    // 5 = Ethernet connected (accent variant)
+
+    if (current_network_ == NETWORK_DISCONNECTED) {
+        return 0;
+    }
+
+    if (current_network_ == NETWORK_ETHERNET) {
+        return 5;
+    }
+
+    // WiFi - get signal strength from WiFiManager
+    int signal = 0;
+    if (wifi_manager_) {
+        signal = wifi_manager_->get_signal_strength();
+    }
+
+    // Map signal percentage to icon state (1-4)
+    if (signal <= 25)
+        return 1; // Weak (warning)
+    if (signal <= 50)
+        return 2; // Fair
+    if (signal <= 75)
+        return 3; // Good
+    return 4;     // Strong
+}
+
+void HomePanel::update_network_icon_state() {
+    int new_state = compute_network_icon_state();
+    int old_state = lv_subject_get_int(&network_icon_state_);
+
+    if (new_state != old_state) {
+        lv_subject_set_int(&network_icon_state_, new_state);
+        spdlog::debug("[{}] Network icon state: {} -> {}", get_name(), old_state, new_state);
+    }
+}
+
+void HomePanel::signal_poll_timer_cb(lv_timer_t* timer) {
+    auto* self = static_cast<HomePanel*>(lv_timer_get_user_data(timer));
+    if (self && self->current_network_ == NETWORK_WIFI) {
+        self->update_network_icon_state();
+    }
 }
 
 void HomePanel::set_light(bool is_on) {
