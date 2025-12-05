@@ -11,7 +11,7 @@
 #   ./helix-launcher.sh [options]
 #
 # Launcher-specific options:
-#   --debug              Enable trace-level logging (-vvv)
+#   --debug              Enable debug-level logging (-vv)
 #   --log-dest=<dest>    Log destination: auto, journal, syslog, file, console
 #   --log-file=<path>    Log file path (when --log-dest=file)
 #
@@ -34,7 +34,7 @@
 
 set -e
 
-# Debug/verbose mode - pass -vvv to helix-screen for trace-level logging
+# Debug/verbose mode - pass -vv to helix-screen for debug-level logging
 DEBUG_MODE="${HELIX_DEBUG:-0}"
 LOG_DEST="${HELIX_LOG_DEST:-auto}"
 LOG_FILE="${HELIX_LOG_FILE:-}"
@@ -128,10 +128,10 @@ log "Starting main application"
 # Build command flags
 EXTRA_FLAGS=""
 
-# Debug mode: trace-level logging
+# Debug mode: debug-level logging
 if [ "${DEBUG_MODE}" = "1" ]; then
-    EXTRA_FLAGS="-vvv"
-    log "Debug mode enabled (trace-level logging)"
+    EXTRA_FLAGS="-vv"
+    log "Debug mode enabled (debug-level logging)"
 fi
 
 # Logging destination

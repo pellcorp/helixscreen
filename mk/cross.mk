@@ -354,7 +354,7 @@ deploy-pi:
 	@echo "$(GREEN)✓ Deployed to $(PI_HOST):$(PI_DEPLOY_DIR)$(RESET)"
 
 # Deploy and run in foreground with debug logging (kills any existing instance first)
-# Uses --debug for trace-level logging and --log-dest=console for immediate output
+# Uses --debug for debug-level logging and --log-dest=console for immediate output
 deploy-pi-run: deploy-pi
 	@echo "$(CYAN)Starting helix-screen on $(PI_HOST) (debug mode)...$(RESET)"
 	ssh -t $(PI_SSH_TARGET) "cd $(PI_DEPLOY_DIR) && killall helix-screen helix-splash 2>/dev/null || true; sleep 0.5; ./config/helix-launcher.sh --debug --log-dest=console"
