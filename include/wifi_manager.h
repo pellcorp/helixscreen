@@ -51,8 +51,11 @@ class WiFiManager {
      * @brief Initialize WiFi manager with appropriate backend
      *
      * Automatically selects platform-appropriate backend and starts it.
+     *
+     * @param silent If true, suppress error modals on startup (used when WiFi
+     *               wasn't previously configured and we're just probing availability)
      */
-    WiFiManager();
+    explicit WiFiManager(bool silent = false);
 
     /**
      * @brief Destructor - ensures clean shutdown
@@ -197,6 +200,8 @@ class WiFiManager {
 
     // Connection state
     std::function<void(bool, const std::string&)> connect_callback_;
+    bool connecting_in_progress_ =
+        false; // True during connect attempt, prevents false failure on DISCONNECTED
 
     // Event handling
     void handle_scan_complete(const std::string& event_data);

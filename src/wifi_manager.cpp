@@ -39,21 +39,26 @@
 // Constructor / Destructor
 // ============================================================================
 
-WiFiManager::WiFiManager() : scan_timer_(nullptr), scan_pending_(false) {
-    spdlog::debug("[WiFiManager] Initializing with backend system");
+WiFiManager::WiFiManager(bool silent) : scan_timer_(nullptr), scan_pending_(false) {
+    spdlog::debug("[WiFiManager] Initializing with backend system{}",
+                  silent ? " (silent mode)" : "");
 
     // Create platform-appropriate backend (already started by factory)
-    backend_ = WifiBackend::create();
+    backend_ = WifiBackend::create(silent);
     if (!backend_) {
-        NOTIFY_ERROR_MODAL("WiFi Unavailable",
-                           "Could not initialize WiFi hardware. Check system configuration.");
+        if (!silent) {
+            NOTIFY_ERROR_MODAL("WiFi Unavailable",
+                               "Could not initialize WiFi hardware. Check system configuration.");
+        } else {
+            spdlog::debug("[WiFiManager] WiFi unavailable (silent mode - no modal)");
+        }
         return;
     }
 
     // Check backend status immediately after creation
     if (backend_->is_running()) {
         spdlog::debug("[WiFiManager] WiFi backend initialized and running");
-    } else {
+    } else if (!silent) {
         NOTIFY_WARNING("WiFi backend created but not running. Check system permissions.");
     }
 
@@ -199,11 +204,13 @@ void WiFiManager::connect(const std::string& ssid, const std::string& password,
     spdlog::info("[WiFiManager] Connecting to '{}'", ssid);
 
     connect_callback_ = on_complete;
+    connecting_in_progress_ = true; // Ignore DISCONNECTED events during connection attempt
     spdlog::debug("[WiFiManager] Connect callback registered for '{}'", ssid);
 
     // Use backend's connect method
     WiFiError result = backend_->connect_network(ssid, password);
     if (!result.success()) {
+        connecting_in_progress_ = false; // Clear on sync failure
         NOTIFY_ERROR("Failed to connect to WiFi network '{}'", ssid);
         if (connect_callback_) {
             connect_callback_(false,
@@ -395,8 +402,11 @@ void WiFiManager::handle_connected(const std::string& event_data) {
 
     spdlog::debug("[WiFiManager] Connected event received (backend thread)");
 
+    connecting_in_progress_ = false; // Connection complete
+
     if (!connect_callback_) {
-        LOG_WARN_INTERNAL("Connected event but no callback registered");
+        spdlog::debug(
+            "[WiFiManager] Connected event but no callback registered (normal on startup)");
         return;
     }
 
@@ -421,8 +431,16 @@ void WiFiManager::handle_disconnected(const std::string& event_data) {
 
     spdlog::debug("[WiFiManager] Disconnected event received (backend thread)");
 
+    // During a connection attempt, wpa_supplicant fires DISCONNECTED before CONNECTED
+    // when switching networks. Ignore DISCONNECTED during connection - only AUTH_FAILED
+    // or subsequent CONNECTED should determine success/failure.
+    if (connecting_in_progress_) {
+        spdlog::debug("[WiFiManager] Ignoring DISCONNECTED during connection attempt");
+        return;
+    }
+
     if (!connect_callback_) {
-        LOG_WARN_INTERNAL("Disconnected event but no callback registered");
+        spdlog::debug("[WiFiManager] Disconnected event but no callback registered (normal)");
         return;
     }
 
@@ -446,6 +464,8 @@ void WiFiManager::handle_auth_failed(const std::string& event_data) {
     (void)event_data; // Could parse specific error from event data
 
     spdlog::warn("[WiFiManager] Authentication failed event received (backend thread)");
+
+    connecting_in_progress_ = false; // Connection attempt complete (failed)
 
     if (!connect_callback_) {
         LOG_WARN_INTERNAL("Auth failed event but no callback registered");

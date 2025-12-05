@@ -173,8 +173,10 @@ void HomePanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     }
 
     // Initialize WiFiManager for signal strength queries
+    // Use silent=true since this is just for signal monitoring, not user-initiated WiFi setup
+    // (suppress error modals if WiFi isn't available)
     if (!wifi_manager_) {
-        wifi_manager_ = std::make_shared<WiFiManager>();
+        wifi_manager_ = std::make_shared<WiFiManager>(/*silent=*/true);
         wifi_manager_->init_self_reference(wifi_manager_);
         spdlog::debug("[{}] WiFiManager initialized for signal strength queries", get_name());
     }

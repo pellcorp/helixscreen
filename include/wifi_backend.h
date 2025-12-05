@@ -206,6 +206,27 @@ class WifiBackend {
     // ========================================================================
 
     /**
+     * @brief Set silent mode (suppress error modals on startup)
+     *
+     * When silent mode is enabled, startup failures will be logged but
+     * not displayed as modal dialogs to the user. Used when probing
+     * WiFi availability for signal strength display rather than
+     * explicit user-initiated WiFi configuration.
+     *
+     * @param silent true to suppress modals, false (default) to show them
+     */
+    void set_silent(bool silent) {
+        silent_ = silent;
+    }
+
+    /**
+     * @brief Check if silent mode is enabled
+     */
+    bool is_silent() const {
+        return silent_;
+    }
+
+    /**
      * @brief Initialize and start the WiFi backend
      *
      * Establishes connection to underlying WiFi system (wpa_supplicant, mock, etc.)
@@ -320,7 +341,11 @@ class WifiBackend {
      * - Linux: WifiBackendWpaSupplicant (real wpa_supplicant integration)
      * - macOS: WifiBackendMock (simulator with fake data)
      *
+     * @param silent If true, suppress error modals on startup failures
      * @return Unique pointer to backend instance
      */
-    static std::unique_ptr<WifiBackend> create();
+    static std::unique_ptr<WifiBackend> create(bool silent = false);
+
+  protected:
+    bool silent_ = false; ///< When true, suppress error modals on startup
 };
