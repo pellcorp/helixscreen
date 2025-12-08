@@ -449,6 +449,15 @@ Add to `include/ui_icon_codepoints.h` and run `make regen-fonts`.
 
 ---
 
+## Test Hardware
+
+| System | Type | Address | Notes |
+|--------|------|---------|-------|
+| Voron v2 | AFC Lite (BoxTurtle) | `192.168.1.112` / `voronv2.local` | Primary test target for AFC backend |
+| Spoolman | Filament manager | `zeus.local:7912` | Spool/material database for Phase 3 |
+
+---
+
 ## Testing Commands
 
 ```bash
@@ -456,7 +465,7 @@ Add to `include/ui_icon_codepoints.h` and run `make regen-fonts`.
 cd /Users/pbrown/Code/Printing/helixscreen-ams-feature
 make -j
 
-# Run AMS panel directly with mock backend (recommended for testing)
+# Run AMS panel directly with mock backend (recommended for UI testing)
 ./build/bin/helix-screen --test -p ams -s large -vv
 
 # Run normal UI with mock AMS available
@@ -465,8 +474,8 @@ make -j
 # With screenshot on startup
 HELIX_AUTO_SCREENSHOT=1 HELIX_AUTO_QUIT_MS=3000 ./build/bin/helix-screen --test -p ams -vv
 
-# Future: Run with real Happy Hare
-./build/bin/helix-screen --real-ams -vv
+# Connect to real Voron v2 with AFC BoxTurtle (when AFC backend is ready)
+./build/bin/helix-screen -c voronv2.local -vv
 ```
 
 ---
