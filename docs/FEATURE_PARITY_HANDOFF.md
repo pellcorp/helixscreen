@@ -1,6 +1,7 @@
 # Feature Parity Initiative - Session Handoff
 
 **Created:** 2025-12-08
+**Last Updated:** 2025-12-08
 **Purpose:** Enable clean session continuation of feature parity work
 
 ---
@@ -11,12 +12,24 @@
 # Switch to the feature parity worktree
 cd /Users/pbrown/Code/Printing/helixscreen-feature-parity
 
-# Initialize submodules (if not done)
-git submodule update --init --recursive
+# Sync with main (get latest fixes)
+git rebase main
 
 # Build and test
 make -j
 ./build/bin/helix-screen --test -p controls -vv
+```
+
+### If Build Fails (Submodule Issues)
+
+```bash
+# Run the worktree init script from main repo
+cd /Users/pbrown/Code/Printing/helixscreen
+./scripts/init-worktree.sh ../helixscreen-feature-parity
+
+# Then build
+cd ../helixscreen-feature-parity
+make -j
 ```
 
 ---
@@ -28,8 +41,16 @@ make -j
 |---------|-------|
 | **Worktree Path** | `/Users/pbrown/Code/Printing/helixscreen-feature-parity` |
 | **Branch** | `feature/feature-parity` |
-| **Last Commit** | `9f75e98` - feat(feature-parity): add comprehensive research docs and panel stubs |
+| **Last Commit** | Rebased on main (includes build fixes) |
 | **Base** | `main` |
+
+### Recent Main Commits (sync these to feature branch)
+```
+1418639 docs(build): add git worktrees section to BUILD_SYSTEM.md
+77e3914 feat(scripts): add init-worktree.sh for proper worktree setup
+5fe8039 fix(build): handle ccache-wrapped compilers in dependency check
+783e80c docs: add feature parity session handoff document
+```
 
 ### Completion Status
 
@@ -310,14 +331,23 @@ make -j
 2. **Use `-vv` or `-vvv`** to see logs (no flags = WARN only!)
 3. **Design tokens are MANDATORY** - no hardcoded colors/spacing
 4. **Events in XML** - use `<event_cb>` not `lv_obj_add_event_cb()`
-5. **Submodules in worktree** - run `git submodule update --init --recursive` if build fails
+5. **Submodules in worktree** - run `./scripts/init-worktree.sh <path>` if build fails
 6. **Check FEATURE_STATUS.md** before starting a feature - update it as you work
+7. **Rebase feature branch** - run `git rebase main` to get latest fixes
 
 ---
 
 ## Session Log
 
-### 2025-12-08 Session 1
+### 2025-12-08 Session 2 - Build System Fixes
+- **Problem:** Worktrees don't auto-clone submodules; libhv headers are generated (not in git)
+- **Fixed:**
+  - ccache-wrapped compiler detection in check-deps.sh (`5fe8039`)
+  - Created `scripts/init-worktree.sh` for proper worktree init (`77e3914`)
+  - Added Git Worktrees docs to BUILD_SYSTEM.md (`1418639`)
+- **Result:** Feature-parity worktree builds successfully after `git rebase main`
+
+### 2025-12-08 Session 1 - Research & Stubs
 - Launched 5 parallel research agents for comprehensive analysis
 - Created FEATURE_PARITY_RESEARCH.md (~59KB comprehensive doc)
 - Created FEATURE_STATUS.md (implementation tracker)
@@ -325,6 +355,6 @@ make -j
 - Created coming_soon_overlay.xml component
 - Created 7 stub panels with Coming Soon overlays
 - Registered all components in main.cpp
-- Committed as `9f75e98`
+- Committed as `9f75e98` (on feature branch)
 
 **Ready for:** Phase 2 Quick Wins (layer display, temp presets, power control)
