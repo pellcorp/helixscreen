@@ -92,6 +92,16 @@ void PrinterCapabilities::parse_objects(const json& objects) {
                 spdlog::debug("[PrinterCapabilities] Detected chamber sensor: {}", name);
             }
         }
+        // MMU/AMS detection (Happy Hare: mmu, AFC: afc)
+        else if (name == "mmu") {
+            has_mmu_ = true;
+            mmu_type_ = AmsType::HAPPY_HARE;
+            spdlog::debug("[PrinterCapabilities] Detected Happy Hare MMU");
+        } else if (name == "afc") {
+            has_mmu_ = true;
+            mmu_type_ = AmsType::AFC;
+            spdlog::debug("[PrinterCapabilities] Detected AFC");
+        }
         // Macro detection
         else if (name.rfind("gcode_macro ", 0) == 0) {
             std::string macro_name = name.substr(12); // Remove "gcode_macro " prefix
@@ -160,6 +170,8 @@ void PrinterCapabilities::clear() {
     has_screws_tilt_ = false;
     has_klippain_shaketune_ = false;
     has_speaker_ = false;
+    has_mmu_ = false;
+    mmu_type_ = AmsType::NONE;
     macros_.clear();
     helix_macros_.clear();
     nozzle_clean_macro_.clear();
@@ -239,6 +251,8 @@ std::string PrinterCapabilities::summary() const {
         caps.push_back("Klippain");
     if (has_speaker_)
         caps.push_back("speaker");
+    if (has_mmu_)
+        caps.push_back(mmu_type_ == AmsType::HAPPY_HARE ? "Happy Hare" : "AFC");
 
     if (caps.empty()) {
         ss << "none";

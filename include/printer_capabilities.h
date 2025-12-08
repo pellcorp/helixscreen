@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ams_types.h"
+
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -171,6 +173,25 @@ class PrinterCapabilities {
     }
 
     /**
+     * @brief Check if printer has a multi-filament unit (MMU/AMS)
+     *
+     * Detects Happy Hare (mmu object) or AFC-Klipper-Add-On (afc object).
+     *
+     * @return true if any MMU/AMS system was detected
+     */
+    [[nodiscard]] bool has_mmu() const {
+        return has_mmu_;
+    }
+
+    /**
+     * @brief Get the detected MMU/AMS type
+     * @return AmsType enum (NONE, HAPPY_HARE, or AFC)
+     */
+    [[nodiscard]] AmsType get_mmu_type() const {
+        return mmu_type_;
+    }
+
+    /**
      * @brief Check if printer supports any form of bed leveling
      * @return true if has QGL, Z-tilt, or bed mesh
      */
@@ -308,6 +329,8 @@ class PrinterCapabilities {
     bool has_screws_tilt_ = false;
     bool has_klippain_shaketune_ = false;
     bool has_speaker_ = false;
+    bool has_mmu_ = false;
+    AmsType mmu_type_ = AmsType::NONE;
 
     // Macro names (stored uppercase for case-insensitive matching)
     std::unordered_set<std::string> macros_;

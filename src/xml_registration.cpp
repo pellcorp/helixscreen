@@ -131,6 +131,10 @@ void register_xml_components() {
     lv_xml_register_component_from_file("A:ui_xml/print_status_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/filament_panel.xml");
 
+    // AMS (multi-filament) panel - slot component must be registered first
+    lv_xml_register_component_from_file("A:ui_xml/ams_slot.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_panel.xml");
+
     // Settings components (must be registered before settings_panel)
     lv_xml_register_component_from_file("A:ui_xml/setting_section_header.xml");
     lv_xml_register_component_from_file("A:ui_xml/setting_toggle_row.xml");

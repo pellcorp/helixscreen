@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!-- Copyright 2025 HelixScreen -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
+<!-- AMS Slot Component - Reusable filament slot visualization
+
+     Displays a single filament slot with:
+     - Color swatch circle (dynamically colored from backend)
+     - Status icon (check/error/empty indicator)
+     - Slot number label
+
+     Usage:
+       <ams_slot name="slot_0" slot_number="0"/>
+
+     Named children for C++ access:
+       - color_swatch: lv_obj to set bg_color from gate color subject
+       - status_icon: icon to show gate status (check_circle, close_circle, etc.)
+       - slot_label: text_small showing slot number
+
+     States:
+       - LV_STATE_CHECKED: Applied when this is the current active gate
+
+     Responsive sizing:
+       Uses flex_grow with min/max constraints to adapt to screen size.
+       Parent grid should use flex_flow="row_wrap" for automatic layout.
+-->
+<component>
+  <api>
+    <prop name="slot_number" type="string" default="0"/>
+  </api>
+
+  <!-- Slot card container - uses flex_grow for responsive sizing -->
+  <view extends="lv_obj" name="ams_slot"
+        flex_grow="1"
+        style_min_width="64" style_max_width="88"
+        height="content"
+        style_bg_color="#card_bg" style_bg_opa="255"
+        style_radius="#border_radius"
+        style_border_width="2" style_border_color="#primary_color"
+        style_border_opa="0"
+        style_pad_all="#space_sm"
+        flex_flow="column"
+        style_flex_main_place="center"
+        style_flex_cross_place="center"
+        style_pad_gap="#space_xs"
+        clickable="true" scrollable="false">
+
+    <!-- Checked state: C++ applies LV_STATE_CHECKED and sets style_border_opa to highlight -->
+
+    <!-- Color swatch circle - filled with filament color from backend -->
+    <!-- Uses percentage-based radius for responsive circular shape -->
+    <lv_obj name="color_swatch"
+            width="80%" style_max_width="48"
+            style_min_height="32" style_max_height="48"
+            style_radius="999"
+            style_bg_color="#text_secondary"
+            style_bg_opa="255"
+            style_border_width="0"
+            scrollable="false" clickable="false">
+      <!-- Aspect ratio maintained via max constraints -->
+    </lv_obj>
+
+    <!-- Status icon - shows gate status (available, empty, error) -->
+    <!-- Icon source updated by C++ based on gate status -->
+    <icon name="status_icon" src="check_circle" size="sm" variant="secondary"/>
+
+    <!-- Slot number label -->
+    <text_small name="slot_label" text="$slot_number"/>
+
+  </view>
+</component>

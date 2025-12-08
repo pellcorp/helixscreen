@@ -3,7 +3,7 @@
 **Feature Branch:** `feature/ams-support`
 **Worktree:** `/Users/pbrown/Code/Printing/helixscreen-ams-feature`
 **Started:** 2025-12-07
-**Last Updated:** 2025-12-08 (Session 3: Enhanced spool rendering)
+**Last Updated:** 2025-12-07
 
 ---
 
@@ -178,88 +178,28 @@ Future Modals (Phase 3+):
 
 ---
 
-### ✅ Phase 2.5: Spool Visualization (COMPLETE)
-
-**Goal:** Bambu-style pseudo-3D filament spool widget
-
-**Files Created:**
-- [x] `include/ui_spool_canvas.h` - Spool canvas widget header
-- [x] `src/ui_spool_canvas.cpp` - Custom LVGL XML widget implementation
-  - Coverage-based anti-aliasing for smooth ellipse edges
-  - Physically correct side-view rendering
-  - Gradient lighting effects (filament + hub hole)
-- [x] `include/ui_ams_slot.h` - C++ AMS slot component
-- [x] `src/ui_ams_slot.cpp` - Dynamic data binding for slots
-- [x] `ui_xml/test_panel.xml` - Side-by-side comparison test
-- [x] `ui_xml/spool_test.xml` - Dedicated spool testing
-
-**Spool Canvas Features:**
-| Feature | Implementation |
-|---------|----------------|
-| 3D perspective | Narrow ellipses (45% horizontal compression) |
-| Physical correctness | Front flange solid, filament only visible from side |
-| Fill level | 0.0-1.0 controls wound filament radius |
-| Filament gradient | sqrt curve for fast light→dark transition |
-| Flange gradient | Vertical gradient (bright top → dark bottom) |
-| Edge highlights | 2px bright-to-dark gradient on flange left edges |
-| Hub hole gradient | Dark top → light bottom (interior shadow) |
-| Anti-aliasing | Coverage-based edge smoothing + pole pixels |
-| XML attributes | `color`, `fill_level`, `size` |
-
-**Drawing Algorithm (back-to-front):**
-1. Back flange (gradient ellipse + left edge highlight)
-2. Filament cylinder with gradient (back ellipse + rectangle + front ellipse)
-3. Front flange (gradient ellipse + left edge highlight)
-4. Hub hole with gradient (shadow effect)
-
-**Enhanced Rendering (2025-12-08):**
-- [x] sqrt() curve on gradients for faster light-to-dark transition
-- [x] Edge highlights on flanges (2px band along left edge, gradient top→bottom)
-- [x] Pole pixel rendering for smoother top/bottom ellipse edges
-- [x] Increased lighten/darken amounts for more dramatic 3D effect
-
-**XML Usage:**
-```xml
-<spool_canvas color="0xFF5733" fill_level="0.75" size="64"/>
-```
-
-**Verification:**
-- [x] Build succeeds
-- [x] Anti-aliased edges render smoothly
-- [x] Fill levels display correctly (100%/75%/40%/10%)
-- [x] Gradients visible on filament and hub
-- [x] Edge highlights give flanges 3D thickness illusion
-
-**Known Limitations:**
-- Ellipse poles (top/bottom) appear somewhat flat due to horizontal compression
-  at 72px resolution - this is inherent to compressed ellipse geometry
-
----
-
-### ✅ Phase 2: Basic Operations (COMPLETE)
+### 🔲 Phase 2: Basic Operations (NOT STARTED)
 
 **Goal:** Real backend implementations, load/unload/select
 
-**Files Created:**
-- [x] `include/ams_backend_happy_hare.h`
-- [x] `src/ams_backend_happy_hare.cpp`
-  - Commands: `T{n}`, `MMU_LOAD`, `MMU_UNLOAD`, `MMU_SELECT`, `MMU_RECOVER`, `MMU_HOME`
-  - Parses `printer.mmu.*` variables via status update callbacks
-- [x] `include/ams_backend_afc.h`
-- [x] `src/ams_backend_afc.cpp`
-  - Lane-based commands: `AFC_LOAD`, `AFC_UNLOAD`, `AFC_HOME`
+**Files to Create:**
+- [ ] `include/ams_backend_happy_hare.h`
+- [ ] `src/ams_backend_happy_hare.cpp`
+  - Commands: `T{n}`, `MMU_LOAD`, `MMU_UNLOAD`, `MMU_SELECT`, `MMU_RECOVER`
+  - Parse `printer.mmu.*` variables
+- [ ] `include/ams_backend_afc.h`
+- [ ] `src/ams_backend_afc.cpp`
+  - Lane-based commands
   - Moonraker database for lane_data
-- [x] `ui_xml/ams_context_menu.xml`
+- [ ] `ui_xml/ams_context_menu.xml`
   - Load, Unload, Edit options
   - Positioned near tapped slot
 
-**Files Modified:**
-- [x] `src/ui_panel_ams.cpp` - Context menu on slot tap
-- [x] `src/ams_backend.cpp` - Factory creates real backends
-- [x] `include/ams_backend.h` - Factory overload with API/client params
-- [x] `src/main.cpp` - Context menu component registration
+**Files to Modify:**
+- [ ] `src/ui_panel_ams.cpp` - Context menu on slot tap
+- [ ] `include/moonraker_api.h` - AMS command methods
 
-**Happy Hare Variables Parsed:**
+**Happy Hare Variables to Parse:**
 ```
 printer.mmu.gate (current gate)
 printer.mmu.tool (current tool)
@@ -268,62 +208,12 @@ printer.mmu.gate_status (array: -1=unknown, 0=empty, 1=available, 2=from_buffer)
 printer.mmu.gate_color_rgb (array of RGB values)
 printer.mmu.gate_material (array of material strings)
 printer.mmu.action (current operation)
-printer.mmu.ttg_map (tool-to-gate mapping)
-printer.mmu.endless_spool_groups
 ```
 
-**Additional Fixes (2025-12-08):**
-- [x] **Deadlock in mock backend** - `start()` and `set_gate_info()` were calling
-      `emit_event()` while holding the mutex. Since `emit_event()` also locks the
-      mutex and `std::mutex` is non-recursive, this caused deadlock. Fixed by
-      releasing the lock before emitting.
-- [x] **Shutdown crash** - `AmsState::~AmsState()` called `stop()` which logged
-      via spdlog, but during static destruction the logger may already be destroyed.
-      Removed logging from `stop()` to prevent SIGSEGV.
-- [x] **CLI access** - Added `-p ams` flag to main.cpp to open AMS panel directly
-      for testing. Also added backend creation in `AmsPanel::init_subjects()`.
-
 **Verification:**
-- [x] Build succeeds
-- [x] Context menu appears on slot tap
-- [x] **Panel displays with mock data** - 4 colored slots (Red/Blue/Green/Yellow)
-- [x] **Clean shutdown** - No crash on exit
-- [ ] Live testing with Happy Hare printer (deferred)
-- [ ] Live testing with AFC printer (deferred)
-
-**TODO - Wizard Integration:**
-- [ ] Add AMS detection step to connection wizard
-- [ ] Show detected AMS type (Happy Hare / AFC / None)
-- [ ] Allow manual override in settings
-
----
-
-### 🔲 Phase 2.6: Configurable Visualization (IN PROGRESS)
-
-**Goal:** Allow users to choose between visualization styles
-
-**Configuration Options:**
-| Setting | Values | Description |
-|---------|--------|-------------|
-| `ams_spool_style` | `"3d"` / `"flat"` | Pseudo-3D canvas or flat concentric rings |
-
-**Files to Modify:**
-- [ ] `config/helixconfig.json.template` - Add `ams_spool_style` option
-- [ ] `include/helix_config.h` - Config accessor for spool style
-- [ ] `src/helix_config.cpp` - Parse spool style from JSON
-- [ ] `src/ui_ams_slot.cpp` - Conditional widget creation based on config
-- [ ] `ui_xml/ams_panel.xml` - Support both visualization types
-
-**Implementation:**
-- Keep existing `ams_slot` flat visualization as fallback
-- Default to `"3d"` for new installations
-- Runtime switchable (recreate slots on config change)
-
-**Verification:**
-- [ ] Config option parsed correctly
-- [ ] `"3d"` shows spool_canvas widget
-- [ ] `"flat"` shows concentric ring widget
-- [ ] Settings panel allows switching
+- [ ] Load command works with Happy Hare
+- [ ] Unload command works
+- [ ] Context menu appears on slot tap
 
 ---
 
@@ -536,15 +426,6 @@ Add to `include/ui_icon_codepoints.h` and run `make regen-fonts`.
 
 ---
 
-## Test Hardware
-
-| System | Type | Address | Notes |
-|--------|------|---------|-------|
-| Voron v2 | AFC Lite (BoxTurtle) | `192.168.1.112` / `voronv2.local` | Primary test target for AFC backend |
-| Spoolman | Filament manager | `zeus.local:7912` | Spool/material database for Phase 3 |
-
----
-
 ## Testing Commands
 
 ```bash
@@ -552,17 +433,11 @@ Add to `include/ui_icon_codepoints.h` and run `make regen-fonts`.
 cd /Users/pbrown/Code/Printing/helixscreen-ams-feature
 make -j
 
-# Run AMS panel directly with mock backend (recommended for UI testing)
-./build/bin/helix-screen --test -p ams -s large -vv
-
-# Run normal UI with mock AMS available
+# Run with mock AMS (test mode enables mock)
 ./build/bin/helix-screen --test -vv
 
-# With screenshot on startup
-HELIX_AUTO_SCREENSHOT=1 HELIX_AUTO_QUIT_MS=3000 ./build/bin/helix-screen --test -p ams -vv
-
-# Connect to real Voron v2 with AFC BoxTurtle (when AFC backend is ready)
-./build/bin/helix-screen -c voronv2.local -vv
+# Future: Run with real Happy Hare
+./build/bin/helix-screen --real-ams -vv
 ```
 
 ---

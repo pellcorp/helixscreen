@@ -1,0 +1,396 @@
+// Copyright 2025 HelixScreen
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+/*
+ * Copyright (C) 2025 356C LLC
+ * Author: Preston Brown <pbrown@brown-house.net>
+ *
+ * This file is part of HelixScreen.
+ *
+ * HelixScreen is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * HelixScreen is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with HelixScreen. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include <string>
+
+/**
+ * @file ams_error.h
+ * @brief Error types and helpers for AMS/MMU operations
+ *
+ * Provides structured error handling for multi-filament system operations,
+ * including user-friendly messages suitable for UI display and technical
+ * details for debugging.
+ */
+
+/**
+ * @brief AMS operation result codes
+ *
+ * Covers errors from both Happy Hare and AFC systems, as well as
+ * general communication and state errors.
+ */
+enum class AmsResult {
+    SUCCESS = 0, ///< Operation succeeded
+
+    // Communication errors
+    NOT_CONNECTED,   ///< No connection to Moonraker/printer
+    TIMEOUT,         ///< Operation timed out
+    CONNECTION_LOST, ///< Connection lost during operation
+    COMMAND_FAILED,  ///< G-code command returned error
+
+    // System state errors
+    NOT_INITIALIZED, ///< AMS backend not initialized
+    NO_AMS_DETECTED, ///< No AMS/MMU system found
+    WRONG_STATE,     ///< Operation invalid in current state
+    BUSY,            ///< Another operation in progress
+
+    // Hardware/mechanical errors
+    FILAMENT_JAM,  ///< Filament jammed in path
+    GATE_BLOCKED,  ///< Gate/lane blocked or inaccessible
+    SENSOR_ERROR,  ///< Filament sensor malfunction
+    ENCODER_ERROR, ///< Filament encoder malfunction
+    HOMING_FAILED, ///< Selector homing failed
+    EXTRUDER_COLD, ///< Extruder too cold for operation
+
+    // Operation-specific errors
+    LOAD_FAILED,        ///< Failed to load filament to extruder
+    UNLOAD_FAILED,      ///< Failed to unload filament from extruder
+    TOOL_CHANGE_FAILED, ///< Tool change operation failed
+    TIP_FORMING_FAILED, ///< Filament tip forming failed
+    GATE_NOT_AVAILABLE, ///< Requested gate has no filament
+
+    // Configuration errors
+    INVALID_GATE,  ///< Gate index out of range
+    INVALID_TOOL,  ///< Tool index out of range
+    MAPPING_ERROR, ///< Tool-to-gate mapping invalid
+
+    // Spoolman errors
+    SPOOLMAN_NOT_AVAILABLE, ///< Spoolman service not reachable
+    SPOOL_NOT_FOUND,        ///< Requested spool ID not found
+
+    // Generic
+    UNKNOWN_ERROR ///< Unexpected error condition
+};
+
+/**
+ * @brief Get string representation of AMS result
+ * @param result The result code
+ * @return Human-readable string for the result
+ */
+inline const char* ams_result_to_string(AmsResult result) {
+    switch (result) {
+    case AmsResult::SUCCESS:
+        return "Success";
+    case AmsResult::NOT_CONNECTED:
+        return "Not Connected";
+    case AmsResult::TIMEOUT:
+        return "Timeout";
+    case AmsResult::CONNECTION_LOST:
+        return "Connection Lost";
+    case AmsResult::COMMAND_FAILED:
+        return "Command Failed";
+    case AmsResult::NOT_INITIALIZED:
+        return "Not Initialized";
+    case AmsResult::NO_AMS_DETECTED:
+        return "No AMS Detected";
+    case AmsResult::WRONG_STATE:
+        return "Wrong State";
+    case AmsResult::BUSY:
+        return "Busy";
+    case AmsResult::FILAMENT_JAM:
+        return "Filament Jam";
+    case AmsResult::GATE_BLOCKED:
+        return "Gate Blocked";
+    case AmsResult::SENSOR_ERROR:
+        return "Sensor Error";
+    case AmsResult::ENCODER_ERROR:
+        return "Encoder Error";
+    case AmsResult::HOMING_FAILED:
+        return "Homing Failed";
+    case AmsResult::EXTRUDER_COLD:
+        return "Extruder Cold";
+    case AmsResult::LOAD_FAILED:
+        return "Load Failed";
+    case AmsResult::UNLOAD_FAILED:
+        return "Unload Failed";
+    case AmsResult::TOOL_CHANGE_FAILED:
+        return "Tool Change Failed";
+    case AmsResult::TIP_FORMING_FAILED:
+        return "Tip Forming Failed";
+    case AmsResult::GATE_NOT_AVAILABLE:
+        return "Gate Not Available";
+    case AmsResult::INVALID_GATE:
+        return "Invalid Gate";
+    case AmsResult::INVALID_TOOL:
+        return "Invalid Tool";
+    case AmsResult::MAPPING_ERROR:
+        return "Mapping Error";
+    case AmsResult::SPOOLMAN_NOT_AVAILABLE:
+        return "Spoolman Not Available";
+    case AmsResult::SPOOL_NOT_FOUND:
+        return "Spool Not Found";
+    default:
+        return "Unknown Error";
+    }
+}
+
+/**
+ * @brief Check if a result indicates a recoverable error
+ *
+ * Recoverable errors can potentially be resolved by user intervention
+ * (clearing a jam, heating extruder, etc.)
+ *
+ * @param result The result code to check
+ * @return true if the error may be recoverable
+ */
+[[nodiscard]] inline bool ams_result_is_recoverable(AmsResult result) {
+    switch (result) {
+    case AmsResult::FILAMENT_JAM:
+    case AmsResult::GATE_BLOCKED:
+    case AmsResult::EXTRUDER_COLD:
+    case AmsResult::LOAD_FAILED:
+    case AmsResult::UNLOAD_FAILED:
+    case AmsResult::TIP_FORMING_FAILED:
+    case AmsResult::HOMING_FAILED:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/**
+ * @brief Detailed error information for AMS operations
+ *
+ * Combines a result code with human-readable messages suitable for
+ * both logging and UI display.
+ */
+struct AmsError {
+    AmsResult result;          ///< Primary error code
+    std::string technical_msg; ///< Technical details for logging/debugging
+    std::string user_msg;      ///< User-friendly message for UI display
+    std::string suggestion;    ///< Suggested recovery action (optional)
+    int gate_index = -1;       ///< Gate involved in error (-1 if N/A)
+
+    /**
+     * @brief Construct an AmsError
+     * @param r Result code (default SUCCESS)
+     * @param tech Technical message for logging
+     * @param user User-friendly message for UI
+     * @param suggest Suggested action for recovery
+     * @param gate Gate index if applicable
+     */
+    AmsError(AmsResult r = AmsResult::SUCCESS, const std::string& tech = "",
+             const std::string& user = "", const std::string& suggest = "", int gate = -1)
+        : result(r), technical_msg(tech), user_msg(user), suggestion(suggest), gate_index(gate) {}
+
+    /**
+     * @brief Check if operation succeeded
+     * @return true if result is SUCCESS
+     */
+    [[nodiscard]] bool success() const {
+        return result == AmsResult::SUCCESS;
+    }
+
+    /**
+     * @brief Boolean conversion for convenient if-checks
+     * @return true if operation succeeded
+     */
+    operator bool() const {
+        return success();
+    }
+
+    /**
+     * @brief Check if error is potentially recoverable
+     * @return true if user intervention might resolve the error
+     */
+    [[nodiscard]] bool is_recoverable() const {
+        return ams_result_is_recoverable(result);
+    }
+};
+
+/**
+ * @brief Utility class for creating user-friendly AMS error messages
+ *
+ * Provides factory methods for common error scenarios with consistent
+ * messaging that can be displayed directly in the UI.
+ */
+class AmsErrorHelper {
+  public:
+    /**
+     * @brief Create a success result
+     * @return AmsError with SUCCESS result
+     */
+    static AmsError success() {
+        return AmsError(AmsResult::SUCCESS);
+    }
+
+    /**
+     * @brief Create a not connected error
+     * @param detail Technical detail about the connection failure
+     * @return AmsError configured for UI display
+     */
+    static AmsError not_connected(const std::string& detail = "") {
+        return AmsError(AmsResult::NOT_CONNECTED,
+                        detail.empty() ? "No Moonraker connection" : detail,
+                        "Printer not connected",
+                        "Check that the printer is powered on and connected to the network");
+    }
+
+    /**
+     * @brief Create a no AMS detected error
+     * @return AmsError configured for UI display
+     */
+    static AmsError no_ams_detected() {
+        return AmsError(AmsResult::NO_AMS_DETECTED, "No mmu or afc object found in printer state",
+                        "No multi-filament system detected",
+                        "Ensure Happy Hare or AFC is installed and configured");
+    }
+
+    /**
+     * @brief Create a timeout error
+     * @param operation Name of the operation that timed out
+     * @return AmsError configured for UI display
+     */
+    static AmsError timeout(const std::string& operation) {
+        return AmsError(AmsResult::TIMEOUT, operation + " operation timed out",
+                        "Operation timed out",
+                        "Try the operation again. If it persists, check for mechanical issues.");
+    }
+
+    /**
+     * @brief Create a busy error (operation in progress)
+     * @param current_op Description of the current operation
+     * @return AmsError configured for UI display
+     */
+    static AmsError busy(const std::string& current_op = "another operation") {
+        return AmsError(AmsResult::BUSY, "Cannot start operation: " + current_op + " in progress",
+                        "AMS is busy", "Wait for the current operation to complete");
+    }
+
+    /**
+     * @brief Create a filament jam error
+     * @param gate Gate index where jam occurred
+     * @param location Description of jam location (e.g., "bowden tube", "extruder")
+     * @return AmsError configured for UI display
+     */
+    static AmsError filament_jam(int gate, const std::string& location = "") {
+        std::string loc_detail = location.empty() ? "" : " at " + location;
+        return AmsError(AmsResult::FILAMENT_JAM, "Filament jam detected" + loc_detail,
+                        "Filament jam detected", "Manually clear the jam and retry the operation",
+                        gate);
+    }
+
+    /**
+     * @brief Create a gate blocked error
+     * @param gate Gate index that is blocked
+     * @return AmsError configured for UI display
+     */
+    static AmsError gate_blocked(int gate) {
+        return AmsError(AmsResult::GATE_BLOCKED,
+                        "Gate " + std::to_string(gate) + " is blocked or inaccessible",
+                        "Gate " + std::to_string(gate) + " blocked",
+                        "Check the gate for obstructions or misaligned filament", gate);
+    }
+
+    /**
+     * @brief Create an extruder cold error
+     * @param current_temp Current extruder temperature
+     * @param required_temp Required temperature for operation
+     * @return AmsError configured for UI display
+     */
+    static AmsError extruder_cold(int current_temp, int required_temp) {
+        return AmsError(AmsResult::EXTRUDER_COLD,
+                        "Extruder at " + std::to_string(current_temp) + "°C, need " +
+                            std::to_string(required_temp) + "°C",
+                        "Extruder too cold",
+                        "Heat the extruder to at least " + std::to_string(required_temp) +
+                            "°C before loading filament");
+    }
+
+    /**
+     * @brief Create a load failed error
+     * @param gate Gate that failed to load
+     * @param detail Technical detail about the failure
+     * @return AmsError configured for UI display
+     */
+    static AmsError load_failed(int gate, const std::string& detail = "") {
+        return AmsError(AmsResult::LOAD_FAILED, detail.empty() ? "Load operation failed" : detail,
+                        "Failed to load filament from gate " + std::to_string(gate),
+                        "Check filament path and try again", gate);
+    }
+
+    /**
+     * @brief Create an unload failed error
+     * @param detail Technical detail about the failure
+     * @return AmsError configured for UI display
+     */
+    static AmsError unload_failed(const std::string& detail = "") {
+        return AmsError(
+            AmsResult::UNLOAD_FAILED, detail.empty() ? "Unload operation failed" : detail,
+            "Failed to unload filament",
+            "Check extruder temperature and try again. Manual removal may be required.");
+    }
+
+    /**
+     * @brief Create a gate not available error
+     * @param gate Gate index that has no filament
+     * @return AmsError configured for UI display
+     */
+    static AmsError gate_not_available(int gate) {
+        return AmsError(AmsResult::GATE_NOT_AVAILABLE,
+                        "Gate " + std::to_string(gate) + " has no filament loaded",
+                        "Gate " + std::to_string(gate) + " is empty",
+                        "Load filament into the gate before selecting it", gate);
+    }
+
+    /**
+     * @brief Create an invalid gate error
+     * @param gate Invalid gate index
+     * @param max_gate Maximum valid gate index
+     * @return AmsError configured for UI display
+     */
+    static AmsError invalid_gate(int gate, int max_gate) {
+        return AmsError(AmsResult::INVALID_GATE,
+                        "Gate " + std::to_string(gate) + " out of range (0-" +
+                            std::to_string(max_gate) + ")",
+                        "Invalid gate number",
+                        "Select a valid gate (0-" + std::to_string(max_gate) + ")", gate);
+    }
+
+    /**
+     * @brief Create a wrong state error
+     * @param current_state Description of current state
+     * @param required_state Description of required state
+     * @return AmsError configured for UI display
+     */
+    static AmsError wrong_state(const std::string& current_state,
+                                const std::string& required_state) {
+        return AmsError(AmsResult::WRONG_STATE,
+                        "Cannot perform operation in state: " + current_state +
+                            ", need: " + required_state,
+                        "Cannot perform this action now",
+                        "Wait for the current operation to complete or cancel it first");
+    }
+
+    /**
+     * @brief Create a G-code command failed error
+     * @param command The G-code command that failed
+     * @param response Error response from Klipper
+     * @return AmsError configured for UI display
+     */
+    static AmsError command_failed(const std::string& command, const std::string& response) {
+        return AmsError(AmsResult::COMMAND_FAILED, "Command '" + command + "' failed: " + response,
+                        "Command failed", "Check Klipper console for details");
+    }
+};

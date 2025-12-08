@@ -45,6 +45,7 @@ struct RuntimeConfig {
     bool use_real_moonraker =
         false;                   ///< Use real Moonraker client (--real-moonraker, requires --test)
     bool use_real_files = false; ///< Use real file listing (--real-files, requires --test)
+    bool use_real_ams = false;   ///< Use real AMS backend (--real-ams, requires --test)
 
     bool simulate_disconnect =
         false; ///< Simulate disconnected state for testing (--disconnected, requires --test)
@@ -93,6 +94,14 @@ struct RuntimeConfig {
      */
     bool should_use_test_files() const {
         return test_mode && !use_real_files;
+    }
+
+    /**
+     * @brief Check if AMS should use mock implementation
+     * @return true if test mode is enabled and real AMS is not requested
+     */
+    bool should_mock_ams() const {
+        return test_mode && !use_real_ams;
     }
 
     /**
