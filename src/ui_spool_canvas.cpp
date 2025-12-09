@@ -18,7 +18,7 @@
 // Geometry constants for Bambu-style 3D spool (SIDE VIEW)
 // Spool axis is HORIZONTAL - we view from an angle
 // Shows: back flange (left), filament cylinder (middle), front flange (right), hub hole (center)
-static constexpr float FLANGE_RADIUS = 0.44f; // Flange radius (vertical)
+static constexpr float FLANGE_RADIUS = 0.42f; // Flange radius (vertical) - keep margin for AA
 static constexpr float ELLIPSE_RATIO =
     0.45f;                                  // Horizontal compression (narrower = more angled view)
 static constexpr float HUB_RADIUS = 0.10f;  // Center hub hole radius
@@ -137,18 +137,6 @@ static void draw_gradient_ellipse(lv_layer_t* layer, int32_t cx, int32_t cy, int
             lv_draw_fill(layer, &fill_dsc, &line_area);
         }
     }
-}
-
-// Draw a filled rectangle (for the filament cylinder body)
-static void draw_filled_rect(lv_layer_t* layer, int32_t x1, int32_t y1, int32_t x2, int32_t y2,
-                             lv_color_t color) {
-    lv_draw_fill_dsc_t fill_dsc;
-    lv_draw_fill_dsc_init(&fill_dsc);
-    fill_dsc.color = color;
-    fill_dsc.opa = LV_OPA_COVER;
-
-    lv_area_t rect = {x1, y1, x2, y2};
-    lv_draw_fill(layer, &fill_dsc, &rect);
 }
 
 // Draw rectangle with vertical gradient (top_color at top, bottom_color at bottom)
@@ -362,6 +350,50 @@ static void spool_canvas_xml_apply(lv_xml_parser_state_t* state, const char** at
 void ui_spool_canvas_register(void) {
     lv_xml_register_widget("spool_canvas", spool_canvas_xml_create, spool_canvas_xml_apply);
     spdlog::info("[SpoolCanvas] Registered spool_canvas widget with XML system");
+}
+
+lv_obj_t* ui_spool_canvas_create(lv_obj_t* parent, int32_t size) {
+    if (!parent) {
+        spdlog::error("[SpoolCanvas] Cannot create: parent is null");
+        return nullptr;
+    }
+
+    // Use default size if not specified
+    if (size <= 0) {
+        size = DEFAULT_SIZE;
+    }
+
+    lv_obj_t* canvas = lv_canvas_create(parent);
+    if (!canvas) {
+        spdlog::error("[SpoolCanvas] Failed to create canvas");
+        return nullptr;
+    }
+
+    auto* data = new SpoolCanvasData();
+    data->canvas = canvas;
+    data->size = size;
+    data->color = lv_color_hex(DEFAULT_COLOR);
+    data->fill_level = 1.0f;
+
+    // Create draw buffer
+    data->draw_buf = lv_draw_buf_create(size, size, LV_COLOR_FORMAT_ARGB8888, 0);
+    if (data->draw_buf) {
+        lv_canvas_set_draw_buf(canvas, data->draw_buf);
+    } else {
+        spdlog::error("[SpoolCanvas] Failed to create draw buffer");
+        delete data;
+        lv_obj_delete(canvas);
+        return nullptr;
+    }
+
+    lv_obj_set_size(canvas, size, size);
+    s_registry[canvas] = data;
+    lv_obj_add_event_cb(canvas, spool_canvas_event_cb, LV_EVENT_DELETE, nullptr);
+
+    redraw_spool(data);
+
+    spdlog::debug("[SpoolCanvas] Created widget programmatically (size={})", size);
+    return canvas;
 }
 
 void ui_spool_canvas_set_color(lv_obj_t* canvas, lv_color_t color) {

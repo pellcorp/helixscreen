@@ -29,6 +29,18 @@ extern "C" {
  */
 
 void ui_spool_canvas_register(void);
+
+/**
+ * @brief Create a spool canvas programmatically
+ *
+ * Alternative to XML creation for use in C++ code.
+ *
+ * @param parent Parent LVGL object
+ * @param size Canvas size in pixels (default 64 if 0)
+ * @return Created canvas object, or NULL on failure
+ */
+lv_obj_t* ui_spool_canvas_create(lv_obj_t* parent, int32_t size);
+
 void ui_spool_canvas_set_color(lv_obj_t* canvas, lv_color_t color);
 void ui_spool_canvas_set_fill_level(lv_obj_t* canvas, float fill_level);
 void ui_spool_canvas_redraw(lv_obj_t* canvas);
