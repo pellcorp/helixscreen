@@ -6,13 +6,13 @@
  * Tests the fix for perpendicular vector cross product orientation
  */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
-
 #include "gcode_geometry_builder.h"
 #include "gcode_parser.h"
 
-using namespace gcode;
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+using namespace helix::gcode;
 
 TEST_CASE("Single horizontal line geometry validation", "[gcode][geometry]") {
     // Parse the single line test file
@@ -67,8 +67,7 @@ TEST_CASE("Single horizontal line geometry validation", "[gcode][geometry]") {
         REQUIRE_THAT(direction.z, Catch::Matchers::WithinAbs(0.0f, 0.001f));
 
         // Verify perp_horizontal points in Y direction
-        REQUIRE_THAT(std::abs(perp_horizontal.y),
-                     Catch::Matchers::WithinAbs(1.0f, 0.001f)); // ±Y
+        REQUIRE_THAT(std::abs(perp_horizontal.y), Catch::Matchers::WithinAbs(1.0f, 0.001f)); // ±Y
 
         // CRITICAL TEST: Verify perp_vertical points UPWARD (+Z), not downward
         INFO("perp_vertical.z must be POSITIVE (pointing up), not negative (pointing down)");

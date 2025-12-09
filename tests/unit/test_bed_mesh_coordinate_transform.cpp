@@ -1,19 +1,14 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * Copyright (C) 2025 356C LLC
  * Author: Preston Brown <pbrown@brown-house.net>
- *
- * This file is part of HelixScreen.
- *
- * HelixScreen is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
  */
 
-#include "../catch_amalgamated.hpp"
 #include "bed_mesh_coordinate_transform.h"
 
-using namespace BedMeshCoordinateTransform;
+#include "../catch_amalgamated.hpp"
+
+using namespace helix::mesh;
 using Catch::Approx;
 
 // ============================================================================
@@ -128,7 +123,8 @@ TEST_CASE("Bed Mesh Transform: mesh_row_to_world_y - center row", "[bed_mesh][tr
     }
 }
 
-TEST_CASE("Bed Mesh Transform: mesh_row_to_world_y - top rows (inverted)", "[bed_mesh][transform]") {
+TEST_CASE("Bed Mesh Transform: mesh_row_to_world_y - top rows (inverted)",
+          "[bed_mesh][transform]") {
     SECTION("3x3 mesh, top row (row 0)") {
         // Top row in mesh -> positive Y in world (inverted)
         double y = mesh_row_to_world_y(0, 3, 10.0);
@@ -146,7 +142,8 @@ TEST_CASE("Bed Mesh Transform: mesh_row_to_world_y - top rows (inverted)", "[bed
     }
 }
 
-TEST_CASE("Bed Mesh Transform: mesh_row_to_world_y - bottom rows (inverted)", "[bed_mesh][transform]") {
+TEST_CASE("Bed Mesh Transform: mesh_row_to_world_y - bottom rows (inverted)",
+          "[bed_mesh][transform]") {
     SECTION("3x3 mesh, bottom row (row 2)") {
         // Bottom row in mesh -> negative Y in world (inverted)
         double y = mesh_row_to_world_y(2, 3, 10.0);
@@ -244,17 +241,17 @@ TEST_CASE("Bed Mesh Transform: mesh_z_to_world_z - below center", "[bed_mesh][tr
 TEST_CASE("Bed Mesh Transform: mesh_z_to_world_z - different scales", "[bed_mesh][transform]") {
     SECTION("Scale 10.0 - amplify variations") {
         double z = mesh_z_to_world_z(0.6, 0.5, 10.0);
-        REQUIRE(z == Approx(1.0));  // 0.1 * 10.0
+        REQUIRE(z == Approx(1.0)); // 0.1 * 10.0
     }
 
     SECTION("Scale 0.5 - reduce variations") {
         double z = mesh_z_to_world_z(0.6, 0.5, 0.5);
-        REQUIRE(z == Approx(0.05));  // 0.1 * 0.5
+        REQUIRE(z == Approx(0.05)); // 0.1 * 0.5
     }
 
     SECTION("Scale 100.0 - extreme amplification") {
         double z = mesh_z_to_world_z(0.51, 0.5, 100.0);
-        REQUIRE(z == Approx(1.0));  // 0.01 * 100.0
+        REQUIRE(z == Approx(1.0)); // 0.01 * 100.0
     }
 }
 
@@ -317,7 +314,8 @@ TEST_CASE("Bed Mesh Transform: Integration - 3x3 mesh", "[bed_mesh][transform][i
     }
 }
 
-TEST_CASE("Bed Mesh Transform: Integration - 5x5 mesh with Z values", "[bed_mesh][transform][integration]") {
+TEST_CASE("Bed Mesh Transform: Integration - 5x5 mesh with Z values",
+          "[bed_mesh][transform][integration]") {
     int cols = 5, rows = 5;
     double scale = 10.0;
     double z_center = 0.0;
@@ -336,39 +334,40 @@ TEST_CASE("Bed Mesh Transform: Integration - 5x5 mesh with Z values", "[bed_mesh
     SECTION("High point in corner") {
         double x = mesh_col_to_world_x(0, cols, scale);
         double y = mesh_row_to_world_y(0, rows, scale);
-        double z = mesh_z_to_world_z(0.02, z_center, z_scale);  // 0.02mm high
+        double z = mesh_z_to_world_z(0.02, z_center, z_scale); // 0.02mm high
 
         REQUIRE(x == Approx(-20.0));
         REQUIRE(y == Approx(20.0));
-        REQUIRE(z == Approx(1.0));  // 0.02 * 50.0
+        REQUIRE(z == Approx(1.0)); // 0.02 * 50.0
     }
 
     SECTION("Low point in opposite corner") {
         double x = mesh_col_to_world_x(4, cols, scale);
         double y = mesh_row_to_world_y(4, rows, scale);
-        double z = mesh_z_to_world_z(-0.02, z_center, z_scale);  // 0.02mm low
+        double z = mesh_z_to_world_z(-0.02, z_center, z_scale); // 0.02mm low
 
         REQUIRE(x == Approx(20.0));
         REQUIRE(y == Approx(-20.0));
-        REQUIRE(z == Approx(-1.0));  // -0.02 * 50.0
+        REQUIRE(z == Approx(-1.0)); // -0.02 * 50.0
     }
 }
 
-TEST_CASE("Bed Mesh Transform: Integration - Realistic printer mesh", "[bed_mesh][transform][integration]") {
+TEST_CASE("Bed Mesh Transform: Integration - Realistic printer mesh",
+          "[bed_mesh][transform][integration]") {
     // Simulate 7x7 mesh for 220x220mm bed with probe points every 36mm
     int cols = 7, rows = 7;
-    double scale = 36.0;  // Spacing between probe points
+    double scale = 36.0; // Spacing between probe points
     double z_center = 0.0;
-    double z_scale = 100.0;  // Amplify small variations for visualization
+    double z_scale = 100.0; // Amplify small variations for visualization
 
     SECTION("Full bed coverage") {
         // Leftmost point
         double x_left = mesh_col_to_world_x(0, cols, scale);
-        REQUIRE(x_left == Approx(-108.0));  // -3 * 36
+        REQUIRE(x_left == Approx(-108.0)); // -3 * 36
 
         // Rightmost point
         double x_right = mesh_col_to_world_x(6, cols, scale);
-        REQUIRE(x_right == Approx(108.0));  // +3 * 36
+        REQUIRE(x_right == Approx(108.0)); // +3 * 36
 
         // Total X range
         REQUIRE((x_right - x_left) == Approx(216.0));

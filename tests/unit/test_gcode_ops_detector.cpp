@@ -9,7 +9,7 @@
 
 #include "../catch_amalgamated.hpp"
 
-using namespace gcode;
+using namespace helix::gcode;
 
 // ============================================================================
 // Basic Detection Tests
@@ -150,8 +150,8 @@ TEST_CASE("GCodeOpsDetector - Scanning limits", "[gcode][ops]") {
 
     SECTION("Stops at first extrusion") {
         std::string content = "G28\n"
-                              "G1 X10 Y10 Z0.2 E0.5\n"  // First extrusion - should stop here
-                              "BED_MESH_CALIBRATE\n";   // Should not be detected
+                              "G1 X10 Y10 Z0.2 E0.5\n" // First extrusion - should stop here
+                              "BED_MESH_CALIBRATE\n";  // Should not be detected
 
         auto result = detector.scan_content(content);
 
@@ -179,7 +179,7 @@ TEST_CASE("GCodeOpsDetector - Scanning limits", "[gcode][ops]") {
         for (int i = 0; i < 20; i++) {
             content += "; comment line\n";
         }
-        content += "BED_MESH_CALIBRATE\n";  // After limit - should not be detected
+        content += "BED_MESH_CALIBRATE\n"; // After limit - should not be detected
 
         auto result = detector.scan_content(content);
 
@@ -226,7 +226,7 @@ TEST_CASE("GCodeOpsDetector - Edge cases", "[gcode][ops]") {
 
         auto ops = result.get_operations(OperationType::BED_LEVELING);
         REQUIRE(ops.size() == 1);
-        REQUIRE(ops[0].macro_name == "BED_MESH_CALIBRATE");  // First one wins
+        REQUIRE(ops[0].macro_name == "BED_MESH_CALIBRATE"); // First one wins
     }
 
     SECTION("Detects BED_MESH_PROFILE LOAD") {
@@ -244,13 +244,13 @@ TEST_CASE("GCodeOpsDetector - Display names", "[gcode][ops]") {
     GCodeOpsDetector detector;
 
     SECTION("Operation display names are user-friendly") {
-        auto result = detector.scan_content(
-            "G28\nQUAD_GANTRY_LEVEL\nBED_MESH_CALIBRATE\nCLEAN_NOZZLE\n");
+        auto result =
+            detector.scan_content("G28\nQUAD_GANTRY_LEVEL\nBED_MESH_CALIBRATE\nCLEAN_NOZZLE\n");
 
         for (const auto& op : result.operations) {
             INFO("Operation: " << op.display_name());
             REQUIRE_FALSE(op.display_name().empty());
-            REQUIRE(op.display_name().find("_") == std::string::npos);  // No underscores
+            REQUIRE(op.display_name().find("_") == std::string::npos); // No underscores
         }
     }
 
@@ -271,8 +271,8 @@ TEST_CASE("GCodeOpsDetector - Custom patterns", "[gcode][ops]") {
     GCodeOpsDetector detector;
 
     SECTION("Add custom pattern") {
-        detector.add_pattern(
-            {OperationType::NOZZLE_CLEAN, "MY_CUSTOM_CLEAN", OperationEmbedding::MACRO_CALL, false});
+        detector.add_pattern({OperationType::NOZZLE_CLEAN, "MY_CUSTOM_CLEAN",
+                              OperationEmbedding::MACRO_CALL, false});
 
         auto result = detector.scan_content("MY_CUSTOM_CLEAN\n");
 
@@ -326,7 +326,7 @@ TEST_CASE("GCodeOpsDetector - Robustness edge cases", "[gcode][ops][edge]") {
 
     SECTION("Handles null bytes in content") {
         std::string content = "G28\n";
-        content += '\0';  // Null byte
+        content += '\0'; // Null byte
         content += "BED_MESH_CALIBRATE\n";
 
         // Should not crash

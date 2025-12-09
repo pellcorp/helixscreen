@@ -10,7 +10,7 @@
 
 #include "../catch_amalgamated.hpp"
 
-using namespace gcode;
+using namespace helix::gcode;
 using json = nlohmann::json;
 
 // ============================================================================
@@ -18,10 +18,9 @@ using json = nlohmann::json;
 // ============================================================================
 
 class SequencerTestFixture {
-public:
+  public:
     SequencerTestFixture()
-        : client_(MoonrakerClientMock::PrinterType::VORON_24),
-          api_(client_, state_),
+        : client_(MoonrakerClientMock::PrinterType::VORON_24), api_(client_, state_),
           sequencer_(client_, api_, state_) {
         // Connect mock client
         client_.connect("ws://test/websocket", []() {}, []() {});
@@ -163,7 +162,7 @@ TEST_CASE("CommandSequencer - Start conditions", "[sequencer]") {
         f.sequencer_.add_operation(OperationType::QGL, {}, "QGL");
 
         // Should not have added
-        REQUIRE(f.sequencer_.queue_size() == 0);  // Original was consumed on start
+        REQUIRE(f.sequencer_.queue_size() == 0); // Original was consumed on start
     }
 
     SECTION("Cannot clear while running") {
@@ -192,7 +191,7 @@ TEST_CASE("CommandSequencer - Completion conditions", "[sequencer]") {
         REQUIRE(cond.field_path == "homed_axes");
 
         REQUIRE(cond.check(json("xyz")));
-        REQUIRE(cond.check(json("xzy")));  // Any order
+        REQUIRE(cond.check(json("xzy"))); // Any order
         REQUIRE_FALSE(cond.check(json("xy")));
         REQUIRE_FALSE(cond.check(json("")));
         REQUIRE_FALSE(cond.check(json(nullptr)));
@@ -437,8 +436,9 @@ TEST_CASE("CommandSequencer - G-code generation", "[sequencer]") {
                 "quad_gantry_level");
         REQUIRE(CommandSequencer::get_completion_condition(OperationType::Z_TILT).object_name ==
                 "z_tilt");
-        REQUIRE(CommandSequencer::get_completion_condition(OperationType::BED_LEVELING)
-                    .object_name == "bed_mesh");
+        REQUIRE(
+            CommandSequencer::get_completion_condition(OperationType::BED_LEVELING).object_name ==
+            "bed_mesh");
     }
 
     SECTION("OperationParams with extra parameters") {

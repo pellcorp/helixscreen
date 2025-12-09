@@ -1,27 +1,23 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * Copyright (C) 2025 356C LLC
  * Author: Preston Brown <pbrown@brown-house.net>
- *
- * This file is part of HelixScreen.
- *
- * HelixScreen is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
  */
 
-#include "../catch_amalgamated.hpp"
 #include "gcode_geometry_builder.h"
 #include "gcode_parser.h"
 
-using namespace gcode;
+#include "../catch_amalgamated.hpp"
+
+using namespace helix::gcode;
 using Catch::Approx;
 
 // ============================================================================
 // QuantizationParams Tests
 // ============================================================================
 
-TEST_CASE("Geometry Builder: QuantizationParams - calculate scale from bounding box", "[gcode][geometry][quantization]") {
+TEST_CASE("Geometry Builder: QuantizationParams - calculate scale from bounding box",
+          "[gcode][geometry][quantization]") {
     QuantizationParams params;
     AABB bbox;
     bbox.min = glm::vec3(-100.0f, -100.0f, 0.0f);
@@ -38,7 +34,8 @@ TEST_CASE("Geometry Builder: QuantizationParams - calculate scale from bounding 
     REQUIRE(params.scale_factor > 0.0f);
 }
 
-TEST_CASE("Geometry Builder: QuantizationParams - quantize and dequantize round trip", "[gcode][geometry][quantization]") {
+TEST_CASE("Geometry Builder: QuantizationParams - quantize and dequantize round trip",
+          "[gcode][geometry][quantization]") {
     QuantizationParams params;
     AABB bbox;
     bbox.min = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -79,11 +76,12 @@ TEST_CASE("Geometry Builder: QuantizationParams - quantize and dequantize round 
     }
 }
 
-TEST_CASE("Geometry Builder: QuantizationParams - degenerate bounding box", "[gcode][geometry][quantization][edge]") {
+TEST_CASE("Geometry Builder: QuantizationParams - degenerate bounding box",
+          "[gcode][geometry][quantization][edge]") {
     QuantizationParams params;
     AABB bbox;
     bbox.min = glm::vec3(0.0f, 0.0f, 0.0f);
-    bbox.max = glm::vec3(0.0f, 0.0f, 0.0f);  // Zero-size box
+    bbox.max = glm::vec3(0.0f, 0.0f, 0.0f); // Zero-size box
 
     params.calculate_scale(bbox);
 
@@ -91,11 +89,12 @@ TEST_CASE("Geometry Builder: QuantizationParams - degenerate bounding box", "[gc
     REQUIRE(params.scale_factor == Approx(1000.0f));
 }
 
-TEST_CASE("Geometry Builder: QuantizationParams - large build volume", "[gcode][geometry][quantization]") {
+TEST_CASE("Geometry Builder: QuantizationParams - large build volume",
+          "[gcode][geometry][quantization]") {
     QuantizationParams params;
     AABB bbox;
     bbox.min = glm::vec3(-150.0f, -150.0f, 0.0f);
-    bbox.max = glm::vec3(150.0f, 150.0f, 300.0f);  // 300x300x300mm
+    bbox.max = glm::vec3(150.0f, 150.0f, 300.0f); // 300x300x300mm
     params.calculate_scale(bbox);
 
     // Test corners
@@ -116,31 +115,32 @@ TEST_CASE("Geometry Builder: QuantizationParams - large build volume", "[gcode][
 // SimplificationOptions Tests
 // ============================================================================
 
-TEST_CASE("Geometry Builder: SimplificationOptions - validate clamps values", "[gcode][geometry][simplification]") {
+TEST_CASE("Geometry Builder: SimplificationOptions - validate clamps values",
+          "[gcode][geometry][simplification]") {
     SimplificationOptions options;
 
     SECTION("Tolerance too small") {
         options.tolerance_mm = 0.001f;
         options.validate();
-        REQUIRE(options.tolerance_mm == Approx(0.01f));  // Clamped to min
+        REQUIRE(options.tolerance_mm == Approx(0.01f)); // Clamped to min
     }
 
     SECTION("Tolerance too large") {
         options.tolerance_mm = 1.0f;
         options.validate();
-        REQUIRE(options.tolerance_mm == Approx(0.2f));  // Clamped to max
+        REQUIRE(options.tolerance_mm == Approx(0.2f)); // Clamped to max
     }
 
     SECTION("Valid tolerance") {
         options.tolerance_mm = 0.15f;
         options.validate();
-        REQUIRE(options.tolerance_mm == Approx(0.15f));  // Unchanged
+        REQUIRE(options.tolerance_mm == Approx(0.15f)); // Unchanged
     }
 
     SECTION("Min segment length too small") {
         options.min_segment_length_mm = 0.00001f;
         options.validate();
-        REQUIRE(options.min_segment_length_mm == Approx(0.0001f));  // Clamped to min
+        REQUIRE(options.min_segment_length_mm == Approx(0.0001f)); // Clamped to min
     }
 }
 
@@ -150,7 +150,8 @@ TEST_CASE("Geometry Builder: SimplificationOptions - validate clamps values", "[
 
 // DEFERRED: RibbonGeometry tests fail - normal_cache_ptr is nullptr, move semantics corrupted
 // Need to investigate cache initialization in RibbonGeometry constructor
-TEST_CASE("Geometry Builder: RibbonGeometry - construction and destruction", "[gcode][geometry][ribbon][.]") {
+TEST_CASE("Geometry Builder: RibbonGeometry - construction and destruction",
+          "[gcode][geometry][ribbon][.]") {
     RibbonGeometry geometry;
 
     REQUIRE(geometry.vertices.empty());
@@ -223,7 +224,7 @@ TEST_CASE("Geometry Builder: Color computation - hex parsing", "[gcode][geometry
     }
 
     SECTION("Invalid color string") {
-        builder.set_filament_color("XYZ");  // Should not crash
+        builder.set_filament_color("XYZ"); // Should not crash
     }
 }
 
@@ -268,9 +269,10 @@ TEST_CASE("Geometry Builder: Color computation - Z-height gradient", "[gcode][ge
     REQUIRE(geometry.color_palette.size() > 0);
 }
 
-TEST_CASE("Geometry Builder: Color computation - solid filament color", "[gcode][geometry][color]") {
+TEST_CASE("Geometry Builder: Color computation - solid filament color",
+          "[gcode][geometry][color]") {
     GeometryBuilder builder;
-    builder.set_filament_color("#ED1C24");  // Red
+    builder.set_filament_color("#ED1C24"); // Red
     builder.set_use_height_gradient(false);
 
     ParsedGCodeFile gcode;
@@ -301,7 +303,8 @@ TEST_CASE("Geometry Builder: Color computation - solid filament color", "[gcode]
 // GeometryBuilder - Segment Simplification Tests
 // ============================================================================
 
-TEST_CASE("Geometry Builder: Segment simplification - collinear merging", "[gcode][geometry][simplification]") {
+TEST_CASE("Geometry Builder: Segment simplification - collinear merging",
+          "[gcode][geometry][simplification]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -347,10 +350,11 @@ TEST_CASE("Geometry Builder: Segment simplification - collinear merging", "[gcod
     // Check statistics
     const auto& stats = builder.last_stats();
     REQUIRE(stats.input_segments == 3);
-    REQUIRE(stats.output_segments < stats.input_segments);  // Should have merged
+    REQUIRE(stats.output_segments < stats.input_segments); // Should have merged
 }
 
-TEST_CASE("Geometry Builder: Segment simplification - non-collinear preservation", "[gcode][geometry][simplification]") {
+TEST_CASE("Geometry Builder: Segment simplification - non-collinear preservation",
+          "[gcode][geometry][simplification]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -371,7 +375,7 @@ TEST_CASE("Geometry Builder: Segment simplification - non-collinear preservation
 
     ToolpathSegment seg2;
     seg2.start = glm::vec3(10, 0, 0.2f);
-    seg2.end = glm::vec3(10, 10, 0.2f);  // 90 degree turn
+    seg2.end = glm::vec3(10, 10, 0.2f); // 90 degree turn
     seg2.is_extrusion = true;
     seg2.extrusion_amount = 1.0f;
     seg2.width = 0.4f;
@@ -387,10 +391,11 @@ TEST_CASE("Geometry Builder: Segment simplification - non-collinear preservation
 
     const auto& stats = builder.last_stats();
     REQUIRE(stats.input_segments == 2);
-    REQUIRE(stats.output_segments == 2);  // Should NOT merge
+    REQUIRE(stats.output_segments == 2); // Should NOT merge
 }
 
-TEST_CASE("Geometry Builder: Segment simplification - disabled", "[gcode][geometry][simplification]") {
+TEST_CASE("Geometry Builder: Segment simplification - disabled",
+          "[gcode][geometry][simplification]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -413,13 +418,13 @@ TEST_CASE("Geometry Builder: Segment simplification - disabled", "[gcode][geomet
     gcode.layers.push_back(layer);
 
     SimplificationOptions options;
-    options.enable_merging = false;  // DISABLED
+    options.enable_merging = false; // DISABLED
 
     RibbonGeometry geometry = builder.build(gcode, options);
 
     const auto& stats = builder.last_stats();
     REQUIRE(stats.input_segments == 5);
-    REQUIRE(stats.output_segments == 5);  // No simplification
+    REQUIRE(stats.output_segments == 5); // No simplification
     REQUIRE(stats.simplification_ratio == Approx(0.0f));
 }
 
@@ -427,7 +432,8 @@ TEST_CASE("Geometry Builder: Segment simplification - disabled", "[gcode][geomet
 // GeometryBuilder - Geometry Generation Tests
 // ============================================================================
 
-TEST_CASE("Geometry Builder: Geometry generation - single segment", "[gcode][geometry][generation]") {
+TEST_CASE("Geometry Builder: Geometry generation - single segment",
+          "[gcode][geometry][generation]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -457,7 +463,8 @@ TEST_CASE("Geometry Builder: Geometry generation - single segment", "[gcode][geo
     REQUIRE(geometry.color_palette.size() > 0);
 }
 
-TEST_CASE("Geometry Builder: Geometry generation - empty G-code", "[gcode][geometry][generation][edge]") {
+TEST_CASE("Geometry Builder: Geometry generation - empty G-code",
+          "[gcode][geometry][generation][edge]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -472,7 +479,8 @@ TEST_CASE("Geometry Builder: Geometry generation - empty G-code", "[gcode][geome
     REQUIRE(geometry.strips.size() == 0);
 }
 
-TEST_CASE("Geometry Builder: Geometry generation - travel moves skipped", "[gcode][geometry][generation]") {
+TEST_CASE("Geometry Builder: Geometry generation - travel moves skipped",
+          "[gcode][geometry][generation]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -486,7 +494,7 @@ TEST_CASE("Geometry Builder: Geometry generation - travel moves skipped", "[gcod
     ToolpathSegment travel;
     travel.start = glm::vec3(0, 0, 0.2f);
     travel.end = glm::vec3(10, 0, 0.2f);
-    travel.is_extrusion = false;  // Travel move
+    travel.is_extrusion = false; // Travel move
     layer.segments.push_back(travel);
 
     // Extrusion move (should be rendered)
@@ -512,7 +520,8 @@ TEST_CASE("Geometry Builder: Geometry generation - travel moves skipped", "[gcod
     REQUIRE(geometry.travel_triangle_count == 0);
 }
 
-TEST_CASE("Geometry Builder: Geometry generation - multiple layers", "[gcode][geometry][generation]") {
+TEST_CASE("Geometry Builder: Geometry generation - multiple layers",
+          "[gcode][geometry][generation]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -563,7 +572,8 @@ TEST_CASE("Geometry Builder: Geometry generation - multiple layers", "[gcode][ge
     REQUIRE(geometry.vertices.size() > 0);
 }
 
-TEST_CASE("Geometry Builder: Geometry generation - very short segment", "[gcode][geometry][generation][edge]") {
+TEST_CASE("Geometry Builder: Geometry generation - very short segment",
+          "[gcode][geometry][generation][edge]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -610,7 +620,7 @@ TEST_CASE("Geometry Builder: Configuration - extrusion width", "[gcode][geometry
     seg.end = glm::vec3(10, 0, 0.2f);
     seg.is_extrusion = true;
     seg.extrusion_amount = 1.0f;
-    seg.width = 0.0f;  // Should use configured width
+    seg.width = 0.0f; // Should use configured width
     layer.segments.push_back(seg);
     gcode.layers.push_back(layer);
 
@@ -622,7 +632,7 @@ TEST_CASE("Geometry Builder: Configuration - extrusion width", "[gcode][geometry
 
 TEST_CASE("Geometry Builder: Configuration - layer height", "[gcode][geometry][config]") {
     GeometryBuilder builder;
-    builder.set_layer_height(0.3f);  // Non-default
+    builder.set_layer_height(0.3f); // Non-default
 
     ParsedGCodeFile gcode;
     gcode.global_bounding_box.min = glm::vec3(0, 0, 0);
@@ -649,7 +659,8 @@ TEST_CASE("Geometry Builder: Configuration - layer height", "[gcode][geometry][c
 // GeometryBuilder - Real-world Scenarios
 // ============================================================================
 
-TEST_CASE("Geometry Builder: Real-world - calibration cube perimeter", "[gcode][geometry][realworld]") {
+TEST_CASE("Geometry Builder: Real-world - calibration cube perimeter",
+          "[gcode][geometry][realworld]") {
     GeometryBuilder builder;
 
     ParsedGCodeFile gcode;
@@ -661,11 +672,8 @@ TEST_CASE("Geometry Builder: Real-world - calibration cube perimeter", "[gcode][
 
     // Square perimeter (20mm cube)
     std::vector<glm::vec3> points = {
-        glm::vec3(95, 95, 0.2f),
-        glm::vec3(105, 95, 0.2f),
-        glm::vec3(105, 105, 0.2f),
-        glm::vec3(95, 105, 0.2f),
-        glm::vec3(95, 95, 0.2f)  // Close loop
+        glm::vec3(95, 95, 0.2f), glm::vec3(105, 95, 0.2f), glm::vec3(105, 105, 0.2f),
+        glm::vec3(95, 105, 0.2f), glm::vec3(95, 95, 0.2f) // Close loop
     };
 
     for (size_t i = 0; i < points.size() - 1; i++) {

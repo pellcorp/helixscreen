@@ -1,19 +1,14 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
  * Copyright (C) 2025 356C LLC
  * Author: Preston Brown <pbrown@brown-house.net>
- *
- * This file is part of HelixScreen.
- *
- * HelixScreen is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
  */
 
-#include "../catch_amalgamated.hpp"
 #include "ui_temperature_utils.h"
 
-using namespace UITemperatureUtils;
+#include "../catch_amalgamated.hpp"
+
+using namespace helix::ui::temperature;
 
 // ============================================================================
 // validate_and_clamp() Tests
@@ -43,23 +38,26 @@ TEST_CASE("Temperature Utils: validate_and_clamp - boundary values", "[temp_util
     }
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp - below minimum", "[temp_utils][validate][clamp]") {
+TEST_CASE("Temperature Utils: validate_and_clamp - below minimum",
+          "[temp_utils][validate][clamp]") {
     int temp = -10;
     bool result = validate_and_clamp(temp, 0, 300, "Test", "current");
 
     REQUIRE(result == false);
-    REQUIRE(temp == 0);  // Clamped to minimum
+    REQUIRE(temp == 0); // Clamped to minimum
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp - above maximum", "[temp_utils][validate][clamp]") {
+TEST_CASE("Temperature Utils: validate_and_clamp - above maximum",
+          "[temp_utils][validate][clamp]") {
     int temp = 350;
     bool result = validate_and_clamp(temp, 0, 300, "Test", "current");
 
     REQUIRE(result == false);
-    REQUIRE(temp == 300);  // Clamped to maximum
+    REQUIRE(temp == 300); // Clamped to maximum
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp - extreme values", "[temp_utils][validate][edge]") {
+TEST_CASE("Temperature Utils: validate_and_clamp - extreme values",
+          "[temp_utils][validate][edge]") {
     SECTION("Very negative") {
         int temp = -1000;
         validate_and_clamp(temp, 0, 300, "Test", "current");
@@ -114,7 +112,8 @@ TEST_CASE("Temperature Utils: validate_and_clamp_pair - both valid", "[temp_util
     REQUIRE(target == 210);
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp_pair - current invalid", "[temp_utils][validate][clamp]") {
+TEST_CASE("Temperature Utils: validate_and_clamp_pair - current invalid",
+          "[temp_utils][validate][clamp]") {
     int current = -10;
     int target = 210;
 
@@ -122,21 +121,23 @@ TEST_CASE("Temperature Utils: validate_and_clamp_pair - current invalid", "[temp
 
     REQUIRE(result == false);
     REQUIRE(current == 0);  // Clamped
-    REQUIRE(target == 210);  // Unchanged
+    REQUIRE(target == 210); // Unchanged
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp_pair - target invalid", "[temp_utils][validate][clamp]") {
+TEST_CASE("Temperature Utils: validate_and_clamp_pair - target invalid",
+          "[temp_utils][validate][clamp]") {
     int current = 200;
     int target = 350;
 
     bool result = validate_and_clamp_pair(current, target, 0, 300, "Test");
 
     REQUIRE(result == false);
-    REQUIRE(current == 200);  // Unchanged
+    REQUIRE(current == 200); // Unchanged
     REQUIRE(target == 300);  // Clamped
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp_pair - both invalid", "[temp_utils][validate][clamp]") {
+TEST_CASE("Temperature Utils: validate_and_clamp_pair - both invalid",
+          "[temp_utils][validate][clamp]") {
     int current = -50;
     int target = 400;
 
@@ -144,12 +145,13 @@ TEST_CASE("Temperature Utils: validate_and_clamp_pair - both invalid", "[temp_ut
 
     REQUIRE(result == false);
     REQUIRE(current == 0);  // Clamped to min
-    REQUIRE(target == 300);  // Clamped to max
+    REQUIRE(target == 300); // Clamped to max
 }
 
-TEST_CASE("Temperature Utils: validate_and_clamp_pair - realistic scenarios", "[temp_utils][validate]") {
+TEST_CASE("Temperature Utils: validate_and_clamp_pair - realistic scenarios",
+          "[temp_utils][validate]") {
     SECTION("Heating up bed") {
-        int current = 25;  // Room temp
+        int current = 25; // Room temp
         int target = 60;
 
         bool result = validate_and_clamp_pair(current, target, 0, 120, "Bed");
@@ -276,10 +278,11 @@ TEST_CASE("Temperature Utils: get_extrusion_safety_status - cold start", "[temp_
     std::string status_str(status);
 
     REQUIRE(status_str.find("Heating") != std::string::npos);
-    REQUIRE(status_str.find("145") != std::string::npos);  // 170 - 25 = 145
+    REQUIRE(status_str.find("145") != std::string::npos); // 170 - 25 = 145
 }
 
-TEST_CASE("Temperature Utils: get_extrusion_safety_status - edge cases", "[temp_utils][safety][edge]") {
+TEST_CASE("Temperature Utils: get_extrusion_safety_status - edge cases",
+          "[temp_utils][safety][edge]") {
     SECTION("One degree below") {
         const char* status = get_extrusion_safety_status(169, 170);
         std::string status_str(status);
@@ -324,7 +327,7 @@ TEST_CASE("Temperature Utils: Integration - PLA printing scenario", "[temp_utils
 }
 
 TEST_CASE("Temperature Utils: Integration - Cold start scenario", "[temp_utils][integration]") {
-    int nozzle_current = 22;  // Room temperature
+    int nozzle_current = 22; // Room temperature
     int nozzle_target = 210;
 
     // Validate temps
@@ -337,18 +340,19 @@ TEST_CASE("Temperature Utils: Integration - Cold start scenario", "[temp_utils][
     const char* status = get_extrusion_safety_status(nozzle_current, 170);
     std::string status_str(status);
     REQUIRE(status_str.find("Heating") != std::string::npos);
-    REQUIRE(status_str.find("148") != std::string::npos);  // 170 - 22 = 148
+    REQUIRE(status_str.find("148") != std::string::npos); // 170 - 22 = 148
 }
 
-TEST_CASE("Temperature Utils: Integration - Invalid input handling", "[temp_utils][integration][error]") {
-    int nozzle_current = 500;  // Way too high
-    int nozzle_target = -50;   // Invalid negative
+TEST_CASE("Temperature Utils: Integration - Invalid input handling",
+          "[temp_utils][integration][error]") {
+    int nozzle_current = 500; // Way too high
+    int nozzle_target = -50;  // Invalid negative
 
     // Should clamp both
     bool valid = validate_and_clamp_pair(nozzle_current, nozzle_target, 0, 300, "Nozzle");
     REQUIRE(valid == false);
-    REQUIRE(nozzle_current == 300);  // Clamped to max
-    REQUIRE(nozzle_target == 0);     // Clamped to min
+    REQUIRE(nozzle_current == 300); // Clamped to max
+    REQUIRE(nozzle_target == 0);    // Clamped to min
 
     // After clamping, nozzle is safe for extrusion
     REQUIRE(is_extrusion_safe(nozzle_current, 170) == true);

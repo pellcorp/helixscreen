@@ -16,11 +16,12 @@
 #include "gcode_geometry_builder.h"
 #include "gcode_parser.h"
 
-#include "../catch_amalgamated.hpp"
 #include <fstream>
 #include <sstream>
 
-using namespace gcode;
+#include "../catch_amalgamated.hpp"
+
+using namespace helix::gcode;
 
 // ============================================================================
 // Parser Tests

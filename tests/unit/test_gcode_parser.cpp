@@ -12,7 +12,7 @@
 
 #include "../catch_amalgamated.hpp"
 
-using namespace gcode;
+using namespace helix::gcode;
 using Catch::Approx;
 
 TEST_CASE("GCodeParser - Basic movement parsing", "[gcode][parser]") {

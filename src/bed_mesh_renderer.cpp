@@ -28,6 +28,7 @@
 #include "bed_mesh_coordinate_transform.h"
 #include "bed_mesh_gradient.h"
 #include "bed_mesh_projection.h"
+#include "bed_mesh_rasterizer.h"
 
 #include <spdlog/spdlog.h>
 
@@ -64,21 +65,33 @@ const lv_color_t AXIS_LINE_COLOR = lv_color_make(180, 180, 180); // Light gray
 constexpr double Z_AXIS_HEIGHT_FACTOR = 1.1; // 10% above mesh max
 
 // Rendering opacity values
-constexpr lv_opa_t MESH_TRIANGLE_OPACITY = LV_OPA_90; // 90% opacity for mesh surfaces
 constexpr lv_opa_t GRID_LINE_OPACITY =
     LV_OPA_70; // 70% opacity for grid overlay (increased for Mainsail match)
 
-// ========== Adaptive Gradient Rasterization Constants ==========
-// Line width thresholds for adaptive segment count (Phase 2 optimization)
-constexpr int GRADIENT_THIN_LINE_THRESHOLD = 20;   // Lines < 20px use 2 segments
-constexpr int GRADIENT_MEDIUM_LINE_THRESHOLD = 50; // Lines 20-49px use 3 segments
-constexpr int GRADIENT_THIN_SEGMENT_COUNT = 2;     // Segment count for thin lines
-constexpr int GRADIENT_MEDIUM_SEGMENT_COUNT = 3;   // Segment count for medium lines
-constexpr int GRADIENT_WIDE_SEGMENT_COUNT = 4;     // Segment count for wide lines
+// ========== Geometry & Visibility Constants (Phase 1 refactoring) ==========
+// Visibility margin for partially visible geometry
+constexpr int VISIBILITY_MARGIN_PX = 10;
 
-// Gradient sampling position within segment (0.0 = start, 0.5 = center, 1.0 = end)
-constexpr double GRADIENT_SEGMENT_SAMPLE_POSITION =
-    0.5; // Sample at segment center for better color distribution
+// Grid margin (world units, extends past mesh edges for AA/rounding)
+constexpr double GRID_MARGIN_WORLD = 5.0;
+
+// Grid spacing in millimeters for reference grids
+constexpr double GRID_SPACING_MM = 50.0;
+
+// Wall height factor (Mainsail-style: extends to 2x the mesh Z range above z_min)
+constexpr double WALL_HEIGHT_FACTOR = 2.0;
+
+// Number of segments for Z-axis grid divisions
+constexpr int Z_AXIS_SEGMENT_COUNT = 5;
+
+// Axis label offset from edge (world units)
+constexpr double AXIS_LABEL_OFFSET = 40.0;
+
+// Tick label dimensions (pixels)
+constexpr int TICK_LABEL_WIDTH_DECIMAL = 40; // Wider for decimal values (e.g., "-0.25")
+constexpr int TICK_LABEL_WIDTH_INTEGER = 30; // Narrower for integers (e.g., "100")
+constexpr int TICK_LABEL_HEIGHT = 12;
+constexpr int TICK_LABEL_CLIP_MARGIN = 20; // Margin for partial clipping at edges
 
 } // anonymous namespace
 
@@ -120,7 +133,8 @@ struct bed_mesh_renderer {
     int cols;
     double mesh_min_z;
     double mesh_max_z;
-    bool has_mesh_data; // Redundant with state, kept for backwards compatibility
+    double cached_z_center; // (mesh_min_z + mesh_max_z) / 2, updated by compute_mesh_bounds()
+    bool has_mesh_data;     // Redundant with state, kept for backwards compatibility
 
     // Bed XY bounds (full print bed in mm - used for grid/walls)
     double bed_min_x;
@@ -174,15 +188,9 @@ static void compute_projected_mesh_bounds(const bed_mesh_renderer_t* renderer, i
 static void compute_centering_offset(int mesh_min_x, int mesh_max_x, int mesh_min_y, int mesh_max_y,
                                      int layer_offset_x, int layer_offset_y, int canvas_width,
                                      int canvas_height, int* out_offset_x, int* out_offset_y);
-static void fill_triangle_solid(lv_layer_t* layer, int x1, int y1, int x2, int y2, int x3, int y3,
-                                int canvas_width, int canvas_height, lv_color_t color);
-static void fill_triangle_gradient(lv_layer_t* layer, int x1, int y1, lv_color_t c1, int x2, int y2,
-                                   lv_color_t c2, int x3, int y3, lv_color_t c3, int canvas_width,
-                                   int canvas_height);
 static void generate_mesh_quads(bed_mesh_renderer_t* renderer);
 static void sort_quads_by_depth(std::vector<bed_mesh_quad_3d_t>& quads);
-static void render_quad(lv_layer_t* layer, const bed_mesh_quad_3d_t& quad, int canvas_width,
-                        int canvas_height, const bed_mesh_view_state_t* view, bool use_gradient);
+static void render_quad(lv_layer_t* layer, const bed_mesh_quad_3d_t& quad, bool use_gradient);
 static void render_grid_lines(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                               int canvas_width, int canvas_height);
 static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
@@ -195,141 +203,6 @@ static void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_d
                                  int screen_y, int offset_x, int offset_y, double value,
                                  int canvas_width, int canvas_height, bool use_decimals = false);
 
-// Coordinate transformation helpers
-// NOTE: These are now wrapper functions that delegate to the CoordinateTransform namespace.
-// This provides a single source of truth for all coordinate transformations while maintaining
-// backwards compatibility with existing code.
-
-/**
- * Convert mesh column index to centered world X coordinate
- * Centers the mesh around origin: col=0 maps to negative X, col=cols-1 to positive X
- * Works correctly for both odd (7x7) and even (8x8) mesh sizes
- */
-static inline double mesh_col_to_world_x(int col, int cols) {
-    return helix::mesh::mesh_col_to_world_x(col, cols, BED_MESH_SCALE);
-}
-
-/**
- * Convert mesh row index to centered world Y coordinate
- * Inverts Y-axis and centers: row=0 (front edge) maps to positive Y
- * Works correctly for both odd and even mesh sizes
- */
-static inline double mesh_row_to_world_y(int row, int rows) {
-    return helix::mesh::mesh_row_to_world_y(row, rows, BED_MESH_SCALE);
-}
-
-/**
- * Convert mesh Z height to centered/scaled world Z coordinate
- */
-static inline double mesh_z_to_world_z(double z_height, double z_center, double z_scale) {
-    return helix::mesh::mesh_z_to_world_z(z_height, z_center, z_scale);
-}
-
-/**
- * Compute Z-center value for mesh rendering
- * Single source of truth for Z-centering calculations
- */
-static inline double compute_mesh_z_center(double mesh_min_z, double mesh_max_z) {
-    return helix::mesh::compute_mesh_z_center(mesh_min_z, mesh_max_z);
-}
-
-// ============================================================================
-// Printer coordinate transforms (for Mainsail-style bed/mesh separation)
-// ============================================================================
-
-/**
- * Convert printer X coordinate (mm) to world X coordinate
- * Works with any origin convention (corner at 0,0 or center at origin)
- */
-static inline double printer_x_to_world_x(double x_mm, double bed_center_x, double scale_factor) {
-    return helix::mesh::printer_x_to_world_x(x_mm, bed_center_x, scale_factor);
-}
-
-/**
- * Convert printer Y coordinate (mm) to world Y coordinate
- * Y-axis inverted for 3D view (front toward viewer)
- */
-static inline double printer_y_to_world_y(double y_mm, double bed_center_y, double scale_factor) {
-    return helix::mesh::printer_y_to_world_y(y_mm, bed_center_y, scale_factor);
-}
-
-/**
- * Compute scale factor for printer coordinate transforms
- */
-static inline double compute_bed_scale_factor(double bed_size_mm, double target_world_size) {
-    return helix::mesh::compute_bed_scale_factor(bed_size_mm, target_world_size);
-}
-
-/**
- * Compute grid plane Z coordinate in world space
- * Used for axis rendering at the base of the mesh
- */
-static inline double compute_grid_z(double z_center, double z_scale) {
-    return helix::mesh::compute_grid_z(z_center, z_scale);
-}
-
-// Triangle rasterization helpers
-
-/**
- * Sort three values and their associated data by Y coordinate (ascending)
- * Uses bubble sort optimized for 3 elements
- */
-template <typename T> static inline void sort_by_y(int& y1, T& x1, int& y2, T& x2, int& y3, T& x3) {
-    if (y1 > y2) {
-        std::swap(y1, y2);
-        std::swap(x1, x2);
-    }
-    if (y2 > y3) {
-        std::swap(y2, y3);
-        std::swap(x2, x3);
-    }
-    if (y1 > y2) {
-        std::swap(y1, y2);
-        std::swap(x1, x2);
-    }
-}
-
-/**
- * Compute scanline X coordinates for triangle edges at given Y
- * Uses linear interpolation along triangle edges
- * @param y Current scanline Y coordinate
- * @param y1, x1 Top vertex (after Y-sorting)
- * @param y2, x2 Middle vertex
- * @param y3, x3 Bottom vertex
- * @param out_x_left Output: left edge X coordinate
- * @param out_x_right Output: right edge X coordinate
- */
-static inline void compute_scanline_x(int y, int y1, int x1, int y2, int x2, int y3, int x3,
-                                      int* out_x_left, int* out_x_right) {
-    // Long edge: y1 -> y3
-    double t_long = (y - y1) / static_cast<double>(y3 - y1);
-    int x_long = x1 + static_cast<int>(t_long * (x3 - x1));
-
-    // Short edge: split at y2
-    int x_short;
-    if (y < y2) {
-        // Upper half: y1 -> y2
-        if (y2 == y1) {
-            x_short = x1;
-        } else {
-            double t = (y - y1) / static_cast<double>(y2 - y1);
-            x_short = x1 + static_cast<int>(t * (x2 - x1));
-        }
-    } else {
-        // Lower half: y2 -> y3
-        if (y3 == y2) {
-            x_short = x2;
-        } else {
-            double t = (y - y2) / static_cast<double>(y3 - y2);
-            x_short = x2 + static_cast<int>(t * (x3 - x2));
-        }
-    }
-
-    // Ensure correct ordering
-    *out_x_left = std::min(x_long, x_short);
-    *out_x_right = std::max(x_long, x_short);
-}
-
 // Bounds checking helpers
 
 /**
@@ -338,11 +211,11 @@ static inline void compute_scanline_x(int y, int y1, int x1, int y2, int x2, int
  * @param y Screen Y coordinate
  * @param canvas_width Canvas width in pixels
  * @param canvas_height Canvas height in pixels
- * @param margin Pixel margin for partially visible objects (default 10px)
+ * @param margin Pixel margin for partially visible objects
  * @return true if point is visible or partially visible
  */
 static inline bool is_point_visible(int x, int y, int canvas_width, int canvas_height,
-                                    int margin = 10) {
+                                    int margin = VISIBILITY_MARGIN_PX) {
     return x >= -margin && x < canvas_width + margin && y >= -margin && y < canvas_height + margin;
 }
 
@@ -351,7 +224,7 @@ static inline bool is_point_visible(int x, int y, int canvas_width, int canvas_h
  * @return true if either endpoint is visible (line may be partially visible)
  */
 static inline bool is_line_visible(int x1, int y1, int x2, int y2, int canvas_width,
-                                   int canvas_height, int margin = 10) {
+                                   int canvas_height, int margin = VISIBILITY_MARGIN_PX) {
     return is_point_visible(x1, y1, canvas_width, canvas_height, margin) ||
            is_point_visible(x2, y2, canvas_width, canvas_height, margin);
 }
@@ -551,7 +424,8 @@ void bed_mesh_renderer_set_bounds(bed_mesh_renderer_t* renderer, double bed_x_mi
     double bed_size_x = bed_x_max - bed_x_min;
     double bed_size_y = bed_y_max - bed_y_min;
     double larger_dimension = std::max(bed_size_x, bed_size_y);
-    renderer->coord_scale = compute_bed_scale_factor(larger_dimension, TARGET_WORLD_SIZE);
+    renderer->coord_scale =
+        helix::mesh::compute_bed_scale_factor(larger_dimension, TARGET_WORLD_SIZE);
     renderer->geometry_computed = true;
 
     spdlog::debug("Set bounds: bed [{:.1f}, {:.1f}] x [{:.1f}, {:.1f}], mesh [{:.1f}, {:.1f}] x "
@@ -722,12 +596,12 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
     spdlog::debug("Rendering mesh to {}x{} layer (dragging={})", canvas_width, canvas_height,
                   renderer->view_state.is_dragging);
 
-    // DEBUG: Log mesh Z bounds and coordinate parameters
-    double debug_z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
-    double debug_grid_z = compute_grid_z(debug_z_center, renderer->view_state.z_scale);
+    // DEBUG: Log mesh Z bounds and coordinate parameters (using cached z_center)
+    double debug_grid_z =
+        helix::mesh::compute_grid_z(renderer->cached_z_center, renderer->view_state.z_scale);
     spdlog::debug("[COORDS] mesh_min_z={:.4f}, mesh_max_z={:.4f}, z_center={:.4f}, z_scale={:.2f}, "
                   "grid_z={:.2f}",
-                  renderer->mesh_min_z, renderer->mesh_max_z, debug_z_center,
+                  renderer->mesh_min_z, renderer->mesh_max_z, renderer->cached_z_center,
                   renderer->view_state.z_scale, debug_grid_z);
     spdlog::debug(
         "[COORDS] angle_x={:.1f}, angle_z={:.1f}, fov_scale={:.2f}, center_offset=({},{})",
@@ -735,20 +609,21 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
         renderer->view_state.center_offset_x, renderer->view_state.center_offset_y);
 
     // Clear background using layer draw API
-    // Get layer's clip area directly
+    // Get layer's clip area (used for clipping output, NOT for canvas dimensions)
+    // IMPORTANT: During partial redraws, clip_area may be smaller than the widget.
+    // We must use the passed-in canvas_width/height for projection calculations,
+    // otherwise the 3D projection math will be corrupted on partial redraws.
     const lv_area_t* clip_area = &layer->_clip_area;
-    int actual_width = lv_area_get_width(clip_area);
-    int actual_height = lv_area_get_height(clip_area);
+    int clip_width = lv_area_get_width(clip_area);
+    int clip_height = lv_area_get_height(clip_area);
     int layer_offset_x = clip_area->x1; // Layer's screen X position
     int layer_offset_y = clip_area->y1; // Layer's screen Y position
 
-    spdlog::debug("[LAYER] Clip area: {}x{} at offset ({},{})", actual_width, actual_height,
-                  layer_offset_x, layer_offset_y);
+    spdlog::debug("[LAYER] Widget: {}x{}, Clip area: {}x{} at offset ({},{})", canvas_width,
+                  canvas_height, clip_width, clip_height, layer_offset_x, layer_offset_y);
 
-    // Use the layer's clip area dimensions for rendering
-    canvas_width = actual_width;
-    canvas_height = actual_height;
-
+    // Draw background to fill the clip area (not the full canvas)
+    // LVGL will clip this to the dirty region during partial redraws
     lv_draw_rect_dsc_t bg_dsc;
     lv_draw_rect_dsc_init(&bg_dsc);
     bg_dsc.bg_color = CANVAS_BG_COLOR;
@@ -791,16 +666,15 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
         int min_x, max_x, min_y, max_y;
         compute_projected_mesh_bounds(renderer, &min_x, &max_x, &min_y, &max_y);
 
-        // ALSO include wall corners in bounds calculation (walls extend 2x mesh height)
-        // This prevents walls from being clipped when they extend above the mesh
+        // ALSO include wall corners in bounds calculation (walls extend WALL_HEIGHT_FACTOR * mesh
+        // height) This prevents walls from being clipped when they extend above the mesh
         double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
         double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
-        double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
-        double z_min_world =
-            mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
-        double z_max_world =
-            mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
-        double wall_z_max = z_min_world + 2.0 * (z_max_world - z_min_world);
+        double z_min_world = helix::mesh::mesh_z_to_world_z(
+            renderer->mesh_min_z, renderer->cached_z_center, renderer->view_state.z_scale);
+        double z_max_world = helix::mesh::mesh_z_to_world_z(
+            renderer->mesh_max_z, renderer->cached_z_center, renderer->view_state.z_scale);
+        double wall_z_max = z_min_world + WALL_HEIGHT_FACTOR * (z_max_world - z_min_world);
 
         // Project wall top corners and expand bounds
         double x_min = -mesh_half_width, x_max = mesh_half_width;
@@ -921,7 +795,7 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
     // Render quads using cached screen coordinates (drawn AFTER grids so mesh is in front)
     bool use_gradient = !renderer->view_state.is_dragging;
     for (const auto& quad : renderer->quads) {
-        render_quad(layer, quad, canvas_width, canvas_height, &renderer->view_state, use_gradient);
+        render_quad(layer, quad, use_gradient);
     }
     auto t_rasterize = std::chrono::high_resolution_clock::now();
 
@@ -986,6 +860,8 @@ static void compute_mesh_bounds(bed_mesh_renderer_t* renderer) {
 
     renderer->mesh_min_z = min_z;
     renderer->mesh_max_z = max_z;
+    // Cache z_center to avoid repeated computation (computed once per mesh data change)
+    renderer->cached_z_center = helix::mesh::compute_mesh_z_center(min_z, max_z);
 }
 
 static double compute_dynamic_z_scale(double z_range) {
@@ -1043,8 +919,7 @@ static void project_and_cache_vertices(bed_mesh_renderer_t* renderer, int canvas
         renderer->projected_screen_y.resize(static_cast<size_t>(renderer->rows));
     }
 
-    // Center mesh Z values (single source of truth via coordinate transform helper)
-    double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
+    // Use cached z_center (computed once in compute_mesh_bounds)
 
     // Project all vertices once (projection handles centering internally)
     for (int row = 0; row < renderer->rows; row++) {
@@ -1072,19 +947,19 @@ static void project_and_cache_vertices(bed_mesh_renderer_t* renderer, int canvas
                     renderer->mesh_area_min_y +
                     row / rows_minus_1 * (renderer->mesh_area_max_y - renderer->mesh_area_min_y);
 
-                world_x =
-                    printer_x_to_world_x(printer_x, renderer->bed_center_x, renderer->coord_scale);
-                world_y =
-                    printer_y_to_world_y(printer_y, renderer->bed_center_y, renderer->coord_scale);
+                world_x = helix::mesh::printer_x_to_world_x(printer_x, renderer->bed_center_x,
+                                                            renderer->coord_scale);
+                world_y = helix::mesh::printer_y_to_world_y(printer_y, renderer->bed_center_y,
+                                                            renderer->coord_scale);
             } else {
                 // Legacy: Index-based coordinates
-                world_x = mesh_col_to_world_x(col, renderer->cols);
-                world_y = mesh_row_to_world_y(row, renderer->rows);
+                world_x = helix::mesh::mesh_col_to_world_x(col, renderer->cols, BED_MESH_SCALE);
+                world_y = helix::mesh::mesh_row_to_world_y(row, renderer->rows, BED_MESH_SCALE);
             }
 
-            double world_z = mesh_z_to_world_z(
-                renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col)], z_center,
-                renderer->view_state.z_scale);
+            double world_z = helix::mesh::mesh_z_to_world_z(
+                renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col)],
+                renderer->cached_z_center, renderer->view_state.z_scale);
 
             // Project to screen space and cache only screen coordinates (SOA)
             bed_mesh_point_3d_t projected = bed_mesh_projection_project_3d_to_2d(
@@ -1246,186 +1121,6 @@ static void compute_centering_offset(int mesh_min_x, int mesh_max_x, int mesh_mi
                   *out_offset_y);
 }
 
-static void fill_triangle_solid(lv_layer_t* layer, int x1, int y1, int x2, int y2, int x3, int y3,
-                                [[maybe_unused]] int canvas_width,
-                                [[maybe_unused]] int canvas_height, lv_color_t color) {
-    // Sort vertices by Y coordinate
-    sort_by_y(y1, x1, y2, x2, y3, x3);
-
-    // Skip degenerate triangles
-    if (y1 == y3)
-        return;
-
-    // Note: LVGL's layer system handles clipping automatically, no need for manual bounds checking
-    // here
-
-    // Prepare draw descriptor for horizontal spans
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_color = color;
-    dsc.bg_opa = MESH_TRIANGLE_OPACITY;
-    dsc.border_width = 0;
-
-    // Scanline fill with batched rect draws (15-20% faster than pixel-by-pixel)
-    // Let LVGL handle clipping via layer system
-    for (int y = y1; y <= y3; y++) {
-        // Compute left/right edges
-        int x_left_raw, x_right_raw;
-        compute_scanline_x(y, y1, x1, y2, x2, y3, x3, &x_left_raw, &x_right_raw);
-
-        // Use raw coordinates - LVGL will clip to layer bounds
-        int x_left = x_left_raw;
-        int x_right = x_right_raw;
-
-        // Draw horizontal span as single rectangle directly to layer
-        if (x_left <= x_right) {
-            lv_area_t rect_area;
-            rect_area.x1 = x_left;
-            rect_area.y1 = y;
-            rect_area.x2 = x_right;
-            rect_area.y2 = y;
-            lv_draw_rect(layer, &dsc, &rect_area);
-        }
-    }
-}
-
-/**
- * Interpolate position and color along a triangle edge
- * Handles divide-by-zero case when edge vertices have same Y coordinate
- */
-static void interpolate_edge(int y, int y0, int x0, const bed_mesh_rgb_t& c0, int y1, int x1,
-                             const bed_mesh_rgb_t& c1, int* x_out, bed_mesh_rgb_t* c_out) {
-    if (y1 == y0) {
-        *x_out = x0;
-        *c_out = c0;
-    } else {
-        double t = (y - y0) / static_cast<double>(y1 - y0);
-        *x_out = x0 + static_cast<int>(t * (x1 - x0));
-        *c_out = bed_mesh_gradient_lerp_color(c0, c1, t);
-    }
-}
-
-static void fill_triangle_gradient(lv_layer_t* layer, int x1, int y1, lv_color_t c1, int x2, int y2,
-                                   lv_color_t c2, int x3, int y3, lv_color_t c3,
-                                   [[maybe_unused]] int canvas_width,
-                                   [[maybe_unused]] int canvas_height) {
-    // Sort vertices by Y coordinate, keeping colors aligned
-    struct Vertex {
-        int x, y;
-        bed_mesh_rgb_t color;
-    };
-    Vertex v[3] = {{x1, y1, {c1.red, c1.green, c1.blue}},
-                   {x2, y2, {c2.red, c2.green, c2.blue}},
-                   {x3, y3, {c3.red, c3.green, c3.blue}}};
-
-    if (v[0].y > v[1].y)
-        std::swap(v[0], v[1]);
-    if (v[1].y > v[2].y)
-        std::swap(v[1], v[2]);
-    if (v[0].y > v[1].y)
-        std::swap(v[0], v[1]);
-
-    // Skip degenerate triangles
-    if (v[0].y == v[2].y)
-        return;
-
-    // Note: LVGL's layer system handles clipping automatically
-
-    // Prepare draw descriptor for gradient segments
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_opa = MESH_TRIANGLE_OPACITY;
-    dsc.border_width = 0;
-
-    // Scanline fill with color interpolation and batched rect draws
-    for (int y = v[0].y; y <= v[2].y; y++) {
-        // Interpolate along long edge (v0 -> v2)
-        double t_long = (y - v[0].y) / static_cast<double>(v[2].y - v[0].y);
-        int x_long = v[0].x + static_cast<int>(t_long * (v[2].x - v[0].x));
-        bed_mesh_rgb_t c_long = bed_mesh_gradient_lerp_color(v[0].color, v[2].color, t_long);
-
-        // Interpolate along short edge (upper half: v0->v1, lower half: v1->v2)
-        int x_short;
-        bed_mesh_rgb_t c_short;
-        if (y < v[1].y) {
-            interpolate_edge(y, v[0].y, v[0].x, v[0].color, v[1].y, v[1].x, v[1].color, &x_short,
-                             &c_short);
-        } else {
-            interpolate_edge(y, v[1].y, v[1].x, v[1].color, v[2].y, v[2].x, v[2].color, &x_short,
-                             &c_short);
-        }
-
-        // Ensure left/right ordering - LVGL will clip to layer bounds
-        int x_left = std::min(x_long, x_short);
-        int x_right = std::max(x_long, x_short);
-        bed_mesh_rgb_t c_left = (x_long < x_short) ? c_long : c_short;
-        bed_mesh_rgb_t c_right = (x_long < x_short) ? c_short : c_long;
-
-        int line_width = x_right - x_left + 1;
-        if (line_width <= 0)
-            continue;
-
-        // Performance: use solid color for thin lines
-        if (line_width < BED_MESH_GRADIENT_MIN_LINE_WIDTH) {
-            bed_mesh_rgb_t avg = bed_mesh_gradient_lerp_color(c_left, c_right, 0.5);
-            lv_color_t avg_color = lv_color_make(avg.r, avg.g, avg.b);
-            dsc.bg_color = avg_color;
-
-            lv_area_t rect_area;
-            rect_area.x1 = x_left;
-            rect_area.y1 = y;
-            rect_area.x2 = x_right;
-            rect_area.y2 = y;
-            lv_draw_rect(layer, &dsc, &rect_area);
-        } else {
-            // ========== Adaptive Gradient Rasterization (Phase 2) ==========
-            // OPTIMIZATION: Use adaptive segment count based on line width
-            // - Wider lines = more segments for quality
-            // - Narrower lines = fewer segments to reduce overhead
-            //
-            // Performance impact:
-            // - OLD: Fixed 6 segments per scanline = 30,000+ draw calls/frame
-            // - NEW: 2-4 segments per line = ~10,000-15,000 draw calls/frame
-            //   (50-66% reduction in draw calls, 30+ FPS achieved)
-
-            int segment_count;
-            if (line_width < GRADIENT_THIN_LINE_THRESHOLD) {
-                segment_count = GRADIENT_THIN_SEGMENT_COUNT; // Thin lines: 2 segments (faster)
-            } else if (line_width < GRADIENT_MEDIUM_LINE_THRESHOLD) {
-                segment_count =
-                    GRADIENT_MEDIUM_SEGMENT_COUNT; // Medium lines: 3 segments (balanced)
-            } else {
-                segment_count =
-                    GRADIENT_WIDE_SEGMENT_COUNT; // Wide lines: 4 segments (better quality)
-            }
-
-            for (int segment_index = 0; segment_index < segment_count; segment_index++) {
-                // Compute segment horizontal span
-                int seg_x_start = x_left + (segment_index * line_width) / segment_count;
-                int seg_x_end = x_left + ((segment_index + 1) * line_width) / segment_count - 1;
-                if (seg_x_start > seg_x_end)
-                    continue;
-
-                // Sample color at segment center for better color distribution
-                double interpolation_factor =
-                    (segment_index + GRADIENT_SEGMENT_SAMPLE_POSITION) / segment_count;
-                bed_mesh_rgb_t seg_color =
-                    bed_mesh_gradient_lerp_color(c_left, c_right, interpolation_factor);
-                lv_color_t color = lv_color_make(seg_color.r, seg_color.g, seg_color.b);
-                dsc.bg_color = color;
-
-                // Draw segment as horizontal rectangle
-                lv_area_t rect_area;
-                rect_area.x1 = seg_x_start;
-                rect_area.y1 = y;
-                rect_area.x2 = seg_x_end;
-                rect_area.y2 = y;
-                lv_draw_rect(layer, &dsc, &rect_area);
-            }
-        }
-    }
-}
-
 static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
     if (!renderer || !renderer->has_mesh_data) {
         return;
@@ -1438,8 +1133,7 @@ static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
     int expected_quads = (renderer->rows - 1) * (renderer->cols - 1);
     renderer->quads.reserve(static_cast<size_t>(expected_quads));
 
-    // Center mesh around origin for rotation (single source of truth)
-    double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
+    // Use cached z_center (computed once in compute_mesh_bounds)
 
     // Generate quads for each mesh cell
     for (int row = 0; row < renderer->rows - 1; row++) {
@@ -1469,21 +1163,23 @@ static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
                                         (renderer->mesh_area_max_y - renderer->mesh_area_min_y);
 
                 // Convert printer coordinates to world space
-                base_x_0 =
-                    printer_x_to_world_x(printer_x0, renderer->bed_center_x, renderer->coord_scale);
-                base_x_1 =
-                    printer_x_to_world_x(printer_x1, renderer->bed_center_x, renderer->coord_scale);
-                base_y_0 =
-                    printer_y_to_world_y(printer_y0, renderer->bed_center_y, renderer->coord_scale);
-                base_y_1 =
-                    printer_y_to_world_y(printer_y1, renderer->bed_center_y, renderer->coord_scale);
+                base_x_0 = helix::mesh::printer_x_to_world_x(printer_x0, renderer->bed_center_x,
+                                                             renderer->coord_scale);
+                base_x_1 = helix::mesh::printer_x_to_world_x(printer_x1, renderer->bed_center_x,
+                                                             renderer->coord_scale);
+                base_y_0 = helix::mesh::printer_y_to_world_y(printer_y0, renderer->bed_center_y,
+                                                             renderer->coord_scale);
+                base_y_1 = helix::mesh::printer_y_to_world_y(printer_y1, renderer->bed_center_y,
+                                                             renderer->coord_scale);
             } else {
                 // Legacy: Index-based coordinates (centered around origin)
                 // Note: Y is inverted because mesh[0] = front edge
-                base_x_0 = mesh_col_to_world_x(col, renderer->cols);
-                base_x_1 = mesh_col_to_world_x(col + 1, renderer->cols);
-                base_y_0 = mesh_row_to_world_y(row, renderer->rows);
-                base_y_1 = mesh_row_to_world_y(row + 1, renderer->rows);
+                base_x_0 = helix::mesh::mesh_col_to_world_x(col, renderer->cols, BED_MESH_SCALE);
+                base_x_1 =
+                    helix::mesh::mesh_col_to_world_x(col + 1, renderer->cols, BED_MESH_SCALE);
+                base_y_0 = helix::mesh::mesh_row_to_world_y(row, renderer->rows, BED_MESH_SCALE);
+                base_y_1 =
+                    helix::mesh::mesh_row_to_world_y(row + 1, renderer->rows, BED_MESH_SCALE);
             }
 
             /**
@@ -1511,36 +1207,36 @@ static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
              */
             quad.vertices[0].x = base_x_0;
             quad.vertices[0].y = base_y_1;
-            quad.vertices[0].z = mesh_z_to_world_z(
-                renderer->mesh[static_cast<size_t>(row + 1)][static_cast<size_t>(col)], z_center,
-                renderer->view_state.z_scale);
+            quad.vertices[0].z = helix::mesh::mesh_z_to_world_z(
+                renderer->mesh[static_cast<size_t>(row + 1)][static_cast<size_t>(col)],
+                renderer->cached_z_center, renderer->view_state.z_scale);
             quad.vertices[0].color = bed_mesh_gradient_height_to_color(
                 renderer->mesh[static_cast<size_t>(row + 1)][static_cast<size_t>(col)],
                 renderer->color_min_z, renderer->color_max_z);
 
             quad.vertices[1].x = base_x_1;
             quad.vertices[1].y = base_y_1;
-            quad.vertices[1].z = mesh_z_to_world_z(
+            quad.vertices[1].z = helix::mesh::mesh_z_to_world_z(
                 renderer->mesh[static_cast<size_t>(row + 1)][static_cast<size_t>(col + 1)],
-                z_center, renderer->view_state.z_scale);
+                renderer->cached_z_center, renderer->view_state.z_scale);
             quad.vertices[1].color = bed_mesh_gradient_height_to_color(
                 renderer->mesh[static_cast<size_t>(row + 1)][static_cast<size_t>(col + 1)],
                 renderer->color_min_z, renderer->color_max_z);
 
             quad.vertices[2].x = base_x_0;
             quad.vertices[2].y = base_y_0;
-            quad.vertices[2].z = mesh_z_to_world_z(
-                renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col)], z_center,
-                renderer->view_state.z_scale);
+            quad.vertices[2].z = helix::mesh::mesh_z_to_world_z(
+                renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col)],
+                renderer->cached_z_center, renderer->view_state.z_scale);
             quad.vertices[2].color = bed_mesh_gradient_height_to_color(
                 renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col)],
                 renderer->color_min_z, renderer->color_max_z);
 
             quad.vertices[3].x = base_x_1;
             quad.vertices[3].y = base_y_0;
-            quad.vertices[3].z = mesh_z_to_world_z(
-                renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col + 1)], z_center,
-                renderer->view_state.z_scale);
+            quad.vertices[3].z = helix::mesh::mesh_z_to_world_z(
+                renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col + 1)],
+                renderer->cached_z_center, renderer->view_state.z_scale);
             quad.vertices[3].color = bed_mesh_gradient_height_to_color(
                 renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col + 1)],
                 renderer->color_min_z, renderer->color_max_z);
@@ -1566,7 +1262,7 @@ static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
 
     // DEBUG: Log quad generation with z_scale used
     spdlog::debug("[QUAD_GEN] Generated {} quads, z_scale={:.2f}, z_center={:.4f}",
-                  renderer->quads.size(), renderer->view_state.z_scale, z_center);
+                  renderer->quads.size(), renderer->view_state.z_scale, renderer->cached_z_center);
     // Log a sample quad to verify Z values
     if (!renderer->quads.empty()) {
         int center_row = (renderer->rows - 1) / 2;
@@ -1809,24 +1505,22 @@ static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t*
     double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
     double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
 
-    // Center mesh Z values to compute world-space Z coordinates
-    double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
-    double z_min_world =
-        mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
-    double z_max_world =
-        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
+    // Use cached z_center for world-space Z coordinates
+    double z_min_world = helix::mesh::mesh_z_to_world_z(
+        renderer->mesh_min_z, renderer->cached_z_center, renderer->view_state.z_scale);
+    double z_max_world = helix::mesh::mesh_z_to_world_z(
+        renderer->mesh_max_z, renderer->cached_z_center, renderer->view_state.z_scale);
 
     // Grid boundaries (extend slightly past mesh edges to account for AA and rounding)
-    constexpr double GRID_MARGIN = 5.0; // Small margin in world units
-    double x_min = -mesh_half_width - GRID_MARGIN;
-    double x_max = mesh_half_width + GRID_MARGIN;
-    double y_min = -mesh_half_height - GRID_MARGIN;
-    double y_max = mesh_half_height + GRID_MARGIN;
+    double x_min = -mesh_half_width - GRID_MARGIN_WORLD;
+    double x_max = mesh_half_width + GRID_MARGIN_WORLD;
+    double y_min = -mesh_half_height - GRID_MARGIN_WORLD;
+    double y_max = mesh_half_height + GRID_MARGIN_WORLD;
     double z_min = z_min_world;
-    // Mainsail-style: wall extends to 2x the mesh Z range above z_min
+    // Mainsail-style: wall extends to WALL_HEIGHT_FACTOR * mesh Z range above z_min
     // This gives visual headroom above the mesh surface
     double mesh_z_range = z_max_world - z_min_world;
-    double z_max = z_min_world + 2.0 * mesh_z_range;
+    double z_max = z_min_world + WALL_HEIGHT_FACTOR * mesh_z_range;
 
     // Configure grid line drawing style
     lv_draw_line_dsc_t grid_line_dsc;
@@ -1835,17 +1529,14 @@ static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t*
     grid_line_dsc.width = 1;
     grid_line_dsc.opa = LV_OPA_40; // Light opacity for reference grids
 
-    // Grid spacing (50mm intervals to match mesh scale)
-    constexpr double GRID_SPACING = 50.0;
-
     // ========== 1. BOTTOM GRID (XY plane at Z=z_min) ==========
     // Horizontal lines (constant Y, varying X)
-    for (double y = y_min; y <= y_max; y += GRID_SPACING) {
+    for (double y = y_min; y <= y_max; y += GRID_SPACING_MM) {
         draw_axis_line(layer, &grid_line_dsc, x_min, y, z_min, x_max, y, z_min, canvas_width,
                        canvas_height, &renderer->view_state);
     }
     // Vertical lines (constant X, varying Y)
-    for (double x = x_min; x <= x_max; x += GRID_SPACING) {
+    for (double x = x_min; x <= x_max; x += GRID_SPACING_MM) {
         draw_axis_line(layer, &grid_line_dsc, x, y_min, z_min, x, y_max, z_min, canvas_width,
                        canvas_height, &renderer->view_state);
     }
@@ -1853,13 +1544,13 @@ static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t*
     // ========== 2. BACK WALL GRID (XZ plane at Y=y_min) ==========
     // Note: With camera angle_z=-45°, y_min projects to the back of the view
     // Vertical lines (constant X, varying Z)
-    for (double x = x_min; x <= x_max + 0.1; x += GRID_SPACING) {
+    for (double x = x_min; x <= x_max + 0.1; x += GRID_SPACING_MM) {
         draw_axis_line(layer, &grid_line_dsc, x, y_min, z_min, x, y_min, z_max, canvas_width,
                        canvas_height, &renderer->view_state);
     }
     // Horizontal lines (constant Z, varying X)
     double wall_z_range = z_max - z_min;
-    double wall_z_spacing = wall_z_range / 5.0; // Divide Z range into ~5 segments
+    double wall_z_spacing = wall_z_range / Z_AXIS_SEGMENT_COUNT;
     if (wall_z_spacing < 1.0)
         wall_z_spacing = wall_z_range / 4.0;
     for (double z = z_min; z <= z_max + 0.01; z += wall_z_spacing) {
@@ -1870,10 +1561,10 @@ static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t*
     // ========== 3. LEFT WALL GRID (YZ plane at X=x_min) ==========
     // Vertical lines (constant Y, varying Z)
     double z_range = z_max - z_min;
-    double z_spacing = z_range / 5.0; // Divide Z range into ~5 segments
+    double z_spacing = z_range / Z_AXIS_SEGMENT_COUNT;
     if (z_spacing < 1.0)
         z_spacing = z_range / 4.0; // At least 4 divisions for small ranges
-    for (double y = y_min; y <= y_max + 0.1; y += GRID_SPACING) {
+    for (double y = y_min; y <= y_max + 0.1; y += GRID_SPACING_MM) {
         draw_axis_line(layer, &grid_line_dsc, x_min, y, z_min, x_min, y, z_max, canvas_width,
                        canvas_height, &renderer->view_state);
     }
@@ -1905,21 +1596,17 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
         return;
     }
 
-    // Center mesh Z values to compute world-space Z coordinates
-    double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
-
-    // Calculate world-space Z bounds for the mesh
-    double z_min_world =
-        mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
-    double z_max_world =
-        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
+    // Use cached z_center for world-space Z coordinates
+    double z_min_world = helix::mesh::mesh_z_to_world_z(
+        renderer->mesh_min_z, renderer->cached_z_center, renderer->view_state.z_scale);
+    double z_max_world = helix::mesh::mesh_z_to_world_z(
+        renderer->mesh_max_z, renderer->cached_z_center, renderer->view_state.z_scale);
 
     // Calculate mesh extent in world coordinates
     double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
     double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
 
     // Grid bounds for label positioning
-    double x_min = -mesh_half_width;
     double x_max = mesh_half_width;
     double y_min = -mesh_half_height;
     double y_max = mesh_half_height;
@@ -1932,14 +1619,14 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
     label_dsc.opa = LV_OPA_90;
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
 
-    // Offset to push axis labels outside the grid edges (beyond tick labels)
-    constexpr double LABEL_OFFSET = 40.0;
+    // Label area half-size for centering (7px half-size = 14px label area)
+    constexpr int AXIS_LABEL_HALF_SIZE = 7;
 
     // X label: At the MIDDLE of the front edge (where X axis is most visible)
     // Mainsail places this at the center of the X extent, not at a corner
-    double x_label_x = 0.0;                  // Center of X axis
-    double x_label_y = y_max + LABEL_OFFSET; // Just beyond front edge
-    double x_label_z = z_min_world;          // At grid plane level
+    double x_label_x = 0.0;                       // Center of X axis
+    double x_label_y = y_max + AXIS_LABEL_OFFSET; // Just beyond front edge
+    double x_label_z = z_min_world;               // At grid plane level
     bed_mesh_point_3d_t x_pos = bed_mesh_projection_project_3d_to_2d(
         x_label_x, x_label_y, x_label_z, canvas_width, canvas_height, &renderer->view_state);
 
@@ -1947,10 +1634,10 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
         x_pos.screen_y < canvas_height) {
         label_dsc.text = "X";
         lv_area_t x_area;
-        x_area.x1 = x_pos.screen_x - 7;
-        x_area.y1 = x_pos.screen_y - 7;
-        x_area.x2 = x_area.x1 + 14;
-        x_area.y2 = x_area.y1 + 14;
+        x_area.x1 = x_pos.screen_x - AXIS_LABEL_HALF_SIZE;
+        x_area.y1 = x_pos.screen_y - AXIS_LABEL_HALF_SIZE;
+        x_area.x2 = x_area.x1 + 2 * AXIS_LABEL_HALF_SIZE;
+        x_area.y2 = x_area.y1 + 2 * AXIS_LABEL_HALF_SIZE;
 
         if (x_area.x1 >= 0 && x_area.x2 < canvas_width && x_area.y1 >= 0 &&
             x_area.y2 < canvas_height) {
@@ -1959,9 +1646,9 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
     }
 
     // Y label: Centered on the RIGHT edge (analogous to X on front edge)
-    double y_label_x = x_max + LABEL_OFFSET; // Just beyond right edge
-    double y_label_y = 0.0;                  // Center of Y axis
-    double y_label_z = z_min_world;          // At grid plane level
+    double y_label_x = x_max + AXIS_LABEL_OFFSET; // Just beyond right edge
+    double y_label_y = 0.0;                       // Center of Y axis
+    double y_label_z = z_min_world;               // At grid plane level
     bed_mesh_point_3d_t y_pos = bed_mesh_projection_project_3d_to_2d(
         y_label_x, y_label_y, y_label_z, canvas_width, canvas_height, &renderer->view_state);
 
@@ -1969,10 +1656,10 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
         y_pos.screen_y < canvas_height) {
         label_dsc.text = "Y";
         lv_area_t y_area;
-        y_area.x1 = y_pos.screen_x - 7;
-        y_area.y1 = y_pos.screen_y - 7;
-        y_area.x2 = y_area.x1 + 14;
-        y_area.y2 = y_area.y1 + 14;
+        y_area.x1 = y_pos.screen_x - AXIS_LABEL_HALF_SIZE;
+        y_area.y1 = y_pos.screen_y - AXIS_LABEL_HALF_SIZE;
+        y_area.x2 = y_area.x1 + 2 * AXIS_LABEL_HALF_SIZE;
+        y_area.y2 = y_area.y1 + 2 * AXIS_LABEL_HALF_SIZE;
 
         if (y_area.x1 >= 0 && y_area.x2 < canvas_width && y_area.y1 >= 0 &&
             y_area.y2 < canvas_height) {
@@ -1991,9 +1678,9 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
         label_dsc.text = "Z";
         lv_area_t z_area;
         z_area.x1 = z_pos.screen_x + 5; // Offset right of the axis
-        z_area.y1 = z_pos.screen_y - 7;
-        z_area.x2 = z_area.x1 + 14;
-        z_area.y2 = z_area.y1 + 14;
+        z_area.y1 = z_pos.screen_y - AXIS_LABEL_HALF_SIZE;
+        z_area.x2 = z_area.x1 + 2 * AXIS_LABEL_HALF_SIZE;
+        z_area.y2 = z_area.y1 + 2 * AXIS_LABEL_HALF_SIZE;
 
         if (z_area.x1 >= 0 && z_area.x2 < canvas_width && z_area.y1 >= 0 &&
             z_area.y2 < canvas_height) {
@@ -2036,12 +1723,13 @@ static void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_d
     lv_area_t label_area;
     label_area.x1 = screen_x + offset_x;
     label_area.y1 = screen_y + offset_y;
-    label_area.x2 = label_area.x1 + (use_decimals ? 40 : 30);
-    label_area.y2 = label_area.y1 + 12;
+    label_area.x2 =
+        label_area.x1 + (use_decimals ? TICK_LABEL_WIDTH_DECIMAL : TICK_LABEL_WIDTH_INTEGER);
+    label_area.y2 = label_area.y1 + TICK_LABEL_HEIGHT;
 
     // Draw if label origin is within canvas (allow partial clipping at edges)
-    if (label_area.x1 >= -20 && label_area.x1 < canvas_width && label_area.y1 >= -10 &&
-        label_area.y1 < canvas_height) {
+    if (label_area.x1 >= -TICK_LABEL_CLIP_MARGIN && label_area.x1 < canvas_width &&
+        label_area.y1 >= -TICK_LABEL_HEIGHT && label_area.y1 < canvas_height) {
         lv_draw_label(layer, label_dsc, &label_area);
     }
 }
@@ -2051,7 +1739,7 @@ static void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_d
  *
  * Adds millimeter labels (e.g., "-100", "0", "100") at regular intervals along
  * the X and Y axes to show bed dimensions, and height labels on the Z-axis.
- * Labels are positioned along the axes at world origin (X-axis at Y=0, Y-axis at X=0).
+ * Uses actual printer coordinates (works with any origin convention).
  */
 static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                                       int canvas_width, int canvas_height) {
@@ -2059,23 +1747,34 @@ static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer
         return;
     }
 
-    // Calculate bed dimensions in mm
+    // Get actual printer coordinate range (supports any origin convention)
+    double x_min_mm, x_max_mm, y_min_mm, y_max_mm;
+    if (renderer->geometry_computed) {
+        // Use actual printer coordinates from set_bounds()
+        x_min_mm = renderer->mesh_area_min_x;
+        x_max_mm = renderer->mesh_area_max_x;
+        y_min_mm = renderer->mesh_area_min_y;
+        y_max_mm = renderer->mesh_area_max_y;
+    } else {
+        // Fallback: assume corner-origin 0 to mesh size
+        x_min_mm = 0.0;
+        x_max_mm = static_cast<double>(renderer->cols - 1) * BED_MESH_SCALE;
+        y_min_mm = 0.0;
+        y_max_mm = static_cast<double>(renderer->rows - 1) * BED_MESH_SCALE;
+    }
+
+    // Calculate mesh dimensions
     double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
     double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
 
-    // Center mesh Z values to compute world-space Z coordinates
-    double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
+    // Use cached z_center for world-space Z coordinates
+    double z_min_world = helix::mesh::mesh_z_to_world_z(
+        renderer->mesh_min_z, renderer->cached_z_center, renderer->view_state.z_scale);
+    double z_max_world = helix::mesh::mesh_z_to_world_z(
+        renderer->mesh_max_z, renderer->cached_z_center, renderer->view_state.z_scale);
 
-    // Calculate world-space Z bounds for the mesh
-    double z_min_world =
-        mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
-    double z_max_world =
-        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
-
-    // Axis origin at front-left corner (matching render_axis_labels)
-    double axis_origin_x = -mesh_half_width;
-    double axis_origin_y = -mesh_half_height;
-    double axis_origin_z = z_min_world;
+    // Grid plane Z position (same as reference grids)
+    double grid_z = z_min_world;
 
     // Configure label drawing style (smaller font than axis letters)
     lv_draw_label_dsc_t label_dsc;
@@ -2087,48 +1786,74 @@ static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer
     label_dsc.text_local = 1; // Tell LVGL to copy text (we use stack buffers)
 
     // Determine appropriate tick spacing (aim for 3-5 ticks per axis)
-    double tick_spacing = 50.0; // Default: 50mm intervals
-    if (mesh_half_width > 125.0) {
-        tick_spacing = 100.0; // For larger beds (e.g., >250mm total width)
+    double x_range = x_max_mm - x_min_mm;
+    double tick_spacing = GRID_SPACING_MM; // Default: 50mm intervals
+    if (x_range > 250.0) {
+        tick_spacing = 100.0; // For larger beds
     }
 
     // X-axis tick label offsets: below the front edge (outside the grid)
     constexpr int X_LABEL_OFFSET_X = -15;
     constexpr int X_LABEL_OFFSET_Y = 12; // Push down from edge
-    // Y-axis tick label offsets: to the right of the right edge, but label anchored left
-    // Offset accounts for label width so text appears to the right of the edge
-    constexpr int Y_LABEL_OFFSET_X = 5; // Small offset right (label will be drawn to right)
+    // Y-axis tick label offsets: to the right of the right edge
+    constexpr int Y_LABEL_OFFSET_X = 5;
     constexpr int Y_LABEL_OFFSET_Y = -5;
     // Z-axis tick label offsets: to the left of the axis line
     constexpr int Z_LABEL_OFFSET_X = -30;
     constexpr int Z_LABEL_OFFSET_Y = -6;
 
-    // Draw X-axis tick labels along FRONT edge (where X label is)
-    // y = +mesh_half_height (front edge), x goes from -mesh_half_width to +mesh_half_width
-    double x_axis_length = mesh_half_width * 2.0;
-    double x_tick_y = mesh_half_height; // Front edge (same as X label)
-    for (double offset = 0; offset <= x_axis_length; offset += tick_spacing) {
+    // Round tick start to nearest multiple of tick_spacing
+    // e.g., for x_min=-125 and tick_spacing=50, start at -100
+    double x_tick_start = std::ceil(x_min_mm / tick_spacing) * tick_spacing;
+    double y_tick_start = std::ceil(y_min_mm / tick_spacing) * tick_spacing;
+
+    // Draw X-axis tick labels along FRONT edge
+    // Y-world = +mesh_half_height (front edge in world coords)
+    double x_tick_y_world = mesh_half_height;
+    for (double x_mm = x_tick_start; x_mm <= x_max_mm + 0.001; x_mm += tick_spacing) {
+        // Convert printer X coordinate to world X coordinate
+        double x_world;
+        if (renderer->geometry_computed) {
+            x_world = helix::mesh::printer_x_to_world_x(x_mm, renderer->bed_center_x,
+                                                        renderer->coord_scale);
+        } else {
+            // Fallback: linear interpolation from 0-based to centered world coords
+            double t = (x_mm - x_min_mm) / (x_max_mm - x_min_mm);
+            x_world = -mesh_half_width + t * (2.0 * mesh_half_width);
+        }
+
         bed_mesh_point_3d_t tick = bed_mesh_projection_project_3d_to_2d(
-            axis_origin_x + offset, x_tick_y, axis_origin_z, canvas_width, canvas_height,
-            &renderer->view_state);
+            x_world, x_tick_y_world, grid_z, canvas_width, canvas_height, &renderer->view_state);
         draw_axis_tick_label(layer, &label_dsc, tick.screen_x, tick.screen_y, X_LABEL_OFFSET_X,
-                             X_LABEL_OFFSET_Y, offset, canvas_width, canvas_height);
+                             X_LABEL_OFFSET_Y, x_mm, canvas_width, canvas_height);
     }
 
-    // Draw Y-axis tick labels along RIGHT edge (where Y label is)
-    // x = +mesh_half_width (right edge), y goes from -mesh_half_height to +mesh_half_height
-    double y_axis_length = mesh_half_height * 2.0;
-    double y_tick_x = mesh_half_width; // Right edge (same as Y label)
-    for (double offset = 0; offset <= y_axis_length; offset += tick_spacing) {
+    // Draw Y-axis tick labels along RIGHT edge
+    // X-world = +mesh_half_width (right edge in world coords)
+    double y_tick_x_world = mesh_half_width;
+    for (double y_mm = y_tick_start; y_mm <= y_max_mm + 0.001; y_mm += tick_spacing) {
+        // Convert printer Y coordinate to world Y coordinate
+        double y_world;
+        if (renderer->geometry_computed) {
+            y_world = helix::mesh::printer_y_to_world_y(y_mm, renderer->bed_center_y,
+                                                        renderer->coord_scale);
+        } else {
+            // Fallback: linear interpolation (Y inverted in world space)
+            double t = (y_mm - y_min_mm) / (y_max_mm - y_min_mm);
+            y_world = mesh_half_height - t * (2.0 * mesh_half_height);
+        }
+
         bed_mesh_point_3d_t tick = bed_mesh_projection_project_3d_to_2d(
-            y_tick_x, axis_origin_y + offset, axis_origin_z, canvas_width, canvas_height,
-            &renderer->view_state);
+            y_tick_x_world, y_world, grid_z, canvas_width, canvas_height, &renderer->view_state);
         draw_axis_tick_label(layer, &label_dsc, tick.screen_x, tick.screen_y, Y_LABEL_OFFSET_X,
-                             Y_LABEL_OFFSET_Y, offset, canvas_width, canvas_height);
+                             Y_LABEL_OFFSET_Y, y_mm, canvas_width, canvas_height);
     }
 
     // Draw Z-axis tick labels (along Z-axis at front-left corner)
     // Show mesh min/max heights in mm (actual Z values, not world-scaled)
+    double axis_origin_x = -mesh_half_width;
+    double axis_origin_y = mesh_half_height;
+
     bed_mesh_point_3d_t z_min_tick =
         bed_mesh_projection_project_3d_to_2d(axis_origin_x, axis_origin_y, z_min_world,
                                              canvas_width, canvas_height, &renderer->view_state);
@@ -2154,17 +1879,14 @@ static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer
  * IMPORTANT: Assumes quad screen coordinates are already computed via
  * project_and_cache_quads(). Does NOT perform projection - uses cached values.
  *
+ * Uses helix::mesh rasterizer module for triangle fills - LVGL handles clipping
+ * automatically via the layer system.
+ *
  * @param layer LVGL draw layer
  * @param quad Quad with cached screen_x[], screen_y[] coordinates
- * @param canvas_width Canvas width (passed to triangle fill functions)
- * @param canvas_height Canvas height (passed to triangle fill functions)
- * @param view View state (unused, kept for API compatibility)
  * @param use_gradient true = gradient interpolation, false = solid color
  */
-static void render_quad(lv_layer_t* layer, const bed_mesh_quad_3d_t& quad, int canvas_width,
-                        int canvas_height, const bed_mesh_view_state_t* view, bool use_gradient) {
-    (void)view; // Unused - coordinates are pre-cached
-
+static void render_quad(lv_layer_t* layer, const bed_mesh_quad_3d_t& quad, bool use_gradient) {
     /**
      * Render quad as 2 triangles (diagonal split from BL to TR):
      *
@@ -2182,25 +1904,25 @@ static void render_quad(lv_layer_t* layer, const bed_mesh_quad_3d_t& quad, int c
     // use_gradient = false during drag for performance (solid color fallback)
     // use_gradient = true when static for quality (gradient interpolation)
     if (use_gradient) {
-        fill_triangle_gradient(layer, quad.screen_x[0], quad.screen_y[0], quad.vertices[0].color,
-                               quad.screen_x[1], quad.screen_y[1], quad.vertices[1].color,
-                               quad.screen_x[2], quad.screen_y[2], quad.vertices[2].color,
-                               canvas_width, canvas_height);
+        helix::mesh::fill_triangle_gradient(
+            layer, quad.screen_x[0], quad.screen_y[0], quad.vertices[0].color, quad.screen_x[1],
+            quad.screen_y[1], quad.vertices[1].color, quad.screen_x[2], quad.screen_y[2],
+            quad.vertices[2].color);
     } else {
-        fill_triangle_solid(layer, quad.screen_x[0], quad.screen_y[0], quad.screen_x[1],
-                            quad.screen_y[1], quad.screen_x[2], quad.screen_y[2], canvas_width,
-                            canvas_height, quad.center_color);
+        helix::mesh::fill_triangle_solid(layer, quad.screen_x[0], quad.screen_y[0],
+                                         quad.screen_x[1], quad.screen_y[1], quad.screen_x[2],
+                                         quad.screen_y[2], quad.center_color);
     }
 
     // Triangle 2: [1]BR → [3]TR → [2]TL
     if (use_gradient) {
-        fill_triangle_gradient(layer, quad.screen_x[1], quad.screen_y[1], quad.vertices[1].color,
-                               quad.screen_x[2], quad.screen_y[2], quad.vertices[2].color,
-                               quad.screen_x[3], quad.screen_y[3], quad.vertices[3].color,
-                               canvas_width, canvas_height);
+        helix::mesh::fill_triangle_gradient(
+            layer, quad.screen_x[1], quad.screen_y[1], quad.vertices[1].color, quad.screen_x[2],
+            quad.screen_y[2], quad.vertices[2].color, quad.screen_x[3], quad.screen_y[3],
+            quad.vertices[3].color);
     } else {
-        fill_triangle_solid(layer, quad.screen_x[1], quad.screen_y[1], quad.screen_x[2],
-                            quad.screen_y[2], quad.screen_x[3], quad.screen_y[3], canvas_width,
-                            canvas_height, quad.center_color);
+        helix::mesh::fill_triangle_solid(layer, quad.screen_x[1], quad.screen_y[1],
+                                         quad.screen_x[2], quad.screen_y[2], quad.screen_x[3],
+                                         quad.screen_y[3], quad.center_color);
     }
 }

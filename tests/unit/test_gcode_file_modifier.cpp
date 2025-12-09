@@ -10,7 +10,7 @@
 
 #include "../catch_amalgamated.hpp"
 
-using namespace gcode;
+using namespace helix::gcode;
 
 // ============================================================================
 // Basic Modification Tests
@@ -100,8 +100,7 @@ TEST_CASE("GCodeFileModifier - Inject G-code", "[gcode][modifier]") {
     }
 
     SECTION("Inject multi-line G-code") {
-        modifier.add_modification(
-            Modification::inject_before(1, "; Line 1\n; Line 2\n; Line 3"));
+        modifier.add_modification(Modification::inject_before(1, "; Line 1\n; Line 2\n; Line 3"));
 
         std::string content = "G28\n";
         std::string result = modifier.apply_to_content(content);
@@ -145,9 +144,9 @@ TEST_CASE("GCodeFileModifier - Multiple modifications", "[gcode][modifier]") {
 
         REQUIRE(result.find("; LINE2") != std::string::npos);
         REQUIRE(result.find("; LINE4") != std::string::npos);
-        REQUIRE(result.find("LINE1\n") != std::string::npos);  // Unchanged
-        REQUIRE(result.find("LINE3\n") != std::string::npos);  // Unchanged
-        REQUIRE(result.find("LINE5") != std::string::npos);    // Unchanged
+        REQUIRE(result.find("LINE1\n") != std::string::npos); // Unchanged
+        REQUIRE(result.find("LINE3\n") != std::string::npos); // Unchanged
+        REQUIRE(result.find("LINE5") != std::string::npos);   // Unchanged
     }
 
     SECTION("Clear modifications") {
@@ -158,8 +157,8 @@ TEST_CASE("GCodeFileModifier - Multiple modifications", "[gcode][modifier]") {
         std::string content = "LINE1\nLINE2\n";
         std::string result = modifier.apply_to_content(content);
 
-        REQUIRE(result.find("LINE1\n") != std::string::npos);  // Should be unchanged
-        REQUIRE(result.find("; LINE2") != std::string::npos);  // Should be commented
+        REQUIRE(result.find("LINE1\n") != std::string::npos); // Should be unchanged
+        REQUIRE(result.find("; LINE2") != std::string::npos); // Should be commented
     }
 }
 
@@ -281,8 +280,7 @@ TEST_CASE("GCodeFileModifier - File operations", "[gcode][modifier][file]") {
 
         // Verify output file content
         std::ifstream in(result.modified_path);
-        std::string content((std::istreambuf_iterator<char>(in)),
-                            std::istreambuf_iterator<char>());
+        std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         REQUIRE(content.find("; BED_MESH_CALIBRATE") != std::string::npos);
 
         // Cleanup
@@ -336,7 +334,7 @@ TEST_CASE("GCodeFileModifier - Edge cases", "[gcode][modifier][edge]") {
 
         // Should have proper newlines
         size_t newline_count = std::count(result.begin(), result.end(), '\n');
-        REQUIRE(newline_count == 2);  // Two newlines for three lines
+        REQUIRE(newline_count == 2); // Two newlines for three lines
     }
 }
 
@@ -406,8 +404,8 @@ G1 X10 Y10 Z0.2 E0.5
 
 TEST_CASE("GCodeFileModifier - Streaming mode constants", "[gcode][modifier][streaming]") {
     // Verify the threshold constant is reasonable for embedded devices
-    REQUIRE(MAX_BUFFERED_FILE_SIZE == 5 * 1024 * 1024);  // 5MB
-    REQUIRE(MAX_BUFFERED_FILE_SIZE < 10 * 1024 * 1024);  // Less than 10MB
+    REQUIRE(MAX_BUFFERED_FILE_SIZE == 5 * 1024 * 1024); // 5MB
+    REQUIRE(MAX_BUFFERED_FILE_SIZE < 10 * 1024 * 1024); // Less than 10MB
 }
 
 TEST_CASE("GCodeFileModifier - Streaming comment out", "[gcode][modifier][streaming]") {
@@ -430,8 +428,7 @@ TEST_CASE("GCodeFileModifier - Streaming comment out", "[gcode][modifier][stream
 
     // Read and verify modified content
     std::ifstream in(result.modified_path);
-    std::string content((std::istreambuf_iterator<char>(in)),
-                        std::istreambuf_iterator<char>());
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
     REQUIRE(content.find("; BED_MESH_CALIBRATE") != std::string::npos);
     REQUIRE(content.find("G28") != std::string::npos);
@@ -461,11 +458,10 @@ TEST_CASE("GCodeFileModifier - Streaming delete line", "[gcode][modifier][stream
 
     // Read and verify
     std::ifstream in(result.modified_path);
-    std::string content((std::istreambuf_iterator<char>(in)),
-                        std::istreambuf_iterator<char>());
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
     REQUIRE(content.find("LINE1") != std::string::npos);
-    REQUIRE(content.find("LINE2") == std::string::npos);  // Deleted
+    REQUIRE(content.find("LINE2") == std::string::npos); // Deleted
     REQUIRE(content.find("LINE3") != std::string::npos);
     REQUIRE(content.find("LINE4") != std::string::npos);
 
@@ -491,8 +487,7 @@ TEST_CASE("GCodeFileModifier - Streaming inject before", "[gcode][modifier][stre
     REQUIRE(result.lines_added == 1);
 
     std::ifstream in(result.modified_path);
-    std::string content((std::istreambuf_iterator<char>(in)),
-                        std::istreambuf_iterator<char>());
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
     // Verify order: LINE1 -> ; INJECTED -> LINE2 -> LINE3
     size_t line1_pos = content.find("LINE1");
@@ -524,11 +519,10 @@ TEST_CASE("GCodeFileModifier - Streaming replace line", "[gcode][modifier][strea
     REQUIRE(result.lines_modified == 1);
 
     std::ifstream in(result.modified_path);
-    std::string content((std::istreambuf_iterator<char>(in)),
-                        std::istreambuf_iterator<char>());
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
     REQUIRE(content.find("OLD_LINE1") != std::string::npos);
-    REQUIRE(content.find("OLD_LINE2") == std::string::npos);  // Replaced
+    REQUIRE(content.find("OLD_LINE2") == std::string::npos); // Replaced
     REQUIRE(content.find("NEW_LINE2") != std::string::npos);
     REQUIRE(content.find("OLD_LINE3") != std::string::npos);
 
@@ -537,7 +531,8 @@ TEST_CASE("GCodeFileModifier - Streaming replace line", "[gcode][modifier][strea
     std::filesystem::remove(result.modified_path);
 }
 
-TEST_CASE("GCodeFileModifier - Auto-select streaming for large files", "[gcode][modifier][streaming]") {
+TEST_CASE("GCodeFileModifier - Auto-select streaming for large files",
+          "[gcode][modifier][streaming]") {
     // This test verifies that apply() selects the appropriate mode based on file size
     // We can't easily create a 5MB test file, so we test the logic path
 
