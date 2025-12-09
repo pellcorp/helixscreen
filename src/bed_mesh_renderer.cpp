@@ -122,12 +122,25 @@ struct bed_mesh_renderer {
     double mesh_max_z;
     bool has_mesh_data; // Redundant with state, kept for backwards compatibility
 
-    // Bed XY bounds (actual printer coordinates in mm)
+    // Bed XY bounds (full print bed in mm - used for grid/walls)
     double bed_min_x;
     double bed_min_y;
     double bed_max_x;
     double bed_max_y;
     bool has_bed_bounds;
+
+    // Mesh XY bounds (probe area in mm - used for positioning mesh surface)
+    double mesh_area_min_x;
+    double mesh_area_min_y;
+    double mesh_area_max_x;
+    double mesh_area_max_y;
+    bool has_mesh_bounds;
+
+    // Computed geometry parameters (derived from bounds)
+    double bed_center_x;    // (bed_min_x + bed_max_x) / 2
+    double bed_center_y;    // (bed_min_y + bed_max_y) / 2
+    double coord_scale;     // World units per mm (normalizes bed to target world size)
+    bool geometry_computed; // True if bed_center and coord_scale are valid
 
     // Color range configuration
     bool auto_color_range;
@@ -218,6 +231,33 @@ static inline double mesh_z_to_world_z(double z_height, double z_center, double 
  */
 static inline double compute_mesh_z_center(double mesh_min_z, double mesh_max_z) {
     return helix::mesh::compute_mesh_z_center(mesh_min_z, mesh_max_z);
+}
+
+// ============================================================================
+// Printer coordinate transforms (for Mainsail-style bed/mesh separation)
+// ============================================================================
+
+/**
+ * Convert printer X coordinate (mm) to world X coordinate
+ * Works with any origin convention (corner at 0,0 or center at origin)
+ */
+static inline double printer_x_to_world_x(double x_mm, double bed_center_x, double scale_factor) {
+    return helix::mesh::printer_x_to_world_x(x_mm, bed_center_x, scale_factor);
+}
+
+/**
+ * Convert printer Y coordinate (mm) to world Y coordinate
+ * Y-axis inverted for 3D view (front toward viewer)
+ */
+static inline double printer_y_to_world_y(double y_mm, double bed_center_y, double scale_factor) {
+    return helix::mesh::printer_y_to_world_y(y_mm, bed_center_y, scale_factor);
+}
+
+/**
+ * Compute scale factor for printer coordinate transforms
+ */
+static inline double compute_bed_scale_factor(double bed_size_mm, double target_world_size) {
+    return helix::mesh::compute_bed_scale_factor(bed_size_mm, target_world_size);
 }
 
 /**
@@ -346,6 +386,19 @@ bed_mesh_renderer_t* bed_mesh_renderer_create(void) {
     renderer->bed_max_y = 0.0;
     renderer->has_bed_bounds = false;
 
+    // Initialize mesh bounds (probe area, will be set via set_bounds)
+    renderer->mesh_area_min_x = 0.0;
+    renderer->mesh_area_min_y = 0.0;
+    renderer->mesh_area_max_x = 0.0;
+    renderer->mesh_area_max_y = 0.0;
+    renderer->has_mesh_bounds = false;
+
+    // Initialize computed geometry parameters
+    renderer->bed_center_x = 0.0;
+    renderer->bed_center_y = 0.0;
+    renderer->coord_scale = 1.0;
+    renderer->geometry_computed = false;
+
     // Default view state (Mainsail-style: looking from front-right toward back-left)
     renderer->view_state.angle_x = BED_MESH_DEFAULT_ANGLE_X;
     renderer->view_state.angle_z = BED_MESH_DEFAULT_ANGLE_Z;
@@ -463,6 +516,53 @@ void bed_mesh_renderer_set_rotation(bed_mesh_renderer_t* renderer, double angle_
 
     // Rotation changes invalidate cached projections (READY_TO_RENDER → MESH_LOADED)
     if (renderer->state == RendererState::READY_TO_RENDER) {
+        renderer->state = RendererState::MESH_LOADED;
+    }
+}
+
+void bed_mesh_renderer_set_bounds(bed_mesh_renderer_t* renderer, double bed_x_min, double bed_x_max,
+                                  double bed_y_min, double bed_y_max, double mesh_x_min,
+                                  double mesh_x_max, double mesh_y_min, double mesh_y_max) {
+    if (!renderer) {
+        return;
+    }
+
+    // Set bed bounds (full print bed area - used for grid/walls)
+    renderer->bed_min_x = bed_x_min;
+    renderer->bed_max_x = bed_x_max;
+    renderer->bed_min_y = bed_y_min;
+    renderer->bed_max_y = bed_y_max;
+    renderer->has_bed_bounds = true;
+
+    // Set mesh bounds (probe area - used for positioning mesh surface within bed)
+    renderer->mesh_area_min_x = mesh_x_min;
+    renderer->mesh_area_max_x = mesh_x_max;
+    renderer->mesh_area_min_y = mesh_y_min;
+    renderer->mesh_area_max_y = mesh_y_max;
+    renderer->has_mesh_bounds = true;
+
+    // Compute derived geometry parameters
+    renderer->bed_center_x = (bed_x_min + bed_x_max) / 2.0;
+    renderer->bed_center_y = (bed_y_min + bed_y_max) / 2.0;
+
+    // Compute scale factor: normalize larger bed dimension to target world size
+    // Target world size matches the old BED_MESH_SCALE-based sizing (~200 world units)
+    constexpr double TARGET_WORLD_SIZE = 200.0;
+    double bed_size_x = bed_x_max - bed_x_min;
+    double bed_size_y = bed_y_max - bed_y_min;
+    double larger_dimension = std::max(bed_size_x, bed_size_y);
+    renderer->coord_scale = compute_bed_scale_factor(larger_dimension, TARGET_WORLD_SIZE);
+    renderer->geometry_computed = true;
+
+    spdlog::debug("Set bounds: bed [{:.1f}, {:.1f}] x [{:.1f}, {:.1f}], mesh [{:.1f}, {:.1f}] x "
+                  "[{:.1f}, {:.1f}], center=({:.1f}, {:.1f}), scale={:.4f}",
+                  bed_x_min, bed_x_max, bed_y_min, bed_y_max, mesh_x_min, mesh_x_max, mesh_y_min,
+                  mesh_y_max, renderer->bed_center_x, renderer->bed_center_y,
+                  renderer->coord_scale);
+
+    // Bounds changes invalidate cached projections and quads
+    if (renderer->state == RendererState::READY_TO_RENDER ||
+        renderer->state == RendererState::MESH_LOADED) {
         renderer->state = RendererState::MESH_LOADED;
     }
 }
@@ -958,8 +1058,30 @@ static void project_and_cache_vertices(bed_mesh_renderer_t* renderer, int canvas
 
         for (int col = 0; col < renderer->cols; col++) {
             // Convert mesh coordinates to world space
-            double world_x = mesh_col_to_world_x(col, renderer->cols);
-            double world_y = mesh_row_to_world_y(row, renderer->rows);
+            double world_x, world_y;
+
+            if (renderer->geometry_computed) {
+                // Mainsail-style: Position mesh within bed using mesh_area bounds
+                double cols_minus_1 = static_cast<double>(renderer->cols - 1);
+                double rows_minus_1 = static_cast<double>(renderer->rows - 1);
+
+                double printer_x =
+                    renderer->mesh_area_min_x +
+                    col / cols_minus_1 * (renderer->mesh_area_max_x - renderer->mesh_area_min_x);
+                double printer_y =
+                    renderer->mesh_area_min_y +
+                    row / rows_minus_1 * (renderer->mesh_area_max_y - renderer->mesh_area_min_y);
+
+                world_x =
+                    printer_x_to_world_x(printer_x, renderer->bed_center_x, renderer->coord_scale);
+                world_y =
+                    printer_y_to_world_y(printer_y, renderer->bed_center_y, renderer->coord_scale);
+            } else {
+                // Legacy: Index-based coordinates
+                world_x = mesh_col_to_world_x(col, renderer->cols);
+                world_y = mesh_row_to_world_y(row, renderer->rows);
+            }
+
             double world_z = mesh_z_to_world_z(
                 renderer->mesh[static_cast<size_t>(row)][static_cast<size_t>(col)], z_center,
                 renderer->view_state.z_scale);
@@ -1324,12 +1446,45 @@ static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
         for (int col = 0; col < renderer->cols - 1; col++) {
             bed_mesh_quad_3d_t quad;
 
-            // Compute base X,Y positions (centered around origin)
-            // Note: Y is inverted because mesh[0] = front edge
-            double base_x_0 = mesh_col_to_world_x(col, renderer->cols);
-            double base_x_1 = mesh_col_to_world_x(col + 1, renderer->cols);
-            double base_y_0 = mesh_row_to_world_y(row, renderer->rows);
-            double base_y_1 = mesh_row_to_world_y(row + 1, renderer->rows);
+            // Compute base X,Y positions
+            double base_x_0, base_x_1, base_y_0, base_y_1;
+
+            if (renderer->geometry_computed) {
+                // Mainsail-style: Position mesh within bed using mesh_area bounds
+                // Interpolate printer coordinates from mesh indices
+                double cols_minus_1 = static_cast<double>(renderer->cols - 1);
+                double rows_minus_1 = static_cast<double>(renderer->rows - 1);
+
+                double printer_x0 =
+                    renderer->mesh_area_min_x +
+                    col / cols_minus_1 * (renderer->mesh_area_max_x - renderer->mesh_area_min_x);
+                double printer_x1 = renderer->mesh_area_min_x +
+                                    (col + 1) / cols_minus_1 *
+                                        (renderer->mesh_area_max_x - renderer->mesh_area_min_x);
+                double printer_y0 =
+                    renderer->mesh_area_min_y +
+                    row / rows_minus_1 * (renderer->mesh_area_max_y - renderer->mesh_area_min_y);
+                double printer_y1 = renderer->mesh_area_min_y +
+                                    (row + 1) / rows_minus_1 *
+                                        (renderer->mesh_area_max_y - renderer->mesh_area_min_y);
+
+                // Convert printer coordinates to world space
+                base_x_0 =
+                    printer_x_to_world_x(printer_x0, renderer->bed_center_x, renderer->coord_scale);
+                base_x_1 =
+                    printer_x_to_world_x(printer_x1, renderer->bed_center_x, renderer->coord_scale);
+                base_y_0 =
+                    printer_y_to_world_y(printer_y0, renderer->bed_center_y, renderer->coord_scale);
+                base_y_1 =
+                    printer_y_to_world_y(printer_y1, renderer->bed_center_y, renderer->coord_scale);
+            } else {
+                // Legacy: Index-based coordinates (centered around origin)
+                // Note: Y is inverted because mesh[0] = front edge
+                base_x_0 = mesh_col_to_world_x(col, renderer->cols);
+                base_x_1 = mesh_col_to_world_x(col + 1, renderer->cols);
+                base_y_0 = mesh_row_to_world_y(row, renderer->rows);
+                base_y_1 = mesh_row_to_world_y(row + 1, renderer->rows);
+            }
 
             /**
              * Quad vertex layout (view from above, looking down -Z axis):

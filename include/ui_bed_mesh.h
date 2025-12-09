@@ -74,6 +74,29 @@ void ui_bed_mesh_register(void);
 bool ui_bed_mesh_set_data(lv_obj_t* canvas, const float* const* mesh, int rows, int cols);
 
 /**
+ * @brief Set coordinate bounds for bed and mesh
+ *
+ * The bed bounds define the full print bed area (used for grid/walls).
+ * The mesh bounds define where probing occurred (mesh is rendered within these).
+ * Call this AFTER set_data() to position the mesh correctly within the bed.
+ *
+ * Works with any printer origin convention (corner at 0,0 or center at origin).
+ *
+ * @param canvas The bed_mesh canvas widget
+ * @param bed_x_min Full bed minimum X coordinate
+ * @param bed_x_max Full bed maximum X coordinate
+ * @param bed_y_min Full bed minimum Y coordinate
+ * @param bed_y_max Full bed maximum Y coordinate
+ * @param mesh_x_min Mesh probe area minimum X coordinate
+ * @param mesh_x_max Mesh probe area maximum X coordinate
+ * @param mesh_y_min Mesh probe area minimum Y coordinate
+ * @param mesh_y_max Mesh probe area maximum Y coordinate
+ */
+void ui_bed_mesh_set_bounds(lv_obj_t* canvas, double bed_x_min, double bed_x_max, double bed_y_min,
+                            double bed_y_max, double mesh_x_min, double mesh_x_max,
+                            double mesh_y_min, double mesh_y_max);
+
+/**
  * @brief Set camera rotation angles
  *
  * @param canvas The bed_mesh canvas widget

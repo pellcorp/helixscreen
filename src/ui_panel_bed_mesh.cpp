@@ -305,6 +305,18 @@ void BedMeshPanel::on_mesh_update_internal(const BedMeshProfile& mesh) {
     // Update renderer with new mesh data
     set_mesh_data(mesh.probed_matrix);
 
+    // Set coordinate bounds for Mainsail-style rendering
+    // For now, use mesh bounds for both bed and mesh until we have BuildVolume access
+    // This enables correct printer coordinate positioning even without full bed size
+    if (canvas_ && (mesh.mesh_max[0] > mesh.mesh_min[0]) && (mesh.mesh_max[1] > mesh.mesh_min[1])) {
+        ui_bed_mesh_set_bounds(canvas_, mesh.mesh_min[0], mesh.mesh_max[0], // bed X bounds
+                               mesh.mesh_min[1], mesh.mesh_max[1],          // bed Y bounds
+                               mesh.mesh_min[0], mesh.mesh_max[0],          // mesh X bounds
+                               mesh.mesh_min[1], mesh.mesh_max[1]);         // mesh Y bounds
+        spdlog::debug("[{}] Set bounds: mesh X [{:.1f}, {:.1f}], Y [{:.1f}, {:.1f}]", get_name(),
+                      mesh.mesh_min[0], mesh.mesh_max[0], mesh.mesh_min[1], mesh.mesh_max[1]);
+    }
+
     spdlog::info("[{}] Mesh updated: {} ({}x{}, Z: {:.3f} to {:.3f})", get_name(), mesh.name,
                  mesh.x_count, mesh.y_count, min_z, max_z);
 }

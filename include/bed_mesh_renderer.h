@@ -196,6 +196,29 @@ bool bed_mesh_renderer_set_mesh_data(bed_mesh_renderer_t* renderer, const float*
                                      int rows, int cols);
 
 /**
+ * @brief Set coordinate bounds for bed and mesh
+ *
+ * The bed bounds define the full print bed area (used for grid/walls).
+ * The mesh bounds define where probing occurred (mesh is rendered within these).
+ *
+ * Call this AFTER set_mesh_data() to position the mesh correctly within the bed.
+ * If not called, mesh bounds are used for both (legacy behavior).
+ *
+ * @param renderer Renderer instance
+ * @param bed_x_min Full bed minimum X coordinate
+ * @param bed_x_max Full bed maximum X coordinate
+ * @param bed_y_min Full bed minimum Y coordinate
+ * @param bed_y_max Full bed maximum Y coordinate
+ * @param mesh_x_min Mesh probe area minimum X coordinate
+ * @param mesh_x_max Mesh probe area maximum X coordinate
+ * @param mesh_y_min Mesh probe area minimum Y coordinate
+ * @param mesh_y_max Mesh probe area maximum Y coordinate
+ */
+void bed_mesh_renderer_set_bounds(bed_mesh_renderer_t* renderer, double bed_x_min, double bed_x_max,
+                                  double bed_y_min, double bed_y_max, double mesh_x_min,
+                                  double mesh_x_max, double mesh_y_min, double mesh_y_max);
+
+/**
  * @brief Set camera rotation angles
  *
  * @param renderer Renderer instance
