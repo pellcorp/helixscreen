@@ -1,6 +1,6 @@
 # HelixScreen Development Roadmap
 
-**Last Updated:** 2025-12-07
+**Last Updated:** 2025-12-09
 
 ---
 
@@ -35,9 +35,10 @@ See `docs/AMS_IMPLEMENTATION_PLAN.md` for detailed specification.
 ### 2. Production Hardening
 **Status:** In Progress
 
-- [ ] **Error recovery patterns** - Graceful degradation on connection loss
+- [x] **Connection-aware navigation** - Disable Controls/Filament when disconnected, auto-navigate to home
+- [x] **Reconnection flow UX** - Toast notifications for disconnect/reconnect/klippy states
 - [ ] **Structured logging** - Log levels, rotation, remote debugging
-- [ ] **Edge case testing** - Connection drops, print failures, filesystem errors
+- [ ] **Edge case testing** - Print failures, filesystem errors
 
 ### 3. Documentation Gaps
 **Status:** Ongoing
@@ -145,6 +146,8 @@ See `docs/AMS_IMPLEMENTATION_PLAN.md` for detailed specification.
 ### December 2025
 | Feature | Commit |
 |---------|--------|
+| Reconnection flow UX (toast notifications) | `9844ead` |
+| Connection-aware navigation gating | `a7eb28f` |
 | Print completion notifications (Off/Notification/Alert) | `80a3199` |
 | WiFi settings overlay with reactive architecture | `9037d81` |
 | AD5M static build infrastructure (glibc 2.25) | `cdffc63` |
