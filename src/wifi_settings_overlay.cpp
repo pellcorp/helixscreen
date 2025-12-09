@@ -83,8 +83,7 @@ WiFiSettingsOverlay::~WiFiSettingsOverlay() {
     overlay_root_ = nullptr;
     parent_screen_ = nullptr;
     networks_list_ = nullptr;
-
-    spdlog::debug("[WiFiSettingsOverlay] Instance destroyed");
+    // NOTE: Do NOT use spdlog here - it may be destroyed during exit
 }
 
 // ============================================================================
