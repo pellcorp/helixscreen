@@ -95,6 +95,10 @@
 #ifdef HELIX_DISPLAY_SDL
 #include <SDL.h>
 #endif
+#include "cli_args.h"
+#include "helix_timing.h"
+#include "screenshot.h"
+
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
@@ -109,29 +113,6 @@
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
-#endif
-
-// Portable timing functions (SDL-independent for embedded builds)
-#ifdef HELIX_DISPLAY_SDL
-// Use SDL timing when available (more precise on desktop)
-inline uint32_t helix_get_ticks() {
-    return SDL_GetTicks();
-}
-inline void helix_delay(uint32_t ms) {
-    SDL_Delay(ms);
-}
-#else
-// POSIX fallback for embedded Linux
-#include <time.h>
-inline uint32_t helix_get_ticks() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
-}
-inline void helix_delay(uint32_t ms) {
-    struct timespec ts = {ms / 1000, (ms % 1000) * 1000000L};
-    nanosleep(&ts, nullptr);
-}
 #endif
 
 // Forward declarations for panel global accessor functions
@@ -241,8 +222,9 @@ static BedMeshPanel* bed_mesh_panel = nullptr;
 static RuntimeConfig g_runtime_config;
 
 // Logging configuration (parsed before Config system is available)
-static std::string g_log_dest_cli; // CLI override for log destination
-static std::string g_log_file_cli; // CLI override for log file path
+// NOTE: Non-static to allow access from cli_args.cpp
+std::string g_log_dest_cli; // CLI override for log destination
+std::string g_log_file_cli; // CLI override for log file path
 
 // Thread-safe queue for Moonraker notifications (cross-thread communication)
 static std::queue<json> notification_queue;
@@ -386,7 +368,6 @@ RuntimeConfig* get_mutable_runtime_config() {
 }
 
 // Forward declarations
-static void save_screenshot();
 static void initialize_moonraker_client(Config* config);
 
 // Execute deferred navigation after Moonraker connection is established.
@@ -493,552 +474,6 @@ static void execute_pending_navigation() {
     }
 
     spdlog::info("[Navigation] Deferred navigation complete");
-}
-
-// Parse command-line arguments
-// Returns true on success, false if help was shown or error occurred
-static bool parse_command_line_args(
-    int argc, char** argv, int& initial_panel, bool& show_motion, bool& show_nozzle_temp,
-    bool& show_bed_temp, bool& show_extrusion, bool& show_fan, bool& show_print_status,
-    bool& show_file_detail, bool& show_keypad, bool& show_keyboard, bool& show_step_test,
-    bool& show_test_panel, bool& show_gcode_test, bool& show_bed_mesh, bool& show_zoffset,
-    bool& show_pid, bool& show_glyphs, bool& show_gradient_test, bool& force_wizard,
-    int& wizard_step, bool& panel_requested, int& display_num, int& x_pos, int& y_pos,
-    bool& screenshot_enabled, int& screenshot_delay_sec, int& timeout_sec, int& verbosity,
-    int& dark_mode_cli, int& dpi) {
-    // Parse arguments
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--size") == 0) {
-            if (i + 1 < argc) {
-                const char* size_arg = argv[++i];
-                if (strcmp(size_arg, "tiny") == 0) {
-                    SCREEN_WIDTH = UI_SCREEN_TINY_W;
-                    SCREEN_HEIGHT = UI_SCREEN_TINY_H;
-                } else if (strcmp(size_arg, "small") == 0) {
-                    SCREEN_WIDTH = UI_SCREEN_SMALL_W;
-                    SCREEN_HEIGHT = UI_SCREEN_SMALL_H;
-                } else if (strcmp(size_arg, "medium") == 0) {
-                    SCREEN_WIDTH = UI_SCREEN_MEDIUM_W;
-                    SCREEN_HEIGHT = UI_SCREEN_MEDIUM_H;
-                } else if (strcmp(size_arg, "large") == 0) {
-                    SCREEN_WIDTH = UI_SCREEN_LARGE_W;
-                    SCREEN_HEIGHT = UI_SCREEN_LARGE_H;
-                } else {
-                    printf("Unknown screen size: %s\n", size_arg);
-                    printf("Available sizes: tiny, small, medium, large\n");
-                    return false;
-                }
-            } else {
-                printf("Error: -s/--size requires an argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--panel") == 0) {
-            if (i + 1 < argc) {
-                const char* panel_arg = argv[++i];
-                panel_requested = true; // User explicitly requested a panel
-                if (strcmp(panel_arg, "home") == 0) {
-                    initial_panel = UI_PANEL_HOME;
-                } else if (strcmp(panel_arg, "controls") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                } else if (strcmp(panel_arg, "motion") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                    show_motion = true;
-                } else if (strcmp(panel_arg, "nozzle-temp") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                    show_nozzle_temp = true;
-                } else if (strcmp(panel_arg, "bed-temp") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                    show_bed_temp = true;
-                } else if (strcmp(panel_arg, "extrusion") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                    show_extrusion = true;
-                } else if (strcmp(panel_arg, "fan") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                    show_fan = true;
-                } else if (strcmp(panel_arg, "print-status") == 0 ||
-                           strcmp(panel_arg, "printing") == 0) {
-                    show_print_status = true;
-                } else if (strcmp(panel_arg, "filament") == 0) {
-                    initial_panel = UI_PANEL_FILAMENT;
-                } else if (strcmp(panel_arg, "settings") == 0) {
-                    initial_panel = UI_PANEL_SETTINGS;
-                } else if (strcmp(panel_arg, "advanced") == 0) {
-                    initial_panel = UI_PANEL_ADVANCED;
-                } else if (strcmp(panel_arg, "print-select") == 0 ||
-                           strcmp(panel_arg, "print_select") == 0) {
-                    initial_panel = UI_PANEL_PRINT_SELECT;
-                } else if (strcmp(panel_arg, "file-detail") == 0 ||
-                           strcmp(panel_arg, "print-file-detail") == 0) {
-                    initial_panel = UI_PANEL_PRINT_SELECT;
-                    show_file_detail = true;
-                } else if (strcmp(panel_arg, "step-test") == 0 ||
-                           strcmp(panel_arg, "step_test") == 0) {
-                    show_step_test = true;
-                } else if (strcmp(panel_arg, "test") == 0) {
-                    show_test_panel = true;
-                } else if (strcmp(panel_arg, "gcode-test") == 0 ||
-                           strcmp(panel_arg, "gcode_test") == 0) {
-                    show_gcode_test = true;
-                } else if (strcmp(panel_arg, "bed-mesh") == 0 ||
-                           strcmp(panel_arg, "bed_mesh") == 0) {
-                    show_bed_mesh = true;
-                } else if (strcmp(panel_arg, "zoffset") == 0 ||
-                           strcmp(panel_arg, "z-offset") == 0) {
-                    show_zoffset = true;
-                } else if (strcmp(panel_arg, "pid") == 0) {
-                    show_pid = true;
-                } else if (strcmp(panel_arg, "glyphs") == 0) {
-                    show_glyphs = true;
-                } else if (strcmp(panel_arg, "gradient-test") == 0) {
-                    show_gradient_test = true;
-                } else {
-                    printf("Unknown panel: %s\n", panel_arg);
-                    printf("Available panels: home, controls, motion, nozzle-temp, bed-temp, "
-                           "bed-mesh, zoffset, pid, extrusion, fan, print-status, filament, "
-                           "settings, advanced, "
-                           "print-select, step-test, test, gcode-test, glyphs, gradient-test\n");
-                    return false;
-                }
-            } else {
-                printf("Error: -p/--panel requires an argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-k") == 0 || strcmp(argv[i], "--keypad") == 0) {
-            show_keypad = true;
-        } else if (strcmp(argv[i], "--keyboard") == 0 || strcmp(argv[i], "--show-keyboard") == 0) {
-            show_keyboard = true;
-        } else if (strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "--wizard") == 0) {
-            force_wizard = true;
-        } else if (strcmp(argv[i], "--wizard-step") == 0) {
-            if (i + 1 < argc) {
-                wizard_step = atoi(argv[++i]);
-                force_wizard = true;
-                if (wizard_step < 1 || wizard_step > 8) {
-                    printf("Error: wizard step must be 1-8\n");
-                    return false;
-                }
-            } else {
-                printf("Error: --wizard-step requires an argument (1-8)\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--display") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                long val = strtol(argv[++i], &endptr, 10);
-                if (*endptr != '\0' || val < 0 || val > 10) {
-                    printf("Error: invalid display number (must be 0-10): %s\n", argv[i]);
-                    return false;
-                }
-                display_num = (int)val;
-            } else {
-                printf("Error: -d/--display requires a number argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-x") == 0 || strcmp(argv[i], "--x-pos") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                long val = strtol(argv[++i], &endptr, 10);
-                if (*endptr != '\0' || val < 0 || val > 10000) {
-                    printf("Error: invalid x position (must be 0-10000): %s\n", argv[i]);
-                    return false;
-                }
-                x_pos = (int)val;
-            } else {
-                printf("Error: -x/--x-pos requires a number argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-y") == 0 || strcmp(argv[i], "--y-pos") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                long val = strtol(argv[++i], &endptr, 10);
-                if (*endptr != '\0' || val < 0 || val > 10000) {
-                    printf("Error: invalid y position (must be 0-10000): %s\n", argv[i]);
-                    return false;
-                }
-                y_pos = (int)val;
-            } else {
-                printf("Error: -y/--y-pos requires a number argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--dpi") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                long val = strtol(argv[++i], &endptr, 10);
-                if (*endptr != '\0' || val < 50 || val > 500) {
-                    printf("Error: invalid DPI (must be 50-500): %s\n", argv[i]);
-                    return false;
-                }
-                dpi = (int)val;
-            } else {
-                printf("Error: --dpi requires a number argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--screenshot") == 0) {
-            screenshot_enabled = true;
-            // Check if next arg is a number (delay in seconds)
-            if (i + 1 < argc) {
-                char* endptr;
-                long val = strtol(argv[i + 1], &endptr, 10);
-                // If next arg is a valid number, use it as delay
-                if (*endptr == '\0' && val > 0 && val <= 60) {
-                    screenshot_delay_sec = (int)val;
-                    i++; // Consume the delay argument
-                }
-                // Otherwise, use default delay (next arg is probably a different flag)
-            }
-        } else if (strcmp(argv[i], "--timeout") == 0 || strcmp(argv[i], "-t") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                long val = strtol(argv[++i], &endptr, 10);
-                if (*endptr != '\0' || val < 1 || val > 3600) {
-                    printf("Error: invalid timeout (must be 1-3600 seconds): %s\n", argv[i]);
-                    return false;
-                }
-                timeout_sec = (int)val;
-            } else {
-                printf("Error: --timeout/-t requires a number argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--dark") == 0) {
-            dark_mode_cli = 1;
-        } else if (strcmp(argv[i], "--light") == 0) {
-            dark_mode_cli = 0;
-        } else if (strcmp(argv[i], "--test") == 0) {
-            g_runtime_config.test_mode = true;
-        } else if (strcmp(argv[i], "--skip-splash") == 0) {
-            g_runtime_config.skip_splash = true;
-        } else if (strncmp(argv[i], "--splash-pid=", 13) == 0) {
-            // External splash process PID - will send SIGUSR1 when display ready
-            g_runtime_config.splash_pid = static_cast<pid_t>(atoi(argv[i] + 13));
-            spdlog::info("Splash PID received from launcher: {}", g_runtime_config.splash_pid);
-        } else if (strcmp(argv[i], "--real-wifi") == 0) {
-            g_runtime_config.use_real_wifi = true;
-        } else if (strcmp(argv[i], "--real-ethernet") == 0) {
-            g_runtime_config.use_real_ethernet = true;
-        } else if (strcmp(argv[i], "--real-moonraker") == 0) {
-            g_runtime_config.use_real_moonraker = true;
-        } else if (strcmp(argv[i], "--real-files") == 0) {
-            g_runtime_config.use_real_files = true;
-        } else if (strcmp(argv[i], "--disconnected") == 0) {
-            g_runtime_config.simulate_disconnect = true;
-        } else if (strcmp(argv[i], "--select-file") == 0) {
-            if (i + 1 < argc) {
-                g_runtime_config.select_file = argv[++i];
-            } else {
-                printf("Error: --select-file requires a filename argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--gcode-file") == 0) {
-            if (i + 1 < argc) {
-                g_runtime_config.gcode_test_file = argv[++i];
-            } else {
-                printf("Error: --gcode-file requires a path argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--gcode-az") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                double val = strtod(argv[++i], &endptr);
-                if (*endptr != '\0') {
-                    printf("Error: --gcode-az requires a numeric value\n");
-                    return false;
-                }
-                g_runtime_config.gcode_camera_azimuth = (float)val;
-                g_runtime_config.gcode_camera_azimuth_set = true;
-            } else {
-                printf("Error: --gcode-az requires a numeric argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--gcode-el") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                double val = strtod(argv[++i], &endptr);
-                if (*endptr != '\0') {
-                    printf("Error: --gcode-el requires a numeric value\n");
-                    return false;
-                }
-                g_runtime_config.gcode_camera_elevation = (float)val;
-                g_runtime_config.gcode_camera_elevation_set = true;
-            } else {
-                printf("Error: --gcode-el requires a numeric argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--gcode-zoom") == 0) {
-            if (i + 1 < argc) {
-                char* endptr;
-                double val = strtod(argv[++i], &endptr);
-                if (*endptr != '\0' || val <= 0) {
-                    printf("Error: --gcode-zoom requires a positive numeric value\n");
-                    return false;
-                }
-                g_runtime_config.gcode_camera_zoom = (float)val;
-                g_runtime_config.gcode_camera_zoom_set = true;
-            } else {
-                printf("Error: --gcode-zoom requires a numeric argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--gcode-debug-colors") == 0) {
-            g_runtime_config.gcode_debug_colors = true;
-        } else if (strcmp(argv[i], "--camera") == 0) {
-            if (i + 1 < argc) {
-                const char* camera_str = argv[++i];
-
-                // Check for empty string
-                if (camera_str[0] == '\0') {
-                    printf("Error: --camera requires a non-empty string argument\n");
-                    printf("Format: --camera \"az:90.5,el:4.0,zoom:15.5\" (each parameter "
-                           "optional)\n");
-                    return false;
-                }
-
-                // Parse comma-separated "az:90.5,el:4.0,zoom:15.5" format
-                // Each component is optional
-                // Use RAII wrapper to ensure cleanup on all paths
-                std::unique_ptr<char, decltype(&free)> str_copy(strdup(camera_str), free);
-                char* token = strtok(str_copy.get(), ",");
-
-                while (token != nullptr) {
-                    // Trim leading whitespace
-                    while (*token == ' ')
-                        token++;
-
-                    // Parse key:value pairs
-                    if (strncmp(token, "az:", 3) == 0) {
-                        char* endptr;
-                        double val = strtod(token + 3, &endptr);
-                        if (*endptr == '\0' || *endptr == ' ') {
-                            g_runtime_config.gcode_camera_azimuth = (float)val;
-                            g_runtime_config.gcode_camera_azimuth_set = true;
-                        } else {
-                            printf("Error: Invalid azimuth value in --camera: %s\n", token);
-                            return false;
-                        }
-                    } else if (strncmp(token, "el:", 3) == 0) {
-                        char* endptr;
-                        double val = strtod(token + 3, &endptr);
-                        if (*endptr == '\0' || *endptr == ' ') {
-                            g_runtime_config.gcode_camera_elevation = (float)val;
-                            g_runtime_config.gcode_camera_elevation_set = true;
-                        } else {
-                            printf("Error: Invalid elevation value in --camera: %s\n", token);
-                            return false;
-                        }
-                    } else if (strncmp(token, "zoom:", 5) == 0) {
-                        char* endptr;
-                        double val = strtod(token + 5, &endptr);
-                        if ((*endptr == '\0' || *endptr == ' ') && val > 0) {
-                            g_runtime_config.gcode_camera_zoom = (float)val;
-                            g_runtime_config.gcode_camera_zoom_set = true;
-                        } else {
-                            printf("Error: Invalid zoom value in --camera (must be positive): %s\n",
-                                   token);
-                            return false;
-                        }
-                    } else {
-                        printf("Error: Unknown camera parameter in --camera: %s\n", token);
-                        printf("Valid parameters: az:<degrees>, el:<degrees>, zoom:<factor>\n");
-                        return false;
-                    }
-
-                    token = strtok(nullptr, ",");
-                }
-                // str_copy automatically freed by unique_ptr destructor
-            } else {
-                printf("Error: --camera requires a string argument\n");
-                printf("Format: --camera \"az:90.5,el:4.0,zoom:15.5\" (each parameter optional)\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "-vv") == 0 ||
-                   strcmp(argv[i], "-vvv") == 0) {
-            // Count the number of 'v' characters for verbosity level
-            const char* p = argv[i];
-            while (*p == '-')
-                p++; // Skip leading dashes
-            while (*p == 'v') {
-                verbosity++;
-                p++;
-            }
-        } else if (strcmp(argv[i], "--verbose") == 0) {
-            verbosity++;
-        } else if (strcmp(argv[i], "--log-dest") == 0 || strncmp(argv[i], "--log-dest=", 11) == 0) {
-            const char* value = nullptr;
-            if (strncmp(argv[i], "--log-dest=", 11) == 0) {
-                value = argv[i] + 11;
-            } else if (i + 1 < argc) {
-                value = argv[++i];
-            } else {
-                printf("Error: --log-dest requires an argument\n");
-                return false;
-            }
-            g_log_dest_cli = value;
-            // Validate the value
-            if (g_log_dest_cli != "auto" && g_log_dest_cli != "journal" &&
-                g_log_dest_cli != "syslog" && g_log_dest_cli != "file" &&
-                g_log_dest_cli != "console") {
-                printf("Error: invalid --log-dest value: %s\n", g_log_dest_cli.c_str());
-                printf("Valid values: auto, journal, syslog, file, console\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "--log-file") == 0 || strncmp(argv[i], "--log-file=", 11) == 0) {
-            if (strncmp(argv[i], "--log-file=", 11) == 0) {
-                g_log_file_cli = argv[i] + 11;
-            } else if (i + 1 < argc) {
-                g_log_file_cli = argv[++i];
-            } else {
-                printf("Error: --log-file requires a path argument\n");
-                return false;
-            }
-        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            printf("Usage: %s [options]\n", argv[0]);
-            printf("Options:\n");
-            printf("  -s, --size <size>    Screen size: tiny, small, medium, large (default: "
-                   "small)\n");
-            printf("  -p, --panel <panel>  Initial panel (default: home)\n");
-            printf("  -k, --keypad         Show numeric keypad for testing\n");
-            printf("  --keyboard           Show keyboard for testing (no textarea)\n");
-            printf("  -w, --wizard         Force first-run configuration wizard\n");
-            printf("  --wizard-step <step> Jump to specific wizard step for testing\n");
-            printf("  -d, --display <n>    Display number for window placement (0, 1, 2...)\n");
-            printf("  -x, --x-pos <n>      X coordinate for window position\n");
-            printf("  -y, --y-pos <n>      Y coordinate for window position\n");
-            printf("  --dpi <n>            Display DPI (50-500, default: %d)\n", LV_DPI_DEF);
-            printf("  --screenshot [sec]   Take screenshot after delay (default: 2 seconds)\n");
-            printf("  -t, --timeout <sec>  Auto-quit after specified seconds (1-3600)\n");
-            printf("  --dark               Use dark theme (default)\n");
-            printf("  --light              Use light theme\n");
-            printf("  --skip-splash        Skip splash screen on startup\n");
-            printf("  -v, --verbose        Increase verbosity (-v=info, -vv=debug, -vvv=trace)\n");
-            printf(
-                "  --log-dest <dest>    Log destination: auto, journal, syslog, file, console\n");
-            printf("  --log-file <path>    Log file path (when --log-dest=file)\n");
-            printf("  -h, --help           Show this help message\n");
-            printf("\nTest Mode Options:\n");
-            printf("  --test               Enable test mode (uses all mocks by default)\n");
-            printf("    --real-wifi        Use real WiFi hardware (requires --test)\n");
-            printf("    --real-ethernet    Use real Ethernet hardware (requires --test)\n");
-            printf("    --real-moonraker   Connect to real printer (requires --test)\n");
-            printf("    --real-files       Use real files from printer (requires --test)\n");
-            printf("    --disconnected     Simulate disconnected state (requires --test)\n");
-            printf("    --select-file <name>  Auto-select file in print-select panel and show "
-                   "detail view\n");
-            printf("\nG-code Viewer Options (require --test):\n");
-            printf("  --gcode-file <path>  Load specific G-code file in gcode-test panel\n");
-            printf("  --camera <params>    Set camera params: \"az:90.5,el:4.0,zoom:15.5\"\n");
-            printf("                       (each parameter optional, comma-separated)\n");
-            printf("  --gcode-az <deg>     Set camera azimuth angle (degrees)\n");
-            printf("  --gcode-el <deg>     Set camera elevation angle (degrees)\n");
-            printf("  --gcode-zoom <n>     Set camera zoom level (positive number)\n");
-            printf("  --gcode-debug-colors Enable per-face debug coloring\n");
-            printf("\nAvailable panels:\n");
-            printf("  home, controls, motion, nozzle-temp, bed-temp, bed-mesh,\n");
-            printf("  zoffset, pid, extrusion, print-status, filament, settings, advanced,\n");
-            printf("  print-select, step-test, test, gcode-test, glyphs\n");
-            printf("\nScreen sizes:\n");
-            printf("  tiny   = %dx%d\n", UI_SCREEN_TINY_W, UI_SCREEN_TINY_H);
-            printf("  small  = %dx%d (default)\n", UI_SCREEN_SMALL_W, UI_SCREEN_SMALL_H);
-            printf("  medium = %dx%d\n", UI_SCREEN_MEDIUM_W, UI_SCREEN_MEDIUM_H);
-            printf("  large  = %dx%d\n", UI_SCREEN_LARGE_W, UI_SCREEN_LARGE_H);
-            printf("\nWizard steps:\n");
-            printf("  wifi, connection, printer-identify, bed, hotend, fan, led, summary\n");
-            printf("\nWindow placement:\n");
-            printf("  Use -d to center window on specific display\n");
-            printf("  Use -x/-y for exact pixel coordinates (both required)\n");
-            printf("  Examples:\n");
-            printf("    %s --display 1        # Center on display 1\n", argv[0]);
-            printf("    %s -x 100 -y 200      # Position at (100, 200)\n", argv[0]);
-            printf("\nTest Mode Examples:\n");
-            printf("  %s --test                           # Full mock mode\n", argv[0]);
-            printf("  %s --test --real-moonraker          # Test UI with real printer\n", argv[0]);
-            printf("  %s --test --real-wifi --real-files  # Real WiFi and files, mock rest\n",
-                   argv[0]);
-            return false;
-        } else {
-            // Legacy support: first positional arg is panel name
-            if (i == 1 && argv[i][0] != '-') {
-                const char* panel_arg = argv[i];
-                panel_requested = true; // User explicitly requested a panel
-                if (strcmp(panel_arg, "home") == 0) {
-                    initial_panel = UI_PANEL_HOME;
-                } else if (strcmp(panel_arg, "controls") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                } else if (strcmp(panel_arg, "motion") == 0) {
-                    initial_panel = UI_PANEL_CONTROLS;
-                    show_motion = true;
-                } else if (strcmp(panel_arg, "print-select") == 0 ||
-                           strcmp(panel_arg, "print_select") == 0) {
-                    initial_panel = UI_PANEL_PRINT_SELECT;
-                } else if (strcmp(panel_arg, "step-test") == 0 ||
-                           strcmp(panel_arg, "step_test") == 0) {
-                    show_step_test = true;
-                } else {
-                    printf("Unknown argument: %s\n", argv[i]);
-                    printf("Use --help for usage information\n");
-                    return false;
-                }
-            } else {
-                printf("Unknown argument: %s\n", argv[i]);
-                printf("Use --help for usage information\n");
-                return false;
-            }
-        }
-    }
-
-    // Validate test mode flags
-    if ((g_runtime_config.use_real_wifi || g_runtime_config.use_real_ethernet ||
-         g_runtime_config.use_real_moonraker || g_runtime_config.use_real_files) &&
-        !g_runtime_config.test_mode) {
-        printf("Error: --real-* flags require --test mode\n");
-        printf("Use --help for more information\n");
-        return false;
-    }
-
-    // Validate gcode-file requires test mode
-    if (g_runtime_config.gcode_test_file && !g_runtime_config.test_mode) {
-        printf("Error: --gcode-file requires --test mode\n");
-        printf("Use --help for more information\n");
-        return false;
-    }
-
-    // Validate --disconnected requires test mode
-    if (g_runtime_config.simulate_disconnect && !g_runtime_config.test_mode) {
-        printf("Error: --disconnected requires --test mode\n");
-        printf("Use --help for more information\n");
-        return false;
-    }
-
-    // Print test mode configuration if enabled
-    if (g_runtime_config.test_mode) {
-        printf("╔════════════════════════════════════════╗\n");
-        printf("║           TEST MODE ENABLED            ║\n");
-        printf("╚════════════════════════════════════════╝\n");
-
-        if (g_runtime_config.use_real_wifi)
-            printf("  Using REAL WiFi hardware\n");
-        else
-            printf("  Using MOCK WiFi backend\n");
-
-        if (g_runtime_config.use_real_ethernet)
-            printf("  Using REAL Ethernet hardware\n");
-        else
-            printf("  Using MOCK Ethernet backend\n");
-
-        if (g_runtime_config.use_real_moonraker)
-            printf("  Using REAL Moonraker connection\n");
-        else
-            printf("  Using MOCK Moonraker responses\n");
-
-        if (g_runtime_config.use_real_files)
-            printf("  Using REAL files from printer\n");
-        else
-            printf("  Using TEST file data\n");
-
-        if (g_runtime_config.simulate_disconnect)
-            printf("  SIMULATING DISCONNECTED STATE\n");
-
-        printf("\n");
-    }
-
-    return true;
 }
 
 /**
@@ -1487,82 +922,6 @@ static void show_splash_screen() {
     spdlog::debug("Splash screen complete");
 }
 
-// Save screenshot using SDL renderer
-// Simple BMP file writer for ARGB8888 format
-static bool write_bmp(const char* filename, const uint8_t* data, int width, int height) {
-    // RAII for file handle - automatically closes on all return paths
-    std::unique_ptr<FILE, decltype(&fclose)> f(fopen(filename, "wb"), fclose);
-    if (!f)
-        return false;
-
-    // BMP header (54 bytes total)
-    uint32_t file_size = 54U + (static_cast<uint32_t>(width) * static_cast<uint32_t>(height) * 4U);
-    uint32_t pixel_offset = 54;
-    uint32_t dib_size = 40;
-    uint16_t planes = 1;
-    uint16_t bpp = 32;
-    uint32_t reserved = 0;
-    uint32_t compression = 0;
-    uint32_t ppm = 2835; // pixels per meter
-    uint32_t colors = 0;
-
-    // BMP file header (14 bytes)
-    fputc('B', f.get());
-    fputc('M', f.get());                  // Signature
-    fwrite(&file_size, 4, 1, f.get());    // File size
-    fwrite(&reserved, 4, 1, f.get());     // Reserved
-    fwrite(&pixel_offset, 4, 1, f.get()); // Pixel data offset
-
-    // DIB header (40 bytes)
-    fwrite(&dib_size, 4, 1, f.get());    // DIB header size
-    fwrite(&width, 4, 1, f.get());       // Width
-    fwrite(&height, 4, 1, f.get());      // Height
-    fwrite(&planes, 2, 1, f.get());      // Planes
-    fwrite(&bpp, 2, 1, f.get());         // Bits per pixel
-    fwrite(&compression, 4, 1, f.get()); // Compression (none)
-    uint32_t image_size = static_cast<uint32_t>(width) * static_cast<uint32_t>(height) * 4U;
-    fwrite(&image_size, 4, 1, f.get()); // Image size
-    fwrite(&ppm, 4, 1, f.get());        // X pixels per meter
-    fwrite(&ppm, 4, 1, f.get());        // Y pixels per meter
-    fwrite(&colors, 4, 1, f.get());     // Colors in palette
-    fwrite(&colors, 4, 1, f.get());     // Important colors
-
-    // Write pixel data (BMP is bottom-up, so flip rows)
-    for (int y = height - 1; y >= 0; y--) {
-        fwrite(data + (static_cast<size_t>(y) * static_cast<size_t>(width) * 4), 4,
-               static_cast<size_t>(width), f.get());
-    }
-
-    // File automatically closed by unique_ptr destructor
-    return true;
-}
-
-static void save_screenshot() {
-    // Generate unique filename with timestamp
-    char filename[256];
-    snprintf(filename, sizeof(filename), "/tmp/ui-screenshot-%lu.bmp", (unsigned long)time(NULL));
-
-    // Take snapshot using LVGL's native API (platform-independent)
-    lv_obj_t* screen = lv_screen_active();
-    lv_draw_buf_t* snapshot = lv_snapshot_take(screen, LV_COLOR_FORMAT_ARGB8888);
-
-    if (!snapshot) {
-        spdlog::error("Failed to take screenshot");
-        return;
-    }
-
-    // Write BMP file
-    if (write_bmp(filename, snapshot->data, snapshot->header.w, snapshot->header.h)) {
-        spdlog::info("Screenshot saved: {}", filename);
-    } else {
-        NOTIFY_ERROR("Failed to save screenshot");
-        LOG_ERROR_INTERNAL("Failed to save screenshot to {}", filename);
-    }
-
-    // Free snapshot buffer
-    lv_draw_buf_destroy(snapshot);
-}
-
 // Initialize Moonraker client and API instances
 static void initialize_moonraker_client(Config* config) {
     spdlog::debug("Initializing Moonraker client...");
@@ -1722,58 +1081,21 @@ int main(int argc, char** argv) {
     // Ensure we're running from the project root for relative path access
     ensure_project_root_cwd();
 
-    // Parse command-line arguments
-    int initial_panel = -1;          // -1 means auto-select based on screen size
-    bool show_motion = false;        // Special flag for motion sub-screen
-    bool show_nozzle_temp = false;   // Special flag for nozzle temp sub-screen
-    bool show_bed_temp = false;      // Special flag for bed temp sub-screen
-    bool show_extrusion = false;     // Special flag for extrusion sub-screen
-    bool show_fan = false;           // Special flag for fan control sub-screen
-    bool show_print_status = false;  // Special flag for print status screen
-    bool show_file_detail = false;   // Special flag for file detail view
-    bool show_keypad = false;        // Special flag for keypad testing
-    bool show_keyboard = false;      // Special flag for keyboard testing
-    bool show_step_test = false;     // Special flag for step progress widget testing
-    bool show_test_panel = false;    // Special flag for test/development panel
-    bool show_gcode_test = false;    // Special flag for G-code 3D viewer testing
-    bool show_bed_mesh = false;      // Special flag for bed mesh overlay panel
-    bool show_zoffset = false;       // Special flag for Z-offset calibration panel
-    bool show_pid = false;           // Special flag for PID tuning panel
-    bool show_glyphs = false;        // Special flag for LVGL glyphs reference panel
-    bool show_gradient_test = false; // Special flag for gradient canvas test panel
-    bool force_wizard = false;       // Force wizard to run even if config exists
-    int wizard_step = -1;            // Specific wizard step to show (-1 means normal flow)
-    bool panel_requested = false;    // Track if user explicitly requested a panel via CLI
-    int display_num = -1;            // Display number for window placement (-1 means unset)
-    int x_pos = -1;                  // X position for window placement (-1 means unset)
-    int y_pos = -1;                  // Y position for window placement (-1 means unset)
-    bool screenshot_enabled = false; // Enable automatic screenshot
-    int screenshot_delay_sec = 2;    // Screenshot delay in seconds (default: 2)
-    int timeout_sec = 0;             // Auto-quit timeout in seconds (0 = disabled)
-    int verbosity = 0;               // Verbosity level (0=warn, 1=info, 2=debug, 3=trace)
-    int dark_mode_cli = -1;          // Theme from CLI: -1=not set, 0=light, 1=dark
-    int dpi = -1;                    // Display DPI (-1 means use LV_DPI_DEF from lv_conf.h)
-
-    // Parse command-line arguments (returns false for help/error)
-    if (!parse_command_line_args(
-            argc, argv, initial_panel, show_motion, show_nozzle_temp, show_bed_temp, show_extrusion,
-            show_fan, show_print_status, show_file_detail, show_keypad, show_keyboard,
-            show_step_test, show_test_panel, show_gcode_test, show_bed_mesh, show_zoffset, show_pid,
-            show_glyphs, show_gradient_test, force_wizard, wizard_step, panel_requested,
-            display_num, x_pos, y_pos, screenshot_enabled, screenshot_delay_sec, timeout_sec,
-            verbosity, dark_mode_cli, dpi)) {
+    // Parse command-line arguments into structured result
+    helix::CliArgs args;
+    if (!helix::parse_cli_args(argc, argv, args, SCREEN_WIDTH, SCREEN_HEIGHT)) {
         return 0; // Help shown or parse error
     }
 
     // Check HELIX_AUTO_QUIT_MS environment variable (only if --timeout not specified)
-    if (timeout_sec == 0) {
+    if (args.timeout_sec == 0) {
         const char* auto_quit_env = std::getenv("HELIX_AUTO_QUIT_MS");
         if (auto_quit_env != nullptr) {
             char* endptr;
             long val = strtol(auto_quit_env, &endptr, 10);
             if (*endptr == '\0' && val >= 100 && val <= 3600000) {
                 // Convert milliseconds to seconds (round up to ensure at least 1 second)
-                timeout_sec = static_cast<int>((val + 999) / 1000);
+                args.timeout_sec = static_cast<int>((val + 999) / 1000);
             }
         }
     }
@@ -1781,7 +1103,7 @@ int main(int argc, char** argv) {
     // Check HELIX_AUTO_SCREENSHOT environment variable
     const char* auto_screenshot_env = std::getenv("HELIX_AUTO_SCREENSHOT");
     if (auto_screenshot_env != nullptr && strcmp(auto_screenshot_env, "1") == 0) {
-        screenshot_enabled = true;
+        args.screenshot_enabled = true;
     }
 
     // Initialize config system early so we can read logging settings
@@ -1794,7 +1116,7 @@ int main(int argc, char** argv) {
         helix::logging::LogConfig log_config;
 
         // Set log level from verbosity flags
-        switch (verbosity) {
+        switch (args.verbosity) {
         case 0:
             log_config.level = spdlog::level::warn;
             break;
@@ -1828,10 +1150,10 @@ int main(int argc, char** argv) {
     spdlog::info("HelixScreen UI Prototype");
     spdlog::info("========================");
     spdlog::debug("Target: {}x{}", SCREEN_WIDTH, SCREEN_HEIGHT);
-    spdlog::debug("DPI: {}{}", (dpi > 0 ? dpi : LV_DPI_DEF),
-                  (dpi > 0 ? " (custom)" : " (default)"));
+    spdlog::debug("DPI: {}{}", (args.dpi > 0 ? args.dpi : LV_DPI_DEF),
+                  (args.dpi > 0 ? " (custom)" : " (default)"));
     spdlog::debug("Nav Width: {} pixels", UI_NAV_WIDTH(SCREEN_WIDTH));
-    spdlog::debug("Initial Panel: {}", initial_panel);
+    spdlog::debug("Initial Panel: {}", args.initial_panel);
 
     // Cleanup stale temp files from G-code modifications (older than 1 hour)
     size_t cleaned = gcode::GCodeFileModifier::cleanup_temp_files();
@@ -1841,9 +1163,9 @@ int main(int argc, char** argv) {
 
     // Determine theme: CLI overrides config, config overrides default (dark)
     bool dark_mode;
-    if (dark_mode_cli >= 0) {
+    if (args.dark_mode_cli >= 0) {
         // CLI explicitly set --dark or --light (temporary override, not saved)
-        dark_mode = (dark_mode_cli == 1);
+        dark_mode = (args.dark_mode_cli == 1);
         spdlog::debug("Using CLI theme override: {}", dark_mode ? "dark" : "light");
     } else {
         // Load from config (or default to dark)
@@ -1853,25 +1175,25 @@ int main(int argc, char** argv) {
 
 #ifdef HELIX_DISPLAY_SDL
     // Set window position environment variables for LVGL SDL driver (desktop only)
-    if (display_num >= 0) {
+    if (args.display_num >= 0) {
         char display_str[32];
-        snprintf(display_str, sizeof(display_str), "%d", display_num);
+        snprintf(display_str, sizeof(display_str), "%d", args.display_num);
         if (setenv("HELIX_SDL_DISPLAY", display_str, 1) != 0) {
             spdlog::error("Failed to set HELIX_SDL_DISPLAY environment variable");
             return 1;
         }
-        spdlog::debug("Window will be centered on display {}", display_num);
+        spdlog::debug("Window will be centered on display {}", args.display_num);
     }
-    if (x_pos >= 0 && y_pos >= 0) {
+    if (args.x_pos >= 0 && args.y_pos >= 0) {
         char x_str[32], y_str[32];
-        snprintf(x_str, sizeof(x_str), "%d", x_pos);
-        snprintf(y_str, sizeof(y_str), "%d", y_pos);
+        snprintf(x_str, sizeof(x_str), "%d", args.x_pos);
+        snprintf(y_str, sizeof(y_str), "%d", args.y_pos);
         if (setenv("HELIX_SDL_XPOS", x_str, 1) != 0 || setenv("HELIX_SDL_YPOS", y_str, 1) != 0) {
             spdlog::error("Failed to set window position environment variables");
             return 1;
         }
-        spdlog::debug("Window will be positioned at ({}, {})", x_pos, y_pos);
-    } else if ((x_pos >= 0 && y_pos < 0) || (x_pos < 0 && y_pos >= 0)) {
+        spdlog::debug("Window will be positioned at ({}, {})", args.x_pos, args.y_pos);
+    } else if ((args.x_pos >= 0 && args.y_pos < 0) || (args.x_pos < 0 && args.y_pos >= 0)) {
         spdlog::warn("Both -x and -y must be specified for exact positioning. Ignoring.");
     }
 #endif
@@ -1905,9 +1227,9 @@ int main(int argc, char** argv) {
     }
 
     // Apply custom DPI if specified (before theme init)
-    if (dpi > 0) {
-        lv_display_set_dpi(display, dpi);
-        spdlog::debug("Display DPI set to: {}", dpi);
+    if (args.dpi > 0) {
+        lv_display_set_dpi(display, args.dpi);
+        spdlog::debug("Display DPI set to: {}", args.dpi);
     } else {
         spdlog::debug("Display DPI: {} (from LV_DPI_DEF)", lv_display_get_dpi(display));
     }
@@ -2101,8 +1423,9 @@ int main(int argc, char** argv) {
     // Check if first-run wizard is required (skip for special test panels and explicit panel
     // requests)
     bool wizard_active = false;
-    if ((force_wizard || config->is_wizard_required()) && !show_step_test && !show_test_panel &&
-        !show_keypad && !show_keyboard && !show_gcode_test && !panel_requested) {
+    if ((args.force_wizard || config->is_wizard_required()) && !args.overlays.step_test &&
+        !args.overlays.test_panel && !args.overlays.keypad && !args.overlays.keyboard &&
+        !args.overlays.gcode_test && !args.panel_requested) {
         spdlog::info("Starting first-run configuration wizard");
 
         // Register wizard event callbacks and responsive constants BEFORE creating
@@ -2116,7 +1439,7 @@ int main(int argc, char** argv) {
             wizard_active = true;
 
             // Set initial step (screen loader sets appropriate title)
-            int initial_step = (wizard_step >= 1) ? wizard_step : 1;
+            int initial_step = (args.wizard_step >= 1) ? args.wizard_step : 1;
             ui_wizard_navigate_to_step(initial_step);
 
             // Move keyboard to top layer so it appears above the full-screen wizard overlay
@@ -2133,30 +1456,28 @@ int main(int argc, char** argv) {
     // Defer panel/overlay navigation until after Moonraker connection (if connecting).
     // This prevents race conditions where panels are shown before data is available.
     // Overlays that don't require Moonraker data (keypad, keyboard, etc.) open immediately.
-    bool needs_moonraker = show_motion || show_nozzle_temp || show_bed_temp || show_extrusion ||
-                           show_fan || show_print_status || show_bed_mesh || show_zoffset ||
-                           show_pid || show_file_detail || initial_panel >= 0;
+    bool needs_moonraker = args.overlays.needs_moonraker() || args.initial_panel >= 0;
 
     if (!wizard_active && needs_moonraker) {
         // Store pending navigation - will be executed after Moonraker discovery completes
         g_pending_nav.has_pending = true;
-        g_pending_nav.initial_panel = initial_panel;
-        g_pending_nav.show_motion = show_motion;
-        g_pending_nav.show_nozzle_temp = show_nozzle_temp;
-        g_pending_nav.show_bed_temp = show_bed_temp;
-        g_pending_nav.show_extrusion = show_extrusion;
-        g_pending_nav.show_fan = show_fan;
-        g_pending_nav.show_print_status = show_print_status;
-        g_pending_nav.show_bed_mesh = show_bed_mesh;
-        g_pending_nav.show_zoffset = show_zoffset;
-        g_pending_nav.show_pid = show_pid;
-        g_pending_nav.show_file_detail = show_file_detail;
+        g_pending_nav.initial_panel = args.initial_panel;
+        g_pending_nav.show_motion = args.overlays.motion;
+        g_pending_nav.show_nozzle_temp = args.overlays.nozzle_temp;
+        g_pending_nav.show_bed_temp = args.overlays.bed_temp;
+        g_pending_nav.show_extrusion = args.overlays.extrusion;
+        g_pending_nav.show_fan = args.overlays.fan;
+        g_pending_nav.show_print_status = args.overlays.print_status;
+        g_pending_nav.show_bed_mesh = args.overlays.bed_mesh;
+        g_pending_nav.show_zoffset = args.overlays.zoffset;
+        g_pending_nav.show_pid = args.overlays.pid;
+        g_pending_nav.show_file_detail = args.overlays.file_detail;
         spdlog::info("[Navigation] Deferred panel/overlay navigation until Moonraker connects");
     }
 
     // Show non-Moonraker overlays immediately (they don't need printer data)
     if (!wizard_active) {
-        if (show_keypad) {
+        if (args.overlays.keypad) {
             spdlog::debug("Opening keypad modal as requested by command-line flag");
             ui_keypad_config_t keypad_config = {.initial_value = 0.0f,
                                                 .min_value = 0.0f,
@@ -2169,25 +1490,25 @@ int main(int argc, char** argv) {
                                                 .user_data = nullptr};
             ui_keypad_show(&keypad_config);
         }
-        if (show_keyboard) {
+        if (args.overlays.keyboard) {
             spdlog::debug("Showing keyboard as requested by command-line flag");
             ui_keyboard_show(nullptr);
         }
-        if (show_step_test) {
+        if (args.overlays.step_test) {
             spdlog::debug("Creating step progress test widget as requested by command-line flag");
             lv_obj_t* step_test = (lv_obj_t*)lv_xml_create(screen, "step_progress_test", nullptr);
             if (step_test) {
                 get_global_step_test_panel().setup(step_test, screen);
             }
         }
-        if (show_test_panel) {
+        if (args.overlays.test_panel) {
             spdlog::debug("Opening test panel as requested by command-line flag");
             lv_obj_t* test_panel_obj = (lv_obj_t*)lv_xml_create(screen, "test_panel", nullptr);
             if (test_panel_obj) {
                 get_global_test_panel().setup(test_panel_obj, screen);
             }
         }
-        if (show_file_detail) {
+        if (args.overlays.file_detail) {
             spdlog::debug("File detail view requested - navigating to print select panel first");
             ui_nav_set_active(UI_PANEL_PRINT_SELECT);
         }
@@ -2206,7 +1527,7 @@ int main(int argc, char** argv) {
     }
 
     // Create G-code test panel if requested (independent of wizard state)
-    if (show_gcode_test) {
+    if (args.overlays.gcode_test) {
         spdlog::debug("Creating G-code test panel");
         lv_obj_t* gcode_test =
             ui_panel_gcode_test_create(screen); // Uses deprecated wrapper (creates + setups)
@@ -2218,7 +1539,7 @@ int main(int argc, char** argv) {
     }
 
     // Create glyphs panel if requested (independent of wizard state)
-    if (show_glyphs) {
+    if (args.overlays.glyphs) {
         spdlog::debug("Creating glyphs reference panel");
         lv_obj_t* glyphs_panel = ui_panel_glyphs_create(screen);
         if (glyphs_panel) {
@@ -2229,7 +1550,7 @@ int main(int argc, char** argv) {
     }
 
     // Create gradient test panel if requested (independent of wizard state)
-    if (show_gradient_test) {
+    if (args.overlays.gradient_test) {
         spdlog::debug("Creating gradient test panel");
         lv_obj_t* gradient_panel = (lv_obj_t*)lv_xml_create(screen, "gradient_test_panel", nullptr);
         if (gradient_panel) {
@@ -2242,7 +1563,7 @@ int main(int argc, char** argv) {
     // Connect to Moonraker (only if not in wizard and we have saved config)
     // Wizard will handle its own connection test
     std::string saved_host = config->get<std::string>(config->df() + "moonraker_host", "");
-    if (!force_wizard && !config->is_wizard_required() && !saved_host.empty()) {
+    if (!args.force_wizard && !config->is_wizard_required() && !saved_host.empty()) {
         // Build WebSocket URL from config
         std::string moonraker_url =
             "ws://" + config->get<std::string>(config->df() + "moonraker_host") + ":" +
@@ -2295,12 +1616,12 @@ int main(int argc, char** argv) {
 
     // Auto-screenshot timer (configurable delay after UI creation)
     uint32_t screenshot_time =
-        helix_get_ticks() + (static_cast<uint32_t>(screenshot_delay_sec) * 1000U);
+        helix_get_ticks() + (static_cast<uint32_t>(args.screenshot_delay_sec) * 1000U);
     bool screenshot_taken = false;
 
     // Auto-quit timeout timer (if enabled)
     uint32_t start_time = helix_get_ticks();
-    uint32_t timeout_ms = static_cast<uint32_t>(timeout_sec) * 1000U;
+    uint32_t timeout_ms = static_cast<uint32_t>(args.timeout_sec) * 1000U;
 
     // Request timeout check timer (check every 2 seconds)
     uint32_t last_timeout_check = helix_get_ticks();
@@ -2323,14 +1644,14 @@ int main(int argc, char** argv) {
 #endif
 
         // Auto-screenshot after configured delay (only if enabled)
-        if (screenshot_enabled && !screenshot_taken && helix_get_ticks() >= screenshot_time) {
-            save_screenshot();
+        if (args.screenshot_enabled && !screenshot_taken && helix_get_ticks() >= screenshot_time) {
+            helix::save_screenshot();
             screenshot_taken = true;
         }
 
         // Auto-quit after timeout (if enabled)
-        if (timeout_sec > 0 && (helix_get_ticks() - start_time) >= timeout_ms) {
-            spdlog::info("Timeout reached ({} seconds) - exiting...", timeout_sec);
+        if (args.timeout_sec > 0 && (helix_get_ticks() - start_time) >= timeout_ms) {
+            spdlog::info("Timeout reached ({} seconds) - exiting...", args.timeout_sec);
             break;
         }
 
