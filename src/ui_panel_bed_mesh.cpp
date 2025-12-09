@@ -155,6 +155,9 @@ void BedMeshPanel::setup_profile_dropdown() {
         return;
     }
 
+    // Theme handles dropdown chevron symbol and MDI font automatically
+    // via LV_SYMBOL_DOWN override in lv_conf.h and helix_theme.c
+
     if (!api_) {
         lv_dropdown_set_options(profile_dropdown_, "(no connection)");
         spdlog::warn("[{}] Cannot populate dropdown - MoonrakerAPI is null", get_name());

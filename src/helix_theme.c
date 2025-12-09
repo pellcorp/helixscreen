@@ -23,6 +23,8 @@
 
 #include "helix_theme.h"
 
+#include "ui_fonts.h"
+
 #include "lvgl/src/themes/lv_theme_private.h"
 
 #include <stdlib.h>
@@ -30,13 +32,14 @@
 
 // HelixScreen custom theme structure
 typedef struct {
-    lv_theme_t base;           // Base LVGL theme structure (MUST be first)
-    lv_theme_t* default_theme; // LVGL default theme to delegate to
-    lv_style_t input_bg_style; // Custom style for input widget backgrounds
-    lv_style_t disabled_style; // Global disabled state style (50% opacity)
-    lv_style_t pressed_style;  // Global pressed state style (preserve radius)
-    lv_style_t button_style;   // Default button style (grey background)
-    bool is_dark_mode;         // Track theme mode for context
+    lv_theme_t base;                     // Base LVGL theme structure (MUST be first)
+    lv_theme_t* default_theme;           // LVGL default theme to delegate to
+    lv_style_t input_bg_style;           // Custom style for input widget backgrounds
+    lv_style_t disabled_style;           // Global disabled state style (50% opacity)
+    lv_style_t pressed_style;            // Global pressed state style (preserve radius)
+    lv_style_t button_style;             // Default button style (grey background)
+    lv_style_t dropdown_indicator_style; // Dropdown indicator font (MDI icons)
+    bool is_dark_mode;                   // Track theme mode for context
 } helix_theme_t;
 
 // Static theme instance (singleton pattern matching LVGL's approach)
@@ -111,6 +114,8 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
     if (lv_obj_check_type(obj, &lv_dropdown_class)) {
         // Dropdown button background
         lv_obj_add_style(obj, &helix->input_bg_style, LV_PART_MAIN);
+        // Set MDI font for the dropdown indicator (chevron symbol)
+        lv_obj_add_style(obj, &helix->dropdown_indicator_style, LV_PART_INDICATOR);
     }
     // Dropdown list also uses input bg for consistency
     if (lv_obj_check_type(obj, &lv_dropdownlist_class)) {
@@ -141,6 +146,7 @@ lv_theme_t* helix_theme_init(lv_display_t* display, lv_color_t primary_color,
         lv_style_reset(&helix_theme_instance->disabled_style);
         lv_style_reset(&helix_theme_instance->pressed_style);
         lv_style_reset(&helix_theme_instance->button_style);
+        lv_style_reset(&helix_theme_instance->dropdown_indicator_style);
         free(helix_theme_instance);
         helix_theme_instance = NULL;
     }
@@ -200,6 +206,11 @@ lv_theme_t* helix_theme_init(lv_display_t* display, lv_color_t primary_color,
     lv_style_set_radius(&helix_theme_instance->button_style, border_radius);
     lv_style_set_shadow_width(&helix_theme_instance->button_style, 0);
     lv_style_set_text_color(&helix_theme_instance->button_style, text_primary_color);
+
+    // Initialize dropdown indicator style with MDI icon font
+    // This ensures LV_SYMBOL_DOWN (overridden to MDI chevron-down in lv_conf.h) renders correctly
+    lv_style_init(&helix_theme_instance->dropdown_indicator_style);
+    lv_style_set_text_font(&helix_theme_instance->dropdown_indicator_style, &mdi_icons_24);
 
     // CRITICAL: Now we need to patch the default theme's color fields
     // This is necessary because LVGL's default theme bakes colors into pre-computed

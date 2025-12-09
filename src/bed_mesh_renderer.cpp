@@ -47,13 +47,12 @@
 
 namespace {
 
-// Default camera/view angles
-constexpr double DEFAULT_CAMERA_ANGLE_X = -85.0; // Tilt angle (looking down)
-constexpr double DEFAULT_CAMERA_ANGLE_Z = 10.0;  // Horizontal rotation
-constexpr double DEFAULT_FOV_SCALE = 100.0;      // Initial field-of-view scale
+// Use the default angles from the public header (bed_mesh_renderer.h)
+// This ensures consistency between the renderer and any code that reads those constants
 
 // Canvas rendering
-constexpr double CANVAS_PADDING_FACTOR = 0.95;                // Fill 95% of canvas (5% margin)
+constexpr double CANVAS_PADDING_FACTOR = 0.95; // Small margin for anti-aliasing at edges
+constexpr double INITIAL_FOV_SCALE = 150.0;    // Starting point for auto-scale (gets adjusted)
 const lv_color_t CANVAS_BG_COLOR = lv_color_make(40, 40, 40); // Dark gray background
 
 // Grid and axis colors
@@ -61,15 +60,13 @@ const lv_color_t GRID_LINE_COLOR =
     lv_color_make(140, 140, 140); // Medium gray (lightened for Mainsail match)
 const lv_color_t AXIS_LINE_COLOR = lv_color_make(180, 180, 180); // Light gray
 
-// Axis extension (percentage beyond mesh bounds)
-constexpr double AXIS_EXTENSION_FACTOR = 0.1; // 10% extension
-constexpr double Z_AXIS_HEIGHT_FACTOR = 1.1;  // 10% above mesh max
+// Z axis height factor (percentage above mesh max)
+constexpr double Z_AXIS_HEIGHT_FACTOR = 1.1; // 10% above mesh max
 
 // Rendering opacity values
 constexpr lv_opa_t MESH_TRIANGLE_OPACITY = LV_OPA_90; // 90% opacity for mesh surfaces
 constexpr lv_opa_t GRID_LINE_OPACITY =
     LV_OPA_70; // 70% opacity for grid overlay (increased for Mainsail match)
-constexpr lv_opa_t AXIS_LINE_OPACITY = LV_OPA_80; // 80% opacity for axis indicators
 
 // ========== Adaptive Gradient Rasterization Constants ==========
 // Line width thresholds for adaptive segment count (Phase 2 optimization)
@@ -125,6 +122,13 @@ struct bed_mesh_renderer {
     double mesh_max_z;
     bool has_mesh_data; // Redundant with state, kept for backwards compatibility
 
+    // Bed XY bounds (actual printer coordinates in mm)
+    double bed_min_x;
+    double bed_min_y;
+    double bed_max_x;
+    double bed_max_y;
+    bool has_bed_bounds;
+
     // Color range configuration
     bool auto_color_range;
     double color_min_z;
@@ -168,13 +172,15 @@ static void render_quad(lv_layer_t* layer, const bed_mesh_quad_3d_t& quad, int c
                         int canvas_height, const bed_mesh_view_state_t* view, bool use_gradient);
 static void render_grid_lines(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                               int canvas_width, int canvas_height);
+static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
+                                   int canvas_width, int canvas_height);
 static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                                int canvas_width, int canvas_height);
 static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                                       int canvas_width, int canvas_height);
 static void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_dsc, int screen_x,
                                  int screen_y, int offset_x, int offset_y, double value,
-                                 int canvas_width, int canvas_height);
+                                 int canvas_width, int canvas_height, bool use_decimals = false);
 
 // Coordinate transformation helpers
 // NOTE: These are now wrapper functions that delegate to the CoordinateTransform namespace.
@@ -333,11 +339,19 @@ bed_mesh_renderer_t* bed_mesh_renderer_create(void) {
     renderer->color_min_z = 0.0;
     renderer->color_max_z = 0.0;
 
-    // Default view state (looking down from above at an angle)
-    renderer->view_state.angle_x = DEFAULT_CAMERA_ANGLE_X;
-    renderer->view_state.angle_z = DEFAULT_CAMERA_ANGLE_Z;
+    // Initialize bed bounds (will be set via set_bed_bounds)
+    renderer->bed_min_x = 0.0;
+    renderer->bed_min_y = 0.0;
+    renderer->bed_max_x = 0.0;
+    renderer->bed_max_y = 0.0;
+    renderer->has_bed_bounds = false;
+
+    // Default view state (Mainsail-style: looking from front-right toward back-left)
+    renderer->view_state.angle_x = BED_MESH_DEFAULT_ANGLE_X;
+    renderer->view_state.angle_z = BED_MESH_DEFAULT_ANGLE_Z;
     renderer->view_state.z_scale = BED_MESH_DEFAULT_Z_SCALE;
-    renderer->view_state.fov_scale = DEFAULT_FOV_SCALE;
+    renderer->view_state.fov_scale = INITIAL_FOV_SCALE;
+    renderer->view_state.camera_distance = 1000.0; // Default, recomputed when mesh data is set
     renderer->view_state.is_dragging = false;
 
     // Initialize trig cache as invalid (will be computed on first render)
@@ -409,8 +423,27 @@ bool bed_mesh_renderer_set_mesh_data(bed_mesh_renderer_t* renderer, const float*
     spdlog::debug("Mesh bounds: min_z={:.3f}, max_z={:.3f}, range={:.3f}", renderer->mesh_min_z,
                   renderer->mesh_max_z, renderer->mesh_max_z - renderer->mesh_min_z);
 
+    // Compute camera distance from mesh size and perspective strength
+    // Formula: camera_distance = mesh_diagonal / perspective_strength
+    // Where 0 = orthographic (very far), 1 = max perspective (close)
+    double mesh_width = (cols - 1) * BED_MESH_SCALE;
+    double mesh_height = (rows - 1) * BED_MESH_SCALE;
+    double mesh_diagonal = std::sqrt(mesh_width * mesh_width + mesh_height * mesh_height);
+
+    if (BED_MESH_PERSPECTIVE_STRENGTH > 0.001) {
+        renderer->view_state.camera_distance = mesh_diagonal / BED_MESH_PERSPECTIVE_STRENGTH;
+    } else {
+        // Near-orthographic: very far camera
+        renderer->view_state.camera_distance = mesh_diagonal * 100.0;
+    }
+    spdlog::debug("Camera distance: {:.1f} (mesh_diagonal={:.1f}, perspective={:.2f})",
+                  renderer->view_state.camera_distance, mesh_diagonal,
+                  BED_MESH_PERSPECTIVE_STRENGTH);
+
     // Pre-generate geometry quads (constant for this mesh data)
     // Previously regenerated every frame (wasteful!) - now only on data change
+    spdlog::debug("[MESH_DATA] Initial quad generation with z_scale={:.2f}",
+                  renderer->view_state.z_scale);
     generate_mesh_quads(renderer);
     spdlog::debug("Pre-generated {} quads from mesh data", renderer->quads.size());
 
@@ -589,6 +622,18 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
     spdlog::debug("Rendering mesh to {}x{} layer (dragging={})", canvas_width, canvas_height,
                   renderer->view_state.is_dragging);
 
+    // DEBUG: Log mesh Z bounds and coordinate parameters
+    double debug_z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
+    double debug_grid_z = compute_grid_z(debug_z_center, renderer->view_state.z_scale);
+    spdlog::debug("[COORDS] mesh_min_z={:.4f}, mesh_max_z={:.4f}, z_center={:.4f}, z_scale={:.2f}, "
+                  "grid_z={:.2f}",
+                  renderer->mesh_min_z, renderer->mesh_max_z, debug_z_center,
+                  renderer->view_state.z_scale, debug_grid_z);
+    spdlog::debug(
+        "[COORDS] angle_x={:.1f}, angle_z={:.1f}, fov_scale={:.2f}, center_offset=({},{})",
+        renderer->view_state.angle_x, renderer->view_state.angle_z, renderer->view_state.fov_scale,
+        renderer->view_state.center_offset_x, renderer->view_state.center_offset_y);
+
     // Clear background using layer draw API
     // Get layer's clip area directly
     const lv_area_t* clip_area = &layer->_clip_area;
@@ -608,7 +653,6 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
     lv_draw_rect_dsc_init(&bg_dsc);
     bg_dsc.bg_color = CANVAS_BG_COLOR;
     bg_dsc.bg_opa = LV_OPA_COVER;
-    bg_dsc.border_width = 0;
     lv_draw_rect(layer, &bg_dsc, clip_area);
 
     // Compute dynamic Z scale if needed
@@ -624,33 +668,79 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
 
     // Only regenerate quads if z_scale changed
     if (renderer->view_state.z_scale != new_z_scale) {
+        spdlog::debug("[Z_SCALE] Changing z_scale from {:.2f} to {:.2f} (z_range={:.4f})",
+                      renderer->view_state.z_scale, new_z_scale, z_range);
         renderer->view_state.z_scale = new_z_scale;
         generate_mesh_quads(renderer);
         spdlog::debug("Regenerated quads due to dynamic z_scale change to {:.2f}", new_z_scale);
+    } else {
+        spdlog::debug("[Z_SCALE] Keeping z_scale at {:.2f} (z_range={:.4f})",
+                      renderer->view_state.z_scale, z_range);
     }
-
-    // Initial FOV scale estimate
-    renderer->view_state.fov_scale = DEFAULT_FOV_SCALE;
 
     // Update cached trigonometric values (avoids recomputing sin/cos for every vertex)
     update_trig_cache(&renderer->view_state);
 
-    // Project all mesh vertices with initial scale to get actual bounds
-    project_and_cache_vertices(renderer, canvas_width, canvas_height);
+    // Compute FOV scale ONCE on first render (when fov_scale is still at default)
+    // This prevents grow/shrink effect when rotating - scale stays constant
+    if (renderer->view_state.fov_scale == INITIAL_FOV_SCALE) {
+        // Project all mesh vertices with initial scale to get actual bounds
+        project_and_cache_vertices(renderer, canvas_width, canvas_height);
 
-    // Compute actual projected bounds using helper function
-    int min_x, max_x, min_y, max_y;
-    compute_projected_mesh_bounds(renderer, &min_x, &max_x, &min_y, &max_y);
+        // Compute actual projected bounds using helper function
+        int min_x, max_x, min_y, max_y;
+        compute_projected_mesh_bounds(renderer, &min_x, &max_x, &min_y, &max_y);
 
-    // Calculate scale needed to fit projected bounds into canvas
-    int projected_width = max_x - min_x;
-    int projected_height = max_y - min_y;
-    double scale_x = (canvas_width * CANVAS_PADDING_FACTOR) / projected_width;
-    double scale_y = (canvas_height * CANVAS_PADDING_FACTOR) / projected_height;
-    double scale_factor = std::min(scale_x, scale_y);
+        // ALSO include wall corners in bounds calculation (walls extend 2x mesh height)
+        // This prevents walls from being clipped when they extend above the mesh
+        double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
+        double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
+        double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
+        double z_min_world =
+            mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
+        double z_max_world =
+            mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
+        double wall_z_max = z_min_world + 2.0 * (z_max_world - z_min_world);
 
-    // Apply scale and re-project
-    renderer->view_state.fov_scale *= scale_factor;
+        // Project wall top corners and expand bounds
+        double x_min = -mesh_half_width, x_max = mesh_half_width;
+        double y_min = -mesh_half_height, y_max = mesh_half_height;
+        bed_mesh_point_3d_t wall_corners[4] = {
+            bed_mesh_projection_project_3d_to_2d(x_min, y_min, wall_z_max, canvas_width,
+                                                 canvas_height, &renderer->view_state),
+            bed_mesh_projection_project_3d_to_2d(x_max, y_min, wall_z_max, canvas_width,
+                                                 canvas_height, &renderer->view_state),
+            bed_mesh_projection_project_3d_to_2d(x_min, y_max, wall_z_max, canvas_width,
+                                                 canvas_height, &renderer->view_state),
+            bed_mesh_projection_project_3d_to_2d(x_max, y_max, wall_z_max, canvas_width,
+                                                 canvas_height, &renderer->view_state),
+        };
+        for (const auto& corner : wall_corners) {
+            min_x = std::min(min_x, corner.screen_x);
+            max_x = std::max(max_x, corner.screen_x);
+            min_y = std::min(min_y, corner.screen_y);
+            max_y = std::max(max_y, corner.screen_y);
+        }
+
+        // Calculate scale needed to fit projected bounds into canvas
+        int projected_width = max_x - min_x;
+        int projected_height = max_y - min_y;
+        double scale_x = (canvas_width * CANVAS_PADDING_FACTOR) / projected_width;
+        double scale_y = (canvas_height * CANVAS_PADDING_FACTOR) / projected_height;
+        double scale_factor = std::min(scale_x, scale_y);
+
+        spdlog::info("[FOV] Canvas: {}x{}, Projected (incl walls): {}x{}, Padding: {:.2f}, "
+                     "Scale: {:.2f}",
+                     canvas_width, canvas_height, projected_width, projected_height,
+                     CANVAS_PADDING_FACTOR, scale_factor);
+
+        // Apply scale (only once, not every frame)
+        renderer->view_state.fov_scale *= scale_factor;
+        spdlog::info("[FOV] Final fov_scale: {:.2f} (initial {} * scale {:.2f})",
+                     renderer->view_state.fov_scale, INITIAL_FOV_SCALE, scale_factor);
+    }
+
+    // Project vertices with current (stable) fov_scale
     project_and_cache_vertices(renderer, canvas_width, canvas_height);
 
     // Center mesh once on first render (offsets start at 0 from initialization)
@@ -667,16 +757,21 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
                                  &renderer->view_state.center_offset_x,
                                  &renderer->view_state.center_offset_y);
 
-        // Re-project with the centering offset applied
-        project_and_cache_vertices(renderer, canvas_width, canvas_height);
+        spdlog::debug("[CENTER] Computed centering offset: ({}, {})",
+                      renderer->view_state.center_offset_x, renderer->view_state.center_offset_y);
     }
 
     // Quads are now pre-generated in set_mesh_data() - no need to regenerate every frame!
     // Just project vertices and update cached screen coordinates
 
     // Apply layer offset for final rendering (updated every frame for animation support)
+    // IMPORTANT: Must set BEFORE projecting vertices/quads so both use the same offsets!
     renderer->view_state.layer_offset_x = layer_offset_x;
     renderer->view_state.layer_offset_y = layer_offset_y;
+
+    // Re-project grid vertices with final view state (fov_scale, centering, AND layer offset)
+    // This ensures grid lines and quads are projected with identical view parameters
+    project_and_cache_vertices(renderer, canvas_width, canvas_height);
 
     // PERF: Track rendering pipeline timings
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -719,14 +814,18 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
         }
     }
 
-    // Render quads using cached screen coordinates
+    // Render reference grids FIRST (bottom, back, side walls) so mesh occludes them properly
+    // Since LVGL canvas has no depth buffer, draw order determines visibility
+    render_reference_grids(layer, renderer, canvas_width, canvas_height);
+
+    // Render quads using cached screen coordinates (drawn AFTER grids so mesh is in front)
     bool use_gradient = !renderer->view_state.is_dragging;
     for (const auto& quad : renderer->quads) {
         render_quad(layer, quad, canvas_width, canvas_height, &renderer->view_state, use_gradient);
     }
     auto t_rasterize = std::chrono::high_resolution_clock::now();
 
-    // Render wireframe grid on top
+    // Render wireframe grid on top of mesh surface
     render_grid_lines(layer, renderer, canvas_width, canvas_height);
 
     // Render axis labels
@@ -748,13 +847,13 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
         "Raster: {:.2f}ms ({:.0f}%) | Overlays: {:.2f}ms ({:.0f}%) | Mode: {}",
         ms_total, ms_project, 100.0 * ms_project / ms_total, ms_sort, 100.0 * ms_sort / ms_total,
         ms_rasterize, 100.0 * ms_rasterize / ms_total, ms_overlays, 100.0 * ms_overlays / ms_total,
-        use_gradient ? "gradient" : "solid");
+        renderer->view_state.is_dragging ? "solid" : "gradient");
 
     // Output canvas dimensions and view coordinates
     spdlog::trace(
         "[CANVAS_SIZE] Widget dimensions: {}x{} | Alt: {:.1f}° | Az: {:.1f}° | Zoom: {:.2f}x",
         canvas_width, canvas_height, renderer->view_state.angle_x, renderer->view_state.angle_z,
-        renderer->view_state.fov_scale / DEFAULT_FOV_SCALE);
+        renderer->view_state.fov_scale / INITIAL_FOV_SCALE);
 
     // State transition: MESH_LOADED → READY_TO_RENDER (successful render with cached projections)
     if (renderer->state == RendererState::MESH_LOADED) {
@@ -805,7 +904,17 @@ static double compute_dynamic_z_scale(double z_range) {
  * @param view_state Mutable view state to update (const-cast required)
  */
 static inline void update_trig_cache(bed_mesh_view_state_t* view_state) {
-    double x_angle_rad = view_state->angle_x * M_PI / 180.0;
+    // Angle conversion for looking DOWN at the bed from above:
+    // - angle_x uses +90° offset so user's -90° = top-down, -45° = tilted view
+    // - angle_z is used directly (negative = clockwise from above)
+    //
+    // Convention:
+    //   angle_x = -90° → top-down view (internal 0°)
+    //   angle_x = -45° → 45° tilt from top-down (internal 45°)
+    //   angle_x = 0°   → edge-on view (internal 90°)
+    //   angle_z = 0°   → front view
+    //   angle_z = -45° → rotated 45° clockwise (from above)
+    double x_angle_rad = (view_state->angle_x + 90.0) * M_PI / 180.0;
     double z_angle_rad = view_state->angle_z * M_PI / 180.0;
 
     view_state->cached_cos_x = std::cos(x_angle_rad);
@@ -863,6 +972,13 @@ static void project_and_cache_vertices(bed_mesh_renderer_t* renderer, int canvas
                 projected.screen_x;
             renderer->projected_screen_y[static_cast<size_t>(row)][static_cast<size_t>(col)] =
                 projected.screen_y;
+
+            // DEBUG: Log sample point (center of mesh)
+            if (row == renderer->rows / 2 && col == renderer->cols / 2) {
+                spdlog::debug(
+                    "[GRID_VERTEX] mesh[{},{}] -> world({:.2f},{:.2f},{:.2f}) -> screen({},{})",
+                    row, col, world_x, world_y, world_z, projected.screen_x, projected.screen_y);
+            }
         }
     }
 }
@@ -905,6 +1021,23 @@ static void project_and_cache_quads(bed_mesh_renderer_t* renderer, int canvas_wi
         }
 
         quad.avg_depth = total_depth / 4.0;
+    }
+
+    // DEBUG: Log a sample quad vertex (TL of center quad corresponds to mesh center)
+    // For an NxN grid, center quad is at index ((N-1)/2 * (N-1) + (N-1)/2)
+    if (!renderer->quads.empty()) {
+        int center_row = (renderer->rows - 1) / 2;
+        int center_col = (renderer->cols - 1) / 2;
+        size_t center_quad_idx =
+            static_cast<size_t>(center_row * (renderer->cols - 1) + center_col);
+        if (center_quad_idx < renderer->quads.size()) {
+            const auto& q = renderer->quads[center_quad_idx];
+            // TL vertex (index 2) corresponds to mesh[row][col]
+            spdlog::debug(
+                "[QUAD_VERTEX] quad[{}] TL -> world({:.2f},{:.2f},{:.2f}) -> screen({},{})",
+                center_quad_idx, q.vertices[2].x, q.vertices[2].y, q.vertices[2].z, q.screen_x[2],
+                q.screen_y[2]);
+        }
     }
 
     spdlog::trace("[CACHE] Projected {} quads to screen space", renderer->quads.size());
@@ -1276,6 +1409,23 @@ static void generate_mesh_quads(bed_mesh_renderer_t* renderer) {
         }
     }
 
+    // DEBUG: Log quad generation with z_scale used
+    spdlog::debug("[QUAD_GEN] Generated {} quads, z_scale={:.2f}, z_center={:.4f}",
+                  renderer->quads.size(), renderer->view_state.z_scale, z_center);
+    // Log a sample quad to verify Z values
+    if (!renderer->quads.empty()) {
+        int center_row = (renderer->rows - 1) / 2;
+        int center_col = (renderer->cols - 1) / 2;
+        size_t center_quad_idx =
+            static_cast<size_t>(center_row * (renderer->cols - 1) + center_col);
+        if (center_quad_idx < renderer->quads.size()) {
+            const auto& q = renderer->quads[center_quad_idx];
+            spdlog::debug(
+                "[QUAD_GEN] Center quad[{}] TL world_z={:.2f}, from mesh_z={:.4f}", center_quad_idx,
+                q.vertices[2].z,
+                renderer->mesh[static_cast<size_t>(center_row)][static_cast<size_t>(center_col)]);
+        }
+    }
     spdlog::trace("Generated {} quads from {}x{} mesh", renderer->quads.size(), renderer->rows,
                   renderer->cols);
 }
@@ -1383,6 +1533,77 @@ static void render_grid_lines(lv_layer_t* layer, const bed_mesh_renderer_t* rend
  * Draw a single axis line from 3D start to 3D end point
  * Projects coordinates to 2D screen space and renders the line
  */
+// Cohen-Sutherland line clipping outcode bits
+constexpr int CS_INSIDE = 0; // 0000
+constexpr int CS_LEFT = 1;   // 0001
+constexpr int CS_RIGHT = 2;  // 0010
+constexpr int CS_BOTTOM = 4; // 0100
+constexpr int CS_TOP = 8;    // 1000
+
+static int compute_outcode(double x, double y, double x_min, double y_min, double x_max,
+                           double y_max) {
+    int code = CS_INSIDE;
+    if (x < x_min)
+        code |= CS_LEFT;
+    else if (x > x_max)
+        code |= CS_RIGHT;
+    if (y < y_min)
+        code |= CS_TOP; // Note: y increases downward in screen coords
+    else if (y > y_max)
+        code |= CS_BOTTOM;
+    return code;
+}
+
+// Cohen-Sutherland line clipping: clips line to rectangle, returns false if fully outside
+static bool clip_line_to_rect(double& x0, double& y0, double& x1, double& y1, double x_min,
+                              double y_min, double x_max, double y_max) {
+    int outcode0 = compute_outcode(x0, y0, x_min, y_min, x_max, y_max);
+    int outcode1 = compute_outcode(x1, y1, x_min, y_min, x_max, y_max);
+    bool accept = false;
+
+    while (true) {
+        if (!(outcode0 | outcode1)) {
+            // Both endpoints inside - accept
+            accept = true;
+            break;
+        } else if (outcode0 & outcode1) {
+            // Both endpoints share an outside zone - reject
+            break;
+        } else {
+            // Line crosses boundary - clip
+            double x = 0, y = 0;
+            int outcodeOut = outcode0 ? outcode0 : outcode1;
+
+            // Find intersection with clipping boundary
+            if (outcodeOut & CS_BOTTOM) {
+                x = x0 + (x1 - x0) * (y_max - y0) / (y1 - y0);
+                y = y_max;
+            } else if (outcodeOut & CS_TOP) {
+                x = x0 + (x1 - x0) * (y_min - y0) / (y1 - y0);
+                y = y_min;
+            } else if (outcodeOut & CS_RIGHT) {
+                y = y0 + (y1 - y0) * (x_max - x0) / (x1 - x0);
+                x = x_max;
+            } else if (outcodeOut & CS_LEFT) {
+                y = y0 + (y1 - y0) * (x_min - x0) / (x1 - x0);
+                x = x_min;
+            }
+
+            // Update endpoint and recompute outcode
+            if (outcodeOut == outcode0) {
+                x0 = x;
+                y0 = y;
+                outcode0 = compute_outcode(x0, y0, x_min, y_min, x_max, y_max);
+            } else {
+                x1 = x;
+                y1 = y;
+                outcode1 = compute_outcode(x1, y1, x_min, y_min, x_max, y_max);
+            }
+        }
+    }
+    return accept;
+}
+
 static void draw_axis_line(lv_layer_t* layer, lv_draw_line_dsc_t* line_dsc, double start_x,
                            double start_y, double start_z, double end_x, double end_y, double end_z,
                            int canvas_width, int canvas_height,
@@ -1392,11 +1613,18 @@ static void draw_axis_line(lv_layer_t* layer, lv_draw_line_dsc_t* line_dsc, doub
     bed_mesh_point_3d_t end = bed_mesh_projection_project_3d_to_2d(
         end_x, end_y, end_z, canvas_width, canvas_height, view_state);
 
-    // Clamp line endpoints to canvas bounds to prevent drawing outside widget
-    int x1 = std::max(0, std::min(canvas_width - 1, start.screen_x));
-    int y1 = std::max(0, std::min(canvas_height - 1, start.screen_y));
-    int x2 = std::max(0, std::min(canvas_width - 1, end.screen_x));
-    int y2 = std::max(0, std::min(canvas_height - 1, end.screen_y));
+    // Use proper line clipping (Cohen-Sutherland) instead of naive endpoint clamping
+    // This preserves line slope when clipping to canvas bounds
+    double x1 = static_cast<double>(start.screen_x);
+    double y1 = static_cast<double>(start.screen_y);
+    double x2 = static_cast<double>(end.screen_x);
+    double y2 = static_cast<double>(end.screen_y);
+
+    // Clip line to canvas bounds - skip if fully outside
+    if (!clip_line_to_rect(x1, y1, x2, y2, 0.0, 0.0, static_cast<double>(canvas_width - 1),
+                           static_cast<double>(canvas_height - 1))) {
+        return; // Line fully outside canvas
+    }
 
     line_dsc->p1.x = static_cast<lv_value_precise_t>(x1);
     line_dsc->p1.y = static_cast<lv_value_precise_t>(y1);
@@ -1406,8 +1634,114 @@ static void draw_axis_line(lv_layer_t* layer, lv_draw_line_dsc_t* line_dsc, doub
 }
 
 /**
- * Render axis labels (X, Y, Z indicators)
- * Draws labels at key positions on the mesh to indicate axis orientation
+ * Render reference grids (Mainsail-style wall grids)
+ *
+ * Draws three orthogonal grid planes that create a "room" around the mesh:
+ * 1. BOTTOM GRID (XY plane at Z=z_min): Gridlines every 50mm in both X and Y directions
+ * 2. BACK WALL GRID (XZ plane at Y=y_max): Vertical lines for X positions, horizontal for Z heights
+ * 3. SIDE WALL GRID (YZ plane at X=x_min): Vertical lines for Y positions, horizontal for Z heights
+ *
+ * The mesh data floats inside this reference frame, providing spatial context
+ * similar to Mainsail's bed mesh visualization.
+ */
+static void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
+                                   int canvas_width, int canvas_height) {
+    if (!renderer || !renderer->has_mesh_data) {
+        return;
+    }
+
+    // Calculate mesh dimensions
+    double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
+    double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
+
+    // Center mesh Z values to compute world-space Z coordinates
+    double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
+    double z_min_world =
+        mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
+    double z_max_world =
+        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
+
+    // Grid boundaries (aligned with mesh edges)
+    double x_min = -mesh_half_width;
+    double x_max = mesh_half_width;
+    double y_min = -mesh_half_height;
+    double y_max = mesh_half_height;
+    double z_min = z_min_world;
+    // Mainsail-style: wall extends to 2x the mesh Z range above z_min
+    // This gives visual headroom above the mesh surface
+    double mesh_z_range = z_max_world - z_min_world;
+    double z_max = z_min_world + 2.0 * mesh_z_range;
+
+    // Configure grid line drawing style
+    lv_draw_line_dsc_t grid_line_dsc;
+    lv_draw_line_dsc_init(&grid_line_dsc);
+    grid_line_dsc.color = GRID_LINE_COLOR;
+    grid_line_dsc.width = 1;
+    grid_line_dsc.opa = LV_OPA_40; // Light opacity for reference grids
+
+    // Grid spacing (50mm intervals to match mesh scale)
+    constexpr double GRID_SPACING = 50.0;
+
+    // ========== 1. BOTTOM GRID (XY plane at Z=z_min) ==========
+    // Horizontal lines (constant Y, varying X)
+    for (double y = y_min; y <= y_max; y += GRID_SPACING) {
+        draw_axis_line(layer, &grid_line_dsc, x_min, y, z_min, x_max, y, z_min, canvas_width,
+                       canvas_height, &renderer->view_state);
+    }
+    // Vertical lines (constant X, varying Y)
+    for (double x = x_min; x <= x_max; x += GRID_SPACING) {
+        draw_axis_line(layer, &grid_line_dsc, x, y_min, z_min, x, y_max, z_min, canvas_width,
+                       canvas_height, &renderer->view_state);
+    }
+
+    // ========== 2. BACK WALL GRID (XZ plane at Y=y_min) ==========
+    // Note: With camera angle_z=-45°, y_min projects to the back of the view
+    // Vertical lines (constant X, varying Z)
+    for (double x = x_min; x <= x_max + 0.1; x += GRID_SPACING) {
+        draw_axis_line(layer, &grid_line_dsc, x, y_min, z_min, x, y_min, z_max, canvas_width,
+                       canvas_height, &renderer->view_state);
+    }
+    // Horizontal lines (constant Z, varying X)
+    double wall_z_range = z_max - z_min;
+    double wall_z_spacing = wall_z_range / 5.0; // Divide Z range into ~5 segments
+    if (wall_z_spacing < 1.0)
+        wall_z_spacing = wall_z_range / 4.0;
+    for (double z = z_min; z <= z_max + 0.01; z += wall_z_spacing) {
+        draw_axis_line(layer, &grid_line_dsc, x_min, y_min, z, x_max, y_min, z, canvas_width,
+                       canvas_height, &renderer->view_state);
+    }
+
+    // ========== 3. LEFT WALL GRID (YZ plane at X=x_min) ==========
+    // Vertical lines (constant Y, varying Z)
+    double z_range = z_max - z_min;
+    double z_spacing = z_range / 5.0; // Divide Z range into ~5 segments
+    if (z_spacing < 1.0)
+        z_spacing = z_range / 4.0; // At least 4 divisions for small ranges
+    for (double y = y_min; y <= y_max + 0.1; y += GRID_SPACING) {
+        draw_axis_line(layer, &grid_line_dsc, x_min, y, z_min, x_min, y, z_max, canvas_width,
+                       canvas_height, &renderer->view_state);
+    }
+    // Horizontal lines (constant Z, varying Y)
+    for (double z = z_min; z <= z_max + 0.01; z += z_spacing) {
+        draw_axis_line(layer, &grid_line_dsc, x_min, y_min, z, x_min, y_max, z, canvas_width,
+                       canvas_height, &renderer->view_state);
+    }
+
+    spdlog::trace("[REFERENCE_GRIDS] Rendered bottom/back/side grids: X=[{:.1f},{:.1f}] "
+                  "Y=[{:.1f},{:.1f}] Z=[{:.3f},{:.3f}]",
+                  x_min, x_max, y_min, y_max, z_min, z_max);
+}
+
+/**
+ * Render axis labels (X, Y, Z indicators) in Mainsail style
+ *
+ * Positions labels at the MIDPOINT of each axis extent, just outside the grid edge:
+ * - X label: Middle of X axis extent, below/outside the front edge
+ * - Y label: Middle of Y axis extent, to the left/outside the left edge
+ * - Z label: At the top of the Z axis, at the back-left corner
+ *
+ * This matches Mainsail's visualization style where axis labels indicate
+ * the direction/dimension rather than the axis endpoint.
  */
 static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                                int canvas_width, int canvas_height) {
@@ -1415,44 +1749,24 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
         return;
     }
 
-    // Center mesh Z values and compute grid plane Z (single source of truth)
+    // Center mesh Z values to compute world-space Z coordinates
     double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
-    double grid_z = compute_grid_z(z_center, renderer->view_state.z_scale);
 
-    // Configure axis line drawing style (brighter than grid lines)
-    lv_draw_line_dsc_t axis_line_dsc;
-    lv_draw_line_dsc_init(&axis_line_dsc);
-    axis_line_dsc.color = AXIS_LINE_COLOR;
-    axis_line_dsc.width = 1;
-    axis_line_dsc.opa = AXIS_LINE_OPACITY;
+    // Calculate world-space Z bounds for the mesh
+    double z_min_world =
+        mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
+    double z_max_world =
+        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
 
-    // Draw X-axis line (from left to right along front edge, extend 10% beyond mesh)
-    double x_axis_start_x = mesh_col_to_world_x(0, renderer->cols);
-    double x_axis_base_end_x = mesh_col_to_world_x(renderer->cols - 1, renderer->cols);
-    double x_axis_length = x_axis_base_end_x - x_axis_start_x;
-    double x_axis_end_x = x_axis_base_end_x + x_axis_length * AXIS_EXTENSION_FACTOR;
-    double x_axis_y = mesh_row_to_world_y(0, renderer->rows); // Front edge (row=0)
-    draw_axis_line(layer, &axis_line_dsc, x_axis_start_x, x_axis_y, grid_z, x_axis_end_x, x_axis_y,
-                   grid_z, canvas_width, canvas_height, &renderer->view_state);
+    // Calculate mesh extent in world coordinates
+    double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
+    double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
 
-    // Draw Y-axis line (from front to back along left edge, extend 10% beyond mesh)
-    double y_axis_start_y = mesh_row_to_world_y(0, renderer->rows); // Front edge (row=0)
-    double y_axis_base_end_y = mesh_row_to_world_y(renderer->rows - 1, renderer->rows); // Back edge
-    double y_axis_length = y_axis_start_y - y_axis_base_end_y;
-    double y_axis_end_y = y_axis_base_end_y - y_axis_length * AXIS_EXTENSION_FACTOR;
-    double y_axis_x = mesh_col_to_world_x(0, renderer->cols); // Left edge
-    draw_axis_line(layer, &axis_line_dsc, y_axis_x, y_axis_start_y, grid_z, y_axis_x, y_axis_end_y,
-                   grid_z, canvas_width, canvas_height, &renderer->view_state);
-
-    // Draw Z-axis line (vertical from origin at front-left corner)
-    double z_axis_x = mesh_col_to_world_x(0, renderer->cols); // Left edge
-    double z_axis_y = mesh_row_to_world_y(0, renderer->rows); // Front edge (row=0)
-    double z_axis_bottom = grid_z;
-    double z_axis_top =
-        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale) *
-        Z_AXIS_HEIGHT_FACTOR;
-    draw_axis_line(layer, &axis_line_dsc, z_axis_x, z_axis_y, z_axis_bottom, z_axis_x, z_axis_y,
-                   z_axis_top, canvas_width, canvas_height, &renderer->view_state);
+    // Grid bounds for label positioning
+    double x_min = -mesh_half_width;
+    double x_max = mesh_half_width;
+    double y_min = -mesh_half_height;
+    double y_max = mesh_half_height;
 
     // Configure label drawing style
     lv_draw_label_dsc_t label_dsc;
@@ -1462,64 +1776,77 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
     label_dsc.opa = LV_OPA_90;
     label_dsc.align = LV_TEXT_ALIGN_CENTER;
 
-    // Position labels at the end of each axis line (reproject endpoints for label positioning)
-    bed_mesh_point_3d_t x_pos = bed_mesh_projection_project_3d_to_2d(
-        x_axis_end_x, x_axis_y, grid_z, canvas_width, canvas_height, &renderer->view_state);
-    bed_mesh_point_3d_t y_pos = bed_mesh_projection_project_3d_to_2d(
-        y_axis_x, y_axis_end_y, grid_z, canvas_width, canvas_height, &renderer->view_state);
-    bed_mesh_point_3d_t z_pos = bed_mesh_projection_project_3d_to_2d(
-        z_axis_x, z_axis_y, z_axis_top, canvas_width, canvas_height, &renderer->view_state);
+    // Offset to push axis labels outside the grid edges (beyond tick labels)
+    constexpr double LABEL_OFFSET = 40.0;
 
-    // Draw X label (with bounds checking to prevent rendering outside canvas)
+    // X label: At the MIDDLE of the front edge (where X axis is most visible)
+    // Mainsail places this at the center of the X extent, not at a corner
+    double x_label_x = 0.0;                  // Center of X axis
+    double x_label_y = y_max + LABEL_OFFSET; // Just beyond front edge
+    double x_label_z = z_min_world;          // At grid plane level
+    bed_mesh_point_3d_t x_pos = bed_mesh_projection_project_3d_to_2d(
+        x_label_x, x_label_y, x_label_z, canvas_width, canvas_height, &renderer->view_state);
+
     if (x_pos.screen_x >= 0 && x_pos.screen_x < canvas_width && x_pos.screen_y >= 0 &&
         x_pos.screen_y < canvas_height) {
         label_dsc.text = "X";
         lv_area_t x_area;
-        x_area.x1 = x_pos.screen_x + 5;
+        x_area.x1 = x_pos.screen_x - 7;
         x_area.y1 = x_pos.screen_y - 7;
         x_area.x2 = x_area.x1 + 14;
         x_area.y2 = x_area.y1 + 14;
 
-        // Clamp label area to canvas bounds
         if (x_area.x1 >= 0 && x_area.x2 < canvas_width && x_area.y1 >= 0 &&
             x_area.y2 < canvas_height) {
             lv_draw_label(layer, &label_dsc, &x_area);
         }
     }
 
-    // Draw Y label (with bounds checking to prevent rendering outside canvas)
+    // Y label: Centered on the RIGHT edge (analogous to X on front edge)
+    double y_label_x = x_max + LABEL_OFFSET; // Just beyond right edge
+    double y_label_y = 0.0;                  // Center of Y axis
+    double y_label_z = z_min_world;          // At grid plane level
+    bed_mesh_point_3d_t y_pos = bed_mesh_projection_project_3d_to_2d(
+        y_label_x, y_label_y, y_label_z, canvas_width, canvas_height, &renderer->view_state);
+
     if (y_pos.screen_x >= 0 && y_pos.screen_x < canvas_width && y_pos.screen_y >= 0 &&
         y_pos.screen_y < canvas_height) {
         label_dsc.text = "Y";
         lv_area_t y_area;
-        y_area.x1 = y_pos.screen_x - 15;
-        y_area.y1 = y_pos.screen_y - 20;
+        y_area.x1 = y_pos.screen_x - 7;
+        y_area.y1 = y_pos.screen_y - 7;
         y_area.x2 = y_area.x1 + 14;
         y_area.y2 = y_area.y1 + 14;
 
-        // Clamp label area to canvas bounds
         if (y_area.x1 >= 0 && y_area.x2 < canvas_width && y_area.y1 >= 0 &&
             y_area.y2 < canvas_height) {
             lv_draw_label(layer, &label_dsc, &y_area);
         }
     }
 
-    // Draw Z label (with bounds checking to prevent rendering outside canvas)
+    // Z label: At the top of Z axis, at the back-right corner (x_max, y_min)
+    // This is where the two back walls meet with angle_z=-40°
+    double z_axis_top = z_max_world * Z_AXIS_HEIGHT_FACTOR;
+    bed_mesh_point_3d_t z_pos = bed_mesh_projection_project_3d_to_2d(
+        x_max, y_min, z_axis_top, canvas_width, canvas_height, &renderer->view_state);
+
     if (z_pos.screen_x >= 0 && z_pos.screen_x < canvas_width && z_pos.screen_y >= 0 &&
         z_pos.screen_y < canvas_height) {
         label_dsc.text = "Z";
         lv_area_t z_area;
-        z_area.x1 = z_pos.screen_x - 25;
+        z_area.x1 = z_pos.screen_x + 5; // Offset right of the axis
         z_area.y1 = z_pos.screen_y - 7;
         z_area.x2 = z_area.x1 + 14;
         z_area.y2 = z_area.y1 + 14;
 
-        // Clamp label area to canvas bounds
         if (z_area.x1 >= 0 && z_area.x2 < canvas_width && z_area.y1 >= 0 &&
             z_area.y2 < canvas_height) {
             lv_draw_label(layer, &label_dsc, &z_area);
         }
     }
+
+    spdlog::debug("[AXIS_LABELS] X at ({:.1f},{:.1f}), Y at ({:.1f},{:.1f}), Z at ({:.1f},{:.1f})",
+                  x_label_x, x_label_y, y_label_x, y_label_y, x_max, y_min);
 }
 
 /**
@@ -1527,40 +1854,48 @@ static void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* ren
  *
  * Helper to reduce code duplication in render_numeric_axis_ticks.
  * Handles bounds checking, text formatting, and deferred text copy for LVGL.
+ *
+ * @param use_decimals If true, formats with 2 decimal places (for Z-axis mm values)
+ *                     If false, formats as whole number (for X/Y axis values)
  */
 static void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_dsc, int screen_x,
                                  int screen_y, int offset_x, int offset_y, double value,
-                                 int canvas_width, int canvas_height) {
+                                 int canvas_width, int canvas_height, bool use_decimals) {
     // Check screen bounds for tick position
     if (screen_x < 0 || screen_x >= canvas_width || screen_y < 0 || screen_y >= canvas_height) {
         return;
     }
 
-    // Format label text
-    char label_text[8];
-    snprintf(label_text, sizeof(label_text), "%.0f", value);
+    // Format label text (use decimal format for Z-axis heights)
+    char label_text[12];
+    if (use_decimals) {
+        snprintf(label_text, sizeof(label_text), "%.2f", value);
+    } else {
+        snprintf(label_text, sizeof(label_text), "%.0f", value);
+    }
     label_dsc->text = label_text;
     label_dsc->text_length = static_cast<uint32_t>(strlen(label_text));
 
-    // Calculate label area with offsets
+    // Calculate label area with offsets (wider for decimal values)
     lv_area_t label_area;
     label_area.x1 = screen_x + offset_x;
     label_area.y1 = screen_y + offset_y;
-    label_area.x2 = label_area.x1 + 30;
+    label_area.x2 = label_area.x1 + (use_decimals ? 40 : 30);
     label_area.y2 = label_area.y1 + 12;
 
-    // Clamp to canvas bounds before drawing
-    if (label_area.x1 >= 0 && label_area.x2 < canvas_width && label_area.y1 >= 0 &&
-        label_area.y2 < canvas_height) {
+    // Draw if label origin is within canvas (allow partial clipping at edges)
+    if (label_area.x1 >= -20 && label_area.x1 < canvas_width && label_area.y1 >= -10 &&
+        label_area.y1 < canvas_height) {
         lv_draw_label(layer, label_dsc, &label_area);
     }
 }
 
 /**
- * @brief Render numeric tick labels on X and Y axes
+ * @brief Render numeric tick labels on X, Y, and Z axes
  *
- * Adds millimeter labels (e.g., "0", "50", "100") at regular intervals along
- * the X and Y axes to show bed dimensions, matching Mainsail's visualization style.
+ * Adds millimeter labels (e.g., "-100", "0", "100") at regular intervals along
+ * the X and Y axes to show bed dimensions, and height labels on the Z-axis.
+ * Labels are positioned along the axes at world origin (X-axis at Y=0, Y-axis at X=0).
  */
 static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
                                       int canvas_width, int canvas_height) {
@@ -1569,12 +1904,22 @@ static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer
     }
 
     // Calculate bed dimensions in mm
-    double bed_width_mm = (renderer->cols - 1) * BED_MESH_SCALE;
-    double bed_height_mm = (renderer->rows - 1) * BED_MESH_SCALE;
+    double mesh_half_width = (renderer->cols - 1) / 2.0 * BED_MESH_SCALE;
+    double mesh_half_height = (renderer->rows - 1) / 2.0 * BED_MESH_SCALE;
 
-    // Center mesh Z values and compute grid plane Z (single source of truth)
+    // Center mesh Z values to compute world-space Z coordinates
     double z_center = compute_mesh_z_center(renderer->mesh_min_z, renderer->mesh_max_z);
-    double grid_z = compute_grid_z(z_center, renderer->view_state.z_scale);
+
+    // Calculate world-space Z bounds for the mesh
+    double z_min_world =
+        mesh_z_to_world_z(renderer->mesh_min_z, z_center, renderer->view_state.z_scale);
+    double z_max_world =
+        mesh_z_to_world_z(renderer->mesh_max_z, z_center, renderer->view_state.z_scale);
+
+    // Axis origin at front-left corner (matching render_axis_labels)
+    double axis_origin_x = -mesh_half_width;
+    double axis_origin_y = -mesh_half_height;
+    double axis_origin_z = z_min_world;
 
     // Configure label drawing style (smaller font than axis letters)
     lv_draw_label_dsc_t label_dsc;
@@ -1586,56 +1931,61 @@ static void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer
     label_dsc.text_local = 1; // Tell LVGL to copy text (we use stack buffers)
 
     // Determine appropriate tick spacing (aim for 3-5 ticks per axis)
-    // Common printer bed sizes: 180mm, 220mm, 235mm, 250mm, 300mm
     double tick_spacing = 50.0; // Default: 50mm intervals
-    if (bed_width_mm > 250.0) {
-        tick_spacing = 100.0; // For larger beds (e.g., 300mm+)
+    if (mesh_half_width > 125.0) {
+        tick_spacing = 100.0; // For larger beds (e.g., >250mm total width)
     }
 
-    // X-axis tick label offsets: centered below the axis line
+    // X-axis tick label offsets: below the front edge (outside the grid)
     constexpr int X_LABEL_OFFSET_X = -15;
-    constexpr int X_LABEL_OFFSET_Y = 5;
-    // Y-axis tick label offsets: to the left of the axis line
-    constexpr int Y_LABEL_OFFSET_X = -35;
-    constexpr int Y_LABEL_OFFSET_Y = -6;
+    constexpr int X_LABEL_OFFSET_Y = 12; // Push down from edge
+    // Y-axis tick label offsets: to the right of the right edge, but label anchored left
+    // Offset accounts for label width so text appears to the right of the edge
+    constexpr int Y_LABEL_OFFSET_X = 5; // Small offset right (label will be drawn to right)
+    constexpr int Y_LABEL_OFFSET_Y = -5;
+    // Z-axis tick label offsets: to the left of the axis line
+    constexpr int Z_LABEL_OFFSET_X = -30;
+    constexpr int Z_LABEL_OFFSET_Y = -6;
 
-    // Draw X-axis tick labels (along front edge)
-    double x_axis_y = mesh_row_to_world_y(0, renderer->rows);
-    for (double x_mm = 0; x_mm <= bed_width_mm / 2.0; x_mm += tick_spacing) {
-        // Positive X tick
-        bed_mesh_point_3d_t pos_tick = bed_mesh_projection_project_3d_to_2d(
-            x_mm, x_axis_y, grid_z, canvas_width, canvas_height, &renderer->view_state);
-        draw_axis_tick_label(layer, &label_dsc, pos_tick.screen_x, pos_tick.screen_y,
-                             X_LABEL_OFFSET_X, X_LABEL_OFFSET_Y, x_mm, canvas_width, canvas_height);
-
-        // Negative X tick (skip 0 to avoid duplicate)
-        if (x_mm > 0.1) {
-            bed_mesh_point_3d_t neg_tick = bed_mesh_projection_project_3d_to_2d(
-                -x_mm, x_axis_y, grid_z, canvas_width, canvas_height, &renderer->view_state);
-            draw_axis_tick_label(layer, &label_dsc, neg_tick.screen_x, neg_tick.screen_y,
-                                 X_LABEL_OFFSET_X, X_LABEL_OFFSET_Y, -x_mm, canvas_width,
-                                 canvas_height);
-        }
+    // Draw X-axis tick labels along FRONT edge (where X label is)
+    // y = +mesh_half_height (front edge), x goes from -mesh_half_width to +mesh_half_width
+    double x_axis_length = mesh_half_width * 2.0;
+    double x_tick_y = mesh_half_height; // Front edge (same as X label)
+    for (double offset = 0; offset <= x_axis_length; offset += tick_spacing) {
+        bed_mesh_point_3d_t tick = bed_mesh_projection_project_3d_to_2d(
+            axis_origin_x + offset, x_tick_y, axis_origin_z, canvas_width, canvas_height,
+            &renderer->view_state);
+        draw_axis_tick_label(layer, &label_dsc, tick.screen_x, tick.screen_y, X_LABEL_OFFSET_X,
+                             X_LABEL_OFFSET_Y, offset, canvas_width, canvas_height);
     }
 
-    // Draw Y-axis tick labels (along left edge)
-    double y_axis_x = mesh_col_to_world_x(0, renderer->cols);
-    for (double y_mm = 0; y_mm <= bed_height_mm / 2.0; y_mm += tick_spacing) {
-        // Positive Y tick
-        bed_mesh_point_3d_t pos_tick = bed_mesh_projection_project_3d_to_2d(
-            y_axis_x, y_mm, grid_z, canvas_width, canvas_height, &renderer->view_state);
-        draw_axis_tick_label(layer, &label_dsc, pos_tick.screen_x, pos_tick.screen_y,
-                             Y_LABEL_OFFSET_X, Y_LABEL_OFFSET_Y, y_mm, canvas_width, canvas_height);
-
-        // Negative Y tick (skip 0 to avoid duplicate)
-        if (y_mm > 0.1) {
-            bed_mesh_point_3d_t neg_tick = bed_mesh_projection_project_3d_to_2d(
-                y_axis_x, -y_mm, grid_z, canvas_width, canvas_height, &renderer->view_state);
-            draw_axis_tick_label(layer, &label_dsc, neg_tick.screen_x, neg_tick.screen_y,
-                                 Y_LABEL_OFFSET_X, Y_LABEL_OFFSET_Y, -y_mm, canvas_width,
-                                 canvas_height);
-        }
+    // Draw Y-axis tick labels along RIGHT edge (where Y label is)
+    // x = +mesh_half_width (right edge), y goes from -mesh_half_height to +mesh_half_height
+    double y_axis_length = mesh_half_height * 2.0;
+    double y_tick_x = mesh_half_width; // Right edge (same as Y label)
+    for (double offset = 0; offset <= y_axis_length; offset += tick_spacing) {
+        bed_mesh_point_3d_t tick = bed_mesh_projection_project_3d_to_2d(
+            y_tick_x, axis_origin_y + offset, axis_origin_z, canvas_width, canvas_height,
+            &renderer->view_state);
+        draw_axis_tick_label(layer, &label_dsc, tick.screen_x, tick.screen_y, Y_LABEL_OFFSET_X,
+                             Y_LABEL_OFFSET_Y, offset, canvas_width, canvas_height);
     }
+
+    // Draw Z-axis tick labels (along Z-axis at front-left corner)
+    // Show mesh min/max heights in mm (actual Z values, not world-scaled)
+    bed_mesh_point_3d_t z_min_tick =
+        bed_mesh_projection_project_3d_to_2d(axis_origin_x, axis_origin_y, z_min_world,
+                                             canvas_width, canvas_height, &renderer->view_state);
+    draw_axis_tick_label(layer, &label_dsc, z_min_tick.screen_x, z_min_tick.screen_y,
+                         Z_LABEL_OFFSET_X, Z_LABEL_OFFSET_Y, renderer->mesh_min_z, canvas_width,
+                         canvas_height, true);
+
+    bed_mesh_point_3d_t z_max_tick =
+        bed_mesh_projection_project_3d_to_2d(axis_origin_x, axis_origin_y, z_max_world,
+                                             canvas_width, canvas_height, &renderer->view_state);
+    draw_axis_tick_label(layer, &label_dsc, z_max_tick.screen_x, z_max_tick.screen_y,
+                         Z_LABEL_OFFSET_X, Z_LABEL_OFFSET_Y, renderer->mesh_max_z, canvas_width,
+                         canvas_height, true);
 }
 
 // ============================================================================

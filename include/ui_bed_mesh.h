@@ -24,6 +24,7 @@
 #ifndef UI_BED_MESH_H
 #define UI_BED_MESH_H
 
+#include "bed_mesh_renderer.h" // For camera angle constants
 #include "lvgl/lvgl.h"
 
 #ifdef __cplusplus
@@ -34,13 +35,15 @@ extern "C" {
 #define BED_MESH_CANVAS_WIDTH 600
 #define BED_MESH_CANVAS_HEIGHT 400
 
-// Rotation angle ranges and defaults
-#define BED_MESH_ROTATION_X_MIN (-85)
-#define BED_MESH_ROTATION_X_MAX (-10)
-#define BED_MESH_ROTATION_X_DEFAULT (-80)
+// Rotation angle ranges - use constants from bed_mesh_renderer.h
+// These are integer versions for the widget's int-based rotation tracking
+#define BED_MESH_ROTATION_X_MIN ((int)BED_MESH_ANGLE_X_MIN)
+#define BED_MESH_ROTATION_X_MAX ((int)BED_MESH_ANGLE_X_MAX)
+#define BED_MESH_ROTATION_X_DEFAULT ((int)BED_MESH_DEFAULT_ANGLE_X)
 #define BED_MESH_ROTATION_Z_MIN 0
 #define BED_MESH_ROTATION_Z_MAX 360
-#define BED_MESH_ROTATION_Z_DEFAULT 15
+// Convert negative angle to positive (0-360 range): -40 -> 320
+#define BED_MESH_ROTATION_Z_DEFAULT (360 + (int)BED_MESH_DEFAULT_ANGLE_Z)
 
 /**
  * @brief Register <bed_mesh> widget with LVGL XML system

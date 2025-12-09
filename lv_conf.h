@@ -540,6 +540,21 @@
 /*Enable drawing placeholders when glyph dsc is not found*/
 #define LV_USE_FONT_PLACEHOLDER 1
 
+/*===================
+ *  SYMBOL OVERRIDES
+ *===================*/
+/*
+ * HelixScreen uses Material Design Icons (MDI) instead of FontAwesome.
+ * Override LVGL's default symbols with MDI codepoints so dropdowns,
+ * buttons, and other widgets render correctly without per-widget hacks.
+ *
+ * MDI chevron-down: U+F0140 = UTF-8 \xF3\xB0\x85\x80
+ */
+#define LV_SYMBOL_DOWN      "\xF3\xB0\x85\x80"  /* MDI chevron-down (F0140) */
+#define LV_SYMBOL_UP        "\xF3\xB0\x85\x83"  /* MDI chevron-up (F0143) */
+#define LV_SYMBOL_LEFT      "\xF3\xB0\x85\x81"  /* MDI chevron-left (F0141) */
+#define LV_SYMBOL_RIGHT     "\xF3\xB0\x85\x82"  /* MDI chevron-right (F0142) */
+
 /*=================
  *  TEXT SETTINGS
  *=================*/

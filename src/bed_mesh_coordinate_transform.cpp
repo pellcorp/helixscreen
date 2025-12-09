@@ -42,7 +42,11 @@ double compute_mesh_z_center(double mesh_min_z, double mesh_max_z) {
 }
 
 double compute_grid_z(double z_center, double z_scale) {
-    return -z_center * z_scale;
+    // This function is deprecated - grid_z should be computed from mesh_min_z directly
+    // Return 0 as a fallback, but callers should use mesh_z_to_world_z(mesh_min_z, ...) instead
+    (void)z_center;
+    (void)z_scale;
+    return 0.0;
 }
 
 } // namespace BedMeshCoordinateTransform

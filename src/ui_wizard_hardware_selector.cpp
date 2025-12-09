@@ -34,9 +34,6 @@
 
 #include <spdlog/spdlog.h>
 
-// MDI chevron-down symbol for dropdown arrows (replaces FontAwesome LV_SYMBOL_DOWN)
-static const char* MDI_CHEVRON_DOWN = "\xF3\xB0\x85\x80"; // F0140
-
 void wizard_hardware_dropdown_changed_cb(lv_event_t* e) {
     lv_obj_t* dropdown = (lv_obj_t*)lv_event_get_target(e);
     lv_subject_t* subject = (lv_subject_t*)lv_event_get_user_data(e);
@@ -99,14 +96,8 @@ bool wizard_populate_hardware_dropdown(
 
     lv_dropdown_set_options(dropdown, options_str.c_str());
 
-    // Set MDI chevron-down as dropdown symbol (replaces FontAwesome LV_SYMBOL_DOWN)
-    // Must also set the indicator font to MDI so the symbol renders correctly
-    // Use responsive icon font via theme tokens (icon_font_md = 24px on medium screens)
-    lv_dropdown_set_symbol(dropdown, MDI_CHEVRON_DOWN);
-    const char* icon_font_name = lv_xml_get_const(NULL, "icon_font_md");
-    const lv_font_t* icon_font =
-        icon_font_name ? lv_xml_get_font(NULL, icon_font_name) : &mdi_icons_24;
-    lv_obj_set_style_text_font(dropdown, icon_font, LV_PART_INDICATOR);
+    // Theme handles dropdown chevron symbol and MDI font automatically
+    // via LV_SYMBOL_DOWN override in lv_conf.h and helix_theme.c
 
     // Restore saved selection with guessing fallback (now uses MoonrakerAPI)
     WizardHelpers::restore_dropdown_selection(dropdown, subject, items_out, config_key, api,

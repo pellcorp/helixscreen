@@ -19,9 +19,6 @@
 
 #include <spdlog/spdlog.h>
 
-// MDI chevron-down symbol for dropdown arrows (replaces FontAwesome LV_SYMBOL_DOWN)
-static const char* MDI_CHEVRON_DOWN = "\xF3\xB0\x85\x80"; // F0140
-
 #include <cstring>
 #include <memory>
 #include <string>
@@ -180,15 +177,11 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
     MoonrakerAPI* api = get_moonraker_api();
 
     // Find and configure hotend fan dropdown
+    // Theme handles dropdown chevron symbol and MDI font automatically
+    // via LV_SYMBOL_DOWN override in lv_conf.h and helix_theme.c
     lv_obj_t* hotend_dropdown = lv_obj_find_by_name(screen_root_, "hotend_fan_dropdown");
     if (hotend_dropdown) {
         lv_dropdown_set_options(hotend_dropdown, hotend_options_str.c_str());
-        lv_dropdown_set_symbol(hotend_dropdown, MDI_CHEVRON_DOWN);
-        // Use responsive icon font via theme tokens
-        const char* icon_font_name = lv_xml_get_const(NULL, "icon_font_md");
-        const lv_font_t* icon_font =
-            icon_font_name ? lv_xml_get_font(NULL, icon_font_name) : &mdi_icons_24;
-        lv_obj_set_style_text_font(hotend_dropdown, icon_font, LV_PART_INDICATOR);
 
         // Restore saved selection (no guessing method for fans)
         WizardHelpers::restore_dropdown_selection(hotend_dropdown, &hotend_fan_selected_,
@@ -208,12 +201,6 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
     lv_obj_t* part_dropdown = lv_obj_find_by_name(screen_root_, "part_cooling_fan_dropdown");
     if (part_dropdown) {
         lv_dropdown_set_options(part_dropdown, part_options_str.c_str());
-        lv_dropdown_set_symbol(part_dropdown, MDI_CHEVRON_DOWN);
-        // Use responsive icon font via theme tokens
-        const char* part_icon_font_name = lv_xml_get_const(NULL, "icon_font_md");
-        const lv_font_t* part_icon_font =
-            part_icon_font_name ? lv_xml_get_font(NULL, part_icon_font_name) : &mdi_icons_24;
-        lv_obj_set_style_text_font(part_dropdown, part_icon_font, LV_PART_INDICATOR);
 
         // Restore saved selection (no guessing method for fans)
         WizardHelpers::restore_dropdown_selection(part_dropdown, &part_fan_selected_,

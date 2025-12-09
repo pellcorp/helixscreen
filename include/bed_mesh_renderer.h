@@ -87,10 +87,20 @@ extern "C" {
  */
 
 // Rendering configuration constants
-#define BED_MESH_SCALE 50.0            // Base spacing between mesh points (world units)
-#define BED_MESH_CAMERA_DISTANCE 450.0 // Virtual camera distance (moderate perspective: ~33% depth)
-#define BED_MESH_CAMERA_ZOOM_LEVEL                                                                 \
-    1.176 // Default zoom (1.0 = neutral, <1.0 = zoomed out, >1.0 = zoomed in)
+#define BED_MESH_SCALE 50.0                // Base spacing between mesh points (world units)
+#define BED_MESH_PERSPECTIVE_STRENGTH 0.13 // 0.0 = orthographic, 1.0 = max perspective distortion
+
+// Default camera angles (Mainsail-style)
+// Standard 3D camera conventions:
+//   angle_x (pitch): 0° = horizontal (edge-on), -90° = top-down, positive = looking up
+//   angle_z (yaw):   0° = front view, negative = clockwise rotation from above
+#define BED_MESH_DEFAULT_ANGLE_X                                                                   \
+    (-25.0) // 25° down from horizontal (very shallow Mainsail-like view)
+#define BED_MESH_DEFAULT_ANGLE_Z (-45.0) // 45° clockwise rotation (Mainsail-like)
+
+// Rotation limits (pitch angle range)
+#define BED_MESH_ANGLE_X_MIN (-89.0)          // Near top-down (looking almost straight down)
+#define BED_MESH_ANGLE_X_MAX (-10.0)          // Near horizontal (almost edge-on view)
 #define BED_MESH_DEFAULT_Z_SCALE 60.0         // Default height amplification factor
 #define BED_MESH_DEFAULT_Z_TARGET_HEIGHT 80.0 // Target projected height range (world units)
 #define BED_MESH_MIN_Z_SCALE 35.0             // Min Z scale (prevents flatness)
@@ -129,11 +139,12 @@ typedef struct {
 
 // View/camera state for interactive rotation
 typedef struct {
-    double angle_x;   // Tilt angle (up/down rotation in degrees)
-    double angle_z;   // Spin angle (horizontal rotation in degrees)
-    double z_scale;   // Height amplification multiplier
-    double fov_scale; // Perspective field-of-view scale
-    bool is_dragging; // True during interactive drag (use fast rendering)
+    double angle_x;         // Tilt angle (up/down rotation in degrees)
+    double angle_z;         // Spin angle (horizontal rotation in degrees)
+    double z_scale;         // Height amplification multiplier
+    double fov_scale;       // Perspective field-of-view scale
+    double camera_distance; // Computed from mesh size and perspective strength
+    bool is_dragging;       // True during interactive drag (use fast rendering)
 
     // Cached trigonometric values (computed once per angle change)
     double cached_cos_x;   // cos(angle_x in radians)

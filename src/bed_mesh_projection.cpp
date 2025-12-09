@@ -24,19 +24,23 @@ bed_mesh_point_3d_t bed_mesh_projection_project_3d_to_2d(double x, double y, dou
     bed_mesh_point_3d_t result;
 
     // Step 1: Z-axis rotation (spin around vertical axis)
+    // Convention: negative angle = clockwise rotation when viewed from above
     // Use cached trig values (computed once per frame instead of per-vertex)
-    double rotated_x = x * view->cached_cos_z - y * view->cached_sin_z;
-    double rotated_y = x * view->cached_sin_z + y * view->cached_cos_z;
+    double rotated_x = x * view->cached_cos_z + y * view->cached_sin_z;
+    double rotated_y = -x * view->cached_sin_z + y * view->cached_cos_z;
     double rotated_z = z;
 
     // Step 2: X-axis rotation (tilt up/down)
-    // Use cached trig values (computed once per frame instead of per-vertex)
+    // Standard rotation matrix around X-axis:
+    //   y' = y*cos(θ) - z*sin(θ)
+    //   z' = y*sin(θ) + z*cos(θ)
+    // This ensures: when tilting, high-Z points move UP on screen (correct 3D perspective)
     double final_x = rotated_x;
-    double final_y = rotated_y * view->cached_cos_x + rotated_z * view->cached_sin_x;
-    double final_z = rotated_y * view->cached_sin_x - rotated_z * view->cached_cos_x;
+    double final_y = rotated_y * view->cached_cos_x - rotated_z * view->cached_sin_x;
+    double final_z = rotated_y * view->cached_sin_x + rotated_z * view->cached_cos_x;
 
-    // Step 3: Translate camera back
-    final_z += BED_MESH_CAMERA_DISTANCE;
+    // Step 3: Translate camera back (distance computed from mesh size and perspective strength)
+    final_z += view->camera_distance;
 
     // Step 4: Perspective projection (similar triangles)
     double perspective_x = (final_x * view->fov_scale) / final_z;

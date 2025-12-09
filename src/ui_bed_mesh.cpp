@@ -183,11 +183,11 @@ static void bed_mesh_pressing_cb(lv_event_t* e) {
         data->rotation_z += (int)(dx * 0.5f);
         data->rotation_x -= (int)(dy * 0.5f); // Flip Y for intuitive tilt
 
-        // Clamp tilt to reasonable range (-90 to 0 degrees)
-        if (data->rotation_x < -90)
-            data->rotation_x = -90;
-        if (data->rotation_x > 0)
-            data->rotation_x = 0;
+        // Clamp tilt to configured range (use header-defined limits)
+        if (data->rotation_x < BED_MESH_ROTATION_X_MIN)
+            data->rotation_x = BED_MESH_ROTATION_X_MIN;
+        if (data->rotation_x > BED_MESH_ROTATION_X_MAX)
+            data->rotation_x = BED_MESH_ROTATION_X_MAX;
 
         // Wrap spin around 360 degrees
         data->rotation_z = data->rotation_z % 360;
