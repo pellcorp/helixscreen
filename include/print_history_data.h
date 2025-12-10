@@ -104,13 +104,13 @@ struct FilamentUsageByType {
     case PrintJobStatus::COMPLETED:
         return "check_circle";
     case PrintJobStatus::CANCELLED:
-        return "cancel";
+        return "close_circle";
     case PrintJobStatus::ERROR:
-        return "alert_circle";
+        return "alert";
     case PrintJobStatus::IN_PROGRESS:
-        return "progress_clock";
+        return "clock";
     default:
-        return "help_circle";
+        return "info";
     }
 }
 

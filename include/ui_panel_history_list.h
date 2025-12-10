@@ -232,6 +232,7 @@ class HistoryListPanel : public PanelBase {
     lv_subject_t detail_filament_;
     lv_subject_t detail_filament_type_;
     lv_subject_t detail_can_reprint_; ///< 1 if file exists, 0 otherwise
+    lv_subject_t detail_status_code_; ///< 0=completed, 1=cancelled, 2=error, 3=in_progress
 
     // Buffers for string subjects (LVGL 9.4 requires pre-allocated buffers)
     static constexpr size_t kDetailBufSize = 128;

@@ -3,11 +3,15 @@
 
 #include "ui_panel_history_list.h"
 
+#include "ui_async_callback.h"
 #include "ui_fonts.h"
 #include "ui_nav.h"
+#include "ui_notification.h"
 #include "ui_panel_common.h"
+#include "ui_panel_print_select.h"
 
 #include "moonraker_api.h"
+#include "thumbnail_cache.h"
 
 #include <spdlog/spdlog.h>
 
@@ -644,6 +648,8 @@ void HistoryListPanel::init_detail_subjects() {
     lv_subject_init_string(&detail_filament_type_, detail_filament_type_buf_, nullptr,
                            sizeof(detail_filament_type_buf_), "");
     lv_subject_init_int(&detail_can_reprint_, 1);
+    lv_subject_init_int(&detail_status_code_,
+                        0); // 0=completed, 1=cancelled, 2=error, 3=in_progress
 
     // Register subjects for XML binding
     lv_xml_register_subject(nullptr, "history_detail_filename", &detail_filename_);
@@ -660,6 +666,7 @@ void HistoryListPanel::init_detail_subjects() {
     lv_xml_register_subject(nullptr, "history_detail_filament", &detail_filament_);
     lv_xml_register_subject(nullptr, "history_detail_filament_type", &detail_filament_type_);
     lv_xml_register_subject(nullptr, "history_detail_can_reprint", &detail_can_reprint_);
+    lv_xml_register_subject(nullptr, "history_detail_status_code", &detail_status_code_);
 
     spdlog::debug("[{}] Detail overlay subjects initialized", get_name());
 }
@@ -680,6 +687,56 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
         } else {
             spdlog::error("[{}] Failed to create detail overlay", get_name());
             return;
+        }
+    }
+
+    // Update thumbnail display
+    lv_obj_t* thumbnail_image = lv_obj_find_by_name(detail_overlay_, "thumbnail_image");
+    lv_obj_t* thumbnail_fallback = lv_obj_find_by_name(detail_overlay_, "thumbnail_fallback");
+
+    if (thumbnail_image && thumbnail_fallback) {
+        if (!job.thumbnail_path.empty()) {
+            // Show fallback initially while loading
+            lv_obj_add_flag(thumbnail_image, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(thumbnail_fallback, LV_OBJ_FLAG_HIDDEN);
+
+            // Use ThumbnailCache to fetch/download thumbnail
+            auto* self = this;
+            get_thumbnail_cache().fetch(
+                api_, job.thumbnail_path,
+                // Success callback - may be called from background thread
+                [self, thumbnail_image, thumbnail_fallback](const std::string& lvgl_path) {
+                    // Dispatch UI update to main thread
+                    struct ThumbUpdate {
+                        HistoryListPanel* panel;
+                        lv_obj_t* image;
+                        lv_obj_t* fallback;
+                        std::string path;
+                    };
+                    ui_async_call_safe<ThumbUpdate>(
+                        std::make_unique<ThumbUpdate>(
+                            ThumbUpdate{self, thumbnail_image, thumbnail_fallback, lvgl_path}),
+                        [](ThumbUpdate* t) {
+                            // Verify widgets still valid (overlay might have been closed)
+                            if (t->panel->detail_overlay_ && lv_obj_is_valid(t->image) &&
+                                lv_obj_is_valid(t->fallback)) {
+                                lv_image_set_src(t->image, t->path.c_str());
+                                lv_obj_remove_flag(t->image, LV_OBJ_FLAG_HIDDEN);
+                                lv_obj_add_flag(t->fallback, LV_OBJ_FLAG_HIDDEN);
+                                spdlog::debug("[HistoryListPanel] Thumbnail loaded: {}", t->path);
+                            }
+                        });
+                },
+                // Error callback
+                [](const std::string& error) {
+                    spdlog::warn("[HistoryListPanel] Failed to load thumbnail: {}", error);
+                    // Fallback is already showing, nothing to do
+                });
+        } else {
+            // No thumbnail path - show fallback
+            lv_obj_add_flag(thumbnail_image, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(thumbnail_fallback, LV_OBJ_FLAG_HIDDEN);
+            spdlog::debug("[{}] No thumbnail path, showing fallback", get_name());
         }
     }
 
@@ -752,7 +809,29 @@ void HistoryListPanel::update_detail_subjects(const PrintHistoryJob& job) {
     // Set reprint availability based on file existence
     lv_subject_set_int(&detail_can_reprint_, job.exists ? 1 : 0);
 
-    spdlog::debug("[{}] Detail subjects updated for: {}", get_name(), job.filename);
+    // Set status code for icon visibility binding: 0=completed, 1=cancelled, 2=error, 3=in_progress
+    int status_code = 0; // Default to completed
+    switch (job.status) {
+    case PrintJobStatus::COMPLETED:
+        status_code = 0;
+        break;
+    case PrintJobStatus::CANCELLED:
+        status_code = 1;
+        break;
+    case PrintJobStatus::ERROR:
+        status_code = 2;
+        break;
+    case PrintJobStatus::IN_PROGRESS:
+        status_code = 3;
+        break;
+    default:
+        status_code = 0;
+        break;
+    }
+    lv_subject_set_int(&detail_status_code_, status_code);
+
+    spdlog::debug("[{}] Detail subjects updated for: {} (status_code={})", get_name(), job.filename,
+                  status_code);
 }
 
 void HistoryListPanel::handle_reprint() {
@@ -765,27 +844,34 @@ void HistoryListPanel::handle_reprint() {
 
     if (!job.exists) {
         spdlog::warn("[{}] Cannot reprint - file no longer exists: {}", get_name(), job.filename);
-        // TODO: Show toast notification
+        ui_notification_warning("File no longer exists on printer");
         return;
     }
 
     spdlog::info("[{}] Reprint requested for: {}", get_name(), job.filename);
 
-    // Call API to start print
-    if (api_) {
-        api_->start_print(
-            job.filename,
-            [this, filename = job.filename]() {
-                spdlog::info("[{}] Print started: {}", get_name(), filename);
-                // Close the detail overlay and return to list
-                ui_nav_go_back();
-                // TODO: Show success toast
-            },
-            [this, filename = job.filename](const MoonrakerError& error) {
-                spdlog::error("[{}] Failed to start print {}: {}", get_name(), filename,
-                              error.message);
-                // TODO: Show error toast
-            });
+    // Navigate to the Print Select file detail view (DRY - reuse existing UI)
+    // Step 1: Close all history overlays (detail → list → dashboard)
+    ui_nav_go_back(); // Close history detail overlay
+    ui_nav_go_back(); // Close history list panel
+    ui_nav_go_back(); // Close history dashboard
+
+    // Step 2: Switch to Print Select panel
+    ui_nav_set_active(UI_PANEL_PRINT_SELECT);
+
+    // Step 3: Get PrintSelectPanel and navigate to file details
+    PrintSelectPanel* print_panel = get_print_select_panel(printer_state_, api_);
+    if (print_panel) {
+        // select_file_by_name searches the file list and shows detail view if found
+        if (print_panel->select_file_by_name(job.filename)) {
+            spdlog::info("[{}] Navigated to file details for: {}", get_name(), job.filename);
+        } else {
+            spdlog::warn("[{}] File not found in print panel: {}", get_name(), job.filename);
+            ui_notification_warning("File not found in print list");
+        }
+    } else {
+        spdlog::error("[{}] Could not get PrintSelectPanel", get_name());
+        ui_notification_error("Error", "Could not open print panel", false);
     }
 }
 
@@ -832,12 +918,12 @@ void HistoryListPanel::confirm_delete() {
                 ui_nav_go_back();
                 apply_filters_and_sort();
 
-                // TODO: Show success toast
+                ui_notification_success("Print job deleted");
             },
             [this, filename](const MoonrakerError& error) {
                 spdlog::error("[{}] Failed to delete job {}: {}", get_name(), filename,
                               error.message);
-                // TODO: Show error toast
+                ui_notification_error("Delete Failed", error.message.c_str(), false);
             });
     }
 }

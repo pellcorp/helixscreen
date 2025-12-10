@@ -346,9 +346,9 @@ void MoonrakerClientMock::discover_printer(std::function<void()> on_complete) {
     mock_objects.push_back("gcode_macro LOAD_FILAMENT");
     mock_objects.push_back("gcode_macro UNLOAD_FILAMENT");
     mock_objects.push_back("gcode_macro BED_MESH_CALIBRATE");
-    mock_objects.push_back("gcode_macro G28");       // Home all
-    mock_objects.push_back("gcode_macro M600");      // Filament change
-    mock_objects.push_back("gcode_macro _SYSTEM_MACRO");  // System macro (hidden by default)
+    mock_objects.push_back("gcode_macro G28");           // Home all
+    mock_objects.push_back("gcode_macro M600");          // Filament change
+    mock_objects.push_back("gcode_macro _SYSTEM_MACRO"); // System macro (hidden by default)
 
     capabilities_.parse_objects(mock_objects);
 
@@ -986,6 +986,13 @@ RequestId MoonrakerClientMock::send_jsonrpc(const std::string& method, const jso
             if (since > 0 && start_time < since)
                 continue;
 
+            // Generate thumbnail path from filename (strip .gcode, add thumbnail suffix)
+            std::string base_name = std::string(m.filename);
+            if (base_name.size() > 6 && base_name.substr(base_name.size() - 6) == ".gcode") {
+                base_name = base_name.substr(0, base_name.size() - 6);
+            }
+            std::string thumb_path = ".thumbnails/" + base_name + "-300x300.png";
+
             json job = {{"job_id", fmt::format("mock_job_{:03d}", i)},
                         {"filename", m.filename},
                         {"status", m.status},
@@ -1000,7 +1007,11 @@ RequestId MoonrakerClientMock::send_jsonrpc(const std::string& method, const jso
                           {"layer_count", m.duration_minutes * 2},
                           {"layer_height", 0.2},
                           {"first_layer_extr_temp", 210.0},
-                          {"first_layer_bed_temp", 60.0}}}};
+                          {"first_layer_bed_temp", 60.0},
+                          {"thumbnails", json::array({{{"relative_path", thumb_path},
+                                                       {"width", 300},
+                                                       {"height", 300},
+                                                       {"size", 25000}}})}}}};
             jobs.push_back(job);
             count++;
         }
