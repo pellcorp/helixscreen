@@ -985,6 +985,12 @@ void PrintSelectPanel::init_card_pool() {
             lv_obj_set_height(card, dims.card_height);
             lv_obj_set_style_flex_grow(card, 0, LV_PART_MAIN);
             lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+
+            // Attach click handler ONCE at pool creation (not on every scroll!)
+            // The handler uses lv_obj_get_user_data() to get the file index,
+            // which is updated in configure_card() when the card is recycled.
+            lv_obj_add_event_cb(card, on_file_clicked_static, LV_EVENT_CLICKED, this);
+
             card_pool_.push_back(card);
         }
     }
@@ -1114,17 +1120,14 @@ void PrintSelectPanel::update_visible_cards() {
     std::fill(card_pool_indices_.begin(), card_pool_indices_.end(), static_cast<ssize_t>(-1));
 
     // Assign pool cards to visible indices
+    // Note: Click handler was attached once in init_card_pool(), not here.
+    // The handler reads file index from user_data, which configure_card() updates.
     size_t pool_idx = 0;
     for (int file_idx = first_visible_idx;
          file_idx < last_visible_idx && pool_idx < card_pool_.size(); file_idx++, pool_idx++) {
         lv_obj_t* card = card_pool_[pool_idx];
         configure_card(card, static_cast<size_t>(file_idx), dims);
         card_pool_indices_[pool_idx] = file_idx;
-
-        // Ensure click handler is attached
-        // Remove any existing to avoid duplicates, then add fresh
-        lv_obj_remove_event_cb(card, on_file_clicked_static);
-        lv_obj_add_event_cb(card, on_file_clicked_static, LV_EVENT_CLICKED, this);
 
         // Move card after spacer in container order
         lv_obj_move_to_index(card, static_cast<int>(pool_idx) + 1);
@@ -1223,6 +1226,12 @@ void PrintSelectPanel::init_list_pool() {
 
         if (row) {
             lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+
+            // Attach click handler ONCE at pool creation (not on every scroll!)
+            // The handler uses lv_obj_get_user_data() to get the file index,
+            // which is updated in configure_list_row() when the row is recycled.
+            lv_obj_add_event_cb(row, on_file_clicked_static, LV_EVENT_CLICKED, this);
+
             list_pool_.push_back(row);
         }
     }
@@ -1309,16 +1318,14 @@ void PrintSelectPanel::update_visible_list_rows() {
     std::fill(list_pool_indices_.begin(), list_pool_indices_.end(), static_cast<ssize_t>(-1));
 
     // Assign pool rows to visible indices
+    // Note: Click handler was attached once in init_list_pool(), not here.
+    // The handler reads file index from user_data, which configure_list_row() updates.
     size_t pool_idx = 0;
     for (int file_idx = first_visible; file_idx < last_visible && pool_idx < list_pool_.size();
          file_idx++, pool_idx++) {
         lv_obj_t* row = list_pool_[pool_idx];
         configure_list_row(row, static_cast<size_t>(file_idx));
         list_pool_indices_[pool_idx] = file_idx;
-
-        // Ensure click handler is attached
-        lv_obj_remove_event_cb(row, on_file_clicked_static);
-        lv_obj_add_event_cb(row, on_file_clicked_static, LV_EVENT_CLICKED, this);
 
         // Position row after leading spacer
         lv_obj_move_to_index(row, static_cast<int>(pool_idx) + 1);

@@ -39,6 +39,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <sstream>
 #include <unordered_map>
 
@@ -136,10 +137,26 @@ void WifiBackendWpaSupplicant::stop() {
     // Reset init state so is_running() returns false and start() can re-init
     init_complete_ = false;
 
-    // Clean up wpa_supplicant connections (runs in current thread context)
-    // The event loop may still fire read callbacks, but handle_wpa_events checks
-    // for valid data before processing.
-    cleanup_wpa();
+    // THREAD SAFETY: cleanup_wpa() manipulates libhv I/O handles (hio_read_stop,
+    // hio_close) which MUST run on the event loop thread. Schedule via runInLoop()
+    // with synchronization to ensure cleanup completes before stop() returns.
+    if (event_loop_active() && loop()) {
+        std::promise<void> cleanup_done;
+        std::future<void> cleanup_future = cleanup_done.get_future();
+
+        loop()->runInLoop([this, &cleanup_done]() {
+            cleanup_wpa();
+            cleanup_done.set_value();
+        });
+
+        // Wait for cleanup to complete (with timeout to prevent deadlock)
+        if (cleanup_future.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+            spdlog::warn("[WifiBackend] Cleanup timed out after 2 seconds");
+        }
+    } else {
+        // Event loop not running - cleanup directly (safe since no I/O callbacks can fire)
+        cleanup_wpa();
+    }
 
     spdlog::debug("[WifiBackend] WiFi backend disabled");
 }

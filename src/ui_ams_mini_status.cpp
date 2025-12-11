@@ -14,6 +14,19 @@
 #include <unordered_map>
 
 // ============================================================================
+// Layout constants
+// ============================================================================
+
+/** Minimum fill height in pixels (ensures visibility when present) */
+static constexpr int32_t MIN_FILL_HEIGHT_PX = 2;
+
+/** Minimum bar width in pixels (prevents bars from becoming invisible) */
+static constexpr int32_t MIN_BAR_WIDTH_PX = 3;
+
+/** Border radius for bar corners in pixels */
+static constexpr int32_t BAR_BORDER_RADIUS_PX = 2;
+
+// ============================================================================
 // Per-widget user data
 // ============================================================================
 
@@ -90,7 +103,7 @@ static void update_slot_bar(SlotBarData* slot, int32_t height) {
 
         // Height based on fill percentage
         int32_t fill_height = (height * slot->fill_pct) / 100;
-        fill_height = std::max(static_cast<int32_t>(2), fill_height); // Minimum 2px when present
+        fill_height = std::max(MIN_FILL_HEIGHT_PX, fill_height);
         lv_obj_set_height(slot->bar_fill, fill_height);
         lv_obj_remove_flag(slot->bar_fill, LV_OBJ_FLAG_HIDDEN);
     } else {
@@ -115,7 +128,7 @@ static void rebuild_bars(AmsMiniStatusData* data) {
     }
     int32_t gap = ui_theme_get_spacing("space_xxs"); // Responsive 2-4px gap
     int32_t bar_width = calc_bar_width(container_width, visible_count, gap);
-    bar_width = std::max(static_cast<int32_t>(3), bar_width); // Minimum 3px width
+    bar_width = std::max(MIN_BAR_WIDTH_PX, bar_width);
 
     // Create/update bars
     for (int i = 0; i < AMS_MINI_STATUS_MAX_VISIBLE; i++) {
@@ -129,14 +142,14 @@ static void rebuild_bars(AmsMiniStatusData* data) {
                 lv_obj_remove_flag(slot->bar_bg, LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_set_style_border_width(slot->bar_bg, 0, LV_PART_MAIN);
                 lv_obj_set_style_pad_all(slot->bar_bg, 0, LV_PART_MAIN);
-                lv_obj_set_style_radius(slot->bar_bg, 2, LV_PART_MAIN);
+                lv_obj_set_style_radius(slot->bar_bg, BAR_BORDER_RADIUS_PX, LV_PART_MAIN);
 
                 // Create fill inside
                 slot->bar_fill = lv_obj_create(slot->bar_bg);
                 lv_obj_remove_flag(slot->bar_fill, LV_OBJ_FLAG_SCROLLABLE);
                 lv_obj_set_style_border_width(slot->bar_fill, 0, LV_PART_MAIN);
                 lv_obj_set_style_pad_all(slot->bar_fill, 0, LV_PART_MAIN);
-                lv_obj_set_style_radius(slot->bar_fill, 2, LV_PART_MAIN);
+                lv_obj_set_style_radius(slot->bar_fill, BAR_BORDER_RADIUS_PX, LV_PART_MAIN);
                 lv_obj_set_width(slot->bar_fill, LV_PCT(100));
                 lv_obj_set_align(slot->bar_fill, LV_ALIGN_BOTTOM_MID);
             }

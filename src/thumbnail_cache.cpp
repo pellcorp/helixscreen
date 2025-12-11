@@ -9,14 +9,10 @@
 #include <functional>
 #include <vector>
 
-// Global singleton
-static ThumbnailCache* g_thumbnail_cache = nullptr;
-
+// Global singleton using Meyer's Singleton pattern (thread-safe, no leak)
 ThumbnailCache& get_thumbnail_cache() {
-    if (!g_thumbnail_cache) {
-        g_thumbnail_cache = new ThumbnailCache();
-    }
-    return *g_thumbnail_cache;
+    static ThumbnailCache instance;
+    return instance;
 }
 
 // Helper to calculate dynamic cache size based on available disk space

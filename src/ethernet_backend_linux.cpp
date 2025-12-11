@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <dirent.h>
 #include <fstream>
+#include <memory>
 
 EthernetBackendLinux::EthernetBackendLinux() {
     spdlog::debug("[EthernetLinux] Linux backend created");
@@ -104,14 +105,21 @@ std::vector<std::string> EthernetBackendLinux::scan_sysfs_interfaces() {
 
     // Scan /sys/class/net/ directly - this finds interfaces regardless of IP assignment
     const char* sysfs_net = "/sys/class/net";
-    DIR* dir = opendir(sysfs_net);
+
+    // RAII guard: unique_ptr with custom deleter ensures closedir() is always called
+    auto dir_deleter = [](DIR* d) {
+        if (d)
+            closedir(d);
+    };
+    std::unique_ptr<DIR, decltype(dir_deleter)> dir(opendir(sysfs_net), dir_deleter);
+
     if (!dir) {
         spdlog::warn("[EthernetLinux] Cannot open {}", sysfs_net);
         return ethernet_interfaces;
     }
 
     struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
+    while ((entry = readdir(dir.get())) != nullptr) {
         // Skip . and ..
         if (entry->d_name[0] == '.') {
             continue;
@@ -124,7 +132,7 @@ std::vector<std::string> EthernetBackendLinux::scan_sysfs_interfaces() {
         }
     }
 
-    closedir(dir);
+    // No manual closedir() needed - RAII handles cleanup
     return ethernet_interfaces;
 }
 

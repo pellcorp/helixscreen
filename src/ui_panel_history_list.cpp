@@ -694,6 +694,10 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
     lv_obj_t* thumbnail_image = lv_obj_find_by_name(detail_overlay_, "thumbnail_image");
     lv_obj_t* thumbnail_fallback = lv_obj_find_by_name(detail_overlay_, "thumbnail_fallback");
 
+    // Increment generation counter for this overlay instance
+    ++detail_overlay_generation_;
+    uint64_t this_generation = detail_overlay_generation_;
+
     if (thumbnail_image && thumbnail_fallback) {
         if (!job.thumbnail_path.empty()) {
             // Show fallback initially while loading
@@ -705,24 +709,37 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
             get_thumbnail_cache().fetch(
                 api_, job.thumbnail_path,
                 // Success callback - may be called from background thread
-                [self, thumbnail_image, thumbnail_fallback](const std::string& lvgl_path) {
+                // Capture generation counter, NOT widget pointers (avoids use-after-free)
+                [self, this_generation](const std::string& lvgl_path) {
                     // Dispatch UI update to main thread
                     struct ThumbUpdate {
                         HistoryListPanel* panel;
-                        lv_obj_t* image;
-                        lv_obj_t* fallback;
+                        uint64_t generation;
                         std::string path;
                     };
                     ui_async_call_safe<ThumbUpdate>(
                         std::make_unique<ThumbUpdate>(
-                            ThumbUpdate{self, thumbnail_image, thumbnail_fallback, lvgl_path}),
+                            ThumbUpdate{self, this_generation, lvgl_path}),
                         [](ThumbUpdate* t) {
-                            // Verify widgets still valid (overlay might have been closed)
-                            if (t->panel->detail_overlay_ && lv_obj_is_valid(t->image) &&
-                                lv_obj_is_valid(t->fallback)) {
-                                lv_image_set_src(t->image, t->path.c_str());
-                                lv_obj_remove_flag(t->image, LV_OBJ_FLAG_HIDDEN);
-                                lv_obj_add_flag(t->fallback, LV_OBJ_FLAG_HIDDEN);
+                            // Verify overlay still exists and generation matches
+                            // (overlay might have been closed and reopened)
+                            if (!t->panel->detail_overlay_ ||
+                                t->panel->detail_overlay_generation_ != t->generation) {
+                                spdlog::debug("[HistoryListPanel] Thumbnail callback stale "
+                                              "(generation mismatch), ignoring");
+                                return;
+                            }
+
+                            // Look up widgets by name (safe - fresh lookup each time)
+                            lv_obj_t* image =
+                                lv_obj_find_by_name(t->panel->detail_overlay_, "thumbnail_image");
+                            lv_obj_t* fallback = lv_obj_find_by_name(t->panel->detail_overlay_,
+                                                                     "thumbnail_fallback");
+
+                            if (image && fallback) {
+                                lv_image_set_src(image, t->path.c_str());
+                                lv_obj_remove_flag(image, LV_OBJ_FLAG_HIDDEN);
+                                lv_obj_add_flag(fallback, LV_OBJ_FLAG_HIDDEN);
                                 spdlog::debug("[HistoryListPanel] Thumbnail loaded: {}", t->path);
                             }
                         });

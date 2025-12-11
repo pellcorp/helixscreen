@@ -214,8 +214,9 @@ class HistoryListPanel : public PanelBase {
     // === Detail Overlay State ===
     //
 
-    lv_obj_t* detail_overlay_ = nullptr; ///< Detail overlay widget (created on first use)
-    size_t selected_job_index_ = 0;      ///< Index of currently selected job in filtered_jobs_
+    lv_obj_t* detail_overlay_ = nullptr;     ///< Detail overlay widget (created on first use)
+    size_t selected_job_index_ = 0;          ///< Index of currently selected job in filtered_jobs_
+    uint64_t detail_overlay_generation_ = 0; ///< Generation counter for async callback safety
 
     // Detail overlay subjects (string subjects for reactive binding)
     lv_subject_t detail_filename_;
@@ -235,21 +236,21 @@ class HistoryListPanel : public PanelBase {
     lv_subject_t detail_status_code_; ///< 0=completed, 1=cancelled, 2=error, 3=in_progress
 
     // Buffers for string subjects (LVGL 9.4 requires pre-allocated buffers)
-    static constexpr size_t kDetailBufSize = 128;
-    static constexpr size_t kSmallBufSize = 32;
+    static constexpr size_t DETAIL_BUF_SIZE = 128;
+    static constexpr size_t SMALL_BUF_SIZE = 32;
     char detail_filename_buf_[256] = {};
-    char detail_status_buf_[kSmallBufSize] = {};
-    char detail_status_icon_buf_[kSmallBufSize] = {};
-    char detail_status_variant_buf_[kSmallBufSize] = {};
-    char detail_start_time_buf_[kSmallBufSize] = {};
-    char detail_end_time_buf_[kSmallBufSize] = {};
-    char detail_duration_buf_[kSmallBufSize] = {};
-    char detail_layers_buf_[kSmallBufSize] = {};
-    char detail_layer_height_buf_[kSmallBufSize] = {};
-    char detail_nozzle_temp_buf_[kSmallBufSize] = {};
-    char detail_bed_temp_buf_[kSmallBufSize] = {};
-    char detail_filament_buf_[kSmallBufSize] = {};
-    char detail_filament_type_buf_[kSmallBufSize] = {};
+    char detail_status_buf_[SMALL_BUF_SIZE] = {};
+    char detail_status_icon_buf_[SMALL_BUF_SIZE] = {};
+    char detail_status_variant_buf_[SMALL_BUF_SIZE] = {};
+    char detail_start_time_buf_[SMALL_BUF_SIZE] = {};
+    char detail_end_time_buf_[SMALL_BUF_SIZE] = {};
+    char detail_duration_buf_[SMALL_BUF_SIZE] = {};
+    char detail_layers_buf_[SMALL_BUF_SIZE] = {};
+    char detail_layer_height_buf_[SMALL_BUF_SIZE] = {};
+    char detail_nozzle_temp_buf_[SMALL_BUF_SIZE] = {};
+    char detail_bed_temp_buf_[SMALL_BUF_SIZE] = {};
+    char detail_filament_buf_[SMALL_BUF_SIZE] = {};
+    char detail_filament_type_buf_[SMALL_BUF_SIZE] = {};
 
     //
     // === Internal Methods ===
