@@ -12,8 +12,8 @@
 #include "app_globals.h"
 #include "config.h"
 #include "lvgl/lvgl.h"
-#include "moonraker_api.h"
 #include "moonraker_client.h"
+#include "printer_hardware.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -138,7 +138,7 @@ lv_obj_t* WizardHeaterSelectStep::create(lv_obj_t* parent) {
         [](MoonrakerClient* c) -> const auto& { return c->get_heaters(); },
         "bed", // Filter for bed-related heaters
         true,  // Allow "None" option
-        helix::wizard::BED_HEATER, [](MoonrakerAPI* api) { return api->guess_bed_heater(); },
+        helix::wizard::BED_HEATER, [](const PrinterHardware& hw) { return hw.guess_bed_heater(); },
         "[Wizard Heater]");
 
     // Attach bed heater dropdown callback programmatically
@@ -154,8 +154,8 @@ lv_obj_t* WizardHeaterSelectStep::create(lv_obj_t* parent) {
         [](MoonrakerClient* c) -> const auto& { return c->get_heaters(); },
         "extruder", // Filter for extruder-related heaters
         true,       // Allow "None" option
-        helix::wizard::HOTEND_HEATER, [](MoonrakerAPI* api) { return api->guess_hotend_heater(); },
-        "[Wizard Heater]");
+        helix::wizard::HOTEND_HEATER,
+        [](const PrinterHardware& hw) { return hw.guess_hotend_heater(); }, "[Wizard Heater]");
 
     // Attach hotend heater dropdown callback programmatically
     lv_obj_t* hotend_heater_dropdown = lv_obj_find_by_name(screen_root_, "hotend_heater_dropdown");

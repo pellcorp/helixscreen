@@ -631,66 +631,8 @@ class MoonrakerAPI {
                             ErrorCallback on_error);
 
     // ========================================================================
-    // Domain Service Operations (Hardware Discovery, Bed Mesh, Object Exclusion)
+    // Domain Service Operations (Bed Mesh, Object Exclusion)
     // ========================================================================
-
-    /**
-     * @brief Guess the most likely bed heater from discovered hardware
-     *
-     * Searches heaters for names containing "bed", "heated_bed", "heater_bed".
-     * Returns the first match found using priority-based search:
-     * 1. Exact match: "heater_bed"
-     * 2. Exact match: "heated_bed"
-     * 3. Substring match: any heater containing "bed"
-     *
-     * Delegates to MoonrakerClient's discovered hardware list.
-     *
-     * @return Bed heater name or empty string if none found
-     */
-    std::string guess_bed_heater() const;
-
-    /**
-     * @brief Guess the most likely hotend heater from discovered hardware
-     *
-     * Searches heaters for names containing "extruder", "hotend", "e0".
-     * Prioritizes "extruder" (base extruder) over numbered variants.
-     * Priority order:
-     * 1. Exact match: "extruder"
-     * 2. Exact match: "extruder0"
-     * 3. Substring match: any heater containing "extruder"
-     * 4. Substring match: any heater containing "hotend"
-     * 5. Substring match: any heater containing "e0"
-     *
-     * Delegates to MoonrakerClient's discovered hardware list.
-     *
-     * @return Hotend heater name or empty string if none found
-     */
-    std::string guess_hotend_heater() const;
-
-    /**
-     * @brief Guess the most likely bed temperature sensor from discovered hardware
-     *
-     * First checks heaters for bed heater (heaters have built-in sensors).
-     * If no bed heater found, searches sensors for names containing "bed".
-     *
-     * Delegates to MoonrakerClient's discovered hardware list.
-     *
-     * @return Bed sensor name or empty string if none found
-     */
-    std::string guess_bed_sensor() const;
-
-    /**
-     * @brief Guess the most likely hotend temperature sensor from discovered hardware
-     *
-     * First checks heaters for extruder heater (heaters have built-in sensors).
-     * If no extruder heater found, searches sensors for names containing
-     * "extruder", "hotend", "e0".
-     *
-     * Delegates to MoonrakerClient's discovered hardware list.
-     *
-     * @return Hotend sensor name or empty string if none found
-     */
-    std::string guess_hotend_sensor() const;
 
     /**
      * @brief Get currently active bed mesh profile

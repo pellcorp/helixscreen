@@ -13,8 +13,8 @@
 #include "app_globals.h"
 #include "config.h"
 #include "lvgl/lvgl.h"
-#include "moonraker_api.h"
 #include "moonraker_client.h"
+#include "printer_hardware.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -23,47 +23,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-// ============================================================================
-// Smart Guessing Functions
-// ============================================================================
-
-/**
- * Guess the best part cooling fan from the filtered list.
- *
- * Priority order:
- * 1. "fan" - Klipper's canonical part cooling fan [fan] section
- * 2. Any fan_generic containing "part" in the name
- * 3. First item in list (fallback)
- *
- * @param items The filtered list of potential part cooling fans
- * @return The best guess fan name, or empty string if list is empty
- */
-static std::string guess_part_cooling_fan(const std::vector<std::string>& items) {
-    if (items.empty()) {
-        return "";
-    }
-
-    // First priority: exact match for "fan" (Klipper's standard part cooling fan)
-    for (const auto& item : items) {
-        if (item == "fan") {
-            spdlog::debug("[Wizard Fan] Guessed part cooling fan: 'fan' (canonical)");
-            return item;
-        }
-    }
-
-    // Second priority: fan_generic with "part" in the name
-    for (const auto& item : items) {
-        if (item.find("part") != std::string::npos) {
-            spdlog::debug("[Wizard Fan] Guessed part cooling fan: '{}' (contains 'part')", item);
-            return item;
-        }
-    }
-
-    // Fallback: first item
-    spdlog::debug("[Wizard Fan] Guessed part cooling fan: '{}' (first in list)", items[0]);
-    return items[0];
-}
 
 // ============================================================================
 // Global Instance
@@ -214,26 +173,20 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
     // Add "None" to items vector to match dropdown
     part_fan_items_.push_back("None");
 
-    // Get MoonrakerAPI for restore dropdown selection (needed for type signature)
-    MoonrakerAPI* api = get_moonraker_api();
+    // Create PrinterHardware for guessing
+    std::unique_ptr<PrinterHardware> hw;
+    if (client) {
+        hw = std::make_unique<PrinterHardware>(client->get_heaters(), client->get_sensors(),
+                                               client->get_fans(), client->get_leds());
+    }
 
     // Find and configure hotend fan dropdown
-    // Theme handles dropdown chevron symbol and MDI font automatically
-    // via LV_SYMBOL_DOWN override in lv_conf.h and helix_theme.c
     lv_obj_t* hotend_dropdown = lv_obj_find_by_name(screen_root_, "hotend_fan_dropdown");
     if (hotend_dropdown) {
         lv_dropdown_set_options(hotend_dropdown, hotend_options_str.c_str());
-
-        // Restore saved selection (no guessing method for fans)
         helix::ui::wizard::restore_dropdown_selection(hotend_dropdown, &hotend_fan_selected_,
                                                       hotend_fan_items_, helix::wizard::HOTEND_FAN,
-                                                      api,
-                                                      nullptr, // No guessing method for hotend fans
-                                                      "[Wizard Fan]");
-    }
-
-    // Attach hotend fan dropdown callback programmatically
-    if (hotend_dropdown) {
+                                                      hw.get(), nullptr, "[Wizard Fan]");
         lv_obj_add_event_cb(hotend_dropdown, wizard_hardware_dropdown_changed_cb,
                             LV_EVENT_VALUE_CHANGED, &hotend_fan_selected_);
     }
@@ -242,16 +195,9 @@ lv_obj_t* WizardFanSelectStep::create(lv_obj_t* parent) {
     lv_obj_t* part_dropdown = lv_obj_find_by_name(screen_root_, "part_cooling_fan_dropdown");
     if (part_dropdown) {
         lv_dropdown_set_options(part_dropdown, part_options_str.c_str());
-
-        // Restore saved selection (no guessing method for fans)
-        helix::ui::wizard::restore_dropdown_selection(part_dropdown, &part_fan_selected_,
-                                                      part_fan_items_, helix::wizard::PART_FAN, api,
-                                                      nullptr, // No guessing method for part fans
-                                                      "[Wizard Fan]");
-    }
-
-    // Attach part fan dropdown callback programmatically
-    if (part_dropdown) {
+        helix::ui::wizard::restore_dropdown_selection(
+            part_dropdown, &part_fan_selected_, part_fan_items_, helix::wizard::PART_FAN, hw.get(),
+            [](const PrinterHardware& h) { return h.guess_part_cooling_fan(); }, "[Wizard Fan]");
         lv_obj_add_event_cb(part_dropdown, wizard_hardware_dropdown_changed_cb,
                             LV_EVENT_VALUE_CHANGED, &part_fan_selected_);
     }

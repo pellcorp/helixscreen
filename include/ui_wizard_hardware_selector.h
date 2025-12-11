@@ -27,7 +27,7 @@
 
 // Forward declarations
 class MoonrakerClient;
-class MoonrakerAPI;
+class PrinterHardware;
 
 /**
  * @brief Generic dropdown change callback for wizard selectors
@@ -58,7 +58,7 @@ void wizard_hardware_dropdown_changed_cb(lv_event_t* e);
  * @param prefix_filter Optional prefix filter (e.g., "extruder", "heater_bed")
  * @param allow_none Add "None" option at end
  * @param config_key Config persistence key (e.g., "wizard.hotend.heater")
- * @param guess_fallback Optional fallback if config not found (uses MoonrakerAPI)
+ * @param guess_fallback Optional fallback if config not found (uses PrinterHardware)
  * @param log_prefix Logging prefix (e.g., "[Wizard Hotend]")
  * @return true if dropdown found and populated
  */
@@ -67,4 +67,4 @@ bool wizard_populate_hardware_dropdown(
     std::vector<std::string>& items_out,
     std::function<const std::vector<std::string>&(MoonrakerClient*)> moonraker_getter,
     const char* prefix_filter, bool allow_none, const char* config_key,
-    std::function<std::string(MoonrakerAPI*)> guess_fallback, const char* log_prefix);
+    std::function<std::string(const PrinterHardware&)> guess_fallback, const char* log_prefix);

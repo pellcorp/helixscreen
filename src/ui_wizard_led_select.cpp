@@ -12,6 +12,7 @@
 #include "config.h"
 #include "lvgl/lvgl.h"
 #include "moonraker_client.h"
+#include "printer_hardware.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -129,8 +130,7 @@ lv_obj_t* WizardLedSelectStep::create(lv_obj_t* parent) {
         nullptr, // No filter - include all LEDs
         true,    // Allow "None" option
         helix::wizard::LED_STRIP,
-        nullptr, // No guessing method for LED strips
-        "[Wizard LED]");
+        [](const PrinterHardware& hw) { return hw.guess_main_led_strip(); }, "[Wizard LED]");
 
     // Attach LED dropdown callback programmatically
     lv_obj_t* led_dropdown = lv_obj_find_by_name(screen_root_, "led_main_dropdown");

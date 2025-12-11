@@ -123,6 +123,7 @@ TEST_MOONRAKER_DEPS := \
     $(OBJ_DIR)/printer_state.o \
     $(OBJ_DIR)/printer_detector.o \
     $(OBJ_DIR)/printer_capabilities.o \
+    $(OBJ_DIR)/printer_hardware.o \
     $(OBJ_DIR)/capability_overrides.o \
     $(OBJ_DIR)/command_sequencer.o \
     $(OBJ_DIR)/helix_macro_manager.o \

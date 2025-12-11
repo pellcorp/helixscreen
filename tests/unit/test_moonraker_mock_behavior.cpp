@@ -77,6 +77,7 @@
  */
 
 #include "moonraker_client_mock.h"
+#include "printer_hardware.h"
 
 #include <atomic>
 #include <chrono>
@@ -1179,29 +1180,41 @@ TEST_CASE("MoonrakerClientMock send_jsonrpc methods", "[moonraker][mock][jsonrpc
 }
 
 // ============================================================================
-// Guessing Methods Tests (Delegated from existing tests but added here for completeness)
+// Guessing Methods Tests (Use PrinterHardware with mock hardware data)
 // ============================================================================
 
-TEST_CASE("MoonrakerClientMock guessing methods work with populated hardware",
+TEST_CASE("PrinterHardware guessing methods work with mock hardware data",
           "[moonraker][mock][guessing]") {
     SECTION("guess_bed_heater returns heater_bed") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
-        REQUIRE(mock.guess_bed_heater() == "heater_bed");
+        mock.discover_printer([]() {});
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
+        REQUIRE(hw.guess_bed_heater() == "heater_bed");
     }
 
     SECTION("guess_hotend_heater returns extruder") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
-        REQUIRE(mock.guess_hotend_heater() == "extruder");
+        mock.discover_printer([]() {});
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
+        REQUIRE(hw.guess_hotend_heater() == "extruder");
     }
 
     SECTION("guess_bed_sensor returns heater_bed (heaters are also sensors)") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
-        REQUIRE(mock.guess_bed_sensor() == "heater_bed");
+        mock.discover_printer([]() {});
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
+        REQUIRE(hw.guess_bed_sensor() == "heater_bed");
     }
 
     SECTION("guess_hotend_sensor returns extruder (heaters are also sensors)") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
-        REQUIRE(mock.guess_hotend_sensor() == "extruder");
+        mock.discover_printer([]() {});
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
+        REQUIRE(hw.guess_hotend_sensor() == "extruder");
     }
 }
 

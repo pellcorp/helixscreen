@@ -26,6 +26,7 @@
 #include "../../include/moonraker_api_mock.h"
 #include "../../include/moonraker_client_mock.h"
 #include "../../include/moonraker_events.h"
+#include "../../include/printer_hardware.h"
 #include "../../include/printer_state.h"
 #include "../../lvgl/lvgl.h"
 #include "../mocks/mock_printer_state.h"
@@ -436,55 +437,38 @@ TEST_CASE_METHOD(EventIntegrationFixture, "Full stack: Event emission and handli
 }
 
 // ============================================================================
-// Test Case 5: Domain Method Parity
+// Test Case 5: PrinterHardware Guessing
 // ============================================================================
 
-TEST_CASE_METHOD(FullStackTestFixture, "Full stack: Domain method parity",
-                 "[integration][moonraker][parity]") {
-    SECTION("guess_bed_heater returns identical results") {
-        std::string api_result = api_->guess_bed_heater();
+TEST_CASE_METHOD(FullStackTestFixture, "Full stack: PrinterHardware guessing",
+                 "[integration][moonraker][hardware]") {
+    // Create PrinterHardware from the mock client's discovered hardware
+    PrinterHardware hw(client_.get_heaters(), client_.get_sensors(), client_.get_fans(),
+                       client_.get_leds());
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        std::string client_result = client_.guess_bed_heater();
-#pragma GCC diagnostic pop
-
-        REQUIRE(api_result == client_result);
-        REQUIRE(!api_result.empty()); // VORON_24 should have a bed heater
+    SECTION("guess_bed_heater finds heater_bed") {
+        std::string result = hw.guess_bed_heater();
+        REQUIRE(result == "heater_bed"); // VORON_24 should have heater_bed
     }
 
-    SECTION("guess_hotend_heater returns identical results") {
-        std::string api_result = api_->guess_hotend_heater();
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        std::string client_result = client_.guess_hotend_heater();
-#pragma GCC diagnostic pop
-
-        REQUIRE(api_result == client_result);
-        REQUIRE(!api_result.empty()); // VORON_24 should have a hotend heater
+    SECTION("guess_hotend_heater finds extruder") {
+        std::string result = hw.guess_hotend_heater();
+        REQUIRE(result == "extruder"); // VORON_24 should have extruder
     }
 
-    SECTION("guess_bed_sensor returns identical results") {
-        std::string api_result = api_->guess_bed_sensor();
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        std::string client_result = client_.guess_bed_sensor();
-#pragma GCC diagnostic pop
-
-        REQUIRE(api_result == client_result);
+    SECTION("guess_bed_sensor finds bed sensor") {
+        std::string result = hw.guess_bed_sensor();
+        REQUIRE(result == "heater_bed"); // Bed sensor returns heater (has built-in sensor)
     }
 
-    SECTION("guess_hotend_sensor returns identical results") {
-        std::string api_result = api_->guess_hotend_sensor();
+    SECTION("guess_hotend_sensor finds hotend sensor") {
+        std::string result = hw.guess_hotend_sensor();
+        REQUIRE(result == "extruder"); // Hotend sensor returns heater
+    }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        std::string client_result = client_.guess_hotend_sensor();
-#pragma GCC diagnostic pop
-
-        REQUIRE(api_result == client_result);
+    SECTION("guess_part_cooling_fan returns non-empty") {
+        std::string result = hw.guess_part_cooling_fan();
+        REQUIRE_FALSE(result.empty()); // VORON_24 should have a fan
     }
 }
 
@@ -520,9 +504,11 @@ TEST_CASE("Full stack: All printer types work correctly",
             MoonrakerAPIMock api(client, state);
             api.set_mock_state(shared_state);
 
-            // Verify basic operations work
-            std::string bed = api.guess_bed_heater();
-            std::string hotend = api.guess_hotend_heater();
+            // Verify basic operations work via PrinterHardware
+            PrinterHardware hw(client.get_heaters(), client.get_sensors(), client.get_fans(),
+                               client.get_leds());
+            std::string bed = hw.guess_bed_heater();
+            std::string hotend = hw.guess_hotend_heater();
 
             // All standard printer types should have bed and hotend
             REQUIRE_FALSE(bed.empty());
@@ -701,8 +687,11 @@ TEST_CASE("Full stack: API error callbacks work correctly", "[integration][moonr
 
     SECTION("Sync API methods return values without crash") {
         // These should return immediately with mock data
-        std::string bed = api.guess_bed_heater();
-        std::string hotend = api.guess_hotend_heater();
+        // Hardware guessing now uses PrinterHardware directly
+        PrinterHardware hw(client.get_heaters(), client.get_sensors(), client.get_fans(),
+                           client.get_leds());
+        std::string bed = hw.guess_bed_heater();
+        std::string hotend = hw.guess_hotend_heater();
         (void)api.has_bed_mesh();          // Verify doesn't crash
         (void)api.get_bed_mesh_profiles(); // Verify doesn't crash
 

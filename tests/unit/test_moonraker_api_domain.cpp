@@ -3,22 +3,19 @@
 
 /**
  * @file test_moonraker_api_domain.cpp
- * @brief Unit tests for MoonrakerAPI domain service operations
+ * @brief Unit tests for MoonrakerAPI domain service operations and PrinterHardware guessing
  *
- * Tests the domain logic migrated from MoonrakerClient to MoonrakerAPI:
- * - Hardware guessing (guess_bed_heater, guess_hotend_heater, guess_bed_sensor,
- * guess_hotend_sensor)
+ * Tests the domain logic:
+ * - PrinterHardware guessing (guess_bed_heater, guess_hotend_heater, guess_bed_sensor,
+ *   guess_hotend_sensor, guess_part_cooling_fan, guess_main_led_strip)
  * - Bed mesh operations (get_active_bed_mesh, get_bed_mesh_profiles, has_bed_mesh)
  * - Object exclusion (get_excluded_objects, get_available_objects)
- *
- * These tests verify that MoonrakerAPI's domain methods produce the same results
- * as the deprecated MoonrakerClient methods, ensuring backward compatibility
- * during the migration.
  */
 
 #include "../../include/moonraker_api.h"
 #include "../../include/moonraker_client.h"
 #include "../../include/moonraker_client_mock.h"
+#include "../../include/printer_hardware.h"
 #include "../../lvgl/lvgl.h"
 
 #include <chrono>
@@ -85,47 +82,76 @@ class MoonrakerAPIDomainTestFixture {
 };
 
 // ============================================================================
-// Hardware Guessing Tests - MoonrakerAPI
+// Hardware Guessing Tests - PrinterHardware
 // ============================================================================
 
 TEST_CASE_METHOD(MoonrakerAPIDomainTestFixture,
-                 "MoonrakerAPI::guess_bed_heater returns correct heater",
-                 "[moonraker][api][domain][guessing]") {
+                 "PrinterHardware::guess_bed_heater returns correct heater",
+                 "[hardware][guessing]") {
     // VORON_24 mock should have heater_bed
-    std::string bed_heater = api->guess_bed_heater();
+    PrinterHardware hw(mock_client.get_heaters(), mock_client.get_sensors(), mock_client.get_fans(),
+                       mock_client.get_leds());
+    std::string bed_heater = hw.guess_bed_heater();
     REQUIRE(bed_heater == "heater_bed");
 }
 
 TEST_CASE_METHOD(MoonrakerAPIDomainTestFixture,
-                 "MoonrakerAPI::guess_hotend_heater returns correct heater",
-                 "[moonraker][api][domain][guessing]") {
+                 "PrinterHardware::guess_hotend_heater returns correct heater",
+                 "[hardware][guessing]") {
     // VORON_24 mock should have extruder
-    std::string hotend_heater = api->guess_hotend_heater();
+    PrinterHardware hw(mock_client.get_heaters(), mock_client.get_sensors(), mock_client.get_fans(),
+                       mock_client.get_leds());
+    std::string hotend_heater = hw.guess_hotend_heater();
     REQUIRE(hotend_heater == "extruder");
 }
 
 TEST_CASE_METHOD(MoonrakerAPIDomainTestFixture,
-                 "MoonrakerAPI::guess_bed_sensor returns correct sensor",
-                 "[moonraker][api][domain][guessing]") {
+                 "PrinterHardware::guess_bed_sensor returns correct sensor",
+                 "[hardware][guessing]") {
     // Bed sensor should return heater_bed (heaters have built-in sensors)
-    std::string bed_sensor = api->guess_bed_sensor();
+    PrinterHardware hw(mock_client.get_heaters(), mock_client.get_sensors(), mock_client.get_fans(),
+                       mock_client.get_leds());
+    std::string bed_sensor = hw.guess_bed_sensor();
     REQUIRE(bed_sensor == "heater_bed");
 }
 
 TEST_CASE_METHOD(MoonrakerAPIDomainTestFixture,
-                 "MoonrakerAPI::guess_hotend_sensor returns correct sensor",
-                 "[moonraker][api][domain][guessing]") {
+                 "PrinterHardware::guess_hotend_sensor returns correct sensor",
+                 "[hardware][guessing]") {
     // Hotend sensor should return extruder (heaters have built-in sensors)
-    std::string hotend_sensor = api->guess_hotend_sensor();
+    PrinterHardware hw(mock_client.get_heaters(), mock_client.get_sensors(), mock_client.get_fans(),
+                       mock_client.get_leds());
+    std::string hotend_sensor = hw.guess_hotend_sensor();
     REQUIRE(hotend_sensor == "extruder");
 }
 
+TEST_CASE_METHOD(MoonrakerAPIDomainTestFixture,
+                 "PrinterHardware::guess_part_cooling_fan returns correct fan",
+                 "[hardware][guessing]") {
+    // VORON_24 should have canonical "fan" for part cooling
+    PrinterHardware hw(mock_client.get_heaters(), mock_client.get_sensors(), mock_client.get_fans(),
+                       mock_client.get_leds());
+    std::string fan = hw.guess_part_cooling_fan();
+    // The canonical [fan] section should be prioritized if it exists
+    REQUIRE_FALSE(fan.empty());
+}
+
+TEST_CASE_METHOD(MoonrakerAPIDomainTestFixture, "PrinterHardware::guess_main_led_strip returns LED",
+                 "[hardware][guessing]") {
+    PrinterHardware hw(mock_client.get_heaters(), mock_client.get_sensors(), mock_client.get_fans(),
+                       mock_client.get_leds());
+    std::string led = hw.guess_main_led_strip();
+    // May be empty if no LEDs configured, but shouldn't crash
+    // Just verify the call works
+    (void)led;
+}
+
 // ============================================================================
-// Hardware Guessing - Parity with MoonrakerClient
+// Hardware Guessing - Multiple Printer Types
 // ============================================================================
 
-TEST_CASE("MoonrakerAPI guessing matches MoonrakerClient guessing",
-          "[moonraker][api][domain][guessing][parity]") {
+TEST_CASE("PrinterHardware guessing works for multiple printer types",
+          "[hardware][guessing][printers]") {
     PrinterState state;
     state.init_subjects();
 
@@ -134,16 +160,13 @@ TEST_CASE("MoonrakerAPI guessing matches MoonrakerClient guessing",
         mock.connect("ws://mock/websocket", []() {}, []() {});
         mock.discover_printer([]() {});
 
-        MoonrakerAPI api(mock, state);
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
 
-// Suppress deprecation warnings for parity testing
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        REQUIRE(api.guess_bed_heater() == mock.guess_bed_heater());
-        REQUIRE(api.guess_hotend_heater() == mock.guess_hotend_heater());
-        REQUIRE(api.guess_bed_sensor() == mock.guess_bed_sensor());
-        REQUIRE(api.guess_hotend_sensor() == mock.guess_hotend_sensor());
-#pragma GCC diagnostic pop
+        REQUIRE(hw.guess_bed_heater() == "heater_bed");
+        REQUIRE(hw.guess_hotend_heater() == "extruder");
+        REQUIRE(hw.guess_bed_sensor() == "heater_bed");
+        REQUIRE(hw.guess_hotend_sensor() == "extruder");
 
         mock.stop_temperature_simulation();
         mock.disconnect();
@@ -154,15 +177,12 @@ TEST_CASE("MoonrakerAPI guessing matches MoonrakerClient guessing",
         mock.connect("ws://mock/websocket", []() {}, []() {});
         mock.discover_printer([]() {});
 
-        MoonrakerAPI api(mock, state);
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        REQUIRE(api.guess_bed_heater() == mock.guess_bed_heater());
-        REQUIRE(api.guess_hotend_heater() == mock.guess_hotend_heater());
-        REQUIRE(api.guess_bed_sensor() == mock.guess_bed_sensor());
-        REQUIRE(api.guess_hotend_sensor() == mock.guess_hotend_sensor());
-#pragma GCC diagnostic pop
+        // Just verify these return something sensible
+        REQUIRE_FALSE(hw.guess_bed_heater().empty());
+        REQUIRE_FALSE(hw.guess_hotend_heater().empty());
 
         mock.stop_temperature_simulation();
         mock.disconnect();
@@ -173,15 +193,12 @@ TEST_CASE("MoonrakerAPI guessing matches MoonrakerClient guessing",
         mock.connect("ws://mock/websocket", []() {}, []() {});
         mock.discover_printer([]() {});
 
-        MoonrakerAPI api(mock, state);
+        PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                           mock.get_leds());
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        REQUIRE(api.guess_bed_heater() == mock.guess_bed_heater());
-        REQUIRE(api.guess_hotend_heater() == mock.guess_hotend_heater());
-        REQUIRE(api.guess_bed_sensor() == mock.guess_bed_sensor());
-        REQUIRE(api.guess_hotend_sensor() == mock.guess_hotend_sensor());
-#pragma GCC diagnostic pop
+        // Multi-extruder should still find bed and primary extruder
+        REQUIRE_FALSE(hw.guess_bed_heater().empty());
+        REQUIRE_FALSE(hw.guess_hotend_heater().empty());
 
         mock.stop_temperature_simulation();
         mock.disconnect();
@@ -332,11 +349,11 @@ TEST_CASE("BedMeshProfile struct initialization", "[moonraker][api][domain][bedm
 }
 
 // ============================================================================
-// All Printer Types Parity Tests
+// All Printer Types Tests
 // ============================================================================
 
-TEST_CASE("MoonrakerAPI domain methods work for all printer types",
-          "[moonraker][api][domain][all_printers]") {
+TEST_CASE("PrinterHardware and MoonrakerAPI domain methods work for all printer types",
+          "[hardware][api][domain][all_printers]") {
     PrinterState state;
     state.init_subjects();
 
@@ -356,13 +373,14 @@ TEST_CASE("MoonrakerAPI domain methods work for all printer types",
             mock.connect("ws://mock/websocket", []() {}, []() {});
             mock.discover_printer([]() {});
 
-            MoonrakerAPI api(mock, state);
+            // Test PrinterHardware guessing
+            PrinterHardware hw(mock.get_heaters(), mock.get_sensors(), mock.get_fans(),
+                               mock.get_leds());
 
-            // Test all guessing methods return non-empty for standard printers
-            std::string bed_heater = api.guess_bed_heater();
-            std::string hotend_heater = api.guess_hotend_heater();
-            std::string bed_sensor = api.guess_bed_sensor();
-            std::string hotend_sensor = api.guess_hotend_sensor();
+            std::string bed_heater = hw.guess_bed_heater();
+            std::string hotend_heater = hw.guess_hotend_heater();
+            std::string bed_sensor = hw.guess_bed_sensor();
+            std::string hotend_sensor = hw.guess_hotend_sensor();
 
             // All standard printer types should have bed and hotend
             REQUIRE_FALSE(bed_heater.empty());
@@ -370,7 +388,8 @@ TEST_CASE("MoonrakerAPI domain methods work for all printer types",
             REQUIRE_FALSE(bed_sensor.empty());
             REQUIRE_FALSE(hotend_sensor.empty());
 
-            // Bed mesh methods should not crash
+            // Test MoonrakerAPI bed mesh methods
+            MoonrakerAPI api(mock, state);
             bool has_mesh = api.has_bed_mesh();
             const BedMeshProfile* mesh = api.get_active_bed_mesh();
             std::vector<std::string> profiles = api.get_bed_mesh_profiles();

@@ -29,10 +29,12 @@
 
 #include "app_globals.h"
 #include "config.h"
-#include "moonraker_api.h"
 #include "moonraker_client.h"
+#include "printer_hardware.h"
 
 #include <spdlog/spdlog.h>
+
+#include <memory>
 
 void wizard_hardware_dropdown_changed_cb(lv_event_t* e) {
     lv_obj_t* dropdown = (lv_obj_t*)lv_event_get_target(e);
@@ -52,7 +54,7 @@ bool wizard_populate_hardware_dropdown(
     std::vector<std::string>& items_out,
     std::function<const std::vector<std::string>&(MoonrakerClient*)> moonraker_getter,
     const char* prefix_filter, bool allow_none, const char* config_key,
-    std::function<std::string(MoonrakerAPI*)> guess_fallback, const char* log_prefix) {
+    std::function<std::string(const PrinterHardware&)> guess_fallback, const char* log_prefix) {
     if (!root || !dropdown_name || !subject) {
         spdlog::error("{} Invalid parameters for dropdown population", log_prefix);
         return false;
@@ -60,8 +62,6 @@ bool wizard_populate_hardware_dropdown(
 
     // Get Moonraker client for hardware discovery
     MoonrakerClient* client = get_moonraker_client();
-    // Get MoonrakerAPI for guess fallback functions
-    MoonrakerAPI* api = get_moonraker_api();
 
     // Clear and build items list
     items_out.clear();
@@ -99,8 +99,17 @@ bool wizard_populate_hardware_dropdown(
     // Theme handles dropdown chevron symbol and MDI font automatically
     // via LV_SYMBOL_DOWN override in lv_conf.h and helix_theme.c
 
-    // Restore saved selection with guessing fallback (now uses MoonrakerAPI)
-    helix::ui::wizard::restore_dropdown_selection(dropdown, subject, items_out, config_key, api,
+    // Create PrinterHardware for guessing fallback
+    const PrinterHardware* hw = nullptr;
+    std::unique_ptr<PrinterHardware> hw_instance;
+    if (client && guess_fallback) {
+        hw_instance = std::make_unique<PrinterHardware>(
+            client->get_heaters(), client->get_sensors(), client->get_fans(), client->get_leds());
+        hw = hw_instance.get();
+    }
+
+    // Restore saved selection with guessing fallback
+    helix::ui::wizard::restore_dropdown_selection(dropdown, subject, items_out, config_key, hw,
                                                   guess_fallback, log_prefix);
 
     spdlog::debug("{} Populated dropdown '{}' with {} items", log_prefix, dropdown_name,
