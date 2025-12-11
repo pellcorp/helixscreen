@@ -289,6 +289,9 @@ class PrintStatusPanel : public PanelBase {
     // Viewer mode subject (0=thumbnail mode, 1=gcode viewer mode)
     lv_subject_t gcode_viewer_mode_subject_;
 
+    // Print complete overlay visibility (0=hidden, 1=visible)
+    lv_subject_t print_complete_visible_subject_;
+
     // Subject storage buffers
     char filename_buf_[128] = "No print active";
     char progress_text_buf_[32] = "0%";
@@ -310,6 +313,11 @@ class PrintStatusPanel : public PanelBase {
     bool timelapse_enabled_ = false; ///< Current timelapse recording state
     PrintState current_state_ = PrintState::Idle;
     int current_progress_ = 0;
+
+    // Thumbnail loading state
+    std::string current_print_filename_; ///< Full path to current print file (for metadata fetch)
+    std::string cached_thumbnail_path_;  ///< Local cache path for downloaded thumbnail
+    uint32_t thumbnail_load_generation_ = 0; ///< Generation counter for async callback safety
     int current_layer_ = 0;
     int total_layers_ = 0;
     int elapsed_seconds_ = 0;
@@ -326,6 +334,12 @@ class PrintStatusPanel : public PanelBase {
     lv_obj_t* gcode_viewer_ = nullptr;
     lv_obj_t* print_thumbnail_ = nullptr;
     lv_obj_t* gradient_background_ = nullptr;
+
+    // Control buttons (stored for enable/disable on state changes)
+    lv_obj_t* btn_timelapse_ = nullptr;
+    lv_obj_t* btn_pause_ = nullptr;
+    lv_obj_t* btn_tune_ = nullptr;
+    lv_obj_t* btn_cancel_ = nullptr;
 
     //
     // === Temperature & Tuning Overlays ===
@@ -352,8 +366,10 @@ class PrintStatusPanel : public PanelBase {
     void update_all_displays();
     void show_gcode_viewer(bool show);
     void load_gcode_file(const char* file_path);
+    void load_thumbnail_for_file(const std::string& filename); ///< Fetch and display thumbnail
     void setup_tune_panel(lv_obj_t* panel);
     void update_tune_display();
+    void update_button_states(); ///< Enable/disable buttons based on current print state
 
     static void format_time(int seconds, char* buf, size_t buf_size);
 

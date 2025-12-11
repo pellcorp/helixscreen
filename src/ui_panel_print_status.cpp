@@ -161,6 +161,9 @@ void PrintStatusPanel::init_subjects() {
     // Viewer mode subject (0=thumbnail, 1=gcode viewer)
     UI_SUBJECT_INIT_AND_REGISTER_INT(gcode_viewer_mode_subject_, 0, "gcode_viewer_mode");
 
+    // Print complete overlay visibility (0=hidden, 1=visible)
+    UI_SUBJECT_INIT_AND_REGISTER_INT(print_complete_visible_subject_, 0, "print_complete_visible");
+
     // Tuning panel subjects (for tune panel sliders)
     UI_SUBJECT_INIT_AND_REGISTER_STRING(tune_speed_subject_, tune_speed_buf_, "100%",
                                         "tune_speed_display");
@@ -263,9 +266,9 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     }
 
     // Timelapse button (only visible when Moonraker-Timelapse plugin is installed)
-    lv_obj_t* timelapse_btn = lv_obj_find_by_name(overlay_content, "btn_timelapse");
-    if (timelapse_btn) {
-        lv_obj_add_event_cb(timelapse_btn, on_timelapse_clicked, LV_EVENT_CLICKED, this);
+    btn_timelapse_ = lv_obj_find_by_name(overlay_content, "btn_timelapse");
+    if (btn_timelapse_) {
+        lv_obj_add_event_cb(btn_timelapse_, on_timelapse_clicked, LV_EVENT_CLICKED, this);
         spdlog::debug("[{}]   ✓ Timelapse button", get_name());
     } else {
         // Not an error - button may be hidden via XML if timelapse not available
@@ -273,27 +276,27 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     }
 
     // Pause button
-    lv_obj_t* pause_btn = lv_obj_find_by_name(overlay_content, "btn_pause");
-    if (pause_btn) {
-        lv_obj_add_event_cb(pause_btn, on_pause_clicked, LV_EVENT_CLICKED, this);
+    btn_pause_ = lv_obj_find_by_name(overlay_content, "btn_pause");
+    if (btn_pause_) {
+        lv_obj_add_event_cb(btn_pause_, on_pause_clicked, LV_EVENT_CLICKED, this);
         spdlog::debug("[{}]   ✓ Pause button", get_name());
     } else {
         spdlog::error("[{}]   ✗ Pause button NOT FOUND", get_name());
     }
 
     // Tune button
-    lv_obj_t* tune_btn = lv_obj_find_by_name(overlay_content, "btn_tune");
-    if (tune_btn) {
-        lv_obj_add_event_cb(tune_btn, on_tune_clicked, LV_EVENT_CLICKED, this);
+    btn_tune_ = lv_obj_find_by_name(overlay_content, "btn_tune");
+    if (btn_tune_) {
+        lv_obj_add_event_cb(btn_tune_, on_tune_clicked, LV_EVENT_CLICKED, this);
         spdlog::debug("[{}]   ✓ Tune button", get_name());
     } else {
         spdlog::error("[{}]   ✗ Tune button NOT FOUND", get_name());
     }
 
     // Cancel button
-    lv_obj_t* cancel_btn = lv_obj_find_by_name(overlay_content, "btn_cancel");
-    if (cancel_btn) {
-        lv_obj_add_event_cb(cancel_btn, on_cancel_clicked, LV_EVENT_CLICKED, this);
+    btn_cancel_ = lv_obj_find_by_name(overlay_content, "btn_cancel");
+    if (btn_cancel_) {
+        lv_obj_add_event_cb(btn_cancel_, on_cancel_clicked, LV_EVENT_CLICKED, this);
         spdlog::debug("[{}]   ✓ Cancel button", get_name());
     } else {
         spdlog::error("[{}]   ✗ Cancel button NOT FOUND", get_name());
@@ -932,6 +935,13 @@ void PrintStatusPanel::on_temperature_changed() {
 }
 
 void PrintStatusPanel::on_print_progress_changed(int progress) {
+    // Guard: preserve final values when in Complete state
+    // Moonraker may send progress=0 when transitioning to Standby
+    if (current_state_ == PrintState::Complete) {
+        spdlog::trace("[{}] Ignoring progress update ({}) in Complete state", get_name(), progress);
+        return;
+    }
+
     // Update progress display without calling update_all_displays()
     // to avoid redundant updates when multiple subjects change
     current_progress_ = progress;
@@ -979,22 +989,60 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
         break;
     }
 
+    // Special handling for Complete -> Idle transition:
+    // Moonraker/Klipper often transitions to Standby shortly after Complete.
+    // We want to keep the "Print Complete!" display visible with final stats
+    // until a new print starts (Printing state).
+    if (current_state_ == PrintState::Complete && new_state == PrintState::Idle) {
+        spdlog::debug("[{}] Ignoring Complete -> Idle transition (preserving complete state)",
+                      get_name());
+        return;
+    }
+
     // Only update if state actually changed
     if (new_state != current_state_) {
+        PrintState old_state = current_state_;
+
+        // When transitioning to Printing from Complete (new print started),
+        // reset the complete overlay
+        if (old_state == PrintState::Complete && new_state == PrintState::Printing) {
+            lv_subject_set_int(&print_complete_visible_subject_, 0);
+            spdlog::debug("[{}] New print started - clearing complete overlay", get_name());
+        }
+
         set_state(new_state);
         spdlog::info("[{}] Print state changed: {} -> {}", get_name(),
                      print_job_state_to_string(job_state), static_cast<int>(new_state));
 
         // Toggle G-code viewer visibility based on print state
-        // Show viewer during printing/paused/complete (keep final render visible on completion)
-        // Only hide viewer when returning to idle
-        bool show_viewer = (new_state == PrintState::Printing || new_state == PrintState::Paused ||
-                            new_state == PrintState::Complete);
+        // Show 3D viewer during printing/paused (real-time progress visualization)
+        // On completion, show thumbnail with gradient background instead (more polished look)
+        bool show_viewer = (new_state == PrintState::Printing || new_state == PrintState::Paused);
         show_gcode_viewer(show_viewer);
+
+        // Show print complete overlay when entering Complete state
+        if (new_state == PrintState::Complete) {
+            // Ensure progress shows 100% on completion
+            if (current_progress_ < 100) {
+                current_progress_ = 100;
+                std::snprintf(progress_text_buf_, sizeof(progress_text_buf_), "100%%");
+                lv_subject_copy_string(&progress_text_subject_, progress_text_buf_);
+            }
+            lv_subject_set_int(&print_complete_visible_subject_, 1);
+            spdlog::info("[{}] Print complete! Final progress: {}%, elapsed: {}s", get_name(),
+                         current_progress_, elapsed_seconds_);
+        }
     }
 }
 
 void PrintStatusPanel::on_print_filename_changed(const char* filename) {
+    // Guard: preserve final values when in Complete state
+    // Moonraker may send empty filename when transitioning to Standby
+    if (current_state_ == PrintState::Complete) {
+        spdlog::trace("[{}] Ignoring filename update in Complete state", get_name());
+        return;
+    }
+
     if (filename && filename[0] != '\0') {
         // Only update if filename actually changed (avoid log spam from frequent status updates)
         std::string display_name = get_display_filename(filename);
@@ -1030,6 +1078,14 @@ void PrintStatusPanel::on_led_state_changed(int state) {
 }
 
 void PrintStatusPanel::on_print_layer_changed(int current_layer) {
+    // Guard: preserve final values when in Complete state
+    // Moonraker may send layer=0 when transitioning to Standby
+    if (current_state_ == PrintState::Complete) {
+        spdlog::trace("[{}] Ignoring layer update ({}) in Complete state", get_name(),
+                      current_layer);
+        return;
+    }
+
     // Update internal layer state
     current_layer_ = current_layer;
     int total_layers = lv_subject_get_int(printer_state_.get_print_layer_total_subject());
@@ -1087,6 +1143,13 @@ void PrintStatusPanel::on_excluded_objects_changed() {
 }
 
 void PrintStatusPanel::on_print_duration_changed(int seconds) {
+    // Guard: preserve final values when in Complete state
+    // Moonraker may send duration=0 when transitioning to Standby
+    if (current_state_ == PrintState::Complete) {
+        spdlog::trace("[{}] Ignoring duration update ({}) in Complete state", get_name(), seconds);
+        return;
+    }
+
     elapsed_seconds_ = seconds;
 
     // Guard: subjects may not be initialized if called from constructor's observer setup
@@ -1100,6 +1163,12 @@ void PrintStatusPanel::on_print_duration_changed(int seconds) {
 }
 
 void PrintStatusPanel::on_print_time_left_changed(int seconds) {
+    // Guard: preserve final values when in Complete state
+    if (current_state_ == PrintState::Complete) {
+        spdlog::trace("[{}] Ignoring time_left update ({}) in Complete state", get_name(), seconds);
+        return;
+    }
+
     remaining_seconds_ = seconds;
 
     // Guard: subjects may not be initialized if called from constructor's observer setup
@@ -1133,6 +1202,34 @@ void PrintStatusPanel::update_tune_display() {
 
     std::snprintf(tune_flow_buf_, sizeof(tune_flow_buf_), "%d%%", flow_percent_);
     lv_subject_copy_string(&tune_flow_subject_, tune_flow_buf_);
+}
+
+void PrintStatusPanel::update_button_states() {
+    // Buttons should only be enabled during Printing or Paused states
+    // When Complete, Cancelled, Error, or Idle - disable print control buttons
+    bool buttons_enabled =
+        (current_state_ == PrintState::Printing || current_state_ == PrintState::Paused);
+
+    // Helper lambda for enable/disable with visual feedback
+    auto set_button_enabled = [](lv_obj_t* btn, bool enabled) {
+        if (!btn)
+            return;
+        if (enabled) {
+            lv_obj_remove_state(btn, LV_STATE_DISABLED);
+            lv_obj_set_style_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+        } else {
+            lv_obj_add_state(btn, LV_STATE_DISABLED);
+            lv_obj_set_style_opa(btn, LV_OPA_50, LV_PART_MAIN);
+        }
+    };
+
+    set_button_enabled(btn_timelapse_, buttons_enabled);
+    set_button_enabled(btn_pause_, buttons_enabled);
+    set_button_enabled(btn_tune_, buttons_enabled);
+    set_button_enabled(btn_cancel_, buttons_enabled);
+
+    spdlog::debug("[{}] Button states updated: {} (state={})", get_name(),
+                  buttons_enabled ? "enabled" : "disabled", static_cast<int>(current_state_));
 }
 
 void PrintStatusPanel::handle_tune_speed_changed(int value) {
@@ -1236,6 +1333,89 @@ static void on_tune_reset_clicked_cb(lv_event_t* /*e*/) {
 }
 
 // ============================================================================
+// THUMBNAIL LOADING
+// ============================================================================
+
+void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
+    // Increment generation to invalidate any in-flight async operations
+    ++thumbnail_load_generation_;
+    uint32_t current_gen = thumbnail_load_generation_;
+
+    spdlog::debug("[{}] Loading thumbnail for: {} (gen={})", get_name(), filename, current_gen);
+
+    // Skip if no API available (e.g., in mock mode)
+    if (!api_) {
+        spdlog::debug("[{}] No API available - skipping thumbnail load", get_name());
+        return;
+    }
+
+    // Skip if no widget to display to
+    if (!print_thumbnail_) {
+        spdlog::warn("[{}] print_thumbnail_ widget not found - skipping thumbnail load",
+                     get_name());
+        return;
+    }
+
+    // First, get file metadata to find thumbnail path
+    api_->get_file_metadata(
+        filename,
+        [this, current_gen](const FileMetadata& metadata) {
+            // Check if this callback is still relevant
+            if (current_gen != thumbnail_load_generation_) {
+                spdlog::trace("[{}] Stale metadata callback (gen {} != {}), ignoring", get_name(),
+                              current_gen, thumbnail_load_generation_);
+                return;
+            }
+
+            // Get the largest thumbnail available
+            std::string thumbnail_rel_path = metadata.get_largest_thumbnail();
+            if (thumbnail_rel_path.empty()) {
+                spdlog::debug("[{}] No thumbnail available in metadata", get_name());
+                return;
+            }
+
+            spdlog::debug("[{}] Found thumbnail: {}", get_name(), thumbnail_rel_path);
+
+            // Generate cache path (using simple hash to avoid path conflicts)
+            std::string cache_filename =
+                std::to_string(std::hash<std::string>{}(thumbnail_rel_path)) + ".png";
+            std::string cache_path = "/tmp/helix_print_thumb_" + cache_filename;
+
+            // Download thumbnail to cache
+            api_->download_thumbnail(
+                thumbnail_rel_path, cache_path,
+                [this, current_gen, cache_path](const std::string& local_path) {
+                    // Check if this callback is still relevant
+                    if (current_gen != thumbnail_load_generation_) {
+                        spdlog::trace("[{}] Stale thumbnail callback (gen {} != {}), ignoring",
+                                      get_name(), current_gen, thumbnail_load_generation_);
+                        return;
+                    }
+
+                    // Store the cached path
+                    cached_thumbnail_path_ = local_path;
+
+                    // Set the image source - LVGL expects "A:" prefix for filesystem paths
+                    // But avoid double-prefix if path already has it (e.g., from mock API)
+                    std::string lvgl_path = local_path;
+                    if (lvgl_path.size() < 2 || lvgl_path[0] != 'A' || lvgl_path[1] != ':') {
+                        lvgl_path = "A:" + local_path;
+                    }
+                    if (print_thumbnail_) {
+                        lv_image_set_src(print_thumbnail_, lvgl_path.c_str());
+                        spdlog::info("[{}] Thumbnail loaded: {}", get_name(), lvgl_path);
+                    }
+                },
+                [this](const MoonrakerError& err) {
+                    spdlog::warn("[{}] Failed to download thumbnail: {}", get_name(), err.message);
+                });
+        },
+        [this](const MoonrakerError& err) {
+            spdlog::debug("[{}] Failed to get file metadata: {}", get_name(), err.message);
+        });
+}
+
+// ============================================================================
 // PUBLIC API
 // ============================================================================
 
@@ -1249,6 +1429,14 @@ void PrintStatusPanel::set_filename(const char* filename) {
     std::string display_name = get_display_filename(filename ? filename : "");
     std::snprintf(filename_buf_, sizeof(filename_buf_), "%s", display_name.c_str());
     lv_subject_copy_string(&filename_subject_, filename_buf_);
+
+    // Store full filename for thumbnail loading
+    current_print_filename_ = filename ? filename : "";
+
+    // Load thumbnail for this file (async operation)
+    if (!current_print_filename_.empty()) {
+        load_thumbnail_for_file(current_print_filename_);
+    }
 }
 
 void PrintStatusPanel::set_progress(int percent) {
@@ -1281,6 +1469,7 @@ void PrintStatusPanel::set_speeds(int speed_pct, int flow_pct) {
 void PrintStatusPanel::set_state(PrintState state) {
     current_state_ = state;
     update_all_displays();
+    update_button_states();
     spdlog::debug("[{}] State changed to: {}", get_name(), static_cast<int>(state));
 }
 
