@@ -171,8 +171,9 @@ static const IconMapping ICON_MAP[] = {
     // Update
     {"update",             "\xF3\xB0\x9A\xB0"},  // F06B0 update
 
-    // Vibrate/View icons
+    // Vibrate/Video/View icons
     {"vibrate",            "\xF3\xB0\x95\xA6"},  // F0566 vibrate
+    {"video",              "\xF3\xB0\x95\xA7"},  // F0567 video (timelapse)
     {"view_dashboard",     "\xF3\xB0\x95\xAE"},  // F056E view-dashboard
     {"view_grid",          "\xF3\xB0\x95\xB0"},  // F0570 view-grid
     {"view_list",          "\xF3\xB0\x95\xB2"},  // F0572 view-list

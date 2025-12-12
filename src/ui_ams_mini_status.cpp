@@ -100,14 +100,8 @@ static void update_slot_bar(SlotBarData* slot, int32_t height) {
     if (!slot->bar_bg || !slot->bar_fill)
         return;
 
-    // Background: use theme colors - darker when present, dimmed when empty
-    if (slot->present) {
-        lv_obj_set_style_bg_color(slot->bar_bg, ui_theme_get_color("panel_bg"), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(slot->bar_bg, LV_OPA_COVER, LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_bg_color(slot->bar_bg, ui_theme_get_color("panel_bg"), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(slot->bar_bg, LV_OPA_50, LV_PART_MAIN);
-    }
+    // Background: transparent to show parent background
+    lv_obj_set_style_bg_opa(slot->bar_bg, LV_OPA_TRANSP, LV_PART_MAIN);
 
     // Fill: colored portion from bottom
     if (slot->present && slot->fill_pct > 0) {

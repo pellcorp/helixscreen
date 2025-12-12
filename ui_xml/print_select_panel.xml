@@ -22,23 +22,23 @@
   </consts>
   <view extends="lv_obj" width="100%" height="100%" style_pad_all="0" style_pad_gap="0" style_border_width="0" flex_flow="column" name="print_select_panel_root">
     <!-- Compact header with source tabs and view toggle (32px) -->
-    <lv_obj width="100%" height="32" style_border_width="0" style_bg_opa="0" style_pad_left="8" style_pad_right="8" style_pad_top="4" style_pad_bottom="4" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center">
+    <lv_obj width="100%" height="content" style_border_width="0" style_bg_opa="0" style_pad_left="8" style_pad_right="8" style_pad_top="4" style_pad_bottom="4" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center" scrollable="false">
       <!-- Source selector (left side) - Segmented tab control -->
       <lv_obj name="source_selector" height="26" width="content" style_bg_opa="80" style_radius="6" style_border_width="1" style_pad_all="2" flex_flow="row" style_pad_gap="0" scrollable="false">
         <lv_button name="source_printer_btn" width="content" height="22" style_radius="4" style_border_width="0" style_shadow_width="0" style_pad_left="12" style_pad_right="12" style_pad_top="2" style_pad_bottom="2" scrollable="false">
-          <text_small text="Printer" scrollable="false"/>
+          <text_body text="Printer" scrollable="false"/>
         </lv_button>
         <lv_button name="source_usb_btn" width="content" height="22" style_radius="4" style_border_width="0" style_shadow_width="0" style_pad_left="12" style_pad_right="12" style_pad_top="2" style_pad_bottom="2" scrollable="false">
-          <text_small text="USB" scrollable="false"/>
+          <text_body text="USB" scrollable="false"/>
         </lv_button>
       </lv_obj>
       <!-- View toggle button (icon-only, compact) -->
-      <lv_button name="view_toggle_btn" width="24" height="24" style_bg_opa="0" style_border_width="0" style_shadow_width="0" style_pad_all="0">
+      <lv_button name="view_toggle_btn" height="content" style_bg_opa="0" style_border_width="0" style_shadow_width="0" style_pad_all="0">
         <icon name="view_toggle_icon" src="list" size="sm" variant="primary"/>
       </lv_button>
     </lv_obj>
     <!-- Card view container (visible when view_mode == 0) -->
-    <lv_obj name="card_view_container" width="100%" height="100%" style_pad_all="0" style_pad_left="#space_md" style_pad_right="#space_md" style_pad_gap="#space_lg" style_border_width="0" flex_flow="row_wrap" scrollable="true" flex_grow="1">
+    <lv_obj name="card_view_container" width="100%" height="100%" style_pad_all="0" style_pad_left="#space_md" style_pad_right="#space_md" style_border_width="0" flex_flow="row_wrap" scrollable="true" flex_grow="1">
       <lv_obj-bind_flag_if_eq subject="print_select_view_mode" flag="hidden" ref_value="1"/>
       <!-- Cards will be dynamically added here via C++ -->
     </lv_obj>

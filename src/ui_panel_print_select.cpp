@@ -500,8 +500,7 @@ void PrintSelectPanel::fetch_all_metadata() {
                 // Format strings on background thread (uses standalone helper functions)
                 std::string print_time_str = format_print_time(print_time_minutes);
                 std::string filament_str = format_filament_weight(filament_grams);
-                std::string layer_count_str =
-                    layer_count > 0 ? std::to_string(layer_count) : "--";
+                std::string layer_count_str = layer_count > 0 ? std::to_string(layer_count) : "--";
 
                 // Check if thumbnail is a local file (background thread - filesystem OK)
                 bool thumb_is_local = !thumb_path.empty() && std::filesystem::exists(thumb_path);
@@ -534,10 +533,10 @@ void PrintSelectPanel::fetch_all_metadata() {
                 };
 
                 ui_async_call_safe<MetadataUpdate>(
-                    std::make_unique<MetadataUpdate>(MetadataUpdate{
-                        self, i, filename, print_time_minutes, filament_grams, filament_type,
-                        print_time_str, filament_str, layer_count, layer_count_str, thumb_path,
-                        cache_file, thumb_is_local}),
+                    std::make_unique<MetadataUpdate>(
+                        MetadataUpdate{self, i, filename, print_time_minutes, filament_grams,
+                                       filament_type, print_time_str, filament_str, layer_count,
+                                       layer_count_str, thumb_path, cache_file, thumb_is_local}),
                     [](MetadataUpdate* d) {
                         auto* self = d->panel;
 

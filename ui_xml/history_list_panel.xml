@@ -49,7 +49,7 @@
         <lv_label name="empty_icon" text="&#xF0150;" style_text_font="mdi_icons_48" style_text_color="#text_secondary"/>
         <!-- Empty state message -->
         <text_body name="empty_message" text="No print history found" style_text_color="#text_secondary" style_text_align="center"/>
-        <text_small name="empty_hint" text="Completed prints will appear here" style_text_color="#text_tertiary" style_text_align="center"/>
+        <text_small name="empty_hint" text="Completed prints will appear here" style_text_color="#text_secondary" style_text_align="center"/>
       </lv_obj>
     </lv_obj>
   </view>
