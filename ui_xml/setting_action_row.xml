@@ -8,8 +8,8 @@
      - label: Primary label text
      - icon: Optional left icon (e.g., "mat_wifi"). If empty, no icon shown.
      - description: Optional secondary description text below label
+     - callback: Optional callback name for clicked event (registered via lv_xml_register_event_cb)
 -->
-<!-- Note: Parent C++ code attaches click handler to "action_row" by name -->
 <!--
   Click Handling Strategy:
   All child containers have clickable="false" + event_bubble="true" so clicks pass through
@@ -20,6 +20,7 @@
     <prop type="string" name="label" default="Action"/>
     <prop type="string" name="icon" default=""/>
     <prop type="string" name="description" default=""/>
+    <prop type="string" name="callback" default=""/>
   </api>
   <!-- Root button - receives all bubbled click events -->
   <view extends="lv_button" name="action_row" width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_shadow_width="0" style_radius="0" scrollable="false">
@@ -37,5 +38,7 @@
     </lv_obj>
     <!-- Floating overlay: Catches clicks and bubbles to parent, covers full button -->
     <lv_obj width="100%" height="100%" align="top_left" style_bg_opa="0" style_border_width="0" style_pad_all="0" clickable="true" event_bubble="true" floating="true" scrollable="false"/>
+    <!-- Declarative event callback (registered via lv_xml_register_event_cb in C++) -->
+    <event_cb trigger="clicked" callback="$callback"/>
   </view>
 </component>

@@ -12,8 +12,8 @@
      - min: Slider minimum value (default: 0)
      - max: Slider maximum value (default: 100)
      - value: Initial slider value (default: 50)
+     - callback: Optional callback name for value_changed event (registered via lv_xml_register_event_cb)
 -->
-<!-- Note: Parent C++ code attaches value_changed handler to "slider" by name -->
 <component>
   <api>
     <prop type="string" name="label" default="Setting"/>
@@ -22,6 +22,7 @@
     <prop type="string" name="min" default="0"/>
     <prop type="string" name="max" default="100"/>
     <prop type="string" name="value" default="50"/>
+    <prop type="string" name="callback" default=""/>
   </api>
   <view extends="lv_obj" name="slider_row" width="100%" height="content" flex_flow="column"
         style_bg_opa="0" style_border_width="0"
@@ -51,6 +52,8 @@
 
     <!-- Slider -->
     <lv_slider name="slider" width="100%" min_value="$min" max_value="$max" value="$value"
-               style_margin_top="#space_xs"/>
+               style_margin_top="#space_xs">
+      <event_cb trigger="value_changed" callback="$callback"/>
+    </lv_slider>
   </view>
 </component>

@@ -15,10 +15,14 @@
     <ui_card width="100%" flex_grow="1" style_radius="#border_radius_large" style_pad_all="#space_lg" style_pad_gap="#space_md" flex_flow="column" style_flex_main_place="start" style_flex_cross_place="start">
       <!-- Hotend fan selection -->
       <text_body text="Hotend Cooling Fan" style_pad_bottom="#space_sm"/>
-      <lv_dropdown name="hotend_fan_dropdown" options="heater_fan hotend_fan" width="100%" height="#header_height" style_border_width="#input_border_width" style_border_opa="100%" style_radius="#border_radius" style_pad_all="#space_lg"/>
+      <lv_dropdown name="hotend_fan_dropdown" options="heater_fan hotend_fan" width="100%" height="#header_height" style_border_width="#input_border_width" style_border_opa="100%" style_radius="#border_radius" style_pad_all="#space_lg">
+        <event_cb trigger="value_changed" callback="on_hotend_fan_dropdown_changed"/>
+      </lv_dropdown>
       <!-- Part cooling fan selection -->
       <text_body text="Part Cooling Fan" style_pad_top="#space_md" style_pad_bottom="#space_sm"/>
-      <lv_dropdown name="part_cooling_fan_dropdown" options="fan" width="100%" height="#header_height" style_border_width="#input_border_width" style_border_opa="100%" style_radius="#border_radius" style_pad_all="#space_lg"/>
+      <lv_dropdown name="part_cooling_fan_dropdown" options="fan" width="100%" height="#header_height" style_border_width="#input_border_width" style_border_opa="100%" style_radius="#border_radius" style_pad_all="#space_lg">
+        <event_cb trigger="value_changed" callback="on_part_fan_dropdown_changed"/>
+      </lv_dropdown>
     </ui_card>
   </view>
 </component>

@@ -9,6 +9,7 @@
      - icon: Optional left icon (e.g., "mat_wifi"). If empty, no icon shown.
      - description: Optional secondary description text below label
      - subject: Subject name for two-way binding (handled by C++)
+     - callback: Optional callback name for value_changed event (registered via lv_xml_register_event_cb)
 -->
 <component>
   <api>
@@ -16,6 +17,7 @@
     <prop type="string" name="icon" default=""/>
     <prop type="string" name="description" default=""/>
     <prop type="string" name="subject" default=""/>
+    <prop type="string" name="callback" default=""/>
   </api>
   <view extends="lv_obj" name="setting_row" width="100%" height="content" flex_flow="row" style_flex_main_place="start" style_flex_cross_place="center" style_bg_opa="0" style_border_width="0" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_md" style_pad_bottom="#space_md" style_pad_gap="#space_sm" scrollable="false">
     <!-- Left side: Optional icon -->
@@ -27,6 +29,8 @@
       <text_small name="description" text="$description" style_text_color="#text_secondary"/>
     </lv_obj>
     <!-- Right side: Switch toggle -->
-    <lv_switch name="toggle" width="50" height="28"/>
+    <lv_switch name="toggle" width="50" height="28">
+      <event_cb trigger="value_changed" callback="$callback"/>
+    </lv_switch>
   </view>
 </component>
