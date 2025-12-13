@@ -870,8 +870,6 @@ void AmsBackendAfc::parse_lane_data(const nlohmann::json& lane_data) {
 
 void AmsBackendAfc::initialize_lanes(const std::vector<std::string>& lane_names) {
     int lane_count = static_cast<int>(lane_names.size());
-    spdlog::info("[AMS AFC] Initializing {} lanes", lane_count);
-
     lane_names_ = lane_names;
 
     // Build lane name to index mapping
