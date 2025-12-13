@@ -255,10 +255,10 @@ class MoonrakerAPI {
      * @brief Result from start_modified_print() API call
      */
     struct ModifiedPrintResult {
-        std::string original_filename;  ///< Original file path
-        std::string print_filename;     ///< Symlink path used for printing
-        std::string temp_filename;      ///< Temp file with modifications
-        std::string status;             ///< "printing" on success
+        std::string original_filename; ///< Original file path
+        std::string print_filename;    ///< Symlink path used for printing
+        std::string temp_filename;     ///< Temp file with modifications
+        std::string status;            ///< "printing" on success
     };
     using ModifiedPrintCallback = std::function<void(const ModifiedPrintResult&)>;
 

@@ -336,13 +336,13 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
                                       error.message);
 
                         // Emit RPC error event (only for non-silent requests)
-                        emit_event(
-                            MoonrakerEventType::RPC_ERROR,
-                            fmt::format("Printer command '{}' failed: {}", method_name, error.message),
-                            true, method_name);
+                        emit_event(MoonrakerEventType::RPC_ERROR,
+                                   fmt::format("Printer command '{}' failed: {}", method_name,
+                                               error.message),
+                                   true, method_name);
                     } else {
-                        spdlog::debug("[Moonraker Client] Silent request {} failed: {}", method_name,
-                                      error.message);
+                        spdlog::debug("[Moonraker Client] Silent request {} failed: {}",
+                                      method_name, error.message);
                     }
 
                     if (error_cb) {

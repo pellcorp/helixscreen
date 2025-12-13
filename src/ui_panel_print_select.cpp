@@ -271,14 +271,16 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
                     // Check for helix_print plugin on each connection/reconnection
                     if (self->api_) {
-                        spdlog::debug("[{}] Connection established, checking for helix_print plugin",
-                                      self->get_name());
+                        spdlog::debug(
+                            "[{}] Connection established, checking for helix_print plugin",
+                            self->get_name());
                         self->api_->check_helix_plugin(
                             [](bool available) {
                                 if (available) {
                                     spdlog::info("[PrintSelectPanel] helix_print plugin available");
                                 } else {
-                                    spdlog::debug("[PrintSelectPanel] helix_print plugin not available");
+                                    spdlog::debug(
+                                        "[PrintSelectPanel] helix_print plugin not available");
                                 }
                             },
                             [](const MoonrakerError&) {
@@ -2081,8 +2083,8 @@ void PrintSelectPanel::modify_and_print(
             // Build modification identifiers for plugin
             std::vector<std::string> mod_names;
             for (const auto& op : ops_to_disable) {
-                mod_names.push_back(
-                    helix::gcode::GCodeOpsDetector::operation_type_name(op) + "_disabled");
+                mod_names.push_back(helix::gcode::GCodeOpsDetector::operation_type_name(op) +
+                                    "_disabled");
             }
 
             // Check if helix_print plugin is available

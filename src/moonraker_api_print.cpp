@@ -193,8 +193,7 @@ void MoonrakerAPI::start_modified_print(const std::string& original_filename,
             ModifiedPrintResult result;
             if (response.contains("result")) {
                 const auto& r = response["result"];
-                result.original_filename =
-                    r.value("original_filename", original_filename);
+                result.original_filename = r.value("original_filename", original_filename);
                 result.print_filename = r.value("print_filename", "");
                 result.temp_filename = r.value("temp_filename", "");
                 result.status = r.value("status", "unknown");

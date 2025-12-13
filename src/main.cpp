@@ -1511,7 +1511,8 @@ int main(int argc, char** argv) {
     // Wizard will handle its own connection test
     std::string saved_host = config->get<std::string>(config->df() + "moonraker_host", "");
     bool has_cli_url = !args.moonraker_url.empty();
-    if (!args.force_wizard && (has_cli_url || (!config->is_wizard_required() && !saved_host.empty()))) {
+    if (!args.force_wizard &&
+        (has_cli_url || (!config->is_wizard_required() && !saved_host.empty()))) {
         std::string moonraker_url;
         std::string http_base_url;
 
@@ -1532,9 +1533,8 @@ int main(int argc, char** argv) {
             moonraker_url =
                 "ws://" + config->get<std::string>(config->df() + "moonraker_host") + ":" +
                 std::to_string(config->get<int>(config->df() + "moonraker_port")) + "/websocket";
-            http_base_url =
-                "http://" + config->get<std::string>(config->df() + "moonraker_host") + ":" +
-                std::to_string(config->get<int>(config->df() + "moonraker_port"));
+            http_base_url = "http://" + config->get<std::string>(config->df() + "moonraker_host") +
+                            ":" + std::to_string(config->get<int>(config->df() + "moonraker_port"));
         }
 
         // Set HTTP base URL for file transfers
