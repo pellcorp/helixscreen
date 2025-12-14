@@ -94,6 +94,20 @@ void AmsState::init_subjects(bool register_xml) {
     lv_subject_init_int(&path_error_segment_, static_cast<int>(PathSegment::NONE));
     lv_subject_init_int(&path_anim_progress_, 0);
 
+    // Dryer subjects (for AMS systems with integrated drying)
+    lv_subject_init_int(&dryer_supported_, 0);
+    lv_subject_init_int(&dryer_active_, 0);
+    lv_subject_init_int(&dryer_current_temp_, 0);
+    lv_subject_init_int(&dryer_target_temp_, 0);
+    lv_subject_init_int(&dryer_remaining_min_, 0);
+    lv_subject_init_int(&dryer_progress_pct_, -1);
+    lv_subject_init_string(&dryer_current_temp_text_, dryer_current_temp_text_buf_, nullptr,
+                           sizeof(dryer_current_temp_text_buf_), "---");
+    lv_subject_init_string(&dryer_target_temp_text_, dryer_target_temp_text_buf_, nullptr,
+                           sizeof(dryer_target_temp_text_buf_), "---");
+    lv_subject_init_string(&dryer_time_text_, dryer_time_text_buf_, nullptr,
+                           sizeof(dryer_time_text_buf_), "");
+
     // Per-slot subjects
     for (int i = 0; i < MAX_SLOTS; ++i) {
         lv_subject_init_int(&slot_colors_[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
@@ -120,6 +134,17 @@ void AmsState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "ams_path_error_segment", &path_error_segment_);
         lv_xml_register_subject(NULL, "ams_path_anim_progress", &path_anim_progress_);
 
+        // Dryer subjects (for binding in ams_dryer_card.xml)
+        lv_xml_register_subject(NULL, "dryer_supported", &dryer_supported_);
+        lv_xml_register_subject(NULL, "dryer_active", &dryer_active_);
+        lv_xml_register_subject(NULL, "dryer_current_temp", &dryer_current_temp_);
+        lv_xml_register_subject(NULL, "dryer_target_temp", &dryer_target_temp_);
+        lv_xml_register_subject(NULL, "dryer_remaining_min", &dryer_remaining_min_);
+        lv_xml_register_subject(NULL, "dryer_progress_pct", &dryer_progress_pct_);
+        lv_xml_register_subject(NULL, "dryer_current_temp_text", &dryer_current_temp_text_);
+        lv_xml_register_subject(NULL, "dryer_target_temp_text", &dryer_target_temp_text_);
+        lv_xml_register_subject(NULL, "dryer_time_text", &dryer_time_text_);
+
         // Register per-slot subjects with indexed names
         char name_buf[32];
         for (int i = 0; i < MAX_SLOTS; ++i) {
@@ -131,8 +156,9 @@ void AmsState::init_subjects(bool register_xml) {
         }
 
         spdlog::info(
-            "[AMS State] Registered {} system subjects, {} path subjects, {} per-slot subjects", 10,
-            5, MAX_SLOTS * 2);
+            "[AMS State] Registered {} system subjects, {} path subjects, {} dryer subjects, {} "
+            "per-slot subjects",
+            10, 5, 9, MAX_SLOTS * 2);
     }
 
     // Ask the factory for a backend. In mock mode, it returns a mock backend.
@@ -329,6 +355,9 @@ void AmsState::sync_from_backend() {
 
     bump_slots_version();
 
+    // Sync dryer state (for systems with integrated drying like ValgACE)
+    sync_dryer_from_backend();
+
     spdlog::debug("[AMS State] Synced from backend - type={}, slots={}, action={}, segment={}",
                   ams_type_to_string(info.type), info.total_slots,
                   ams_action_to_string(info.action),
@@ -402,4 +431,63 @@ void AmsState::on_backend_event(const std::string& event, const std::string& dat
 void AmsState::bump_slots_version() {
     int current = lv_subject_get_int(&slots_version_);
     lv_subject_set_int(&slots_version_, current + 1);
+}
+
+void AmsState::sync_dryer_from_backend() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+    if (!backend_) {
+        // No backend - clear dryer state
+        lv_subject_set_int(&dryer_supported_, 0);
+        lv_subject_set_int(&dryer_active_, 0);
+        return;
+    }
+
+    DryerInfo dryer = backend_->get_dryer_info();
+
+    // Update integer subjects
+    lv_subject_set_int(&dryer_supported_, dryer.supported ? 1 : 0);
+    lv_subject_set_int(&dryer_active_, dryer.active ? 1 : 0);
+    lv_subject_set_int(&dryer_current_temp_, static_cast<int>(dryer.current_temp_c));
+    lv_subject_set_int(&dryer_target_temp_, static_cast<int>(dryer.target_temp_c));
+    lv_subject_set_int(&dryer_remaining_min_, dryer.remaining_min);
+    lv_subject_set_int(&dryer_progress_pct_, dryer.get_progress_pct());
+
+    // Format temperature text strings
+    if (dryer.supported) {
+        snprintf(dryer_current_temp_text_buf_, sizeof(dryer_current_temp_text_buf_), "%d°C",
+                 static_cast<int>(dryer.current_temp_c));
+        lv_subject_copy_string(&dryer_current_temp_text_, dryer_current_temp_text_buf_);
+
+        if (dryer.target_temp_c > 0) {
+            snprintf(dryer_target_temp_text_buf_, sizeof(dryer_target_temp_text_buf_), "%d°C",
+                     static_cast<int>(dryer.target_temp_c));
+        } else {
+            snprintf(dryer_target_temp_text_buf_, sizeof(dryer_target_temp_text_buf_), "Off");
+        }
+        lv_subject_copy_string(&dryer_target_temp_text_, dryer_target_temp_text_buf_);
+
+        // Format time remaining text
+        if (dryer.active && dryer.remaining_min > 0) {
+            int hours = dryer.remaining_min / 60;
+            int mins = dryer.remaining_min % 60;
+            if (hours > 0) {
+                snprintf(dryer_time_text_buf_, sizeof(dryer_time_text_buf_), "%d:%02d left", hours,
+                         mins);
+            } else {
+                snprintf(dryer_time_text_buf_, sizeof(dryer_time_text_buf_), "%d min left", mins);
+            }
+        } else {
+            dryer_time_text_buf_[0] = '\0';
+        }
+        lv_subject_copy_string(&dryer_time_text_, dryer_time_text_buf_);
+    } else {
+        lv_subject_copy_string(&dryer_current_temp_text_, "---");
+        lv_subject_copy_string(&dryer_target_temp_text_, "---");
+        lv_subject_copy_string(&dryer_time_text_, "");
+    }
+
+    spdlog::trace("[AMS State] Synced dryer - supported={}, active={}, temp={}→{}°C, {}min left",
+                  dryer.supported, dryer.active, static_cast<int>(dryer.current_temp_c),
+                  static_cast<int>(dryer.target_temp_c), dryer.remaining_min);
 }

@@ -130,6 +130,31 @@ class AmsBackendValgACE : public AmsBackend {
     AmsError update_drying(float temp_c = -1, int duration_min = -1, int fan_pct = -1) override;
     [[nodiscard]] std::vector<DryingPreset> get_drying_presets() const override;
 
+  protected:
+    // ========================================================================
+    // Response Parsing (protected for unit testing)
+    // ========================================================================
+
+    /**
+     * @brief Parse /server/ace/info response
+     * @param data JSON response data
+     */
+    void parse_info_response(const nlohmann::json& data);
+
+    /**
+     * @brief Parse /server/ace/status response
+     * @param data JSON response data
+     * @return true if state changed (emit event)
+     */
+    bool parse_status_response(const nlohmann::json& data);
+
+    /**
+     * @brief Parse /server/ace/slots response
+     * @param data JSON response data
+     * @return true if state changed (emit event)
+     */
+    bool parse_slots_response(const nlohmann::json& data);
+
   private:
     // ========================================================================
     // Polling Thread
@@ -157,30 +182,6 @@ class AmsBackendValgACE : public AmsBackend {
      * @brief Poll slot information (colors, materials, status)
      */
     void poll_slots();
-
-    // ========================================================================
-    // Response Parsing
-    // ========================================================================
-
-    /**
-     * @brief Parse /server/ace/info response
-     * @param data JSON response data
-     */
-    void parse_info_response(const nlohmann::json& data);
-
-    /**
-     * @brief Parse /server/ace/status response
-     * @param data JSON response data
-     * @return true if state changed (emit event)
-     */
-    bool parse_status_response(const nlohmann::json& data);
-
-    /**
-     * @brief Parse /server/ace/slots response
-     * @param data JSON response data
-     * @return true if state changed (emit event)
-     */
-    bool parse_slots_response(const nlohmann::json& data);
 
     // ========================================================================
     // Helpers
@@ -229,20 +230,20 @@ class AmsBackendValgACE : public AmsBackend {
     MoonrakerClient* client_; ///< For connection state checks
 
     // Threading
-    std::thread polling_thread_;               ///< Background polling thread
-    std::atomic<bool> running_{false};         ///< Is backend running?
-    std::atomic<bool> stop_requested_{false};  ///< Signal thread to exit
-    std::condition_variable stop_cv_;          ///< For interruptible sleep
-    mutable std::mutex stop_mutex_;            ///< Protects stop_cv_ wait
+    std::thread polling_thread_;              ///< Background polling thread
+    std::atomic<bool> running_{false};        ///< Is backend running?
+    std::atomic<bool> stop_requested_{false}; ///< Signal thread to exit
+    std::condition_variable stop_cv_;         ///< For interruptible sleep
+    mutable std::mutex stop_mutex_;           ///< Protects stop_cv_ wait
 
     // State (protected by state_mutex_)
-    mutable std::mutex state_mutex_;    ///< Protects cached state
-    AmsSystemInfo system_info_;         ///< Cached system state
-    DryerInfo dryer_info_;              ///< Cached dryer state
-    std::atomic<bool> info_fetched_{false};  ///< Have we got /server/ace/info yet?
+    mutable std::mutex state_mutex_;        ///< Protects cached state
+    AmsSystemInfo system_info_;             ///< Cached system state
+    DryerInfo dryer_info_;                  ///< Cached dryer state
+    std::atomic<bool> info_fetched_{false}; ///< Have we got /server/ace/info yet?
 
     // Callback lifetime management
-    std::shared_ptr<std::atomic<bool>> alive_;  ///< Weak flag for callback safety
+    std::shared_ptr<std::atomic<bool>> alive_; ///< Weak flag for callback safety
 
     // Events
     EventCallback event_callback_;      ///< Registered event handler

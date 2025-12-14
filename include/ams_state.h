@@ -252,6 +252,82 @@ class AmsState {
     }
 
     // ========================================================================
+    // Dryer Subject Accessors (for AMS systems with integrated drying)
+    // ========================================================================
+
+    /**
+     * @brief Get dryer supported subject
+     * @return Subject holding 1 if dryer is available, 0 otherwise
+     */
+    lv_subject_t* get_dryer_supported_subject() {
+        return &dryer_supported_;
+    }
+
+    /**
+     * @brief Get dryer active subject
+     * @return Subject holding 1 if currently drying, 0 otherwise
+     */
+    lv_subject_t* get_dryer_active_subject() {
+        return &dryer_active_;
+    }
+
+    /**
+     * @brief Get dryer current temperature subject
+     * @return Subject holding current temp in degrees C (integer)
+     */
+    lv_subject_t* get_dryer_current_temp_subject() {
+        return &dryer_current_temp_;
+    }
+
+    /**
+     * @brief Get dryer target temperature subject
+     * @return Subject holding target temp in degrees C (integer, 0 = off)
+     */
+    lv_subject_t* get_dryer_target_temp_subject() {
+        return &dryer_target_temp_;
+    }
+
+    /**
+     * @brief Get dryer remaining minutes subject
+     * @return Subject holding minutes remaining
+     */
+    lv_subject_t* get_dryer_remaining_min_subject() {
+        return &dryer_remaining_min_;
+    }
+
+    /**
+     * @brief Get dryer progress percentage subject
+     * @return Subject holding 0-100 progress, or -1 if not drying
+     */
+    lv_subject_t* get_dryer_progress_pct_subject() {
+        return &dryer_progress_pct_;
+    }
+
+    /**
+     * @brief Get dryer current temperature text subject
+     * @return Subject holding formatted temp string (e.g., "45C")
+     */
+    lv_subject_t* get_dryer_current_temp_text_subject() {
+        return &dryer_current_temp_text_;
+    }
+
+    /**
+     * @brief Get dryer target temperature text subject
+     * @return Subject holding formatted temp string (e.g., "55C" or "---")
+     */
+    lv_subject_t* get_dryer_target_temp_text_subject() {
+        return &dryer_target_temp_text_;
+    }
+
+    /**
+     * @brief Get dryer time remaining text subject
+     * @return Subject holding formatted time string (e.g., "2:30 left" or "")
+     */
+    lv_subject_t* get_dryer_time_text_subject() {
+        return &dryer_time_text_;
+    }
+
+    // ========================================================================
     // Per-Slot Subject Accessors
     // ========================================================================
 
@@ -296,6 +372,14 @@ class AmsState {
      */
     void update_slot(int slot_index);
 
+    /**
+     * @brief Update dryer subjects from backend dryer info
+     *
+     * Called when backend reports dryer state changes.
+     * Updates all dryer-related subjects for UI binding.
+     */
+    void sync_dryer_from_backend();
+
   private:
     AmsState();
     ~AmsState();
@@ -311,6 +395,40 @@ class AmsState {
      * @brief Bump the slots version counter
      */
     void bump_slots_version();
+
+    /**
+     * @brief Initialize a Klipper-based MMU backend (Happy Hare, AFC)
+     *
+     * Called when a Klipper object-based MMU system is detected.
+     *
+     * @param caps Detected printer capabilities
+     * @param api MoonrakerAPI instance
+     * @param client MoonrakerClient instance
+     */
+    void init_klipper_mmu_backend(const PrinterCapabilities& caps, MoonrakerAPI* api,
+                                  MoonrakerClient* client);
+
+    /**
+     * @brief Probe for ValgACE via REST endpoint
+     *
+     * Makes an async REST call to /server/ace/info. If successful,
+     * creates ValgACE backend via lv_async_call to maintain thread safety.
+     *
+     * @param api MoonrakerAPI instance for REST calls
+     * @param client MoonrakerClient instance for the backend
+     */
+    void probe_valgace(MoonrakerAPI* api, MoonrakerClient* client);
+
+    /**
+     * @brief Create and start ValgACE backend
+     *
+     * Called on main thread after successful ValgACE probe.
+     * Must be called from LVGL thread context.
+     *
+     * @param api MoonrakerAPI instance
+     * @param client MoonrakerClient instance
+     */
+    void create_valgace_backend(MoonrakerAPI* api, MoonrakerClient* client);
 
     mutable std::recursive_mutex mutex_;
     std::unique_ptr<AmsBackend> backend_;
@@ -338,6 +456,22 @@ class AmsState {
     lv_subject_t path_filament_segment_;
     lv_subject_t path_error_segment_;
     lv_subject_t path_anim_progress_;
+
+    // Dryer subjects (for AMS systems with integrated drying)
+    lv_subject_t dryer_supported_;
+    lv_subject_t dryer_active_;
+    lv_subject_t dryer_current_temp_;
+    lv_subject_t dryer_target_temp_;
+    lv_subject_t dryer_remaining_min_;
+    lv_subject_t dryer_progress_pct_;
+
+    // Dryer text subjects (need buffers)
+    lv_subject_t dryer_current_temp_text_;
+    char dryer_current_temp_text_buf_[16];
+    lv_subject_t dryer_target_temp_text_;
+    char dryer_target_temp_text_buf_[16];
+    lv_subject_t dryer_time_text_;
+    char dryer_time_text_buf_[32];
 
     // Per-slot subjects (color and status)
     lv_subject_t slot_colors_[MAX_SLOTS];
