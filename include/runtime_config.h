@@ -70,7 +70,8 @@ struct RuntimeConfig {
     bool gcode_debug_colors = false; ///< Enable per-face debug coloring (--gcode-debug-colors)
 
     // Mock simulation options
-    double sim_speedup = 1.0; ///< Simulation speedup factor (--sim-speed, requires --test)
+    double sim_speedup = 1.0;    ///< Simulation speedup factor (--sim-speed, requires --test)
+    int mock_ams_gate_count = 4; ///< Number of gates for mock AMS (HELIX_AMS_GATES env var)
 
     // Development/debugging options
     bool show_memory_overlay = false; ///< Show memory stats overlay (--show-memory, M key toggle)

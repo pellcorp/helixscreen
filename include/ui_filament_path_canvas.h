@@ -90,6 +90,28 @@ void ui_filament_path_canvas_set_topology(lv_obj_t* obj, int topology);
 void ui_filament_path_canvas_set_slot_count(lv_obj_t* obj, int count);
 
 /**
+ * @brief Set the slot overlap amount for lane X position calculation
+ *
+ * When slots use negative column padding to overlap visually (for 5+ slots),
+ * the lane entry points need to match the actual slot center positions.
+ *
+ * @param obj The filament_path_canvas widget
+ * @param overlap Overlap in pixels (same as negative pad_column value)
+ */
+void ui_filament_path_canvas_set_slot_overlap(lv_obj_t* obj, int32_t overlap);
+
+/**
+ * @brief Set the slot width for lane X position calculation
+ *
+ * Dynamic slot width is calculated by AmsPanel based on available space.
+ * This must match the actual slot widget width for lanes to align.
+ *
+ * @param obj The filament_path_canvas widget
+ * @param width Slot width in pixels
+ */
+void ui_filament_path_canvas_set_slot_width(lv_obj_t* obj, int32_t width);
+
+/**
  * @brief Set the active slot (whose path is highlighted)
  *
  * @param obj The filament_path_canvas widget

@@ -1038,6 +1038,16 @@ int main(int argc, char** argv) {
         args.screenshot_enabled = true;
     }
 
+    // Check HELIX_AMS_GATES environment variable for mock AMS gate count
+    const char* ams_gates_env = std::getenv("HELIX_AMS_GATES");
+    if (ams_gates_env != nullptr) {
+        char* endptr;
+        long val = strtol(ams_gates_env, &endptr, 10);
+        if (*endptr == '\0' && val >= 1 && val <= 16) {
+            g_runtime_config.mock_ams_gate_count = static_cast<int>(val);
+        }
+    }
+
     // Initialize config system early so we can read logging settings
     Config* config = Config::get_instance();
     config->init("helixconfig.json");

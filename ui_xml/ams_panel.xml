@@ -4,9 +4,9 @@
 <component>
   <!-- Component-local constants -->
   <consts>
-    <!-- Column widths for two-column layout -->
-    <percentage name="left_col_width" value="58%"/>
-    <percentage name="right_col_width" value="40%"/>
+    <!-- Column widths for two-column layout (right column shrunk for more spool space) -->
+    <percentage name="left_col_width" value="70%"/>
+    <percentage name="right_col_width" value="28%"/>
     <!-- Current loaded swatch size (medium for balanced layout) -->
     <px name="current_swatch_size" value="56"/>
     <!-- Status spinner size -->
@@ -46,16 +46,16 @@
           <!-- Wrapper for layered tray + slots (not flex, allows absolute positioning) -->
           <lv_obj name="slot_area"
                   width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                  scrollable="false">
+                  scrollable="false" overflow="visible">
             <!-- Slot Grid Container (drawn first = behind)
                  Uses flex_grow=1 on slots to divide space equally.
                  Slot centers align with path canvas slot entry points:
                  slot_x = card_padding + segment/2 + i*segment (where segment = effective_width/slot_count)
                  Slots are created dynamically by C++ based on slot_count subject. -->
             <lv_obj name="slot_grid"
-                    width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    style_pad_row="0" style_pad_column="0" flex_flow="row" style_flex_main_place="space_between"
-                    style_flex_cross_place="start" scrollable="false">
+                    width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+                    style_pad_row="0" style_pad_column="0" flex_flow="row" style_flex_main_place="start"
+                    style_flex_cross_place="start" scrollable="false" overflow="visible">
               <!-- Slots created dynamically by AmsPanel::create_slots() based on slot_count -->
             </lv_obj>
             <!-- Tray - visual "holder" in front of spools, positioned at bottom
@@ -63,14 +63,26 @@
             <lv_obj name="slot_tray"
                     width="100%" height="30" align="bottom_mid" style_bg_color="#text_secondary" style_bg_opa="38"
                     style_border_width="1" style_border_color="#text_secondary" style_border_opa="80"
-                    style_radius="#border_radius" scrollable="false" clickable="false"/>
+                    style_radius="#border_radius" style_pad_all="0" scrollable="false" clickable="false">
+              <!-- Left side border (2px inset from edge) -->
+              <lv_obj width="4" height="100%" align="left_mid" style_translate_x="2" style_bg_color="#text_primary" style_bg_opa="100"
+                      style_border_width="0" style_radius="0" style_pad_all="0" scrollable="false" clickable="false"/>
+              <!-- Right side border (2px inset from edge) -->
+              <lv_obj width="4" height="100%" align="right_mid" style_translate_x="-2" style_bg_color="#text_primary" style_bg_opa="100"
+                      style_border_width="0" style_radius="0" style_pad_all="0" scrollable="false" clickable="false"/>
+            </lv_obj>
+            <!-- Labels Layer - renders ON TOP of slots so labels aren't obscured by overlapping slots
+                 Height matches slot stagger area; set dynamically by C++ for different gate counts -->
+            <lv_obj name="labels_layer"
+                    width="100%" height="80" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+                    scrollable="false" clickable="false" overflow="visible"/>
           </lv_obj>
         </ui_card>
         <!-- Path Canvas - shows routing from slots to nozzle (no card border)
              Uses flex_grow="1" to fill remaining vertical space in left column -->
         <lv_obj name="path_container"
                 width="100%" flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
-                style_flex_main_place="start" style_flex_cross_place="center" scrollable="false">
+                style_flex_main_place="start" style_flex_cross_place="center" scrollable="false" overflow="visible">
           <!-- Filament Path Canvas
                Shows schematic view of filament routing:
                - Slots at top (entry points)
