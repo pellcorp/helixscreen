@@ -7,6 +7,7 @@
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_filament_path_canvas.h"
+#include "ui_fonts.h"
 #include "ui_icon.h"
 #include "ui_nav.h"
 #include "ui_nav_manager.h"
@@ -23,6 +24,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <unordered_map>
@@ -247,6 +249,7 @@ void AmsPanel::clear_panel_reference() {
     panel_ = nullptr;
     parent_screen_ = nullptr;
     slot_grid_ = nullptr;
+    labels_layer_ = nullptr;
     path_canvas_ = nullptr;
     context_menu_ = nullptr;
     context_menu_slot_ = -1;
@@ -254,6 +257,7 @@ void AmsPanel::clear_panel_reference() {
 
     for (int i = 0; i < MAX_VISIBLE_SLOTS; ++i) {
         slot_widgets_[i] = nullptr;
+        label_widgets_[i] = nullptr;
     }
 
     // Clear observer guards (they reference deleted widgets)
@@ -320,8 +324,17 @@ void AmsPanel::setup_slots() {
         return;
     }
 
+    // Find labels layer for z-order (labels render on top of all slots)
+    labels_layer_ = lv_obj_find_by_name(panel_, "labels_layer");
+    if (!labels_layer_) {
+        spdlog::warn(
+            "[{}] labels_layer not found in XML - labels may be obscured by overlapping slots",
+            get_name());
+    }
+
     // Get initial gate count and create slots
     int gate_count = lv_subject_get_int(AmsState::instance().get_gate_count_subject());
+    spdlog::debug("[{}] setup_slots: gate_count={} from subject", get_name(), gate_count);
     create_slots(gate_count);
 }
 
@@ -352,6 +365,8 @@ void AmsPanel::create_slots(int count) {
             lv_obj_delete(slot_widgets_[i]);
             slot_widgets_[i] = nullptr;
         }
+        // Note: label_widgets_ are no longer used - labels are inside slot widgets
+        label_widgets_[i] = nullptr;
     }
 
     // Create new slots via XML system (widget handles its own sizing/appearance)
@@ -365,6 +380,10 @@ void AmsPanel::create_slots(int count) {
         // Configure slot index (triggers reactive binding setup)
         ui_ams_slot_set_index(slot, i);
 
+        // Set layout info for staggered label positioning
+        // Each slot positions its own label based on its index and total count
+        ui_ams_slot_set_layout_info(slot, i, count);
+
         // Store reference and setup click handler
         slot_widgets_[i] = slot;
         lv_obj_set_user_data(slot, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
@@ -372,7 +391,77 @@ void AmsPanel::create_slots(int count) {
     }
 
     current_slot_count_ = count;
-    spdlog::info("[{}] Created {} slot widgets", get_name(), count);
+
+    // Get available width from slot_area (parent of slot_grid)
+    lv_obj_t* slot_area = lv_obj_get_parent(slot_grid_);
+    lv_obj_update_layout(slot_area); // Ensure layout is current
+    int32_t available_width = lv_obj_get_content_width(slot_area);
+
+    // Calculate dynamic slot width and overlap to fill available space
+    // Formula: available_width = N * slot_width - (N-1) * overlap
+    // With overlap = 50% of slot_width for 5+ gates:
+    //   slot_width = available_width / (N * 0.5 + 0.5) for N >= 5
+    //   slot_width = available_width / N for N <= 4 (no overlap)
+    int32_t slot_width = 0;
+    int32_t overlap = 0;
+
+    if (count > 4) {
+        // Use 50% overlap ratio for many gates
+        // slot_width = available_width / (N * (1 - overlap_ratio) + overlap_ratio)
+        // With overlap_ratio = 0.5: slot_width = available_width / (0.5*N + 0.5)
+        float overlap_ratio = 0.5f;
+        slot_width = static_cast<int32_t>(available_width /
+                                          (count * (1.0f - overlap_ratio) + overlap_ratio));
+        overlap = static_cast<int32_t>(slot_width * overlap_ratio);
+
+        // Apply negative column padding for overlap effect
+        lv_obj_set_style_pad_column(slot_grid_, -overlap, LV_PART_MAIN);
+        spdlog::debug(
+            "[{}] Dynamic sizing: available={}px, slot_width={}px, overlap={}px for {} gates",
+            get_name(), available_width, slot_width, overlap, count);
+    } else {
+        // No overlap for 4 or fewer gates - evenly distributed
+        slot_width = available_width / count;
+        lv_obj_set_style_pad_column(slot_grid_, 0, LV_PART_MAIN);
+        spdlog::debug("[{}] Even distribution: slot_width={}px for {} gates", get_name(),
+                      slot_width, count);
+    }
+
+    // Apply calculated width to each slot
+    for (int i = 0; i < count; ++i) {
+        if (slot_widgets_[i]) {
+            lv_obj_set_width(slot_widgets_[i], slot_width);
+        }
+    }
+
+    // Move labels to overlay layer so they render on top of overlapping slots
+    // This must happen after layout_info is set and widths are applied
+    if (labels_layer_ && count > 4) {
+        // First clear any previous labels from the layer
+        lv_obj_clean(labels_layer_);
+
+        // Calculate slot spacing (same formula as path canvas)
+        int32_t slot_spacing = slot_width - overlap;
+
+        for (int i = 0; i < count; ++i) {
+            if (slot_widgets_[i]) {
+                // Slot center X in labels_layer coords (no card_padding offset - we're inside the
+                // card)
+                int32_t slot_center_x = slot_width / 2 + i * slot_spacing;
+                ui_ams_slot_move_label_to_layer(slot_widgets_[i], labels_layer_, slot_center_x);
+            }
+        }
+        spdlog::debug("[{}] Moved {} labels to overlay layer", get_name(), count);
+    }
+
+    // Update path canvas with slot_width and overlap so lane positions match
+    if (path_canvas_) {
+        ui_filament_path_canvas_set_slot_overlap(path_canvas_, overlap);
+        ui_filament_path_canvas_set_slot_width(path_canvas_, slot_width);
+    }
+
+    spdlog::info("[{}] Created {} slot widgets with dynamic width={}px", get_name(), count,
+                 slot_width);
 
     // Update the visual tray to 1/3 of slot height
     update_tray_size();
@@ -456,6 +545,30 @@ void AmsPanel::setup_path_canvas() {
 
     // Set gate click callback to trigger filament load
     ui_filament_path_canvas_set_gate_callback(path_canvas_, on_path_gate_clicked, this);
+
+    // Set slot_width and overlap to match current slot configuration
+    // This syncs with the dynamic sizing calculated in create_slots()
+    if (slot_grid_) {
+        lv_obj_t* slot_area = lv_obj_get_parent(slot_grid_);
+        lv_obj_update_layout(slot_area);
+        int32_t available_width = lv_obj_get_content_width(slot_area);
+        int gate_count = lv_subject_get_int(AmsState::instance().get_gate_count_subject());
+
+        int32_t slot_width = 0;
+        int32_t overlap = 0;
+
+        if (gate_count > 4) {
+            float overlap_ratio = 0.5f;
+            slot_width = static_cast<int32_t>(
+                available_width / (gate_count * (1.0f - overlap_ratio) + overlap_ratio));
+            overlap = static_cast<int32_t>(slot_width * overlap_ratio);
+        } else if (gate_count > 0) {
+            slot_width = available_width / gate_count;
+        }
+
+        ui_filament_path_canvas_set_slot_width(path_canvas_, slot_width);
+        ui_filament_path_canvas_set_slot_overlap(path_canvas_, overlap);
+    }
 
     // Initial configuration from backend
     update_path_canvas_from_backend();
@@ -570,10 +683,18 @@ void AmsPanel::update_slot_colors() {
         // Update material label and fill level from backend gate info
         if (backend) {
             GateInfo gate_info = backend->get_gate_info(i);
+
+            // Update slot-internal material label
+            // Truncate long material names when many gates to prevent overlap
             lv_obj_t* material_label = lv_obj_find_by_name(slot_widgets_[i], "material_label");
             if (material_label) {
                 if (!gate_info.material.empty()) {
-                    lv_label_set_text(material_label, gate_info.material.c_str());
+                    std::string material = gate_info.material;
+                    // Truncate to 4 chars when overlapping (5+ gates)
+                    if (gate_count > 4 && material.length() > 4) {
+                        material = material.substr(0, 4);
+                    }
+                    lv_label_set_text(material_label, material.c_str());
                 } else {
                     lv_label_set_text(material_label, "---");
                 }

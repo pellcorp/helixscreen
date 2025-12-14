@@ -85,6 +85,32 @@ void ui_ams_slot_set_fill_level(lv_obj_t* obj, float fill_level);
  */
 float ui_ams_slot_get_fill_level(lv_obj_t* obj);
 
+/**
+ * @brief Set layout info for staggered label positioning
+ *
+ * When there are many slots (>4), labels are staggered vertically to avoid
+ * overlap. This function tells the slot its position in the sequence so it
+ * can position its label at Low/Medium/High height.
+ *
+ * @param obj         The ams_slot widget
+ * @param slot_index  This slot's index (0-based)
+ * @param total_count Total number of slots being displayed
+ */
+void ui_ams_slot_set_layout_info(lv_obj_t* obj, int slot_index, int total_count);
+
+/**
+ * @brief Move label and leader line to an external container for z-ordering
+ *
+ * When slots overlap visually, labels can be obscured by adjacent slots.
+ * This function reparents the label and leader line to an overlay container
+ * that renders on top of all slots.
+ *
+ * @param obj           The ams_slot widget
+ * @param labels_layer  Target container for label/leader (should be above slots in z-order)
+ * @param slot_center_x X position of slot center in labels_layer coords
+ */
+void ui_ams_slot_move_label_to_layer(lv_obj_t* obj, lv_obj_t* labels_layer, int32_t slot_center_x);
+
 #ifdef __cplusplus
 }
 #endif

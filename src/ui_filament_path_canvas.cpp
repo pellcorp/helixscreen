@@ -31,7 +31,8 @@ static constexpr int DEFAULT_GATE_COUNT = 4;
 
 // Layout ratios (as fraction of widget height)
 // Entry points at very top to connect visually with slot grid above
-static constexpr float ENTRY_Y_RATIO = 0.02f;    // Top entry points (very close to top)
+static constexpr float ENTRY_Y_RATIO =
+    -0.12f; // Top entry points (above canvas, very close to spool box)
 static constexpr float PREP_Y_RATIO = 0.10f;     // Prep sensor position
 static constexpr float MERGE_Y_RATIO = 0.20f;    // Where lanes merge
 static constexpr float HUB_Y_RATIO = 0.30f;      // Hub/selector center
@@ -85,6 +86,8 @@ struct FilamentPathData {
     int error_segment = 0;               // Error location (0=none)
     int anim_progress = 0;               // Animation progress 0-100 (for segment transition)
     uint32_t filament_color = DEFAULT_FILAMENT_COLOR;
+    int32_t slot_overlap = 0; // Overlap between slots in pixels (for 5+ gates)
+    int32_t slot_width = 90;  // Dynamic slot width (set by AmsPanel)
 
     // Per-gate filament state (for showing all installed filaments, not just active)
     static constexpr int MAX_GATES = 16;
@@ -173,19 +176,22 @@ static FilamentPathData* get_data(lv_obj_t* obj) {
 // Helper Functions
 // ============================================================================
 
-// Calculate X position for a gate's entry point (distributed across width)
-static int32_t get_gate_x(int gate_index, int gate_count, int32_t width) {
-    if (gate_count <= 1)
-        return width / 2;
+// Calculate X position for a gate's entry point
+// Uses ABSOLUTE positioning with dynamic slot width from AmsPanel:
+//   slot_center[i] = card_padding + slot_width/2 + i * (slot_width - overlap)
+// Both slot_width and overlap are set by AmsPanel to match actual slot layout.
+static int32_t get_gate_x(int gate_index, int gate_count, int32_t slot_width, int32_t overlap) {
+    // Card padding where slot_grid lives (ams_unit_card has style_pad_all="#space_sm")
+    constexpr int32_t card_padding = 8;
 
-    // Match the slot_grid layout: flex_grow=1 slots in a container inset by card_padding
-    // slot_grid is inside ams_unit_card with style_pad_all="#space_sm" (8px)
-    // Gate centers align with slot centers: card_padding + (2*i + 1) * effective_width /
-    // (2*gate_count)
-    constexpr int32_t card_padding = 8; // space_sm
-    int32_t effective_width = width - 2 * card_padding;
-    int32_t segment_width = effective_width / gate_count;
-    return card_padding + segment_width / 2 + gate_index * segment_width;
+    if (gate_count <= 1) {
+        return card_padding + slot_width / 2;
+    }
+
+    // Slot spacing = slot_width - overlap (slots move closer together with overlap)
+    int32_t slot_spacing = slot_width - overlap;
+
+    return card_padding + slot_width / 2 + gate_index * slot_spacing;
 }
 
 // Check if a segment should be drawn as "active" (filament present at or past it)
@@ -908,7 +914,8 @@ static void filament_path_draw_cb(lv_event_t* e) {
     // Shows all installed filaments' colors, not just the active gate
     // ========================================================================
     for (int i = 0; i < data->gate_count; i++) {
-        int32_t gate_x = x_off + get_gate_x(i, data->gate_count, width);
+        int32_t gate_x =
+            x_off + get_gate_x(i, data->gate_count, data->slot_width, data->slot_overlap);
         bool is_active_gate = (i == data->active_gate);
 
         // Determine line color and width for this gate's lane
@@ -1176,7 +1183,8 @@ static void filament_path_draw_cb(lv_event_t* e) {
         int32_t tip_x = center_x;
         if ((prev_seg <= PathSegment::PREP || fil_seg <= PathSegment::PREP) &&
             data->active_gate >= 0) {
-            int32_t gate_x = x_off + get_gate_x(data->active_gate, data->gate_count, width);
+            int32_t gate_x = x_off + get_gate_x(data->active_gate, data->gate_count,
+                                                data->slot_width, data->slot_overlap);
             if (is_loading) {
                 // Moving from gate toward center
                 if (prev_seg <= PathSegment::PREP && fil_seg > PathSegment::PREP) {
@@ -1245,7 +1253,8 @@ static void filament_path_click_cb(lv_event_t* e) {
     // Find which gate was clicked
     if (data->gate_callback) {
         for (int i = 0; i < data->gate_count; i++) {
-            int32_t gate_x = x_off + get_gate_x(i, data->gate_count, width);
+            int32_t gate_x =
+                x_off + get_gate_x(i, data->gate_count, data->slot_width, data->slot_overlap);
             if (abs(point.x - gate_x) < 20) {
                 spdlog::debug("[FilamentPath] Gate {} clicked", i);
                 data->gate_callback(i, data->gate_user_data);
@@ -1416,6 +1425,24 @@ void ui_filament_path_canvas_set_gate_count(lv_obj_t* obj, int count) {
     auto* data = get_data(obj);
     if (data) {
         data->gate_count = LV_CLAMP(count, 1, 16);
+        lv_obj_invalidate(obj);
+    }
+}
+
+void ui_filament_path_canvas_set_slot_overlap(lv_obj_t* obj, int32_t overlap) {
+    auto* data = get_data(obj);
+    if (data) {
+        data->slot_overlap = LV_MAX(overlap, 0);
+        spdlog::trace("[FilamentPath] Slot overlap set to {}px", data->slot_overlap);
+        lv_obj_invalidate(obj);
+    }
+}
+
+void ui_filament_path_canvas_set_slot_width(lv_obj_t* obj, int32_t width) {
+    auto* data = get_data(obj);
+    if (data) {
+        data->slot_width = LV_MAX(width, 20); // Minimum 20px
+        spdlog::trace("[FilamentPath] Slot width set to {}px", data->slot_width);
         lv_obj_invalidate(obj);
     }
 }

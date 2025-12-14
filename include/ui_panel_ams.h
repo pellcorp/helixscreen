@@ -96,8 +96,11 @@ class AmsPanel : public PanelBase {
   private:
     // === Slot Management ===
 
-    static constexpr int MAX_VISIBLE_SLOTS = 8; ///< Max slots displayed (2 rows of 4)
+    static constexpr int MAX_VISIBLE_SLOTS =
+        16; ///< Max slots displayed (increased for 8+ gate systems)
     lv_obj_t* slot_widgets_[MAX_VISIBLE_SLOTS] = {nullptr};
+    lv_obj_t* label_widgets_[MAX_VISIBLE_SLOTS] = {nullptr}; ///< Separate label layer for z-order
+    lv_obj_t* labels_layer_ = nullptr; ///< Container for labels (drawn on top of all spools)
 
     // === Context Menu ===
 

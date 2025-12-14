@@ -45,6 +45,7 @@ static bool is_3d_spool_style() {
  */
 struct AmsSlotData {
     int slot_index = -1;
+    int total_count = 4;      // Total slots being displayed (for stagger calculation)
     bool use_3d_style = true; // Cached style setting
 
     // RAII observer handles - automatically removed when this struct is destroyed
@@ -64,6 +65,8 @@ struct AmsSlotData {
 
     // Other UI elements
     lv_obj_t* material_label = nullptr;
+    lv_obj_t* leader_line = nullptr;     // Dotted line connecting label to spool (when staggered)
+    lv_point_precise_t leader_points[2]; // Points for leader line (per-slot storage)
     lv_obj_t* status_badge_bg = nullptr; // Status badge background (colored circle)
     lv_obj_t* slot_badge = nullptr;      // Slot number label inside status badge
     lv_obj_t* container = nullptr;       // The ams_slot widget itself
@@ -304,26 +307,29 @@ static void on_current_gate_changed(lv_observer_t* observer, lv_subject_t* subje
 
     bool is_active = (current_gate == data->slot_index) && filament_loaded;
 
+    // Apply highlight to spool_container (not container) so it doesn't include label padding area
+    lv_obj_t* highlight_target = data->spool_container ? data->spool_container : data->container;
+
     if (is_active) {
         // Active slot: glowing border effect
         lv_color_t primary = ui_theme_parse_color(lv_xml_get_const(NULL, "primary_color"));
 
-        // Border highlight
-        lv_obj_set_style_border_color(data->container, primary, LV_PART_MAIN);
-        lv_obj_set_style_border_opa(data->container, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_width(data->container, 3, LV_PART_MAIN);
+        // Border highlight on spool area only
+        lv_obj_set_style_border_color(highlight_target, primary, LV_PART_MAIN);
+        lv_obj_set_style_border_opa(highlight_target, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(highlight_target, 3, LV_PART_MAIN);
 
         // Outer glow using shadow
-        lv_obj_set_style_shadow_width(data->container, 16, LV_PART_MAIN);
-        lv_obj_set_style_shadow_color(data->container, primary, LV_PART_MAIN);
-        lv_obj_set_style_shadow_opa(data->container, LV_OPA_50, LV_PART_MAIN);
-        lv_obj_set_style_shadow_spread(data->container, 2, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(highlight_target, 16, LV_PART_MAIN);
+        lv_obj_set_style_shadow_color(highlight_target, primary, LV_PART_MAIN);
+        lv_obj_set_style_shadow_opa(highlight_target, LV_OPA_50, LV_PART_MAIN);
+        lv_obj_set_style_shadow_spread(highlight_target, 2, LV_PART_MAIN);
     } else {
         // Inactive: no border or glow
-        lv_obj_set_style_border_opa(data->container, LV_OPA_TRANSP, LV_PART_MAIN);
-        lv_obj_set_style_border_width(data->container, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(data->container, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_opa(data->container, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_opa(highlight_target, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(highlight_target, 0, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(highlight_target, 0, LV_PART_MAIN);
+        lv_obj_set_style_shadow_opa(highlight_target, LV_OPA_TRANSP, LV_PART_MAIN);
     }
 
     spdlog::trace("[AmsSlot] Slot {} active={} (current_gate={}, loaded={})", data->slot_index,
@@ -387,10 +393,12 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
     // Get responsive spacing values
     int32_t space_xs = ui_theme_get_spacing("space_xs");
 
-    // Responsive sizing: use flex_grow so slots share space equally
-    // This ensures 4 slots fit in one row and align with path canvas gates
-    // The parent slot_grid uses flex_flow="row" - slots expand to fill their portion
-    lv_obj_set_flex_grow(container, 1); // Share horizontal space equally
+    // Fixed slot width to support overlapping layout for many gates
+    // When there are more than 4 gates, slots overlap like in Bambu UI
+    // The parent slot_grid applies negative column padding to create overlap
+    int32_t space_lg = ui_theme_get_spacing("space_lg");
+    int32_t slot_width = (space_lg * 5) + 10; // ~90px - fits spool + padding
+    lv_obj_set_width(container, slot_width);
     lv_obj_set_height(container, LV_SIZE_CONTENT);
 
     // Container styling: transparent, no border, minimal padding
@@ -418,6 +426,7 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
     lv_obj_set_style_text_font(material, font_small, LV_PART_MAIN);
     lv_obj_set_style_text_color(material, ui_theme_get_color("text_primary"), LV_PART_MAIN);
     lv_obj_set_style_text_letter_space(material, 1, LV_PART_MAIN);
+    lv_obj_add_flag(material, LV_OBJ_FLAG_CLICKABLE);    // Make label tappable
     lv_obj_add_flag(material, LV_OBJ_FLAG_EVENT_BUBBLE); // Propagate clicks to slot
     data->material_label = material;
 
@@ -429,7 +438,7 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
 
     // Spool size adapts to available space - scales with screen size
     // Must fit within max_width=90px constraint: spool_size + 8 (container padding) < 90
-    int32_t space_lg = ui_theme_get_spacing("space_lg");
+    // Note: space_lg already fetched above for slot_width calculation
     int32_t spool_size = (space_lg * 4); // Responsive: 64px at 16px, 80px at 20px
 
     if (data->use_3d_style) {
@@ -846,4 +855,209 @@ float ui_ams_slot_get_fill_level(lv_obj_t* obj) {
     }
 
     return data->fill_level;
+}
+
+void ui_ams_slot_set_layout_info(lv_obj_t* obj, int slot_index, int total_count) {
+    if (!obj) {
+        return;
+    }
+
+    auto* data = get_slot_data(obj);
+    if (!data) {
+        return;
+    }
+
+    data->total_count = total_count;
+
+    // Calculate stagger parameters based on total gate count
+    // Pattern: Low → Medium → High → Low... (cycling)
+    int stagger_rows = 1;
+    if (total_count >= 7) {
+        stagger_rows = 3; // Low, Medium, High
+    } else if (total_count >= 5) {
+        stagger_rows = 2; // Low, Medium
+    }
+
+    // Calculate which row this slot belongs to using triangle wave pattern
+    // Pattern: High → Mid → Low → Mid → High → Mid → Low...
+    // This creates a more balanced visual distribution of labels
+    int row = 0;
+    if (stagger_rows > 1) {
+        int period = (stagger_rows - 1) * 2; // 4 for 3 rows, 2 for 2 rows
+        int pos = slot_index % period;
+        if (pos < stagger_rows) {
+            // Descending: High(2) → Mid(1) → Low(0)
+            row = stagger_rows - 1 - pos;
+        } else {
+            // Ascending: Mid(1) back up
+            row = pos - stagger_rows + 1;
+        }
+    }
+
+    // Get font for dynamic row height calculation
+    const char* font_small_name = lv_xml_get_const(NULL, "font_small");
+    const lv_font_t* font_small =
+        font_small_name ? lv_xml_get_font(NULL, font_small_name) : &noto_sans_16;
+    int32_t line_height = lv_font_get_line_height(font_small);
+
+    // Row height with comfortable spacing (1.5x line height)
+    int32_t row_height = (line_height * 3) / 2;
+
+    // For staggered labels, we use absolute positioning
+    // Remove label from flex flow and position it at the correct stagger row
+    if (data->material_label && stagger_rows > 1) {
+        int32_t total_label_height = row_height * stagger_rows;
+
+        // Remove label from flex layout - it will be positioned absolutely
+        lv_obj_add_flag(data->material_label, LV_OBJ_FLAG_IGNORE_LAYOUT);
+
+        // Add padding to container top to make room for staggered labels
+        lv_obj_set_style_pad_top(obj, total_label_height, LV_PART_MAIN);
+
+        // IMPORTANT: lv_obj_set_pos() positions relative to CONTENT area (after padding)
+        // To place label in padding area (ABOVE spool), we need NEGATIVE Y values:
+        //   - pad_top creates space above content
+        //   - y=0 in content coords = at the spool (wrong!)
+        //   - y=-pad_top = at top of container (in padding area)
+        //
+        // Row 0 (closest to spool): y = -row_height (just above content/spool)
+        // Row 1 (middle):           y = -2 * row_height
+        // Row 2 (top):              y = -3 * row_height (at top of padding area)
+        int32_t label_y = -static_cast<int32_t>((row + 1) * row_height);
+
+        // Center label horizontally, position at stagger row
+        lv_obj_set_width(data->material_label, lv_pct(100));
+        lv_obj_set_style_text_align(data->material_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_obj_set_pos(data->material_label, 0, label_y);
+
+        // Create dashed leader line connecting label to spool
+        if (!data->leader_line) {
+            data->leader_line = lv_line_create(obj);
+            lv_obj_add_flag(data->leader_line, LV_OBJ_FLAG_IGNORE_LAYOUT);
+            lv_obj_add_flag(data->leader_line, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(data->leader_line, LV_OBJ_FLAG_EVENT_BUBBLE);
+
+            // Style: dashed line using theme color
+            lv_obj_set_style_line_color(data->leader_line, ui_theme_get_color("text_secondary"),
+                                        LV_PART_MAIN);
+            lv_obj_set_style_line_width(data->leader_line, 1, LV_PART_MAIN);
+            lv_obj_set_style_line_dash_width(data->leader_line, 4, LV_PART_MAIN);
+            lv_obj_set_style_line_dash_gap(data->leader_line, 3, LV_PART_MAIN);
+            lv_obj_set_style_line_opa(data->leader_line, LV_OPA_70, LV_PART_MAIN);
+        }
+
+        // Ensure container allows overflow for lines in padding area
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+
+        // Position line from label bottom (with small gap) to spool top
+        // lv_obj_align() positions relative to CONTENT area (after padding)
+        int32_t label_gap = 3; // Small gap between label and line
+        int32_t line_start_y = label_y + line_height + label_gap; // Negative (in content coords)
+        int32_t line_end_y = 0;                                   // Spool top
+        int32_t leader_length = line_end_y - line_start_y;        // Positive length
+
+        // Set line points (relative to line object position)
+        data->leader_points[0].x = 0;
+        data->leader_points[0].y = 0;
+        data->leader_points[1].x = 0;
+        data->leader_points[1].y = leader_length;
+        lv_line_set_points(data->leader_line, data->leader_points, 2);
+
+        // Position line object at horizontal center, starting below label
+        lv_obj_align(data->leader_line, LV_ALIGN_TOP_MID, 0, line_start_y);
+        lv_obj_remove_flag(data->leader_line, LV_OBJ_FLAG_HIDDEN);
+
+        spdlog::debug("[AmsSlot] Slot {} layout: row={}/{}, label_y={}, leader_len={}", slot_index,
+                      row, stagger_rows, label_y, leader_length);
+    } else if (data->material_label) {
+        // No staggering - keep label in flex flow at default position
+        lv_obj_remove_flag(data->material_label, LV_OBJ_FLAG_IGNORE_LAYOUT);
+        lv_obj_set_style_pad_top(obj, 2, LV_PART_MAIN); // Original padding
+
+        // Hide leader line if it exists
+        if (data->leader_line) {
+            lv_obj_add_flag(data->leader_line, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        spdlog::debug("[AmsSlot] Slot {} layout: no stagger (count={})", slot_index, total_count);
+    }
+}
+
+void ui_ams_slot_move_label_to_layer(lv_obj_t* obj, lv_obj_t* labels_layer, int32_t slot_center_x) {
+    auto* data = get_slot_data(obj);
+    if (!data || !labels_layer) {
+        return;
+    }
+
+    // Only move if we have a label that's been set up for staggering
+    if (!data->material_label) {
+        return;
+    }
+
+    // Check if label is using staggered positioning (IGNORE_LAYOUT flag set by set_layout_info)
+    if (!lv_obj_has_flag(data->material_label, LV_OBJ_FLAG_IGNORE_LAYOUT)) {
+        // Not staggered - don't move
+        return;
+    }
+
+    // The label was positioned with negative Y in the slot's CONTENT coordinate system.
+    // Content coords start AFTER padding, so negative Y means "above content, in padding area".
+    // To convert to labels_layer coords, we need:
+    //   absolute_y = slot_y + slot_pad_top + label_relative_y
+    // Where label_relative_y is negative.
+    int32_t slot_pad_top = lv_obj_get_style_pad_top(obj, LV_PART_MAIN);
+    int32_t label_relative_y = lv_obj_get_y(data->material_label); // Negative
+    int32_t label_y = slot_pad_top + label_relative_y;             // e.g., 60 + (-30) = 30
+
+    // Reparent label to labels_layer
+    lv_obj_set_parent(data->material_label, labels_layer);
+
+    // Get label width for centering
+    lv_obj_update_layout(data->material_label);
+    int32_t label_width = lv_obj_get_width(data->material_label);
+
+    // Position at slot center X with converted Y
+    int32_t label_x = slot_center_x - label_width / 2;
+    lv_obj_set_pos(data->material_label, label_x, label_y);
+
+    // Reparent and reposition leader line if it exists
+    if (data->leader_line && !lv_obj_has_flag(data->leader_line, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_set_parent(data->leader_line, labels_layer);
+
+        // CRITICAL: Clear any stored alignment from set_layout_info() which used LV_ALIGN_TOP_MID
+        // After reparenting, the old alignment would reference labels_layer dimensions incorrectly
+        lv_obj_set_align(data->leader_line, LV_ALIGN_DEFAULT);
+
+        // Recalculate line position based on label position
+        // Line goes from just below label to spool top (slot_pad_top in labels_layer coords)
+        lv_obj_update_layout(data->material_label);
+        int32_t label_height = lv_obj_get_height(data->material_label);
+        int32_t label_gap = 3;
+        int32_t line_start_y = label_y + label_height + label_gap;
+        int32_t line_end_y = slot_pad_top; // Spool top in labels_layer coords
+
+        // Update line points for new length
+        int32_t leader_length = line_end_y - line_start_y;
+        data->leader_points[0].x = 0;
+        data->leader_points[0].y = 0;
+        data->leader_points[1].x = 0;
+        data->leader_points[1].y = leader_length;
+        lv_line_set_points(data->leader_line, data->leader_points, 2);
+
+        // Position line at slot center X using absolute positioning
+        // lv_line draws from its object position, so line at x=slot_center_x draws there
+        lv_obj_set_pos(data->leader_line, slot_center_x, line_start_y);
+
+        // Restore normal line styling (dashed, subtle)
+        lv_obj_set_style_line_color(data->leader_line, ui_theme_get_color("text_secondary"),
+                                    LV_PART_MAIN);
+        lv_obj_set_style_line_width(data->leader_line, 1, LV_PART_MAIN);
+        lv_obj_set_style_line_opa(data->leader_line, LV_OPA_70, LV_PART_MAIN);
+
+        spdlog::debug("[AmsSlot] Slot {} leader: x={}, start_y={}, end_y={}, length={}",
+                      data->slot_index, slot_center_x, line_start_y, line_end_y, leader_length);
+    }
+
+    spdlog::debug("[AmsSlot] Slot {} label moved to layer at x={}, y={} (pad_top={}, rel_y={})",
+                  data->slot_index, label_x, label_y, slot_pad_top, label_relative_y);
 }
