@@ -17,6 +17,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <thread>
 #include <vector>
@@ -39,6 +40,8 @@ class MoonrakerAPI {
         std::function<void(const std::vector<PrintHistoryJob>&, uint64_t total_count)>;
     using HistoryTotalsCallback = std::function<void(const PrintHistoryTotals&)>;
     using TimelapseSettingsCallback = std::function<void(const TimelapseSettings&)>;
+    using SpoolCallback = std::function<void(const std::optional<SpoolInfo>&)>;
+    using SpoolListCallback = std::function<void(const std::vector<SpoolInfo>&)>;
 
     /**
      * @brief Constructor
@@ -863,6 +866,19 @@ class MoonrakerAPI {
      * @param on_error Called on failure
      */
     virtual void get_spoolman_spools(SpoolListCallback on_success, ErrorCallback on_error);
+
+    /**
+     * @brief Get a single spool's details by ID
+     *
+     * Fetches full spool information from Spoolman for a specific spool ID.
+     * Used when assigning a Spoolman spool to an AMS slot - the backend
+     * fetches the spool details to enrich the slot display.
+     *
+     * @param spool_id Spoolman spool ID
+     * @param on_success Called with spool info (empty optional if not found)
+     * @param on_error Called on failure (network error, etc.)
+     */
+    virtual void get_spoolman_spool(int spool_id, SpoolCallback on_success, ErrorCallback on_error);
 
     /**
      * @brief Set the active spool for filament tracking

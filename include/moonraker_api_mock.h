@@ -305,6 +305,19 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     void get_spoolman_spools(SpoolListCallback on_success, ErrorCallback on_error) override;
 
     /**
+     * @brief Get a single spool by ID from mock inventory
+     *
+     * Looks up the spool in mock_spools_ and returns it if found.
+     * Used by AmsBackend to enrich slot info when a Spoolman spool is assigned.
+     *
+     * @param spool_id Spoolman spool ID to lookup
+     * @param on_success Callback with SpoolInfo (empty optional if not found)
+     * @param on_error Error callback (never called - mock always succeeds)
+     */
+    void get_spoolman_spool(int spool_id, SpoolCallback on_success,
+                            ErrorCallback on_error) override;
+
+    /**
      * @brief Mock set active spool (updates internal state)
      *
      * Updates mock_active_spool_id_ and marks the corresponding spool as active.

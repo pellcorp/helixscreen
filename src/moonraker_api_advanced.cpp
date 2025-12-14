@@ -696,6 +696,17 @@ void MoonrakerAPI::get_spoolman_spools(SpoolListCallback /*on_success*/, ErrorCa
     }
 }
 
+void MoonrakerAPI::get_spoolman_spool(int /*spool_id*/, SpoolCallback /*on_success*/,
+                                      ErrorCallback on_error) {
+    spdlog::warn("[Moonraker API] get_spoolman_spool() not yet implemented");
+    if (on_error) {
+        MoonrakerError err;
+        err.type = MoonrakerErrorType::UNKNOWN;
+        err.message = "Spoolman single spool lookup not yet implemented";
+        on_error(err);
+    }
+}
+
 void MoonrakerAPI::set_active_spool(int /*spool_id*/, SuccessCallback /*on_success*/,
                                     ErrorCallback on_error) {
     spdlog::warn("[Moonraker API] set_active_spool() not yet implemented");
