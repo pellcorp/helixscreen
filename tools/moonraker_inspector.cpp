@@ -17,7 +17,7 @@
 
 #include "moonraker_client.h"
 #include "ansi_colors.h"
-#include <nlohmann/json.hpp>
+#include <json.hpp>  // nlohmann/json from libhv
 #include <spdlog/spdlog.h>
 
 #include <chrono>

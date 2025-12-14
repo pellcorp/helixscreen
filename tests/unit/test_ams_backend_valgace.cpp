@@ -4,7 +4,7 @@
 #include "ams_backend_valgace.h"
 #include "ams_types.h"
 
-#include <nlohmann/json.hpp>
+#include <json.hpp>  // nlohmann/json from libhv
 
 #include "../catch_amalgamated.hpp"
 

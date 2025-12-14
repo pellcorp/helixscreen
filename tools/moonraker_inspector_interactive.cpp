@@ -15,7 +15,7 @@
  */
 
 #include "moonraker_client.h"
-#include <nlohmann/json.hpp>
+#include <json.hpp>  // nlohmann/json from libhv
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
