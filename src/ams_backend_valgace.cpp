@@ -37,7 +37,7 @@ AmsBackendValgACE::AmsBackendValgACE(MoonrakerAPI* api, MoonrakerClient* client)
     dryer_info_.allows_during_print = false; // Default: block during print
     dryer_info_.min_temp_c = 35.0f;
     dryer_info_.max_temp_c = 70.0f;
-    dryer_info_.max_duration_min = 720; // 12 hours
+    dryer_info_.max_duration_min = 720;       // 12 hours
     dryer_info_.supports_fan_control = false; // ACE Pro doesn't expose fan control
 }
 
@@ -585,8 +585,8 @@ void AmsBackendValgACE::parse_info_response(const json& data) {
         }
     }
 
-    spdlog::info("[ValgACE] Detected: {} v{} with {} slots",
-                 system_info_.type_name, system_info_.version, system_info_.total_slots);
+    spdlog::info("[ValgACE] Detected: {} v{} with {} slots", system_info_.type_name,
+                 system_info_.version, system_info_.total_slots);
 }
 
 bool AmsBackendValgACE::parse_status_response(const json& data) {
@@ -775,8 +775,7 @@ AmsError AmsBackendValgACE::execute_gcode(const std::string& gcode) {
 
     // Execute via MoonrakerAPI
     api_->execute_gcode(
-        gcode,
-        []() { spdlog::debug("[ValgACE] G-code executed successfully"); },
+        gcode, []() { spdlog::debug("[ValgACE] G-code executed successfully"); },
         [gcode](const MoonrakerError& err) {
             spdlog::error("[ValgACE] G-code '{}' failed: {}", gcode, err.message);
         });
@@ -792,8 +791,7 @@ AmsError AmsBackendValgACE::check_preconditions() const {
 
     std::lock_guard<std::mutex> lock(state_mutex_);
 
-    if (system_info_.action == AmsAction::LOADING ||
-        system_info_.action == AmsAction::UNLOADING) {
+    if (system_info_.action == AmsAction::LOADING || system_info_.action == AmsAction::UNLOADING) {
         return AmsErrorHelper::busy("filament operation");
     }
 

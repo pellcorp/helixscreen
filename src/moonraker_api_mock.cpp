@@ -817,7 +817,8 @@ void MoonrakerAPIMock::get_spoolman_spools(SpoolListCallback on_success,
 
 void MoonrakerAPIMock::set_active_spool(int spool_id, SuccessCallback on_success,
                                         ErrorCallback /*on_error*/) {
-    spdlog::info("[MoonrakerAPIMock] set_active_spool({}) - was {}", spool_id, mock_active_spool_id_);
+    spdlog::info("[MoonrakerAPIMock] set_active_spool({}) - was {}", spool_id,
+                 mock_active_spool_id_);
 
     // Update active spool state
     mock_active_spool_id_ = spool_id;
@@ -846,37 +847,40 @@ void MoonrakerAPIMock::call_rest_get(const std::string& endpoint, RestCallback o
     // Return mock responses for known ValgACE endpoints
     if (endpoint == "/server/ace/info") {
         resp.data = {
-            {"result", {
-                {"model", "ACE Pro"},
-                {"version", "1.0.0-mock"},
-                {"slot_count", 4}
-            }}
-        };
+            {"result", {{"model", "ACE Pro"}, {"version", "1.0.0-mock"}, {"slot_count", 4}}}};
     } else if (endpoint == "/server/ace/status") {
-        resp.data = {
-            {"result", {
-                {"loaded_slot", -1},
-                {"action", "idle"},
-                {"dryer", {
-                    {"active", false},
-                    {"current_temp", 25.0},
-                    {"target_temp", 0.0},
-                    {"remaining_minutes", 0},
-                    {"duration_minutes", 0}
-                }}
-            }}
-        };
+        resp.data = {{"result",
+                      {{"loaded_slot", -1},
+                       {"action", "idle"},
+                       {"dryer",
+                        {{"active", false},
+                         {"current_temp", 25.0},
+                         {"target_temp", 0.0},
+                         {"remaining_minutes", 0},
+                         {"duration_minutes", 0}}}}}};
     } else if (endpoint == "/server/ace/slots") {
-        resp.data = {
-            {"result", {
-                {"slots", {
-                    {{"status", "available"}, {"color", "#FF0000"}, {"material", "PLA"}, {"temp_min", 190}, {"temp_max", 220}},
-                    {{"status", "available"}, {"color", "#00FF00"}, {"material", "PETG"}, {"temp_min", 220}, {"temp_max", 250}},
-                    {{"status", "empty"}, {"color", "#000000"}, {"material", ""}, {"temp_min", 0}, {"temp_max", 0}},
-                    {{"status", "available"}, {"color", "#0000FF"}, {"material", "ABS"}, {"temp_min", 240}, {"temp_max", 270}}
-                }}
-            }}
-        };
+        resp.data = {{"result",
+                      {{"slots",
+                        {{{"status", "available"},
+                          {"color", "#FF0000"},
+                          {"material", "PLA"},
+                          {"temp_min", 190},
+                          {"temp_max", 220}},
+                         {{"status", "available"},
+                          {"color", "#00FF00"},
+                          {"material", "PETG"},
+                          {"temp_min", 220},
+                          {"temp_max", 250}},
+                         {{"status", "empty"},
+                          {"color", "#000000"},
+                          {"material", ""},
+                          {"temp_min", 0},
+                          {"temp_max", 0}},
+                         {{"status", "available"},
+                          {"color", "#0000FF"},
+                          {"material", "ABS"},
+                          {"temp_min", 240},
+                          {"temp_max", 270}}}}}}};
     } else {
         // Unknown endpoint - return generic success with empty result
         resp.data = {{"result", nlohmann::json::object()}};

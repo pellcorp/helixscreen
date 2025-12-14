@@ -65,11 +65,15 @@
                     style_border_width="1" style_border_color="#text_secondary" style_border_opa="80"
                     style_radius="#border_radius" style_pad_all="0" scrollable="false" clickable="false">
               <!-- Left side border (2px inset from edge) -->
-              <lv_obj width="4" height="100%" align="left_mid" style_translate_x="2" style_bg_color="#text_primary" style_bg_opa="100"
-                      style_border_width="0" style_radius="0" style_pad_all="0" scrollable="false" clickable="false"/>
+              <lv_obj width="4"
+                      height="100%" align="left_mid" style_translate_x="2" style_bg_color="#text_primary"
+                      style_bg_opa="100" style_border_width="0" style_radius="0" style_pad_all="0" scrollable="false"
+                      clickable="false"/>
               <!-- Right side border (2px inset from edge) -->
-              <lv_obj width="4" height="100%" align="right_mid" style_translate_x="-2" style_bg_color="#text_primary" style_bg_opa="100"
-                      style_border_width="0" style_radius="0" style_pad_all="0" scrollable="false" clickable="false"/>
+              <lv_obj width="4"
+                      height="100%" align="right_mid" style_translate_x="-2" style_bg_color="#text_primary"
+                      style_bg_opa="100" style_border_width="0" style_radius="0" style_pad_all="0" scrollable="false"
+                      clickable="false"/>
             </lv_obj>
             <!-- Labels Layer - renders ON TOP of slots so labels aren't obscured by overlapping slots
                  Height matches slot stagger area; set dynamically by C++ for different gate counts -->

@@ -314,7 +314,8 @@ class MoonrakerAPIMock : public MoonrakerAPI {
      * @param on_success Success callback (always called)
      * @param on_error Error callback (never called)
      */
-    void set_active_spool(int spool_id, SuccessCallback on_success, ErrorCallback on_error) override;
+    void set_active_spool(int spool_id, SuccessCallback on_success,
+                          ErrorCallback on_error) override;
 
     /**
      * @brief Enable or disable mock Spoolman integration
@@ -390,9 +391,9 @@ class MoonrakerAPIMock : public MoonrakerAPI {
     MockScrewsTiltState mock_bed_state_;
 
     // Mock Spoolman state
-    bool mock_spoolman_enabled_ = true;                       ///< Whether Spoolman is "connected"
-    int mock_active_spool_id_ = 1;                            ///< Currently active spool ID
-    std::vector<SpoolInfo> mock_spools_;                      ///< Mock spool inventory
+    bool mock_spoolman_enabled_ = true;  ///< Whether Spoolman is "connected"
+    int mock_active_spool_id_ = 1;       ///< Currently active spool ID
+    std::vector<SpoolInfo> mock_spools_; ///< Mock spool inventory
 
     /**
      * @brief Initialize mock spool data with realistic sample inventory

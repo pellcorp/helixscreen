@@ -18,10 +18,9 @@
  * will complete before the API object is destroyed.
  */
 
+#include "hv/requests.h"
 #include "moonraker_api.h"
 #include "moonraker_api_internal.h"
-
-#include "hv/requests.h"
 #include "spdlog/spdlog.h"
 
 namespace {

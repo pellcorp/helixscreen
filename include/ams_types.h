@@ -625,10 +625,10 @@ struct PrintColorInfo {
  * Can be overridden via helixconfig.json "dryer_presets" array.
  */
 struct DryingPreset {
-    std::string name;        ///< Preset name (e.g., "PLA", "PETG", "ABS")
-    float temp_c = 45.0f;    ///< Target temperature in Celsius
-    int duration_min = 240;  ///< Drying duration in minutes
-    int fan_pct = 50;        ///< Fan speed percentage (0-100)
+    std::string name;       ///< Preset name (e.g., "PLA", "PETG", "ABS")
+    float temp_c = 45.0f;   ///< Target temperature in Celsius
+    int duration_min = 240; ///< Drying duration in minutes
+    int fan_pct = 50;       ///< Fan speed percentage (0-100)
 
     /**
      * @brief Create a drying preset
@@ -650,22 +650,22 @@ struct DryingPreset {
  * backends can implement when dryer hardware becomes available.
  */
 struct DryerInfo {
-    bool supported = false;             ///< Does this AMS have a dryer?
-    bool active = false;                ///< Currently drying?
-    bool allows_during_print = false;   ///< Can run while printing? (backend capability)
+    bool supported = false;           ///< Does this AMS have a dryer?
+    bool active = false;              ///< Currently drying?
+    bool allows_during_print = false; ///< Can run while printing? (backend capability)
 
     // Current state
-    float current_temp_c = 0.0f;        ///< Current chamber temperature
-    float target_temp_c = 0.0f;         ///< Target temperature (0 = off)
-    int duration_min = 0;               ///< Total drying duration set
-    int remaining_min = 0;              ///< Minutes remaining
-    int fan_pct = 0;                    ///< Current fan speed (0-100)
+    float current_temp_c = 0.0f; ///< Current chamber temperature
+    float target_temp_c = 0.0f;  ///< Target temperature (0 = off)
+    int duration_min = 0;        ///< Total drying duration set
+    int remaining_min = 0;       ///< Minutes remaining
+    int fan_pct = 0;             ///< Current fan speed (0-100)
 
     // Hardware capabilities
-    float min_temp_c = 35.0f;           ///< Minimum settable temperature
-    float max_temp_c = 70.0f;           ///< Maximum settable temperature
-    int max_duration_min = 720;         ///< Maximum drying time (12h default)
-    bool supports_fan_control = false;  ///< Can fan speed be set independently?
+    float min_temp_c = 35.0f;          ///< Minimum settable temperature
+    float max_temp_c = 70.0f;          ///< Maximum settable temperature
+    int max_duration_min = 720;        ///< Maximum drying time (12h default)
+    bool supports_fan_control = false; ///< Can fan speed be set independently?
 
     /**
      * @brief Get progress as percentage

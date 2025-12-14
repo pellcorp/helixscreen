@@ -4,7 +4,6 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
-
 #include <string>
 #include <vector>
 
@@ -182,8 +181,8 @@ struct ModifiedPrintResult {
  * success and error cases in a single structure.
  */
 struct RestResponse {
-    bool success = false;  ///< true if HTTP 2xx response
-    int status_code = 0;   ///< HTTP status code
-    json data;             ///< Parsed JSON response. If response isn't JSON, contains {"_raw_body": "..."}
-    std::string error;     ///< Error message (empty on success)
+    bool success = false; ///< true if HTTP 2xx response
+    int status_code = 0;  ///< HTTP status code
+    json data; ///< Parsed JSON response. If response isn't JSON, contains {"_raw_body": "..."}
+    std::string error; ///< Error message (empty on success)
 };
