@@ -7,6 +7,7 @@
 #include "ui_panel_base.h"
 
 #include "ams_state.h"
+#include "spoolman_types.h" // For SpoolInfo
 
 /**
  * @file ui_panel_ams.h
@@ -107,6 +108,12 @@ class AmsPanel : public PanelBase {
     lv_obj_t* context_menu_ = nullptr; ///< Active context menu (nullptr if hidden)
     int context_menu_slot_ = -1;       ///< Slot index for active context menu
 
+    // === Spoolman Picker ===
+
+    lv_obj_t* spoolman_picker_ = nullptr;  ///< Spoolman spool picker modal
+    int picker_target_slot_ = -1;          ///< Slot to assign selected spool to
+    std::vector<SpoolInfo> picker_spools_; ///< Cached spools for lookup on selection
+
     // === Observers (RAII cleanup via ObserverGuard) ===
 
     ObserverGuard slots_version_observer_;
@@ -115,6 +122,7 @@ class AmsPanel : public PanelBase {
     ObserverGuard slot_count_observer_;
     ObserverGuard path_segment_observer_;
     ObserverGuard path_topology_observer_;
+    ObserverGuard dryer_progress_observer_;
 
     // === Dynamic Slot State ===
 
@@ -125,12 +133,18 @@ class AmsPanel : public PanelBase {
 
     lv_obj_t* path_canvas_ = nullptr; ///< Filament path visualization widget
 
+    // === Dryer Card ===
+
+    lv_obj_t* dryer_progress_fill_ = nullptr; ///< Dryer progress bar fill element
+    lv_obj_t* dryer_modal_ = nullptr;         ///< Dryer presets modal overlay
+
     // === Setup Helpers ===
 
     void setup_system_header();
     void setup_slots();
     void setup_action_buttons();
     void setup_status_display();
+    void setup_dryer_card();
     void setup_path_canvas();
     void update_path_canvas_from_backend();
 
@@ -185,14 +199,15 @@ class AmsPanel : public PanelBase {
     void show_context_menu(int slot_index, lv_obj_t* near_widget);
     void hide_context_menu();
 
-    // === Bypass Button State ===
-
-    void update_bypass_button_visibility();
-    void update_bypass_button_state();
-
     // === Spoolman Integration ===
 
     void sync_spoolman_active_spool();
+
+    // === Spoolman Picker Management ===
+
+    void show_spoolman_picker(int slot_index);
+    void hide_spoolman_picker();
+    void populate_spoolman_picker();
 
     // === Action Handlers (public for XML event callbacks) ===
   public:
@@ -200,6 +215,18 @@ class AmsPanel : public PanelBase {
     void handle_unload();
     void handle_reset();
     void handle_bypass_toggle();
+
+    // Dryer handlers
+    void handle_dryer_preset(float temp_c, int duration_min, int fan_pct);
+    void handle_dryer_stop();
+
+    // Context menu handlers (public for XML event callbacks)
+    void handle_context_spoolman();
+
+    // Spoolman picker handlers (public for XML event callbacks)
+    void handle_picker_close();
+    void handle_picker_unlink();
+    void handle_picker_spool_selected(int spool_id);
 
   private:
     void handle_context_load();

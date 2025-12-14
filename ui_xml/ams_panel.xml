@@ -7,8 +7,8 @@
     <!-- Column widths for two-column layout (right column shrunk for more spool space) -->
     <percentage name="left_col_width" value="70%"/>
     <percentage name="right_col_width" value="28%"/>
-    <!-- Current loaded swatch size (medium for balanced layout) -->
-    <px name="current_swatch_size" value="56"/>
+    <!-- Current loaded swatch size (compact to fit dryer card) -->
+    <px name="current_swatch_size" value="40"/>
     <!-- Status spinner size -->
     <px name="spinner_size" value="28"/>
   </consts>
@@ -110,23 +110,42 @@
       <lv_obj name="right_column"
               width="#right_col_width" height="100%" style_bg_opa="0" style_pad_all="0" style_border_width="0"
               scrollable="false" flex_flow="column" style_flex_main_place="start" style_flex_cross_place="center"
-              style_pad_gap="#space_md">
+              style_pad_gap="#space_sm">
         <!-- Currently Loaded Section Header -->
-        <text_body width="100%" text="Currently Loaded"/>
-        <!-- Currently Loaded Card -->
+        <text_small width="100%" text="Currently Loaded" style_text_color="#text_secondary"/>
+        <!-- Currently Loaded Card - horizontal layout: swatch left, details stacked right -->
         <ui_card name="current_loaded_card"
-                 width="100%" height="content" style_radius="#border_radius_large" style_pad_all="#space_md"
-                 flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
-                 style_pad_gap="#space_xs">
-          <!-- Large color swatch for current filament -->
+                 width="100%" height="content" style_radius="#border_radius_large" style_pad_all="#space_sm"
+                 flex_flow="row" style_flex_main_place="start" style_flex_cross_place="center" style_pad_gap="#space_sm">
+          <!-- Color swatch for current filament (left side) -->
           <lv_obj name="current_swatch"
                   width="#current_swatch_size" height="#current_swatch_size" style_radius="#border_radius"
                   style_bg_color="#text_secondary" style_bg_opa="255" style_border_width="2"
                   style_border_color="#text_secondary" style_border_opa="80" scrollable="false" clickable="false"/>
-          <!-- Material name (e.g., "PLA", "PETG") -->
-          <text_heading name="current_material" width="100%" text="---" style_text_align="center"/>
-          <!-- Slot indicator (e.g., "Slot 2" or "None") -->
-          <text_small name="current_slot_label" width="100%" text="None" style_text_align="center"/>
+          <!-- Details column (stacked to the right of swatch) -->
+          <lv_obj name="current_details"
+                  width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+                  flex_flow="column" style_flex_main_place="center" style_flex_cross_place="start" style_pad_gap="0"
+                  scrollable="false" flex_grow="1">
+            <!-- Primary label: material name -->
+            <text_body name="current_material" bind_text="ams_current_material_text"/>
+            <!-- Secondary info row: Slot • Weight -->
+            <lv_obj name="secondary_info_row"
+                    width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+                    flex_flow="row" style_flex_main_place="start" style_pad_gap="#space_xs" scrollable="false">
+              <!-- Slot indicator -->
+              <text_small name="current_slot_label" bind_text="ams_current_slot_text" style_text_color="#text_secondary"/>
+              <!-- Separator dot - hidden when no weight data -->
+              <text_small name="weight_separator" text="•" style_text_color="#text_secondary">
+                <bind_flag_if_eq subject="ams_current_has_weight" flag="hidden" ref_value="0"/>
+              </text_small>
+              <!-- Weight - hidden when not available -->
+              <text_small name="current_weight_label"
+                          bind_text="ams_current_weight_text" style_text_color="#text_secondary">
+                <bind_flag_if_eq subject="ams_current_has_weight" flag="hidden" ref_value="0"/>
+              </text_small>
+            </lv_obj>
+          </lv_obj>
         </ui_card>
         <!-- Status Section -->
         <lv_obj name="status_section"
@@ -144,28 +163,44 @@
         <lv_obj width="100%"
                 height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="#space_sm"
                 flex_flow="column" style_flex_main_place="start" style_flex_cross_place="center" scrollable="false">
-          <!-- Bypass Button (visible when supports_bypass - visibility controlled by C++) -->
-          <lv_button name="btn_bypass"
-                     width="100%" height="#button_height" style_radius="#border_radius" style_border_width="0"
-                     style_shadow_width="0" style_bg_color="#primary_color">
-            <text_body name="bypass_label" text="Enable Bypass" align="center"/>
-            <event_cb trigger="clicked" callback="ams_bypass_clicked_cb"/>
-          </lv_button>
+          <!-- Bypass Toggle Row (visible when supports_bypass) -->
+          <lv_obj name="bypass_row"
+                  width="100%" height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+                  flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center"
+                  scrollable="false">
+            <bind_flag_if_eq subject="ams_supports_bypass" flag="hidden" ref_value="0"/>
+            <!-- Left side: icon + label -->
+            <lv_obj width="content"
+                    height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
+                    style_flex_cross_place="center" style_pad_gap="#space_xs" scrollable="false">
+              <icon src="source_branch" size="sm"/>
+              <text_body text="Bypass"/>
+            </lv_obj>
+            <!-- Right side: toggle switch - state bound to bypass_active subject -->
+            <lv_switch name="bypass_switch">
+              <bind_state_if_eq subject="bypass_active" state="checked" ref_value="1"/>
+              <event_cb trigger="value_changed" callback="ams_bypass_toggled_cb"/>
+            </lv_switch>
+          </lv_obj>
           <!-- Unload Button (full width) -->
           <lv_button name="btn_unload"
                      width="100%" height="#button_height" style_radius="#border_radius" style_border_width="0"
                      style_shadow_width="0">
-            <text_body text="Unload Filament" align="center"/>
+            <icon src="tray_arrow_up" size="sm" align="left_mid" style_translate_x="#space_sm"/>
+            <text_body text="Unload" align="center"/>
             <event_cb trigger="clicked" callback="ams_unload_clicked_cb"/>
           </lv_button>
           <!-- Reset Button (full width) -->
           <lv_button name="btn_reset"
                      width="100%" height="#button_height" style_radius="#border_radius" style_border_width="0"
                      style_shadow_width="0">
+            <icon src="refresh" size="sm" align="left_mid" style_translate_x="#space_sm"/>
             <text_body text="Reset" align="center"/>
             <event_cb trigger="clicked" callback="ams_reset_clicked_cb"/>
           </lv_button>
         </lv_obj>
+        <!-- Dryer Card (hidden when dryer not supported) -->
+        <ams_dryer_card name="dryer_card"/>
       </lv_obj>
     </lv_obj>
   </view>
