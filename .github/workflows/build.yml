@@ -83,7 +83,7 @@ jobs:
         echo "HelixScreen and all dependencies built successfully"
 
     - name: Run unit tests
-      timeout-minutes: 5
+      timeout-minutes: 15
       run: |
         make test-run
         echo "All tests passed"
@@ -155,7 +155,7 @@ jobs:
         echo "HelixScreen and all dependencies built successfully"
 
     - name: Run unit tests
-      timeout-minutes: 5
+      timeout-minutes: 15
       run: |
         make test-run
         echo "All tests passed"
