@@ -54,6 +54,24 @@ typedef enum {
 } gcode_viewer_state_enum_t;
 
 /**
+ * @brief Render mode for G-code visualization
+ *
+ * Controls which renderer is used for displaying G-code:
+ * - AUTO: Automatically detects based on FPS performance. Falls back to 2D layer view
+ *         if rendering becomes too slow (< 15 FPS average).
+ * - 3D: Forces 3D TinyGL renderer (isometric ribbon view with full camera control)
+ * - 2D_LAYER: Forces 2D orthographic layer view (top-down, single layer at a time)
+ *
+ * The 2D layer view is optimized for low-power hardware (AD5M) that can't maintain
+ * smooth framerates with 3D rendering.
+ */
+typedef enum {
+    GCODE_VIEWER_RENDER_AUTO,     ///< Auto-detect based on FPS (default)
+    GCODE_VIEWER_RENDER_3D,       ///< Force 3D TinyGL renderer
+    GCODE_VIEWER_RENDER_2D_LAYER  ///< Force 2D orthographic layer view
+} gcode_viewer_render_mode_t;
+
+/**
  * @brief Callback invoked when async file loading completes
  * @param viewer The viewer widget that finished loading
  * @param user_data User data pointer passed during callback registration
@@ -154,6 +172,57 @@ void ui_gcode_viewer_set_paused(lv_obj_t* obj, bool paused);
  * @return true if rendering is currently paused
  */
 bool ui_gcode_viewer_is_paused(lv_obj_t* obj);
+
+// ==============================================
+// Render Mode Control
+// ==============================================
+
+/**
+ * @brief Set render mode (AUTO, 3D, or 2D Layer view)
+ * @param obj Viewer widget
+ * @param mode Render mode to use
+ *
+ * - AUTO: Monitors FPS and falls back to 2D layer view if performance is poor
+ * - 3D: Forces 3D TinyGL renderer with full camera control
+ * - 2D_LAYER: Forces top-down orthographic single-layer view (fast on AD5M)
+ *
+ * Default is AUTO. Settings are persisted in SettingsManager.
+ */
+void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, gcode_viewer_render_mode_t mode);
+
+/**
+ * @brief Get current render mode setting
+ * @param obj Viewer widget
+ * @return Current render mode
+ */
+gcode_viewer_render_mode_t ui_gcode_viewer_get_render_mode(lv_obj_t* obj);
+
+/**
+ * @brief Evaluate FPS history and potentially switch render mode (for AUTO mode)
+ * @param obj Viewer widget
+ *
+ * Call this after enough frames have been rendered to have FPS data.
+ * In AUTO mode, if average FPS drops below threshold (15 FPS), switches to 2D layer view.
+ * Has no effect in forced 3D or 2D modes.
+ */
+void ui_gcode_viewer_evaluate_render_mode(lv_obj_t* obj);
+
+/**
+ * @brief Check if currently using 2D layer renderer
+ * @param obj Viewer widget
+ * @return true if 2D layer renderer is active (either forced or via AUTO fallback)
+ */
+bool ui_gcode_viewer_is_using_2d_mode(lv_obj_t* obj);
+
+/**
+ * @brief Show/hide support structures in 2D layer view
+ * @param obj Viewer widget
+ * @param show true to show supports, false to hide
+ *
+ * Only affects 2D layer renderer. Support detection relies on EXCLUDE_OBJECT
+ * metadata from the slicer.
+ */
+void ui_gcode_viewer_set_show_supports(lv_obj_t* obj, bool show);
 
 // ==============================================
 // Camera Controls
