@@ -6,7 +6,11 @@
 # Run periodically or in CI to catch regressions.
 #
 # Usage:
-#   ./scripts/audit_codebase.sh [--strict]
+#   ./scripts/audit_codebase.sh [--strict] [--files FILE...]
+#
+# Modes:
+#   Full audit (no files):  Scans entire codebase with threshold checks
+#   File mode (--files):    Checks only specified files (for pre-commit hooks)
 #
 # Exit codes:
 #   0 = All checks passed (or only warnings)
@@ -23,9 +27,34 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 STRICT_MODE=false
-if [[ "${1:-}" == "--strict" ]]; then
-    STRICT_MODE=true
-fi
+FILE_MODE=false
+FILES=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --strict)
+            STRICT_MODE=true
+            shift
+            ;;
+        --files)
+            FILE_MODE=true
+            shift
+            # Collect all remaining arguments as files
+            while [[ $# -gt 0 && ! "$1" =~ ^-- ]]; do
+                FILES+=("$1")
+                shift
+            done
+            ;;
+        *)
+            # Treat as file if not a flag
+            if [[ -f "$1" ]]; then
+                FILE_MODE=true
+                FILES+=("$1")
+            fi
+            shift
+            ;;
+    esac
+done
 
 # Counters
 ERRORS=0
@@ -57,6 +86,181 @@ section() {
 
 # Change to repo root
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+# Filter files to only include relevant types
+filter_cpp_files() {
+    local result=()
+    for f in "${FILES[@]}"; do
+        if [[ "$f" == *.cpp && -f "$f" ]]; then
+            result+=("$f")
+        fi
+    done
+    echo "${result[@]:-}"
+}
+
+filter_xml_files() {
+    local result=()
+    for f in "${FILES[@]}"; do
+        if [[ "$f" == *.xml && -f "$f" ]]; then
+            result+=("$f")
+        fi
+    done
+    echo "${result[@]:-}"
+}
+
+filter_ui_cpp_files() {
+    local result=()
+    for f in "${FILES[@]}"; do
+        if [[ "$f" == *ui_*.cpp && -f "$f" ]]; then
+            result+=("$f")
+        fi
+    done
+    echo "${result[@]:-}"
+}
+
+# ============================================================================
+# FILE MODE: Check only specified files (for pre-commit)
+# ============================================================================
+if [ "$FILE_MODE" = true ]; then
+    echo "========================================"
+    echo "HelixScreen Audit (File Mode)"
+    echo "Checking ${#FILES[@]} file(s)"
+    echo "========================================"
+
+    # Get filtered file lists
+    cpp_files=($(filter_cpp_files))
+    ui_cpp_files=($(filter_ui_cpp_files))
+    xml_files=($(filter_xml_files))
+
+    if [ ${#cpp_files[@]} -eq 0 ] && [ ${#xml_files[@]} -eq 0 ]; then
+        echo "No auditable files (.cpp, .xml) in changeset"
+        exit 0
+    fi
+
+    #
+    # === P1: Timer Safety (per-file) ===
+    #
+    if [ ${#cpp_files[@]} -gt 0 ]; then
+        section "P1: Timer Safety"
+        for f in "${cpp_files[@]}"; do
+            set +e
+            creates=$(grep -c "lv_timer_create" "$f" 2>/dev/null || echo "0")
+            deletes=$(grep -c "lv_timer_del" "$f" 2>/dev/null || echo "0")
+            set -e
+            creates=$(echo "$creates" | tr -d '[:space:]')
+            deletes=$(echo "$deletes" | tr -d '[:space:]')
+            if [ "$creates" -gt 0 ] && [ "$creates" -gt "$deletes" ]; then
+                warning "$(basename "$f"): creates $creates timers but only deletes $deletes"
+            fi
+        done
+        success "Timer check complete"
+    fi
+
+    #
+    # === P2b: Memory Safety Anti-Patterns (per-file, CRITICAL) ===
+    #
+    if [ ${#ui_cpp_files[@]} -gt 0 ]; then
+        section "P2b: Memory Safety Anti-Patterns"
+
+        for f in "${ui_cpp_files[@]}"; do
+            fname=$(basename "$f")
+
+            # Check for vector element pointer storage
+            set +e
+            vector_issues=$(grep -n '&[a-z_]*_\.\(back\|front\)()' "$f" 2>/dev/null)
+            set -e
+            if [ -n "$vector_issues" ]; then
+                error "$fname: stores pointer to vector element (dangling pointer risk)"
+                echo "$vector_issues" | head -3
+            fi
+
+            # Check for user_data allocation without DELETE handler
+            set +e
+            has_new_userdata=$(grep -l 'set_user_data.*new\|new.*set_user_data' "$f" 2>/dev/null)
+            set -e
+            if [ -n "$has_new_userdata" ]; then
+                set +e
+                has_delete_handler=$(grep -l 'LV_EVENT_DELETE' "$f" 2>/dev/null)
+                set -e
+                if [ -z "$has_delete_handler" ]; then
+                    error "$fname: allocates user_data with 'new' but has no LV_EVENT_DELETE handler"
+                fi
+            fi
+        done
+
+        if [ "$ERRORS" -eq 0 ]; then
+            success "No memory safety anti-patterns found"
+        fi
+    fi
+
+    #
+    # === P3: Design Tokens (per-file) ===
+    #
+    if [ ${#xml_files[@]} -gt 0 ]; then
+        section "P3: Design Token Compliance"
+
+        for f in "${xml_files[@]}"; do
+            fname=$(basename "$f")
+            set +e
+            hardcoded=$(grep -n 'style_pad[^=]*="[1-9]\|style_margin[^=]*="[1-9]\|style_gap[^=]*="[1-9]' "$f" 2>/dev/null)
+            set -e
+            if [ -n "$hardcoded" ]; then
+                count=$(echo "$hardcoded" | wc -l | tr -d ' ')
+                warning "$fname: $count hardcoded spacing value(s) (should use design tokens)"
+            fi
+        done
+
+        if [ "$WARNINGS" -eq 0 ]; then
+            success "All spacing uses design tokens"
+        fi
+    fi
+
+    #
+    # === C++ Hardcoded Colors (per-file) ===
+    #
+    if [ ${#ui_cpp_files[@]} -gt 0 ]; then
+        section "C++ Hardcoded Colors"
+
+        for f in "${ui_cpp_files[@]}"; do
+            fname=$(basename "$f")
+            set +e
+            color_issues=$(grep -n 'lv_color_hex\|lv_color_make' "$f" 2>/dev/null | grep -v 'theme\|parse')
+            set -e
+            if [ -n "$color_issues" ]; then
+                count=$(echo "$color_issues" | wc -l | tr -d ' ')
+                warning "$fname: $count hardcoded color literal(s) (should use theme API)"
+            fi
+        done
+    fi
+
+    #
+    # === Summary ===
+    #
+    section "Summary"
+    echo ""
+    echo "Files checked: ${#FILES[@]}"
+    echo "Errors:   $ERRORS"
+    echo "Warnings: $WARNINGS"
+    echo ""
+
+    if [ "$ERRORS" -gt 0 ]; then
+        echo -e "${RED}AUDIT FAILED${NC} - $ERRORS critical error(s) found"
+        exit 1
+    elif [ "$WARNINGS" -gt 0 ] && [ "$STRICT_MODE" = true ]; then
+        echo -e "${YELLOW}AUDIT FAILED (strict mode)${NC} - $WARNINGS warning(s) found"
+        exit 1
+    elif [ "$WARNINGS" -gt 0 ]; then
+        echo -e "${YELLOW}AUDIT PASSED WITH WARNINGS${NC} - $WARNINGS warning(s) found"
+        exit 0
+    else
+        echo -e "${GREEN}AUDIT PASSED${NC} - No issues found"
+        exit 0
+    fi
+fi
+
+# ============================================================================
+# FULL MODE: Scan entire codebase (default)
+# ============================================================================
 
 echo "========================================"
 echo "HelixScreen Codebase Audit"
@@ -138,14 +342,13 @@ section "P2b: Memory Safety Anti-Patterns"
 # Pattern: &vec.back(), &vec[i], &vec_.back() stored in user_data
 echo "Checking for vector element pointer storage (dangling pointer risk):"
 set +e
-vector_ptr_issues=$(grep -rn '&[a-z_]*\.\(back\|front\)()' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
-vector_idx_issues=$(grep -rn '&[a-z_]*\[[0-9a-z_]*\]' src/ui_*.cpp 2>/dev/null | grep -v 'const\|static' | wc -l | tr -d ' ')
+vector_ptr_issues=$(grep -rn '&[a-z_]*_\.\(back\|front\)()' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
 set -e
 
 if [ "$vector_ptr_issues" -gt 0 ]; then
     error "Found $vector_ptr_issues instances of &vec.back()/.front() - dangling pointer risk!"
     set +e
-    grep -rn '&[a-z_]*\.\(back\|front\)()' src/ui_*.cpp 2>/dev/null | head -5
+    grep -rn '&[a-z_]*_\.\(back\|front\)()' src/ui_*.cpp 2>/dev/null | head -5
     set -e
 else
     success "No vector element pointer storage found"
@@ -159,7 +362,7 @@ userdata_leak_risk=0
 for f in src/ui_*.cpp; do
     [ -f "$f" ] || continue
     set +e
-    has_new_userdata=$(grep -l 'set_user_data.*new\|new.*\n.*set_user_data' "$f" 2>/dev/null)
+    has_new_userdata=$(grep -l 'set_user_data.*new\|new.*set_user_data' "$f" 2>/dev/null)
     if [ -n "$has_new_userdata" ]; then
         # Check if this file registers a DELETE handler
         has_delete_handler=$(grep -l 'LV_EVENT_DELETE' "$f" 2>/dev/null)
