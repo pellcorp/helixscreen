@@ -404,31 +404,53 @@ fi
 section "P4: Declarative UI Compliance"
 
 set +e
-event_handlers=$(grep -rn 'lv_obj_add_event_cb' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+# Event handlers - categorize by type
+event_delete=$(grep -r 'lv_obj_add_event_cb.*DELETE' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+event_gesture=$(grep -rE 'lv_obj_add_event_cb.*(GESTURE|SCROLL|DRAW|PRESS)' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+event_clicked=$(grep -rE 'lv_obj_add_event_cb.*(CLICKED|VALUE_CHANGED)' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+event_total=$(grep -r 'lv_obj_add_event_cb' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+
+# Text updates
 text_updates=$(grep -rn 'lv_label_set_text' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
-visibility_toggles=$(grep -rn 'lv_obj_add_flag.*HIDDEN\|lv_obj_clear_flag.*HIDDEN' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+
+# Visibility - categorize by pattern
+visibility_pool=$(grep -rE 'lv_obj_(add|clear)_flag.*(pool|Pool).*HIDDEN' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+visibility_total=$(grep -rn 'lv_obj_add_flag.*HIDDEN\|lv_obj_clear_flag.*HIDDEN' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
+visibility_actionable=$((visibility_total - visibility_pool))
+
+# Inline styles
 inline_styles=$(grep -rn 'lv_obj_set_style_' src/ui_*.cpp 2>/dev/null | wc -l | tr -d ' ')
 set -e
 
-echo "Imperative event handlers: $event_handlers"
-echo "Direct text updates: $text_updates"
-echo "Visibility toggles: $visibility_toggles"
-echo "Inline style setters: $inline_styles"
+echo ""
+echo "Event Handlers:"
+echo "  DELETE (legitimate):     $event_delete"
+echo "  Gesture/Draw (legit):    $event_gesture"
+echo "  CLICKED/VALUE_CHANGED:   $event_clicked  ← should use XML event_cb"
+echo "  Total:                   $event_total"
+echo ""
+echo "Visibility Toggles:"
+echo "  Widget pool (legit):     $visibility_pool"
+echo "  Actionable:              $visibility_actionable  ← consider bind_flag"
+echo "  Total:                   $visibility_total"
+echo ""
+echo "Text Updates:              $text_updates  ← consider bind_text subjects"
+echo "Inline Style Setters:      $inline_styles  (many are dynamic/legitimate)"
 
-# Note: These have legitimate exceptions, so just report counts
-EVENT_HANDLER_THRESHOLD=200
+# Thresholds for actionable items only
+EVENT_CLICKED_THRESHOLD=100
+VISIBILITY_THRESHOLD=120
 TEXT_UPDATE_THRESHOLD=200
-VISIBILITY_THRESHOLD=150
 INLINE_STYLE_THRESHOLD=600
 
-if [ "$event_handlers" -gt "$EVENT_HANDLER_THRESHOLD" ]; then
-    warning "Imperative event handlers ($event_handlers) exceed threshold ($EVENT_HANDLER_THRESHOLD)"
+if [ "$event_clicked" -gt "$EVENT_CLICKED_THRESHOLD" ]; then
+    warning "CLICKED/VALUE_CHANGED handlers ($event_clicked) exceed threshold ($EVENT_CLICKED_THRESHOLD)"
+fi
+if [ "$visibility_actionable" -gt "$VISIBILITY_THRESHOLD" ]; then
+    warning "Actionable visibility toggles ($visibility_actionable) exceed threshold ($VISIBILITY_THRESHOLD)"
 fi
 if [ "$text_updates" -gt "$TEXT_UPDATE_THRESHOLD" ]; then
     warning "Direct text updates ($text_updates) exceed threshold ($TEXT_UPDATE_THRESHOLD)"
-fi
-if [ "$visibility_toggles" -gt "$VISIBILITY_THRESHOLD" ]; then
-    warning "Visibility toggles ($visibility_toggles) exceed threshold ($VISIBILITY_THRESHOLD)"
 fi
 if [ "$inline_styles" -gt "$INLINE_STYLE_THRESHOLD" ]; then
     warning "Inline style setters ($inline_styles) exceed threshold ($INLINE_STYLE_THRESHOLD)"
