@@ -1648,7 +1648,6 @@ void AmsPanel::handle_context_load() {
 
     // Capture slot before hiding menu (hide_context_menu resets context_menu_slot_)
     int slot_to_load = context_menu_slot_;
-    spdlog::info("[{}] Context menu: Load from slot {}", get_name(), slot_to_load);
     hide_context_menu();
 
     AmsBackend* backend = AmsState::instance().get_backend();
@@ -1664,9 +1663,20 @@ void AmsPanel::handle_context_load() {
         return;
     }
 
-    AmsError error = backend->load_filament(slot_to_load);
-    if (error.result != AmsResult::SUCCESS) {
-        NOTIFY_ERROR("Load failed: {}", error.user_msg);
+    // Tool changers use change_tool() (Mount), filament switchers use load_filament() (Load)
+    AmsError error;
+    if (backend->get_type() == AmsType::TOOL_CHANGER) {
+        spdlog::info("[{}] Context menu: Mount tool {}", get_name(), slot_to_load);
+        error = backend->change_tool(slot_to_load);
+        if (error.result != AmsResult::SUCCESS) {
+            NOTIFY_ERROR("Mount failed: {}", error.user_msg);
+        }
+    } else {
+        spdlog::info("[{}] Context menu: Load from slot {}", get_name(), slot_to_load);
+        error = backend->load_filament(slot_to_load);
+        if (error.result != AmsResult::SUCCESS) {
+            NOTIFY_ERROR("Load failed: {}", error.user_msg);
+        }
     }
 }
 
@@ -1675,7 +1685,7 @@ void AmsPanel::handle_context_unload() {
         return;
     }
 
-    spdlog::info("[{}] Context menu: Unload slot {}", get_name(), context_menu_slot_);
+    int slot = context_menu_slot_;
     hide_context_menu();
 
     AmsBackend* backend = AmsState::instance().get_backend();
@@ -1684,9 +1694,21 @@ void AmsPanel::handle_context_unload() {
         return;
     }
 
-    AmsError error = backend->unload_filament();
-    if (error.result != AmsResult::SUCCESS) {
-        NOTIFY_ERROR("Unload failed: {}", error.user_msg);
+    // Tool changers use change_tool(-1) to unmount (park current tool)
+    // Filament switchers use unload_filament() to retract filament
+    AmsError error;
+    if (backend->get_type() == AmsType::TOOL_CHANGER) {
+        spdlog::info("[{}] Context menu: Unmount tool {}", get_name(), slot);
+        error = backend->change_tool(-1); // -1 = unmount/park current tool
+        if (error.result != AmsResult::SUCCESS) {
+            NOTIFY_ERROR("Unmount failed: {}", error.user_msg);
+        }
+    } else {
+        spdlog::info("[{}] Context menu: Unload slot {}", get_name(), slot);
+        error = backend->unload_filament();
+        if (error.result != AmsResult::SUCCESS) {
+            NOTIFY_ERROR("Unload failed: {}", error.user_msg);
+        }
     }
 }
 
@@ -1775,6 +1797,50 @@ void AmsPanel::show_context_menu(int slot_index, lv_obj_t* near_widget) {
         }
 
         lv_obj_set_pos(menu_card, menu_x, menu_y);
+
+        // Adapt menu for tool changers: change labels and enable states
+        AmsBackend* backend = AmsState::instance().get_backend();
+        if (backend && backend->get_type() == AmsType::TOOL_CHANGER) {
+            int current_slot = backend->get_current_slot();
+
+            // Find buttons and their labels
+            lv_obj_t* btn_load = lv_obj_find_by_name(menu_card, "btn_load");
+            lv_obj_t* btn_unload = lv_obj_find_by_name(menu_card, "btn_unload");
+
+            // Change "Load" -> "Mount", "Unload" -> "Unmount"
+            if (btn_load) {
+                // Find the text_body child and change its text
+                for (uint32_t i = 0; i < lv_obj_get_child_count(btn_load); i++) {
+                    lv_obj_t* child = lv_obj_get_child(btn_load, static_cast<int32_t>(i));
+                    if (lv_obj_check_type(child, &lv_label_class)) {
+                        lv_label_set_text(child, "Mount");
+                        break;
+                    }
+                }
+                // Disable if this tool is already mounted
+                if (slot_index == current_slot) {
+                    lv_obj_add_state(btn_load, LV_STATE_DISABLED);
+                }
+            }
+
+            if (btn_unload) {
+                // Find the text_body child and change its text
+                for (uint32_t i = 0; i < lv_obj_get_child_count(btn_unload); i++) {
+                    lv_obj_t* child = lv_obj_get_child(btn_unload, static_cast<int32_t>(i));
+                    if (lv_obj_check_type(child, &lv_label_class)) {
+                        lv_label_set_text(child, "Unmount");
+                        break;
+                    }
+                }
+                // Disable if this tool is NOT the currently mounted one
+                if (slot_index != current_slot) {
+                    lv_obj_add_state(btn_unload, LV_STATE_DISABLED);
+                }
+            }
+
+            spdlog::debug("[{}] Tool changer menu: slot={}, current={}", get_name(), slot_index,
+                          current_slot);
+        }
     }
 
     spdlog::debug("[{}] Context menu shown for slot {}", get_name(), slot_index);

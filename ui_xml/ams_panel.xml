@@ -163,6 +163,9 @@
           <!-- Status label - bound to ams_action_detail subject -->
           <text_body name="status_label" bind_text="ams_action_detail" style_text_align="center" flex_grow="1"/>
         </lv_obj>
+        <!-- Flex spacer - pushes action buttons to bottom of column -->
+        <lv_obj width="1" style_bg_opa="0" style_border_width="0" style_pad_all="0"
+                scrollable="false" flex_grow="1"/>
         <!-- Action Buttons -->
         <lv_obj width="100%"
                 height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="#space_sm"
@@ -186,10 +189,11 @@
               <event_cb trigger="value_changed" callback="ams_bypass_toggled_cb"/>
             </lv_switch>
           </lv_obj>
-          <!-- Unload Button (full width) -->
+          <!-- Unload Button (full width) - hidden for tool changers (use context menu Mount/Unmount instead) -->
           <lv_button name="btn_unload"
                      width="100%" height="#button_height" style_radius="#border_radius" style_border_width="0"
                      style_shadow_width="0">
+            <bind_flag_if_eq subject="ams_type" flag="hidden" ref_value="4"/>
             <icon src="tray_arrow_up" size="sm" align="left_mid" style_translate_x="#space_sm"/>
             <text_body text="Unload" align="center"/>
             <event_cb trigger="clicked" callback="ams_unload_clicked_cb"/>
@@ -203,8 +207,10 @@
             <event_cb trigger="clicked" callback="ams_reset_clicked_cb"/>
           </lv_button>
         </lv_obj>
-        <!-- Dryer Card (hidden when dryer not supported) -->
-        <ams_dryer_card name="dryer_card"/>
+        <!-- Dryer Card (hidden when dryer not supported or for tool changers) -->
+        <ams_dryer_card name="dryer_card">
+          <bind_flag_if_eq subject="ams_type" flag="hidden" ref_value="4"/>
+        </ams_dryer_card>
       </lv_obj>
     </lv_obj>
   </view>

@@ -245,7 +245,8 @@ AmsSystemInfo AmsBackendMock::get_system_info() const {
 }
 
 AmsType AmsBackendMock::get_type() const {
-    return AmsType::HAPPY_HARE; // Mock identifies as Happy Hare
+    std::lock_guard<std::mutex> lock(mutex_);
+    return system_info_.type; // Returns TOOL_CHANGER or HAPPY_HARE based on mode
 }
 
 SlotInfo AmsBackendMock::get_slot_info(int slot_index) const {

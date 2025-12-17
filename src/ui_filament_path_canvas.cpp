@@ -481,6 +481,107 @@ static void draw_filament_tip(lv_layer_t* layer, int32_t x, int32_t y, lv_color_
 }
 
 // ============================================================================
+// Parallel Topology Drawing (Tool Changers)
+// ============================================================================
+// Tool changers have independent toolheads - each slot represents a complete
+// tool with its own extruder. Unlike hub/linear topologies where filaments
+// converge to a single toolhead, parallel topology shows separate paths.
+
+static void draw_parallel_topology(lv_event_t* e, FilamentPathData* data) {
+    lv_obj_t* obj = lv_event_get_target_obj(e);
+    lv_layer_t* layer = lv_event_get_layer(e);
+
+    // Get widget dimensions
+    lv_area_t obj_coords;
+    lv_obj_get_coords(obj, &obj_coords);
+    int32_t height = lv_area_get_height(&obj_coords);
+    int32_t x_off = obj_coords.x1;
+    int32_t y_off = obj_coords.y1;
+
+    // Layout ratios for parallel topology (adjusted for per-slot toolheads)
+    constexpr float ENTRY_Y = -0.12f;   // Top entry (connects to spool)
+    constexpr float TOOLHEAD_Y = 0.55f; // Toolhead position per slot
+
+    int32_t entry_y = y_off + (int32_t)(height * ENTRY_Y);
+    int32_t toolhead_y = y_off + (int32_t)(height * TOOLHEAD_Y);
+
+    // Colors
+    lv_color_t idle_color = data->color_idle;
+    lv_color_t nozzle_color = data->color_nozzle;
+
+    // Line sizes
+    int32_t line_idle = data->line_width_idle;
+    int32_t line_active = data->line_width_active;
+
+    // Draw each tool as an independent column
+    for (int i = 0; i < data->slot_count; i++) {
+        int32_t slot_x =
+            x_off + get_slot_x(i, data->slot_count, data->slot_width, data->slot_overlap);
+        bool is_mounted = (i == data->active_slot);
+
+        // Get filament color for this tool
+        lv_color_t tool_color = idle_color;
+        bool has_filament = false;
+
+        if (i < FilamentPathData::MAX_SLOTS &&
+            data->slot_filament_states[i].segment != PathSegment::NONE) {
+            has_filament = true;
+            tool_color = lv_color_hex(data->slot_filament_states[i].color);
+        }
+
+        // For mounted tool, use active filament color if available
+        if (is_mounted && data->filament_segment > 0) {
+            tool_color = lv_color_hex(data->filament_color);
+            has_filament = true;
+        }
+
+        // Draw filament path from spool to toolhead
+        lv_color_t path_color = has_filament ? tool_color : idle_color;
+        int32_t path_width = has_filament ? line_active : line_idle;
+
+        // Vertical line from entry to toolhead (connect to top of nozzle body)
+        int32_t tool_scale = LV_MAX(6, data->extruder_scale * 2 / 3);
+        int32_t nozzle_top = toolhead_y - tool_scale * 2; // Top of heater block
+        draw_vertical_line(layer, slot_x, entry_y, nozzle_top, path_color, path_width);
+
+        // Determine nozzle color - mounted tools highlighted, docked dimmed
+        lv_color_t noz_color = is_mounted ? nozzle_color : ph_darken(nozzle_color, 60);
+        if (has_filament) {
+            // Show filament color in nozzle when filament is present
+            noz_color = tool_color;
+        }
+
+        // Use the proper nozzle renderers (same as hub topology)
+        if (data->use_faceted_toolhead) {
+            draw_nozzle_faceted(layer, slot_x, toolhead_y, noz_color, tool_scale);
+        } else {
+            draw_nozzle_bambu(layer, slot_x, toolhead_y, noz_color, tool_scale);
+        }
+
+        // Tool label (T0, T1, etc.) below nozzle
+        // Mounted tool gets green highlight, others get normal text color
+        if (data->label_font) {
+            lv_draw_label_dsc_t label_dsc;
+            lv_draw_label_dsc_init(&label_dsc);
+            label_dsc.color = is_mounted ? lv_color_hex(0x00FF00) : data->color_text;
+            label_dsc.font = data->label_font;
+            label_dsc.align = LV_TEXT_ALIGN_CENTER;
+
+            char tool_label[8];
+            snprintf(tool_label, sizeof(tool_label), "T%d", i);
+            label_dsc.text = tool_label;
+            label_dsc.text_local = 1; // Text is on stack, copy it
+
+            // Position label below nozzle tip
+            int32_t font_h = lv_font_get_line_height(data->label_font);
+            int32_t label_y = toolhead_y + tool_scale * 3 + 4; // Below nozzle tip
+            lv_area_t label_area = {slot_x - 20, label_y, slot_x + 20, label_y + font_h};
+            lv_draw_label(layer, &label_dsc, &label_area);
+        }
+    }
+}
+
+// ============================================================================
 // Main Draw Callback
 // ============================================================================
 
@@ -490,6 +591,13 @@ static void filament_path_draw_cb(lv_event_t* e) {
     FilamentPathData* data = get_data(obj);
     if (!data)
         return;
+
+    // For PARALLEL topology (tool changers), use dedicated drawing function
+    // This shows independent toolheads per slot instead of converging to a hub
+    if (data->topology == static_cast<int>(PathTopology::PARALLEL)) {
+        draw_parallel_topology(e, data);
+        return;
+    }
 
     // Get widget dimensions
     lv_area_t obj_coords;

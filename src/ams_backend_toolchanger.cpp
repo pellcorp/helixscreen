@@ -77,6 +77,12 @@ AmsError AmsBackendToolChanger::start() {
         return AmsErrorHelper::not_connected("MoonrakerAPI not provided");
     }
 
+    if (tool_names_.empty()) {
+        spdlog::error("[AMS ToolChanger] Cannot start: No tools discovered. "
+                      "Call set_discovered_tools() before start()");
+        return AmsErrorHelper::not_connected("No tools discovered");
+    }
+
     // Register for status update notifications from Moonraker
     // Tool changer state comes via notify_status_update when toolchanger.* changes
     SubscriptionId id = client_->register_notify_update(
@@ -275,6 +281,8 @@ void AmsBackendToolChanger::handle_status_update(const nlohmann::json& notificat
         }
     }
 
+    // Emit event OUTSIDE the lock to avoid deadlock if the callback
+    // queries backend state (e.g., calls get_system_info() which acquires mutex_)
     if (state_changed) {
         emit_event(EVENT_STATE_CHANGED);
     }
@@ -417,6 +425,7 @@ int AmsBackendToolChanger::find_slot_for_tool(const std::string& tool_name) cons
 // Operations
 // ============================================================================
 
+// NOTE: Must be called while holding mutex_ (accesses system_info_ without lock)
 AmsError AmsBackendToolChanger::check_preconditions() const {
     if (!running_) {
         return AmsErrorHelper::not_connected("Tool changer backend not started");
@@ -429,7 +438,12 @@ AmsError AmsBackendToolChanger::check_preconditions() const {
     return AmsErrorHelper::success();
 }
 
+// NOTE: Must be called while holding mutex_ (accesses system_info_ without lock)
 AmsError AmsBackendToolChanger::validate_slot_index(int slot_index) const {
+    // Special case: no tools discovered
+    if (system_info_.total_slots == 0) {
+        return AmsErrorHelper::not_connected("No tools discovered");
+    }
     if (slot_index < 0 || slot_index >= system_info_.total_slots) {
         return AmsErrorHelper::invalid_slot(slot_index, system_info_.total_slots - 1);
     }
