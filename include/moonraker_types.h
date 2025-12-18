@@ -91,11 +91,12 @@ struct FileMetadata {
     double print_start_time = 0.0;
     std::string job_id; // Moonraker returns hex string like "00000D"
     uint32_t layer_count = 0;
-    double object_height = 0.0;         // mm
-    double estimated_time = 0.0;        // seconds
-    double filament_total = 0.0;        // mm
-    double filament_weight_total = 0.0; // grams
-    std::string filament_type;          // e.g., "PLA", "PETG", "ABS", "TPU", "ASA"
+    double object_height = 0.0;               // mm
+    double estimated_time = 0.0;              // seconds
+    double filament_total = 0.0;              // mm
+    double filament_weight_total = 0.0;       // grams
+    std::string filament_type;                // e.g., "PLA", "PETG", "ABS", "TPU", "ASA"
+    std::vector<std::string> filament_colors; // Hex colors per tool (e.g., ["#ED1C24", "#00C1AE"])
     double first_layer_bed_temp = 0.0;
     double first_layer_extr_temp = 0.0;
     uint64_t gcode_start_byte = 0;

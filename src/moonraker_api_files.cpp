@@ -748,6 +748,19 @@ FileMetadata MoonrakerAPI::parse_file_metadata(const json& response) {
             (semicolon != std::string::npos) ? raw_type.substr(0, semicolon) : raw_type;
     }
 
+    // Filament colors (array of hex strings from slicer metadata)
+    if (result.contains("filament_colors") && result["filament_colors"].is_array()) {
+        for (const auto& color : result["filament_colors"]) {
+            if (color.is_string()) {
+                metadata.filament_colors.push_back(color.get<std::string>());
+            }
+        }
+        if (!metadata.filament_colors.empty()) {
+            spdlog::debug("[Moonraker API] Found {} filament colors",
+                          metadata.filament_colors.size());
+        }
+    }
+
     // Temperature info
     metadata.first_layer_bed_temp = get_double("first_layer_bed_temp");
     metadata.first_layer_extr_temp = get_double("first_layer_extr_temp");

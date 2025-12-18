@@ -529,6 +529,7 @@ struct GCodeHeaderMetadata {
     uint32_t layer_count = 0;
     double first_layer_bed_temp = 0.0;
     double first_layer_nozzle_temp = 0.0;
+    std::vector<std::string> tool_colors; ///< Hex colors per tool (e.g., ["#ED1C24", "#00C1AE"])
 };
 
 /**

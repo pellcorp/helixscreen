@@ -327,60 +327,60 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     // Initialize file data provider for Moonraker files
     file_provider_ = std::make_unique<helix::ui::PrintSelectFileProvider>();
     file_provider_->set_api(api_);
-    file_provider_->set_on_files_ready(
-        [self](std::vector<PrintFileData>&& files, std::vector<bool>&& fetched) {
-            self->file_list_ = std::move(files);
-            self->metadata_fetched_ = std::move(fetched);
+    file_provider_->set_on_files_ready([self](std::vector<PrintFileData>&& files,
+                                              std::vector<bool>&& fetched) {
+        self->file_list_ = std::move(files);
+        self->metadata_fetched_ = std::move(fetched);
 
-            // Dispatch UI updates to main thread
-            lv_async_call(
-                [](void* user_data) {
-                    auto* panel = static_cast<PrintSelectPanel*>(user_data);
+        // Dispatch UI updates to main thread
+        lv_async_call(
+            [](void* user_data) {
+                auto* panel = static_cast<PrintSelectPanel*>(user_data);
 
-                    panel->apply_sort();
-                    panel->update_sort_indicators();
-                    panel->populate_card_view();
-                    panel->populate_list_view();
-                    panel->update_empty_state();
+                panel->apply_sort();
+                panel->update_sort_indicators();
+                panel->populate_card_view();
+                panel->populate_list_view();
+                panel->update_empty_state();
 
-                    // Check for pending file selection
-                    std::string pending;
-                    if (!panel->pending_file_selection_.empty()) {
-                        pending = panel->pending_file_selection_;
-                        panel->pending_file_selection_.clear();
-                    } else if (get_runtime_config().select_file != nullptr) {
-                        static bool select_file_checked = false;
-                        if (!select_file_checked) {
-                            pending = get_runtime_config().select_file;
-                            select_file_checked = true;
-                        }
+                // Check for pending file selection
+                std::string pending;
+                if (!panel->pending_file_selection_.empty()) {
+                    pending = panel->pending_file_selection_;
+                    panel->pending_file_selection_.clear();
+                } else if (get_runtime_config().select_file != nullptr) {
+                    static bool select_file_checked = false;
+                    if (!select_file_checked) {
+                        pending = get_runtime_config().select_file;
+                        select_file_checked = true;
                     }
-                    if (!pending.empty()) {
-                        if (!panel->select_file_by_name(pending)) {
-                            spdlog::warn("[{}] Pending file selection '{}' not found in file list",
-                                         panel->get_name(), pending);
-                        }
+                }
+                if (!pending.empty()) {
+                    if (!panel->select_file_by_name(pending)) {
+                        spdlog::warn("[{}] Pending file selection '{}' not found in file list",
+                                     panel->get_name(), pending);
                     }
+                }
 
-                    // Fetch metadata for visible items
-                    int visible_start = 0, visible_end = 0;
-                    if (panel->current_view_mode_ == PrintSelectViewMode::CARD && panel->card_view_) {
-                        panel->card_view_->get_visible_range(visible_start, visible_end);
-                    } else if (panel->list_view_) {
-                        panel->list_view_->get_visible_range(visible_start, visible_end);
-                    }
-                    if (visible_end == 0 && !panel->file_list_.empty()) {
-                        visible_end =
-                            static_cast<int>(std::min(panel->file_list_.size(), size_t{20}));
-                    }
-                    panel->fetch_metadata_range(static_cast<size_t>(visible_start),
-                                                static_cast<size_t>(visible_end));
-                },
-                self);
-        });
+                // Fetch metadata for visible items
+                int visible_start = 0, visible_end = 0;
+                if (panel->current_view_mode_ == PrintSelectViewMode::CARD && panel->card_view_) {
+                    panel->card_view_->get_visible_range(visible_start, visible_end);
+                } else if (panel->list_view_) {
+                    panel->list_view_->get_visible_range(visible_start, visible_end);
+                }
+                if (visible_end == 0 && !panel->file_list_.empty()) {
+                    visible_end = static_cast<int>(std::min(panel->file_list_.size(), size_t{20}));
+                }
+                panel->fetch_metadata_range(static_cast<size_t>(visible_start),
+                                            static_cast<size_t>(visible_end));
+            },
+            self);
+    });
     file_provider_->set_on_metadata_updated([self](size_t index, const PrintFileData& updated) {
         // Update file in list
-        if (index < self->file_list_.size() && self->file_list_[index].filename == updated.filename) {
+        if (index < self->file_list_.size() &&
+            self->file_list_[index].filename == updated.filename) {
             // Merge updated fields
             if (updated.print_time_minutes > 0) {
                 self->file_list_[index].print_time_minutes = updated.print_time_minutes;
@@ -407,12 +407,12 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
             // Update detail view if this file is selected
             if (strcmp(self->selected_filename_buffer_, updated.filename.c_str()) == 0) {
-                self->set_selected_file(
-                    updated.filename.c_str(), self->file_list_[index].thumbnail_path.c_str(),
-                    self->file_list_[index].original_thumbnail_url.c_str(),
-                    self->file_list_[index].print_time_str.c_str(),
-                    self->file_list_[index].filament_str.c_str(),
-                    self->file_list_[index].layer_count_str.c_str());
+                self->set_selected_file(updated.filename.c_str(),
+                                        self->file_list_[index].thumbnail_path.c_str(),
+                                        self->file_list_[index].original_thumbnail_url.c_str(),
+                                        self->file_list_[index].print_time_str.c_str(),
+                                        self->file_list_[index].filament_str.c_str(),
+                                        self->file_list_[index].layer_count_str.c_str());
             }
         }
     });
@@ -942,7 +942,8 @@ void PrintSelectPanel::set_selected_file(const char* filename, const char* thumb
 void PrintSelectPanel::show_detail_view() {
     if (detail_view_) {
         std::string filename(selected_filename_buffer_);
-        detail_view_->show(filename, current_path_, selected_filament_type_);
+        detail_view_->show(filename, current_path_, selected_filament_type_,
+                           selected_filament_colors_);
     }
 }
 
@@ -1400,6 +1401,7 @@ void PrintSelectPanel::handle_file_click(size_t file_index) {
                           file.original_thumbnail_url.c_str(), file.print_time_str.c_str(),
                           file.filament_str.c_str(), file.layer_count_str.c_str());
         selected_filament_type_ = file.filament_type;
+        selected_filament_colors_ = file.filament_colors;
         show_detail_view();
     }
 }
@@ -1439,7 +1441,6 @@ void PrintSelectPanel::execute_print_start() {
         NOTIFY_ERROR("Cannot start print: internal error");
         return;
     }
-
 
     std::string filename_to_print(selected_filename_buffer_);
     auto* self = this;

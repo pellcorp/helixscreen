@@ -84,6 +84,8 @@ struct PrintFileData {
     std::string filament_type;          ///< Filament type (e.g., "PLA", "PETG", "ABS")
     uint32_t layer_count = 0;           ///< Total layer count from slicer
     bool is_dir = false;                ///< True if this is a directory
+    std::vector<std::string>
+        filament_colors; ///< Hex colors per tool (e.g., ["#ED1C24", "#00C1AE"])
 
     // Formatted strings (cached for performance)
     std::string size_str;
@@ -419,6 +421,7 @@ class PrintSelectPanel : public PanelBase {
     std::vector<bool> metadata_fetched_; ///< Tracks which files have had metadata requested
     std::string current_path_;           ///< Current directory path (empty = root gcodes dir)
     std::string selected_filament_type_; ///< Filament type of selected file (for dropdown default)
+    std::vector<std::string> selected_filament_colors_; ///< Tool colors of selected file
     std::string
         pending_file_selection_; ///< File to auto-select when list is populated (--select-file)
     PrintSelectViewMode current_view_mode_ = PrintSelectViewMode::CARD;
@@ -563,7 +566,6 @@ class PrintSelectPanel : public PanelBase {
      * Called directly when no warning needed, or after user confirms warning dialog.
      */
     void execute_print_start();
-
 
     //
     // === Static Callbacks (trampolines) ===

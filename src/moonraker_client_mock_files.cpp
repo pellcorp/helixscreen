@@ -140,6 +140,12 @@ static json build_mock_file_metadata_response(const std::string& filename) {
         thumbnails.push_back({{"relative_path", thumbnail_path}});
     }
 
+    // Convert tool colors vector to JSON array
+    json filament_colors = json::array();
+    for (const auto& color : header_meta.tool_colors) {
+        filament_colors.push_back(color);
+    }
+
     json result = {{"filename", filename},
                    {"size", size},
                    {"modified", modified},
@@ -149,6 +155,7 @@ static json build_mock_file_metadata_response(const std::string& filename) {
                    {"filament_total", header_meta.filament_used_mm},
                    {"filament_weight_total", header_meta.filament_used_g},
                    {"filament_type", header_meta.filament_type},
+                   {"filament_colors", filament_colors},
                    {"layer_count", header_meta.layer_count},
                    {"first_layer_bed_temp", header_meta.first_layer_bed_temp},
                    {"first_layer_extr_temp", header_meta.first_layer_nozzle_temp},

@@ -1177,6 +1177,11 @@ void MoonrakerClient::complete_discovery_subscription(std::function<void()> on_c
         subscription_objects[sensor] = nullptr;
     }
 
+    // Firmware retraction settings (if printer has firmware_retraction module)
+    if (capabilities_.has_firmware_retraction()) {
+        subscription_objects["firmware_retraction"] = nullptr;
+    }
+
     json subscribe_params = {{"objects", subscription_objects}};
 
     send_jsonrpc(

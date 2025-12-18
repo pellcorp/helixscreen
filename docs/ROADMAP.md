@@ -1,6 +1,6 @@
 # HelixScreen Development Roadmap
 
-**Last Updated:** 2025-12-17
+**Last Updated:** 2025-12-18
 
 ---
 
@@ -37,7 +37,7 @@ Support for Happy Hare and AFC-Klipper multi-filament systems with Bambu-inspire
 - [ ] Phase 2.6: Configurable visualization (deferred)
 - [x] Phase 3: Spoolman integration - UI complete (panel, picker, AMS integration)
 - [x] Phase 3b: Spoolman real API - 6 Moonraker methods implemented
-- [ ] Phase 5: Print integration - Color requirements display
+- [x] Phase 5: Print integration - Color requirements display
 - [ ] Phase 6: Error recovery wizard
 - [ ] Phase 7: Advanced features - Mapping, endless spool, calibration
 - [ ] Phase 8: Polish - Documentation, stress testing
@@ -83,7 +83,7 @@ All TIER 1 features are now implemented:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| **Firmware Retraction** | 🔄 | Toggle implemented; full settings panel TODO |
+| **Firmware Retraction** | ✅ | Full settings panel with reactive subjects |
 | **Spoolman Integration** | ✅ | Complete - 6 API methods, panel, picker, AMS integration |
 | **Job Queue** | ⬜ | Batch printing queue |
 | **Update Manager** | ⬜ | Software updates via Moonraker |
@@ -292,6 +292,12 @@ Configure Moonraker-Timelapse plugin:
 ### December 2025 (Week 3)
 | Feature | Status |
 |---------|--------|
+| **AMS Phase 5: Print color requirements** | Color swatches in print detail UI |
+| Parse `extruder_colour`/`filament_colour` from G-code metadata | |
+| Display tool colors (T0, T1, etc.) with brightness-adaptive text | |
+| **Firmware Retraction Settings Panel** | Full settings overlay |
+| Reactive subjects for length, speed, z-hop, extra restart | |
+| Real-time sync with Moonraker firmware retraction state | |
 | **Temp display cooling color** | `68d6a8e` - Blue when cooling to target |
 | **G-code preview in print status** | `5f6d06c` - Show preview during pre-print |
 | **Doc reconciliation** | Merged AMS mock docs, updated Spoolman status |

@@ -24,9 +24,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <lvgl.h>
 #include <memory>
+#include <regex>
 #include <signal.h>
+#include <string>
 #include <unistd.h>
 
 // Signal handling for graceful shutdown
@@ -46,6 +49,38 @@ static constexpr int DEFAULT_HEIGHT = 480;
 // Splash timing
 static constexpr int FADE_DURATION_MS = 300; // Fast fade-in
 static constexpr int FRAME_DELAY_US = 16000; // ~60 FPS
+
+// Read brightness from config file (simple parsing, no JSON library)
+// Returns configured brightness (10-100) or default_value on failure
+static int read_config_brightness(int default_value = 100) {
+    // Try common config paths
+    const char* paths[] = {"helixconfig.json", "/opt/helixscreen/helixconfig.json"};
+
+    for (const char* path : paths) {
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            continue;
+        }
+
+        std::string content((std::istreambuf_iterator<char>(file)),
+                            std::istreambuf_iterator<char>());
+
+        // Simple regex to find "brightness": <number>
+        std::regex brightness_regex(R"("brightness"\s*:\s*(\d+))");
+        std::smatch match;
+        if (std::regex_search(content, match, brightness_regex) && match.size() > 1) {
+            int brightness = std::stoi(match[1].str());
+            // Clamp to valid range
+            if (brightness < 10)
+                brightness = 10;
+            if (brightness > 100)
+                brightness = 100;
+            return brightness;
+        }
+    }
+
+    return default_value;
+}
 
 // Dark theme background color (matches app theme)
 static constexpr uint32_t BG_COLOR_DARK = 0x121212;
@@ -157,10 +192,12 @@ int main(int argc, char** argv) {
     }
 
     // Turn on backlight immediately (may have been off from sleep or crash)
+    // Use configured brightness instead of hardcoded 100%
     auto backlight = BacklightBackend::create();
     if (backlight && backlight->is_available()) {
-        backlight->set_brightness(100); // Full brightness for splash
-        fprintf(stderr, "helix-splash: Backlight ON\n");
+        int brightness = read_config_brightness(100);
+        backlight->set_brightness(brightness);
+        fprintf(stderr, "helix-splash: Backlight ON at %d%%\n", brightness);
     }
 
     // Create splash UI

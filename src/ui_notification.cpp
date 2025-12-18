@@ -42,7 +42,7 @@ static bool is_main_thread() {
 // ============================================================================
 
 struct AsyncMessageData {
-    char* title;   // Can be nullptr for no title
+    char* title; // Can be nullptr for no title
     char* message;
     ToastSeverity severity;
     uint32_t duration_ms;

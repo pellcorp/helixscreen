@@ -394,6 +394,22 @@ void PrintStatusPanel::show_gcode_viewer(bool show) {
 
     spdlog::debug("[{}] G-code viewer mode: {} ({})", get_name(), mode,
                   mode == 0 ? "thumbnail" : (mode == 1 ? "3D" : "2D"));
+
+    // Diagnostic: log visibility state of all viewer components
+    if (print_thumbnail_) {
+        bool thumb_hidden = lv_obj_has_flag(print_thumbnail_, LV_OBJ_FLAG_HIDDEN);
+        const void* img_src = lv_image_get_src(print_thumbnail_);
+        spdlog::debug("[{}]   -> thumbnail: hidden={}, has_src={}", get_name(), thumb_hidden,
+                      img_src != nullptr);
+    }
+    if (gcode_viewer_) {
+        bool viewer_hidden = lv_obj_has_flag(gcode_viewer_, LV_OBJ_FLAG_HIDDEN);
+        spdlog::debug("[{}]   -> gcode_viewer: hidden={}", get_name(), viewer_hidden);
+    }
+    if (gradient_background_) {
+        bool grad_hidden = lv_obj_has_flag(gradient_background_, LV_OBJ_FLAG_HIDDEN);
+        spdlog::debug("[{}]   -> gradient: hidden={}", get_name(), grad_hidden);
+    }
 }
 
 void PrintStatusPanel::load_gcode_file(const char* file_path) {

@@ -1299,6 +1299,38 @@ bool parse_metadata_line(const std::string& line, GCodeHeaderMetadata& metadata)
         size_t semicolon = value.find(';');
         metadata.filament_type =
             (semicolon != std::string::npos) ? value.substr(0, semicolon) : value;
+    } else if (key == "extruder_colour" || key == "filament_colour") {
+        // Parse multi-tool colors: "#ED1C24;#00C1AE;#F4E2C1;#000000"
+        // May also have spaces: "#AA0000 ; #00BB00 ; #0000CC"
+        metadata.tool_colors.clear();
+        std::string color;
+        bool in_color = false;
+
+        for (char c : value) {
+            if (c == '#') {
+                if (!color.empty() && color[0] == '#') {
+                    // Save previous color
+                    metadata.tool_colors.push_back(color);
+                }
+                color = "#";
+                in_color = true;
+            } else if (in_color) {
+                if (std::isxdigit(c)) {
+                    color += c;
+                } else if (c == ';' || c == ' ' || c == ',') {
+                    // End of this color
+                    if (color.length() >= 4) { // At least #RGB
+                        metadata.tool_colors.push_back(color);
+                    }
+                    color.clear();
+                    in_color = false;
+                }
+            }
+        }
+        // Don't forget the last color
+        if (!color.empty() && color[0] == '#' && color.length() >= 4) {
+            metadata.tool_colors.push_back(color);
+        }
     }
 
     return true;

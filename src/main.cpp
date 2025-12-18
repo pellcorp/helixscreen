@@ -46,6 +46,7 @@
 #include "ui_panel_step_test.h"
 #include "ui_panel_temp_control.h"
 #include "ui_panel_test.h"
+#include "ui_retraction_settings.h"
 #include "ui_severity_card.h"
 #include "ui_spinner.h"
 #include "ui_status_bar.h"
@@ -54,7 +55,6 @@
 #include "ui_text.h"
 #include "ui_text_input.h"
 #include "ui_theme.h"
-#include "ui_retraction_settings.h"
 #include "ui_timelapse_settings.h"
 #include "ui_toast.h"
 #include "ui_utils.h"
@@ -510,7 +510,7 @@ static void initialize_subjects() {
                                    nullptr);         // Initialize timelapse settings overlay
     get_global_timelapse_settings().init_subjects(); // Timelapse settings callbacks
     init_global_retraction_settings(get_printer_state(),
-                                    nullptr);          // Initialize retraction settings overlay
+                                    nullptr);         // Initialize retraction settings overlay
     get_global_retraction_settings().init_subjects(); // Retraction settings callbacks
     init_global_console_panel(get_printer_state(),
                               nullptr);         // Initialize console panel

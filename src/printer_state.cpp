@@ -218,6 +218,10 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&printer_has_timelapse_);
     lv_subject_deinit(&printer_has_firmware_retraction_);
     lv_subject_deinit(&printer_bed_moves_);
+    lv_subject_deinit(&retract_length_);
+    lv_subject_deinit(&retract_speed_);
+    lv_subject_deinit(&unretract_extra_length_);
+    lv_subject_deinit(&unretract_speed_);
     lv_subject_deinit(&manual_probe_active_);
     lv_subject_deinit(&manual_probe_z_position_);
     lv_subject_deinit(&klipper_version_);
@@ -310,6 +314,12 @@ void PrinterState::init_subjects(bool register_xml) {
     lv_subject_init_int(&printer_has_firmware_retraction_, 0);
     lv_subject_init_int(&printer_bed_moves_, 0); // 0=gantry moves, 1=bed moves (cartesian)
 
+    // Firmware retraction settings (defaults: disabled)
+    lv_subject_init_int(&retract_length_, 0);         // 0 = disabled
+    lv_subject_init_int(&retract_speed_, 20);         // 20 mm/s default
+    lv_subject_init_int(&unretract_extra_length_, 0); // 0mm extra
+    lv_subject_init_int(&unretract_speed_, 10);       // 10 mm/s default
+
     // Manual probe subjects (for Z-offset calibration)
     lv_subject_init_int(&manual_probe_active_, 0);     // 0=inactive, 1=active
     lv_subject_init_int(&manual_probe_z_position_, 0); // Z position in microns
@@ -368,6 +378,10 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "printer_has_firmware_retraction",
                                 &printer_has_firmware_retraction_);
         lv_xml_register_subject(NULL, "printer_bed_moves", &printer_bed_moves_);
+        lv_xml_register_subject(NULL, "retract_length", &retract_length_);
+        lv_xml_register_subject(NULL, "retract_speed", &retract_speed_);
+        lv_xml_register_subject(NULL, "unretract_extra_length", &unretract_extra_length_);
+        lv_xml_register_subject(NULL, "unretract_speed", &unretract_speed_);
         lv_xml_register_subject(NULL, "manual_probe_active", &manual_probe_active_);
         lv_xml_register_subject(NULL, "manual_probe_z_position", &manual_probe_z_position_);
         lv_xml_register_subject(NULL, "klipper_version", &klipper_version_);
@@ -676,6 +690,38 @@ void PrinterState::update_from_status(const json& state) {
             int z_microns = static_cast<int>(z_mm * 1000.0);
             lv_subject_set_int(&manual_probe_z_position_, z_microns);
             spdlog::trace("[PrinterState] Manual probe Z: {:.3f}mm", z_mm);
+        }
+    }
+
+    // Parse firmware_retraction settings (G10/G11 retraction parameters)
+    if (state.contains("firmware_retraction")) {
+        const auto& fr = state["firmware_retraction"];
+
+        if (fr.contains("retract_length") && fr["retract_length"].is_number()) {
+            // Store as centimillimeters (x100) to preserve 0.01mm precision
+            double mm = fr["retract_length"].get<double>();
+            int centimm = static_cast<int>(mm * 100.0);
+            lv_subject_set_int(&retract_length_, centimm);
+            spdlog::trace("[PrinterState] Retract length: {:.2f}mm", mm);
+        }
+
+        if (fr.contains("retract_speed") && fr["retract_speed"].is_number()) {
+            int speed = static_cast<int>(fr["retract_speed"].get<double>());
+            lv_subject_set_int(&retract_speed_, speed);
+            spdlog::trace("[PrinterState] Retract speed: {}mm/s", speed);
+        }
+
+        if (fr.contains("unretract_extra_length") && fr["unretract_extra_length"].is_number()) {
+            double mm = fr["unretract_extra_length"].get<double>();
+            int centimm = static_cast<int>(mm * 100.0);
+            lv_subject_set_int(&unretract_extra_length_, centimm);
+            spdlog::trace("[PrinterState] Unretract extra: {:.2f}mm", mm);
+        }
+
+        if (fr.contains("unretract_speed") && fr["unretract_speed"].is_number()) {
+            int speed = static_cast<int>(fr["unretract_speed"].get<double>());
+            lv_subject_set_int(&unretract_speed_, speed);
+            spdlog::trace("[PrinterState] Unretract speed: {}mm/s", speed);
         }
     }
 

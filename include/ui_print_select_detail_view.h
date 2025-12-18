@@ -5,9 +5,8 @@
 
 #include "ui_print_preparation_manager.h"
 
-#include <lvgl.h>
-
 #include <functional>
+#include <lvgl.h>
 #include <string>
 
 // Forward declarations
@@ -94,7 +93,9 @@ class PrintSelectDetailView {
      *
      * The subject should be initialized to 0 (hidden).
      */
-    void set_visible_subject(lv_subject_t* subject) { visible_subject_ = subject; }
+    void set_visible_subject(lv_subject_t* subject) {
+        visible_subject_ = subject;
+    }
 
     // === Visibility ===
 
@@ -106,9 +107,11 @@ class PrintSelectDetailView {
      * @param filename Selected filename (for G-code scanning)
      * @param current_path Current directory path
      * @param filament_type Filament type from metadata (for dropdown default)
+     * @param filament_colors Optional tool colors for multi-color prints
      */
     void show(const std::string& filename, const std::string& current_path,
-              const std::string& filament_type);
+              const std::string& filament_type,
+              const std::vector<std::string>& filament_colors = {});
 
     /**
      * @brief Hide the detail view overlay
@@ -141,25 +144,41 @@ class PrintSelectDetailView {
     /**
      * @brief Get the detail view widget
      */
-    [[nodiscard]] lv_obj_t* get_widget() const { return detail_view_widget_; }
+    [[nodiscard]] lv_obj_t* get_widget() const {
+        return detail_view_widget_;
+    }
 
     /**
      * @brief Get the print button (for enable/disable state)
      */
-    [[nodiscard]] lv_obj_t* get_print_button() const { return print_button_; }
+    [[nodiscard]] lv_obj_t* get_print_button() const {
+        return print_button_;
+    }
 
     /**
      * @brief Get the print preparation manager
      */
-    [[nodiscard]] PrintPreparationManager* get_prep_manager() const { return prep_manager_.get(); }
+    [[nodiscard]] PrintPreparationManager* get_prep_manager() const {
+        return prep_manager_.get();
+    }
 
     // === Checkbox Access (for prep manager setup) ===
 
-    [[nodiscard]] lv_obj_t* get_bed_leveling_checkbox() const { return bed_leveling_checkbox_; }
-    [[nodiscard]] lv_obj_t* get_qgl_checkbox() const { return qgl_checkbox_; }
-    [[nodiscard]] lv_obj_t* get_z_tilt_checkbox() const { return z_tilt_checkbox_; }
-    [[nodiscard]] lv_obj_t* get_nozzle_clean_checkbox() const { return nozzle_clean_checkbox_; }
-    [[nodiscard]] lv_obj_t* get_timelapse_checkbox() const { return timelapse_checkbox_; }
+    [[nodiscard]] lv_obj_t* get_bed_leveling_checkbox() const {
+        return bed_leveling_checkbox_;
+    }
+    [[nodiscard]] lv_obj_t* get_qgl_checkbox() const {
+        return qgl_checkbox_;
+    }
+    [[nodiscard]] lv_obj_t* get_z_tilt_checkbox() const {
+        return z_tilt_checkbox_;
+    }
+    [[nodiscard]] lv_obj_t* get_nozzle_clean_checkbox() const {
+        return nozzle_clean_checkbox_;
+    }
+    [[nodiscard]] lv_obj_t* get_timelapse_checkbox() const {
+        return timelapse_checkbox_;
+    }
 
     // === Resize Handling ===
 
@@ -189,6 +208,10 @@ class PrintSelectDetailView {
     lv_obj_t* nozzle_clean_checkbox_ = nullptr;
     lv_obj_t* timelapse_checkbox_ = nullptr;
 
+    // Color requirements display
+    lv_obj_t* color_requirements_card_ = nullptr;
+    lv_obj_t* color_swatches_row_ = nullptr;
+
     // Print preparation manager (owns it)
     std::unique_ptr<PrintPreparationManager> prep_manager_;
 
@@ -211,6 +234,13 @@ class PrintSelectDetailView {
      * @brief Static callback for cancel delete
      */
     static void on_cancel_delete_static(lv_event_t* e);
+
+    /**
+     * @brief Update color swatches display
+     *
+     * @param colors Hex color strings (e.g., "#ED1C24")
+     */
+    void update_color_swatches(const std::vector<std::string>& colors);
 };
 
 } // namespace helix::ui

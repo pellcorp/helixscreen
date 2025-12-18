@@ -497,9 +497,7 @@ void ControlsPanel::handle_save_z_offset() {
             // Clear the pending delta since it's now saved
             printer_state_.clear_pending_z_offset_delta();
         },
-        [](const MoonrakerError& err) {
-            NOTIFY_ERROR("Save failed: {}", err.user_message());
-        });
+        [](const MoonrakerError& err) { NOTIFY_ERROR("Save failed: {}", err.user_message()); });
 }
 
 // ============================================================================
@@ -810,12 +808,8 @@ void ControlsPanel::handle_motors_confirm() {
     if (api_) {
         api_->execute_gcode(
             "M84", // Klipper command to disable steppers
-            []() {
-                NOTIFY_SUCCESS("Motors disabled");
-            },
-            [](const MoonrakerError& err) {
-                NOTIFY_ERROR("Motors disable failed");
-            });
+            []() { NOTIFY_SUCCESS("Motors disabled"); },
+            [](const MoonrakerError& err) { NOTIFY_ERROR("Motors disable failed"); });
     }
 }
 

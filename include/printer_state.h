@@ -794,6 +794,13 @@ class PrinterState {
     lv_subject_t printer_has_firmware_retraction_; // Integer: 0=no, 1=yes (for G10/G11 retraction)
     lv_subject_t printer_bed_moves_; // Integer: 0=no (gantry moves), 1=yes (bed moves on Z)
 
+    // Firmware retraction settings (from firmware_retraction Klipper module)
+    // Lengths stored as centimillimeters (x100) to preserve 0.01mm precision with integers
+    lv_subject_t retract_length_;         // centimm (e.g., 80 = 0.8mm)
+    lv_subject_t retract_speed_;          // mm/s (integer, e.g., 35)
+    lv_subject_t unretract_extra_length_; // centimm (e.g., 0 = 0.0mm)
+    lv_subject_t unretract_speed_;        // mm/s (integer, e.g., 35)
+
     // Manual probe subjects (for Z-offset calibration)
     lv_subject_t manual_probe_active_; // Integer: 0=inactive, 1=active (PROBE_CALIBRATE running)
     lv_subject_t manual_probe_z_position_; // Integer: Z position * 1000 (for 0.001mm resolution)
