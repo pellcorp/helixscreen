@@ -267,8 +267,9 @@ void PowerPanel::create_device_row(const PowerDevice& device) {
     device_row.locked = is_locked;
     device_rows_.push_back(device_row);
 
-    // Store pointer to DeviceRow in the row's user_data for callback lookup
-    lv_obj_set_user_data(row, &device_rows_.back());
+    // Store index to DeviceRow in the row's user_data (avoids dangling pointer when vector resizes)
+    size_t index = device_rows_.size() - 1;
+    lv_obj_set_user_data(row, reinterpret_cast<void*>(static_cast<intptr_t>(index)));
 
     spdlog::debug("[{}] Created row for device '{}' (status: {}, locked: {})", get_name(),
                   device.device, device.status, is_locked);
@@ -309,18 +310,29 @@ void PowerPanel::on_power_device_toggle(lv_event_t* e) {
     if (!toggle) {
         spdlog::warn("[PowerPanel] No target in toggle event");
     } else {
-        // Navigate from toggle to parent row to get DeviceRow data
+        // Navigate from toggle to parent row to get DeviceRow index
         lv_obj_t* row = lv_obj_get_parent(toggle);
-        auto* device_row = row ? static_cast<DeviceRow*>(lv_obj_get_user_data(row)) : nullptr;
-
-        if (!device_row) {
-            spdlog::warn("[PowerPanel] Toggle's parent row has no device_row user_data");
-        } else if (device_row->locked) {
-            spdlog::debug("[PowerPanel] Device '{}' is locked - ignoring toggle",
-                          device_row->device_name);
+        if (!row) {
+            spdlog::warn("[PowerPanel] Toggle has no parent row");
         } else {
-            bool is_on = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-            self.handle_device_toggle(device_row->device_name, is_on);
+            // Retrieve index from user_data
+            auto index = static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(row)));
+
+            // Bounds check before accessing vector
+            if (index >= self.device_rows_.size()) {
+                spdlog::warn("[PowerPanel] Invalid device_row index {} (size: {})", index,
+                             self.device_rows_.size());
+            } else {
+                auto& device_row = self.device_rows_[index];
+
+                if (device_row.locked) {
+                    spdlog::debug("[PowerPanel] Device '{}' is locked - ignoring toggle",
+                                  device_row.device_name);
+                } else {
+                    bool is_on = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+                    self.handle_device_toggle(device_row.device_name, is_on);
+                }
+            }
         }
     }
 

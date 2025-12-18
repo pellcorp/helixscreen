@@ -701,12 +701,14 @@ static void gcode_viewer_size_changed_cb(lv_event_t* e) {
  */
 static void gcode_viewer_delete_cb(lv_event_t* e) {
     lv_obj_t* obj = lv_event_get_target_obj(e);
-    gcode_viewer_state_t* st = get_state(obj);
+    std::unique_ptr<gcode_viewer_state_t> state(
+        static_cast<gcode_viewer_state_t*>(lv_obj_get_user_data(obj)));
+    lv_obj_set_user_data(obj, nullptr);
 
-    if (st) {
+    if (state) {
         spdlog::trace("[GCode Viewer] Widget destroyed");
-        delete st; // RAII destructor handles thread cleanup, timers, etc.
-        lv_obj_set_user_data(obj, nullptr);
+        // state automatically freed when unique_ptr goes out of scope
+        // RAII destructor handles thread cleanup, timers, etc.
     }
 }
 
@@ -721,14 +723,16 @@ lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent) {
         return nullptr;
     }
 
-    // Allocate state (C++ object)
-    gcode_viewer_state_t* st = new gcode_viewer_state_t();
-    if (!st) {
+    // Allocate state (C++ object) using RAII
+    auto state_ptr = std::make_unique<gcode_viewer_state_t>();
+    if (!state_ptr) {
         lv_obj_delete(obj);
         return nullptr;
     }
 
-    lv_obj_set_user_data(obj, st);
+    // Get raw pointer for subsequent initialization before transferring ownership
+    gcode_viewer_state_t* st = state_ptr.get();
+    lv_obj_set_user_data(obj, state_ptr.release());
 
     // Configure object appearance
     lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, 0);

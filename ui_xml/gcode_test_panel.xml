@@ -15,34 +15,34 @@
                 style_border_width="0">
           <!-- Specular Intensity -->
           <lv_obj height="content"
-                  flex_grow="1" flex_flow="row" style_pad_all="0" style_pad_top="10" style_border_width="0"
+                  flex_grow="1" flex_flow="row" style_pad_all="0" style_pad_top="#space_md" style_border_width="0"
                   style_flex_cross_place="center">
             <lv_label text="Specular:"
-                      style_text_color="#text_secondary" style_text_font="#font_small" style_pad_right="10"/>
+                      style_text_color="#text_secondary" style_text_font="#font_small" style_pad_right="#space_md"/>
             <lv_slider name="specular_slider" flex_grow="1" min_value="0" max_value="20" value="5"/>
             <lv_label name="specular_value_label"
-                      text="0.05" style_text_color="#text_primary" style_text_font="#font_small" style_pad_left="8"/>
+                      text="0.05" style_text_color="#text_primary" style_text_font="#font_small" style_pad_left="#space_md"/>
           </lv_obj>
           <!-- Shininess -->
           <lv_obj height="content"
-                  flex_grow="1" flex_flow="row" style_pad_all="0" style_pad_top="10" style_border_width="0"
+                  flex_grow="1" flex_flow="row" style_pad_all="0" style_pad_top="#space_md" style_border_width="0"
                   style_flex_cross_place="center">
             <lv_label text="Shininess:"
-                      style_text_color="#text_secondary" style_text_font="#font_small" style_pad_right="10"/>
+                      style_text_color="#text_secondary" style_text_font="#font_small" style_pad_right="#space_md"/>
             <lv_slider name="shininess_slider" flex_grow="1" min_value="5" max_value="50" value="5"/>
             <lv_label name="shininess_value_label"
-                      text="5" style_text_color="#text_primary" style_text_font="#font_small" style_pad_left="8"/>
+                      text="5" style_text_color="#text_primary" style_text_font="#font_small" style_pad_left="#space_md"/>
           </lv_obj>
         </lv_obj>
       </lv_obj>
       <!-- Right: Control Panel (30%) -->
       <lv_obj name="control_panel"
               height="100%" flex_grow="3" scrollable="false" flex_flow="column" style_bg_color="#card_bg"
-              style_pad_all="4" style_pad_gap="#space_xs" style_border_width="0">
+              style_pad_all="#space_xs" style_pad_gap="#space_xs" style_border_width="0">
         <!-- View Presets Section -->
         <lv_obj width="100%"
                 height="content" flex_flow="column" style_bg_color="#bg_dark" style_radius="#card_radius"
-                style_pad_all="4" style_pad_gap="#space_xs" style_border_width="0">
+                style_pad_all="#space_xs" style_pad_gap="#space_xs" style_border_width="0">
           <lv_label text="View Presets" style_text_font="#font_subheader" style_text_color="#text_primary"/>
           <!-- Row 1 -->
           <lv_obj width="100%"
@@ -71,7 +71,7 @@
         <!-- Zoom Section -->
         <lv_obj width="100%"
                 height="content" flex_flow="column" style_bg_color="#bg_dark" style_radius="#card_radius"
-                style_pad_all="4" style_pad_gap="#space_xs" style_border_width="0">
+                style_pad_all="#space_xs" style_pad_gap="#space_xs" style_border_width="0">
           <lv_label text="Zoom" style_text_font="#font_subheader" style_text_color="#text_primary"/>
           <lv_obj width="100%"
                   height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm" style_border_width="0">
@@ -86,17 +86,17 @@
         <!-- Layer Progress Section (Ghost Layer Test) -->
         <lv_obj width="100%"
                 height="content" flex_flow="column" style_bg_color="#bg_dark" style_radius="#card_radius"
-                style_pad_all="4" style_pad_gap="#space_xs" style_border_width="0">
+                style_pad_all="#space_xs" style_pad_gap="#space_xs" style_border_width="0">
           <lv_obj width="100%"
                   height="content" flex_flow="row" style_pad_all="0" style_border_width="0"
                   style_flex_cross_place="center">
             <lv_label text="Layer:" style_text_font="#font_subheader" style_text_color="#text_primary"/>
             <lv_label name="layer_value_label"
-                      text=" 0 / 0" style_text_font="#font_small" style_text_color="#text_secondary" style_pad_left="4"/>
+                      text=" 0 / 0" style_text_font="#font_small" style_text_color="#text_secondary" style_pad_left="#space_xs"/>
           </lv_obj>
           <lv_obj width="100%"
-                  height="40" flex_flow="row" style_pad_top="8" style_pad_bottom="8" style_pad_left="8"
-                  style_pad_right="20" style_border_width="0" style_flex_cross_place="center"
+                  height="40" flex_flow="row" style_pad_top="#space_md" style_pad_bottom="#space_md" style_pad_left="#space_md"
+                  style_pad_right="#space_xl" style_border_width="0" style_flex_cross_place="center"
                   flag_overflow_visible="true">
             <lv_slider name="layer_slider" flex_grow="1" min_value="0" max_value="100" value="100"/>
           </lv_obj>
@@ -111,7 +111,7 @@
         <!-- File Section -->
         <lv_obj width="100%"
                 height="content" flex_flow="column" style_bg_color="#bg_dark" style_radius="#card_radius"
-                style_pad_all="4" style_pad_gap="#space_xs" style_border_width="0">
+                style_pad_all="#space_xs" style_pad_gap="#space_xs" style_border_width="0">
           <lv_label text="File" style_text_font="#font_subheader" style_text_color="#text_primary"/>
           <lv_obj width="100%"
                   height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm" style_border_width="0">
@@ -125,7 +125,7 @@
         </lv_obj>
         <!-- Statistics Section (flex_grow to fill remaining space) -->
         <lv_obj width="100%"
-                flex_grow="1" flex_flow="column" style_bg_color="#bg_dark" style_radius="#card_radius" style_pad_all="4"
+                flex_grow="1" flex_flow="column" style_bg_color="#bg_dark" style_radius="#card_radius" style_pad_all="#space_xs"
                 style_pad_gap="#space_xs" style_border_width="0">
           <lv_label text="File Info" style_text_font="#font_subheader" style_text_color="#text_primary"/>
           <lv_label name="stats_label"

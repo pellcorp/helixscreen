@@ -7,10 +7,10 @@
   </api>
   <!-- Toast container - floating appearance with shadow, positioned top-right -->
   <view name="toast_root"
-        extends="lv_obj" width="content" height="content" align="top_right" x="-16" y="#space_2xl" style_min_width="50%"
+        extends="lv_obj" width="content" height="content" align="top_right" x="#space_lg_negative" y="#space_2xl" style_min_width="50%"
         style_max_width="450" style_radius="#border_radius_large" style_pad_all="#space_lg" style_pad_gap="#space_sm"
-        style_border_width="0" style_bg_color="#app_bg_color" style_shadow_width="24" style_shadow_spread="4"
-        style_shadow_opa="120" style_shadow_ofs_y="4" flex_flow="row" style_flex_main_place="start"
+        style_border_width="0" style_bg_color="#app_bg_color" style_shadow_width="#space_2xl" style_shadow_spread="#space_xs"
+        style_shadow_opa="120" style_shadow_ofs_y="#space_xs" flex_flow="row" style_flex_main_place="start"
         style_flex_cross_place="center">
     <!-- INFO icon (circle-info) - shown when toast_severity=0 -->
     <lv_label name="icon_info" text="#icon_info_circle" style_text_font="mdi_icons_24" style_text_color="#info_color">
@@ -38,7 +38,7 @@
                text="$message" flex_grow="1" long_mode="wrap" style_pad_left="#space_sm" style_pad_right="#space_sm"/>
     <!-- Action button (hidden by default, shown via toast_action_visible subject) -->
     <lv_button name="toast_action_btn"
-               width="content" height="36" style_min_width="72" style_radius="#border_radius" style_border_width="0"
+               width="content" height="36" style_min_width="72" style_radius="#border_radius_small" style_border_width="0"
                style_bg_color="#accent_color" style_pad_left="#space_lg" style_pad_right="#space_lg" hidden="true"
                clickable="true">
       <lv_obj-bind_flag_if_eq subject="toast_action_visible" flag="hidden" ref_value="0"/>
@@ -47,7 +47,7 @@
     </lv_button>
     <!-- Close button -->
     <lv_button name="toast_close_btn"
-               width="32" height="32" style_radius="#border_radius" style_border_width="0" style_bg_opa="0"
+               width="32" height="32" style_radius="#border_radius_small" style_border_width="0" style_bg_opa="0"
                style_pad_all="0" clickable="true">
       <lv_label text="#icon_xmark" style_text_font="mdi_icons_16" style_text_color="#text_secondary" align="center"/>
       <event_cb trigger="clicked" callback="toast_close_btn_clicked"/>

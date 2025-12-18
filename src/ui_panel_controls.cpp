@@ -519,7 +519,7 @@ void ControlsPanel::handle_quick_actions_clicked() {
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "motion_panel", nullptr));
         if (motion_panel_) {
             get_global_motion_panel().setup(motion_panel_, parent_screen_);
-            lv_obj_add_flag(motion_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
         } else {
             NOTIFY_ERROR("Failed to load motion panel");
             return;
@@ -545,7 +545,7 @@ void ControlsPanel::handle_temperatures_clicked() {
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "nozzle_temp_panel", nullptr));
         if (nozzle_temp_panel_) {
             temp_control_panel_->setup_nozzle_panel(nozzle_temp_panel_, parent_screen_);
-            lv_obj_add_flag(nozzle_temp_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
         } else {
             NOTIFY_ERROR("Failed to load temperature panel");
             return;
@@ -569,7 +569,7 @@ void ControlsPanel::handle_cooling_clicked() {
         fan_panel_ = static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "fan_panel", nullptr));
         if (fan_panel_) {
             fan_panel_instance.setup(fan_panel_, parent_screen_);
-            lv_obj_add_flag(fan_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
         } else {
             NOTIFY_ERROR("Failed to load fan panel");
             return;
@@ -594,7 +594,7 @@ void ControlsPanel::handle_filament_clicked() {
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "extrusion_panel", nullptr));
         if (extrusion_panel_) {
             extrusion_panel_instance.setup(extrusion_panel_, parent_screen_);
-            lv_obj_add_flag(extrusion_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
         } else {
             NOTIFY_ERROR("Failed to load extrusion panel");
             return;
@@ -852,26 +852,18 @@ void ControlsPanel::handle_calibration_clicked() {
             return;
         }
 
-        // Modal starts hidden (visibility controlled by subject)
-        lv_obj_add_flag(calibration_modal_, LV_OBJ_FLAG_HIDDEN);
         spdlog::info("[{}] Calibration modal created", get_name());
     }
 
-    // Show modal by setting visibility subject
-    if (calibration_modal_) {
-        lv_subject_set_int(&calibration_modal_visible_, 1);
-        lv_obj_remove_flag(calibration_modal_, LV_OBJ_FLAG_HIDDEN);
-    }
+    // Show modal by setting visibility subject (XML bind_flag_if_eq handles actual visibility)
+    lv_subject_set_int(&calibration_modal_visible_, 1);
 }
 
 void ControlsPanel::handle_calibration_modal_close() {
     spdlog::debug("[{}] Calibration modal close clicked", get_name());
 
-    // Hide modal via visibility subject
+    // Hide modal via visibility subject (XML bind_flag_if_eq handles actual visibility)
     lv_subject_set_int(&calibration_modal_visible_, 0);
-    if (calibration_modal_) {
-        lv_obj_add_flag(calibration_modal_, LV_OBJ_FLAG_HIDDEN);
-    }
 }
 
 void ControlsPanel::handle_calibration_bed_mesh() {
@@ -888,7 +880,7 @@ void ControlsPanel::handle_calibration_bed_mesh() {
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "bed_mesh_panel", nullptr));
 
         if (bed_mesh_panel_) {
-            lv_obj_add_flag(bed_mesh_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
             spdlog::info("[{}] Bed mesh panel created", get_name());
         } else {
             LOG_ERROR_INTERNAL("Failed to create bed mesh panel from XML");
@@ -916,7 +908,7 @@ void ControlsPanel::handle_calibration_zoffset() {
             lv_xml_create(parent_screen_, "calibration_zoffset_panel", nullptr));
 
         if (zoffset_panel_) {
-            lv_obj_add_flag(zoffset_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
             spdlog::info("[{}] Z-offset panel created", get_name());
         } else {
             LOG_ERROR_INTERNAL("Failed to create z-offset panel from XML");
@@ -944,7 +936,7 @@ void ControlsPanel::handle_calibration_screws() {
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "screws_tilt_panel", nullptr));
 
         if (screws_panel_) {
-            lv_obj_add_flag(screws_panel_, LV_OBJ_FLAG_HIDDEN);
+            // Panel starts hidden via XML hidden="true" attribute
             spdlog::info("[{}] Screws tilt panel created", get_name());
         } else {
             LOG_ERROR_INTERNAL("Failed to create screws tilt panel from XML");

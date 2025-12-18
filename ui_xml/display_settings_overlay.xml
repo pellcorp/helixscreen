@@ -27,7 +27,7 @@
           <icon src="light_off" size="sm" variant="secondary"/>
           <lv_obj width="content"
                   height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
-                  flex_flow="column" style_pad_gap="2">
+                  flex_flow="column" style_pad_gap="#space_xxs">
             <text_body text="Dark Mode" style_text_color="#text_primary"/>
             <text_small text="Switch between light and dark themes" style_text_color="#text_secondary"/>
           </lv_obj>
@@ -58,19 +58,22 @@
             <text_body text="Brightness" style_text_color="#text_primary"/>
           </lv_obj>
           <!-- Current brightness value display -->
-          <text_body name="brightness_value_label" text="50%" style_text_color="#text_secondary"/>
+          <text_body name="brightness_value_label" bind_text="brightness_value"
+                     style_text_color="#text_secondary"/>
         </lv_obj>
         <!-- Brightness Slider -->
         <lv_obj width="100%"
-                height="50" style_bg_opa="0" style_border_width="0" style_pad_left="8" style_pad_right="8"
-                style_pad_top="8" style_pad_bottom="8" scrollable="false" flex_flow="row"
+                height="50" style_bg_opa="0" style_border_width="0" style_pad_left="#space_md" style_pad_right="#space_md"
+                style_pad_top="#space_md" style_pad_bottom="#space_md" scrollable="false" flex_flow="row"
                 style_flex_cross_place="center">
           <!-- Min icon (sun dim) -->
           <icon src="light_off" size="xs" variant="secondary"/>
           <!-- Slider -->
           <lv_slider name="brightness_slider"
-                     flex_grow="1" min_value="10" max_value="100" value="50" style_margin_left="8"
-                     style_margin_right="8"/>
+                     flex_grow="1" min_value="10" max_value="100" value="50" style_margin_left="#space_md"
+                     style_margin_right="#space_md">
+            <event_cb trigger="value_changed" callback="on_brightness_changed"/>
+          </lv_slider>
           <!-- Max icon (sun bright) -->
           <icon src="light" size="xs" variant="primary"/>
         </lv_obj>

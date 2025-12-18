@@ -92,26 +92,26 @@
                    width="48%" height="content" style_radius="#border_radius" style_pad_all="#space_xs"
                    flex_flow="column" style_flex_cross_place="start">
             <text_small text="Total Prints" style_text_color="#text_secondary"/>
-            <text_heading name="stat_total_prints" text="0" style_text_color="#text_primary"/>
+            <text_heading name="stat_total_prints" text="0" style_text_color="#text_primary" bind_text="stat_total_prints"/>
           </ui_card>
           <ui_card name="card_success_rate"
                    width="48%" height="content" style_radius="#border_radius" style_pad_all="#space_xs"
                    flex_flow="column" style_flex_cross_place="start">
             <text_small text="Success Rate" style_text_color="#text_secondary"/>
-            <text_heading name="stat_success_rate" text="0%" style_text_color="#success_color"/>
+            <text_heading name="stat_success_rate" text="0%" style_text_color="#success_color" bind_text="stat_success_rate"/>
           </ui_card>
           <!-- Row 2: Print Time, Filament Used -->
           <ui_card name="card_print_time"
                    width="48%" height="content" style_radius="#border_radius" style_pad_all="#space_xs"
                    flex_flow="column" style_flex_cross_place="start">
             <text_small text="Print Time" style_text_color="#text_secondary"/>
-            <text_heading name="stat_print_time" text="0h" style_text_color="#text_primary"/>
+            <text_heading name="stat_print_time" text="0h" style_text_color="#text_primary" bind_text="stat_print_time"/>
           </ui_card>
           <ui_card name="card_filament"
                    width="48%" height="content" style_radius="#border_radius" style_pad_all="#space_xs"
                    flex_flow="column" style_flex_cross_place="start">
             <text_small text="Filament Used" style_text_color="#text_secondary"/>
-            <text_heading name="stat_filament" text="0m" style_text_color="#text_primary"/>
+            <text_heading name="stat_filament" text="0m" style_text_color="#text_primary" bind_text="stat_filament"/>
           </ui_card>
         </lv_obj>
         <!-- Right: Filament by Type Chart with Labels -->
@@ -136,7 +136,7 @@
                 height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
                 style_flex_main_place="space_between" style_flex_cross_place="center" scrollable="false">
           <text_body text="Prints Trend" style_text_color="#text_secondary"/>
-          <text_small name="trend_period" text="Last 7 days" style_text_color="#text_secondary"/>
+          <text_small name="trend_period" text="Last 7 days" style_text_color="#text_secondary" bind_text="trend_period"/>
         </lv_obj>
         <!-- Chart container - will be populated by C++ -->
         <lv_obj name="trend_chart_container"

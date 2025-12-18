@@ -181,6 +181,7 @@ class WizardWifiStep {
     void clear_network_list();
 
     // Static trampolines for LVGL callbacks
+    static void network_item_delete_cb(lv_event_t* e);
     static void on_wifi_toggle_changed_static(lv_event_t* e);
     static void on_network_item_clicked_static(lv_event_t* e);
     static void on_modal_cancel_clicked_static(lv_event_t* e);

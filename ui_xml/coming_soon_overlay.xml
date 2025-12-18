@@ -16,7 +16,7 @@
     <icon src="$icon_name" size="xl" color="#text_secondary" style_pad_bottom="#space_lg"/>
     <!-- Construction icon indicator -->
     <lv_obj width="auto"
-            height="auto" style_bg_color="#warning_color" style_bg_opa="255" style_radius="8" style_pad_all="#space_sm"
+            height="auto" style_bg_color="#warning_color" style_bg_opa="255" style_radius="#space_md" style_pad_all="#space_sm"
             style_border_width="0">
       <text_body text="Coming Soon" style_text_color="#000000"/>
     </lv_obj>

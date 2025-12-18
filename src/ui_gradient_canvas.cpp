@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 
 namespace {
 
@@ -137,14 +138,14 @@ static void render_gradient_buffer(GradientData* data) {
  */
 static void gradient_delete_cb(lv_event_t* e) {
     lv_obj_t* obj = lv_event_get_target_obj(e);
-    GradientData* data = static_cast<GradientData*>(lv_obj_get_user_data(obj));
+    std::unique_ptr<GradientData> data(static_cast<GradientData*>(lv_obj_get_user_data(obj)));
+    lv_obj_set_user_data(obj, nullptr);
     if (data) {
         if (data->draw_buf) {
             lv_draw_buf_destroy(data->draw_buf);
             data->draw_buf = nullptr;
         }
-        delete data;
-        lv_obj_set_user_data(obj, nullptr);
+        // data automatically freed
     }
 }
 
@@ -163,34 +164,33 @@ static void* ui_gradient_canvas_xml_create(lv_xml_parser_state_t* state, const c
     }
 
     // Initialize gradient data with defaults
-    GradientData* data = new GradientData();
-    data->start_r = DEFAULT_START_GRAY;
-    data->start_g = DEFAULT_START_GRAY;
-    data->start_b = DEFAULT_START_GRAY;
-    data->end_r = DEFAULT_END_GRAY;
-    data->end_g = DEFAULT_END_GRAY;
-    data->end_b = DEFAULT_END_GRAY;
-    data->dither = true;
-    data->draw_buf = nullptr;
+    auto data_ptr = std::make_unique<GradientData>();
+    data_ptr->start_r = DEFAULT_START_GRAY;
+    data_ptr->start_g = DEFAULT_START_GRAY;
+    data_ptr->start_b = DEFAULT_START_GRAY;
+    data_ptr->end_r = DEFAULT_END_GRAY;
+    data_ptr->end_g = DEFAULT_END_GRAY;
+    data_ptr->end_b = DEFAULT_END_GRAY;
+    data_ptr->dither = true;
+    data_ptr->draw_buf = nullptr;
 
     // Create draw buffer for gradient
-    data->draw_buf =
+    data_ptr->draw_buf =
         lv_draw_buf_create(GRADIENT_BUFFER_SIZE, GRADIENT_BUFFER_SIZE, LV_COLOR_FORMAT_ARGB8888, 0);
 
-    if (!data->draw_buf) {
+    if (!data_ptr->draw_buf) {
         LOG_ERROR_INTERNAL("[GradientCanvas] Failed to create draw buffer");
-        delete data;
         lv_obj_delete(img);
         return nullptr;
     }
 
-    lv_obj_set_user_data(img, data);
-
-    // Render initial gradient
-    render_gradient_buffer(data);
+    // Render initial gradient (must be done before release)
+    render_gradient_buffer(data_ptr.get());
 
     // Set image source to our buffer
-    lv_image_set_src(img, data->draw_buf);
+    lv_image_set_src(img, data_ptr->draw_buf);
+
+    lv_obj_set_user_data(img, data_ptr.release());
 
     // Configure image to fill widget area (scales to cover, clips overflow)
     lv_image_set_inner_align(img, LV_IMAGE_ALIGN_COVER);

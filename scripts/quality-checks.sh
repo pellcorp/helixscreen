@@ -328,6 +328,33 @@ fi
 echo ""
 
 # ====================================================================
+# Memory Safety Audit (Critical Patterns Only)
+# ====================================================================
+if [ "$STAGED_ONLY" = true ]; then
+  # Get all staged .cpp and .xml files for audit
+  AUDIT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|xml)$' || true)
+
+  if [ -n "$AUDIT_FILES" ]; then
+    echo "🛡️  Running memory safety audit on staged files..."
+
+    if [ -f "scripts/audit_codebase.sh" ]; then
+      # Run audit in file mode - only check critical patterns (errors fail, warnings pass)
+      # shellcheck disable=SC2086
+      if ./scripts/audit_codebase.sh --files $AUDIT_FILES 2>/dev/null; then
+        echo "✅ Memory safety audit passed"
+      else
+        echo "❌ Memory safety audit found critical issues!"
+        echo "   Run './scripts/audit_codebase.sh --files <files>' to see details"
+        EXIT_CODE=1
+      fi
+    else
+      echo "⚠️  audit_codebase.sh not found - skipping memory safety audit"
+    fi
+    echo ""
+  fi
+fi
+
+# ====================================================================
 # Final Result
 # ====================================================================
 if [ $EXIT_CODE -eq 0 ]; then

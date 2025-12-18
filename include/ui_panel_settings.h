@@ -108,6 +108,26 @@ class SettingsPanel : public PanelBase {
     lv_obj_t* klipper_value_ = nullptr;
     lv_obj_t* moonraker_value_ = nullptr;
 
+    //
+    // === Reactive Subjects ===
+    //
+
+    // Slider value subjects
+    lv_subject_t scroll_throw_value_subject_;
+    lv_subject_t scroll_limit_value_subject_;
+    lv_subject_t brightness_value_subject_;
+
+    // Info row subjects
+    lv_subject_t version_value_subject_;
+    lv_subject_t printer_value_subject_;
+
+    // Static buffers for string subjects (required for lv_subject_init_string)
+    char scroll_throw_value_buf_[8]; // e.g., "50"
+    char scroll_limit_value_buf_[8]; // e.g., "15"
+    char brightness_value_buf_[8];   // e.g., "75%"
+    char version_value_buf_[32];     // e.g., "1.2.3"
+    char printer_value_buf_[64];     // e.g., "Voron 2.4"
+
     // Lazily-created overlay panels
     lv_obj_t* display_settings_overlay_ = nullptr;
     lv_obj_t* filament_sensors_overlay_ = nullptr;
@@ -174,6 +194,15 @@ class SettingsPanel : public PanelBase {
     static void on_pid_tuning_clicked(lv_event_t* e);
     static void on_network_clicked(lv_event_t* e);
     static void on_factory_reset_clicked(lv_event_t* e);
+
+    // Static callbacks for modal dialogs and overlays
+    static void on_modal_primary_clicked(lv_event_t* e);
+    static void on_modal_secondary_clicked(lv_event_t* e);
+    static void on_modal_backdrop_clicked(lv_event_t* e);
+    static void on_restart_later_clicked(lv_event_t* e);
+    static void on_restart_now_clicked(lv_event_t* e);
+    static void on_header_back_clicked(lv_event_t* e);
+    static void on_brightness_changed(lv_event_t* e);
 };
 
 // Global instance accessor (needed by main.cpp)

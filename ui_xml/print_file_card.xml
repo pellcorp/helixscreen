@@ -46,7 +46,7 @@
       <!-- Inner overlay with rounded corners - taller to extend above clip, hiding top radius -->
       <lv_obj name="metadata_overlay"
               width="100%" height="78" style_bg_opa="#metadata_overlay_opacity" style_border_width="0"
-              style_radius="#border_radius" style_pad_left="#space_xs" style_pad_right="#space_xs" style_pad_top="14"
+              style_radius="#border_radius" style_pad_left="#space_xs" style_pad_right="#space_xs" style_pad_top="#space_lg"
               style_pad_bottom="#space_xs" align="bottom_mid" flex_flow="column" scrollable="false">
         <!-- Filename label (single line, truncated with ...) -->
         <text_xs name="filename_label"

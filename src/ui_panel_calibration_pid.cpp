@@ -27,9 +27,45 @@ static lv_subject_t s_pid_cal_state;
 // ============================================================================
 
 void PIDCalibrationPanel::init_subjects() {
+    auto& panel = get_global_pid_cal_panel();
+
     // Register state subject
     lv_subject_init_int(&s_pid_cal_state, 0);
     lv_xml_register_subject(nullptr, "pid_cal_state", &s_pid_cal_state);
+
+    // Initialize string subjects with initial values
+    lv_subject_init_string(&panel.subj_temp_display_, panel.buf_temp_display_, nullptr,
+                           sizeof(panel.buf_temp_display_), "200°C");
+    lv_xml_register_subject(nullptr, "pid_temp_display", &panel.subj_temp_display_);
+
+    lv_subject_init_string(&panel.subj_temp_hint_, panel.buf_temp_hint_, nullptr,
+                           sizeof(panel.buf_temp_hint_), "Recommended: 200°C for extruder");
+    lv_xml_register_subject(nullptr, "pid_temp_hint", &panel.subj_temp_hint_);
+
+    lv_subject_init_string(&panel.subj_current_temp_display_, panel.buf_current_temp_display_,
+                           nullptr, sizeof(panel.buf_current_temp_display_), "0.0°C / 0°C");
+    lv_xml_register_subject(nullptr, "pid_current_temp", &panel.subj_current_temp_display_);
+
+    lv_subject_init_string(&panel.subj_calibrating_heater_, panel.buf_calibrating_heater_, nullptr,
+                           sizeof(panel.buf_calibrating_heater_), "Extruder PID Tuning");
+    lv_xml_register_subject(nullptr, "pid_calibrating_heater", &panel.subj_calibrating_heater_);
+
+    lv_subject_init_string(&panel.subj_pid_kp_, panel.buf_pid_kp_, nullptr,
+                           sizeof(panel.buf_pid_kp_), "0.000");
+    lv_xml_register_subject(nullptr, "pid_kp", &panel.subj_pid_kp_);
+
+    lv_subject_init_string(&panel.subj_pid_ki_, panel.buf_pid_ki_, nullptr,
+                           sizeof(panel.buf_pid_ki_), "0.000");
+    lv_xml_register_subject(nullptr, "pid_ki", &panel.subj_pid_ki_);
+
+    lv_subject_init_string(&panel.subj_pid_kd_, panel.buf_pid_kd_, nullptr,
+                           sizeof(panel.buf_pid_kd_), "0.000");
+    lv_xml_register_subject(nullptr, "pid_kd", &panel.subj_pid_kd_);
+
+    lv_subject_init_string(&panel.subj_error_message_, panel.buf_error_message_, nullptr,
+                           sizeof(panel.buf_error_message_),
+                           "An error occurred during calibration.");
+    lv_xml_register_subject(nullptr, "pid_error_message", &panel.subj_error_message_);
 
     // Register XML event callbacks using global accessor
     lv_xml_register_event_cb(nullptr, "on_pid_heater_extruder", on_heater_extruder_clicked);
@@ -61,20 +97,6 @@ void PIDCalibrationPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen, Moonra
     // Find widgets in idle state (for heater selection styling)
     btn_heater_extruder_ = lv_obj_find_by_name(panel_, "btn_heater_extruder");
     btn_heater_bed_ = lv_obj_find_by_name(panel_, "btn_heater_bed");
-    temp_display_ = lv_obj_find_by_name(panel_, "temp_display");
-    temp_hint_ = lv_obj_find_by_name(panel_, "temp_hint");
-
-    // Find widgets in calibrating state
-    calibrating_heater_ = lv_obj_find_by_name(panel_, "calibrating_heater");
-    current_temp_display_ = lv_obj_find_by_name(panel_, "current_temp_display");
-
-    // Find widgets in complete state
-    pid_kp_ = lv_obj_find_by_name(panel_, "pid_kp");
-    pid_ki_ = lv_obj_find_by_name(panel_, "pid_ki");
-    pid_kd_ = lv_obj_find_by_name(panel_, "pid_kd");
-
-    // Find error message label
-    error_message_ = lv_obj_find_by_name(panel_, "error_message");
 
     // Event callbacks are registered via XML <event_cb> elements
     // State visibility is controlled via subject binding in XML
@@ -124,32 +146,21 @@ void PIDCalibrationPanel::update_heater_selection() {
 }
 
 void PIDCalibrationPanel::update_temp_display() {
-    if (!temp_display_)
-        return;
-
     char buf[16];
     snprintf(buf, sizeof(buf), "%d°C", target_temp_);
-    lv_label_set_text(temp_display_, buf);
+    lv_subject_copy_string(&subj_temp_display_, buf);
 }
 
 void PIDCalibrationPanel::update_temp_hint() {
-    if (!temp_hint_)
-        return;
-
-    if (selected_heater_ == Heater::EXTRUDER) {
-        lv_label_set_text(temp_hint_, "Recommended: 200°C for extruder");
-    } else {
-        lv_label_set_text(temp_hint_, "Recommended: 60°C for heated bed");
-    }
+    const char* hint = (selected_heater_ == Heater::EXTRUDER) ? "Recommended: 200°C for extruder"
+                                                              : "Recommended: 60°C for heated bed";
+    lv_subject_copy_string(&subj_temp_hint_, hint);
 }
 
 void PIDCalibrationPanel::update_temperature(float current, float target) {
-    if (!current_temp_display_)
-        return;
-
     char buf[32];
     snprintf(buf, sizeof(buf), "%.1f°C / %.0f°C", current, target);
-    lv_label_set_text(current_temp_display_, buf);
+    lv_subject_copy_string(&subj_current_temp_display_, buf);
 }
 
 // ============================================================================
@@ -176,11 +187,9 @@ void PIDCalibrationPanel::send_pid_calibrate() {
     }
 
     // Update calibrating state label
-    if (calibrating_heater_) {
-        const char* label = (selected_heater_ == Heater::EXTRUDER) ? "Extruder PID Tuning"
-                                                                   : "Heated Bed PID Tuning";
-        lv_label_set_text(calibrating_heater_, label);
-    }
+    const char* label =
+        (selected_heater_ == Heater::EXTRUDER) ? "Extruder PID Tuning" : "Heated Bed PID Tuning";
+    lv_subject_copy_string(&subj_calibrating_heater_, label);
 
     // For demo purposes, simulate completion after a delay
     // In real implementation, this would be triggered by Moonraker events
@@ -312,30 +321,22 @@ void PIDCalibrationPanel::on_calibration_result(bool success, float kp, float ki
         result_ki_ = ki;
         result_kd_ = kd;
 
-        // Update display
-        if (pid_kp_) {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%.3f", kp);
-            lv_label_set_text(pid_kp_, buf);
-        }
-        if (pid_ki_) {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%.3f", ki);
-            lv_label_set_text(pid_ki_, buf);
-        }
-        if (pid_kd_) {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%.3f", kd);
-            lv_label_set_text(pid_kd_, buf);
-        }
+        // Update display using subjects
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.3f", kp);
+        lv_subject_copy_string(&subj_pid_kp_, buf);
+
+        snprintf(buf, sizeof(buf), "%.3f", ki);
+        lv_subject_copy_string(&subj_pid_ki_, buf);
+
+        snprintf(buf, sizeof(buf), "%.3f", kd);
+        lv_subject_copy_string(&subj_pid_kd_, buf);
 
         // Save config (will transition to COMPLETE when done)
         set_state(State::SAVING);
         send_save_config();
     } else {
-        if (error_message_) {
-            lv_label_set_text(error_message_, error_message.c_str());
-        }
+        lv_subject_copy_string(&subj_error_message_, error_message.c_str());
         set_state(State::ERROR);
     }
 }

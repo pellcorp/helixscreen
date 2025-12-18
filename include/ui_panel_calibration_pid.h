@@ -120,17 +120,34 @@ class PIDCalibrationPanel {
     float result_ki_ = 0;
     float result_kd_ = 0;
 
-    // Widget references
+    // String subjects and buffers for reactive text updates
+    lv_subject_t subj_temp_display_;
+    char buf_temp_display_[16];
+
+    lv_subject_t subj_temp_hint_;
+    char buf_temp_hint_[64];
+
+    lv_subject_t subj_current_temp_display_;
+    char buf_current_temp_display_[32];
+
+    lv_subject_t subj_calibrating_heater_;
+    char buf_calibrating_heater_[32];
+
+    lv_subject_t subj_pid_kp_;
+    char buf_pid_kp_[16];
+
+    lv_subject_t subj_pid_ki_;
+    char buf_pid_ki_[16];
+
+    lv_subject_t subj_pid_kd_;
+    char buf_pid_kd_[16];
+
+    lv_subject_t subj_error_message_;
+    char buf_error_message_[256];
+
+    // Widget references (only for imperative updates like styling)
     lv_obj_t* btn_heater_extruder_ = nullptr;
     lv_obj_t* btn_heater_bed_ = nullptr;
-    lv_obj_t* temp_display_ = nullptr;
-    lv_obj_t* temp_hint_ = nullptr;
-    lv_obj_t* calibrating_heater_ = nullptr;
-    lv_obj_t* current_temp_display_ = nullptr;
-    lv_obj_t* pid_kp_ = nullptr;
-    lv_obj_t* pid_ki_ = nullptr;
-    lv_obj_t* pid_kd_ = nullptr;
-    lv_obj_t* error_message_ = nullptr;
 
     // State management
     void set_state(State new_state);

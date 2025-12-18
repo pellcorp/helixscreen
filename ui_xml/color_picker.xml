@@ -57,7 +57,7 @@
             <!-- Hex value and name (fixed size to prevent dialog jumping) -->
             <!-- Height via token accommodates hex + 2-line color name (52/60/68px) -->
             <lv_obj width="130" height="#color_text_height" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    flex_flow="column" style_pad_gap="2" style_flex_main_place="center" scrollable="false">
+                    flex_flow="column" style_pad_gap="#space_xxs" style_flex_main_place="center" scrollable="false">
               <text_body name="selected_hex_label" text="#808080"/>
               <lv_label name="selected_name_label" text="Gray" style_text_color="#text_secondary"
                         width="130" long_mode="wrap"/>
@@ -65,24 +65,24 @@
           </lv_obj>
 
           <!-- HSV picker: SV square + horizontal hue bar below -->
-          <ui_hsv_picker name="hsv_picker" sv_size="180" hue_height="20" gap="6"/>
+          <ui_hsv_picker name="hsv_picker" sv_size="180" hue_height="20" gap="#space_sm"/>
         </lv_obj>
 
         <!-- RIGHT COLUMN: Preset colors grid -->
         <!-- Height matches left column: 48 (preview) + 12 (gap) + 206 (HSV picker) = 266px -->
         <!-- Top padding aligns "Presets" label with color name (~24px down) -->
         <lv_obj width="content" height="266" style_bg_opa="0" style_border_width="0"
-                style_pad_top="24" style_pad_left="0" style_pad_right="0" style_pad_bottom="0"
+                style_pad_top="#space_2xl" style_pad_left="0" style_pad_right="0" style_pad_bottom="0"
                 flex_flow="column" style_flex_main_place="space_between" style_flex_cross_place="start"
                 style_pad_gap="#space_sm" scrollable="false">
           <text_small text="Presets" style_text_color="#text_secondary"/>
 
           <!-- Preset grid: 6 columns x 4 rows -->
           <lv_obj width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                  flex_flow="column" style_pad_gap="4" scrollable="false">
+                  flex_flow="column" style_pad_gap="#space_xs" scrollable="false">
             <!-- Row 1: Grays -->
             <lv_obj width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    flex_flow="row" style_pad_gap="4" scrollable="false">
+                    flex_flow="row" style_pad_gap="#space_xs" scrollable="false">
               <lv_obj width="#swatch_size" height="#swatch_size" style_radius="#border_radius_small"
                       style_bg_color="0x1A1A1A" style_bg_opa="255" style_border_width="0" clickable="true" scrollable="false">
                 <event_cb trigger="clicked" callback="color_swatch_clicked_cb"/>
@@ -111,7 +111,7 @@
 
             <!-- Row 2: Warm colors -->
             <lv_obj width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    flex_flow="row" style_pad_gap="4" scrollable="false">
+                    flex_flow="row" style_pad_gap="#space_xs" scrollable="false">
               <lv_obj width="#swatch_size" height="#swatch_size" style_radius="#border_radius_small"
                       style_bg_color="0xE53935" style_bg_opa="255" style_border_width="0" clickable="true" scrollable="false">
                 <event_cb trigger="clicked" callback="color_swatch_clicked_cb"/>
@@ -140,7 +140,7 @@
 
             <!-- Row 3: Cool colors -->
             <lv_obj width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    flex_flow="row" style_pad_gap="4" scrollable="false">
+                    flex_flow="row" style_pad_gap="#space_xs" scrollable="false">
               <lv_obj width="#swatch_size" height="#swatch_size" style_radius="#border_radius_small"
                       style_bg_color="0x43A047" style_bg_opa="255" style_border_width="0" clickable="true" scrollable="false">
                 <event_cb trigger="clicked" callback="color_swatch_clicked_cb"/>
@@ -169,7 +169,7 @@
 
             <!-- Row 4: Purple/Pink/Special -->
             <lv_obj width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    flex_flow="row" style_pad_gap="4" scrollable="false">
+                    flex_flow="row" style_pad_gap="#space_xs" scrollable="false">
               <lv_obj width="#swatch_size" height="#swatch_size" style_radius="#border_radius_small"
                       style_bg_color="0x7B1FA2" style_bg_opa="255" style_border_width="0" clickable="true" scrollable="false">
                 <event_cb trigger="clicked" callback="color_swatch_clicked_cb"/>
@@ -198,7 +198,7 @@
 
             <!-- Row 5: More colors -->
             <lv_obj width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                    flex_flow="row" style_pad_gap="4" scrollable="false">
+                    flex_flow="row" style_pad_gap="#space_xs" scrollable="false">
               <lv_obj width="#swatch_size" height="#swatch_size" style_radius="#border_radius_small"
                       style_bg_color="0x00E676" style_bg_opa="255" style_border_width="0" clickable="true" scrollable="false">
                 <event_cb trigger="clicked" callback="color_swatch_clicked_cb"/>

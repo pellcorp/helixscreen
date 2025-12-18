@@ -545,18 +545,13 @@ done
 | `docker/Dockerfile.pi` | Add EGL/GLES/GBM packages |
 | `Makefile` | Add -lGLESv2 -lEGL -lgbm for Pi |
 
-### Phase 4 (2D Bed Mesh with FPS Detection)
+### Phase 4 (2D Bed Mesh)
 | File | Change |
 |------|--------|
-| `include/bed_mesh_renderer.h` | Add FpsTracker, RenderMode enum, mode state |
-| `src/bed_mesh_renderer.cpp` | Add render_2d_heatmap(), touch handler, FPS tracking |
-| `src/ui_panel_bed_mesh.cpp` | Call evaluate_render_mode() on panel entry, wire touch |
-
-**Approach**: Runtime FPS detection (not platform detection). Mode locked during panel viewing.
-- Rolling 10-frame FPS average
-- Auto-degrade to 2D if FPS < 15
-- Touch cell in 2D mode shows Z value tooltip
-- Settings toggle (hidden): Auto/3D/2D
+| `include/platform_capabilities.h` | New - runtime GPU detection |
+| `src/platform_capabilities.cpp` | New - detection implementation |
+| `src/bed_mesh_renderer.cpp` | Add `render_2d_heatmap()` |
+| `src/ui_bed_mesh.cpp` | Conditional rotation handlers |
 
 ### Phase 5 (2D G-code Layer)
 | File | Change |
@@ -601,58 +596,6 @@ If issues discovered:
 
 ---
 
-## Future Work: GPU Detection for 3D Mode
-
-### Problem
-
-Currently, G-code render mode defaults to 2D everywhere because TinyGL (software rasterization) is too slow (~3 FPS on desktop). However, this means hardware with real GPU acceleration (Pi with working OpenGL ES, future hardware) would also default to 2D unnecessarily.
-
-### Current Behavior (2025-12-17)
-
-| Source | Priority | Behavior |
-|--------|----------|----------|
-| `--gcode-render-mode` CLI | 1 (highest) | Explicit mode selection |
-| `HELIX_GCODE_MODE` env var | 2 | `3D` or `2D` override |
-| Settings | 3 (lowest) | Saved preference (default: 2D) |
-
-### Desired Behavior
-
-```cpp
-// At startup, detect actual rendering capability
-if (has_real_opengl_es()) {
-    // Pi with working GPU, future hardware with real GL
-    default_mode = GCODE_VIEWER_RENDER_3D;
-} else if (has_tinygl_only()) {
-    // Software rasterization - always too slow (~3 FPS)
-    default_mode = GCODE_VIEWER_RENDER_2D_LAYER;
-} else {
-    // No 3D capability at all (AD5M)
-    default_mode = GCODE_VIEWER_RENDER_2D_LAYER;
-}
-```
-
-### Detection Options
-
-1. **Compile-time flag**: `HELIX_ENABLE_OPENGLES` indicates real GPU support was built in
-2. **Runtime GL query**: Check `glGetString(GL_RENDERER)` for "TinyGL" vs real driver name
-3. **Startup benchmark**: Render test frames, measure actual FPS, cache result
-
-### Blocked By
-
-- Phase 2 partial: LVGL's OpenGL ES draw backend has C++11 raw string literal issues in shader `.c` files
-- Need working OpenGL ES on Pi before GPU detection is useful
-
-### Benchmark Reference (Desktop, OrcaCube 1.1M triangles)
-
-| Mode | Performance | Notes |
-|------|-------------|-------|
-| 3D TinyGL | 3.2 FPS (310ms/frame) | Software rasterization, always slow |
-| 2D Layer (cache build) | ~2 FPS | Temporary, during progressive cache |
-| 2D Layer (steady state) | 60+ FPS | Just canvas blit after cache built |
-| 2D Ghost (background) | 7ms total | All 151 layers, non-blocking |
-
----
-
 ## Status Tracking
 
 Update this section after each phase:
@@ -660,45 +603,17 @@ Update this section after each phase:
 | Phase | Status | Started | Completed | Notes |
 |-------|--------|---------|-----------|-------|
 | 1 | ✅ Complete | 2025-12-15 | 2025-12-15 | TinyGL disabled, NEON enabled, 2D renderer API compatibility |
-| 2 | ⚠️ Partial | 2025-12-16 | 2025-12-16 | DRM ✅, SDL GPU ❌ (rendering corruption), OpenGL ES ❌ (LVGL C++11 issue) |
-| 3 | ✅ Complete | 2025-12-16 | 2025-12-16 | Native + Pi builds verified |
-| 4 | ✅ Complete | 2025-12-16 | 2025-12-16 | 2D heatmap with FPS-based auto-detection, triangle blending, touch support |
-| 5 | ✅ Complete | 2025-12-16 | 2025-12-17 | 2D layer renderer with progressive caching, background thread ghost (6ms for 63K segments!) |
-| 6 | ✅ Complete | 2025-12-16 | 2025-12-16 | Pre-rendered splash images (~2 FPS → ~116 FPS). See docs/PRE_RENDERED_IMAGES.md |
+| 2 | ⬜ Not Started | - | - | |
+| 3 | ⬜ Not Started | - | - | |
+| 4 | ⬜ Not Started | - | - | |
+| 5 | ⬜ Not Started | - | - | |
+| 6 | ⬜ Not Started | - | - | Image optimization - critical for AD5M perf (PNG decode bottleneck) |
 
 **Status Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | ⚠️ Blocked
 
 ### Session Log
 
 Record progress across sessions:
-
-### Session 2025-12-16 (Phase 4 Complete)
-- Phase 4: ✅ Complete (Adaptive 2D/3D Bed Mesh Rendering)
-- Implementation:
-  - FPS-based mode switching: 10-frame rolling average, auto-degrade below 15 FPS
-  - 2D heatmap: Triangle-based rendering with corner Z-value color blending
-  - Touch support: Tap/drag shows Z value tooltip in 2D mode
-  - Settings UI: Dropdown in Display Settings (Auto/3D View/2D Heatmap)
-  - Persistence: Saved to helixconfig.json via SettingsManager
-- Key files: `bed_mesh_renderer.cpp`, `ui_bed_mesh.cpp`, `settings_manager.cpp`, `display_settings_overlay.xml`
-- Mode evaluation happens on panel entry (not during viewing) to prevent jarring switches
-
-### Session 2025-12-16
-- Phase 6: ✅ Complete (Image Asset Optimization)
-- Implementation approach changed from "sized PNGs" to "pre-rendered LVGL binary"
-- Changes made:
-  - `scripts/LVGLImage.py`: Added `--resize`, `--resize-fit` options using Pillow LANCZOS
-  - `scripts/regen_images.sh`: New script for build-time splash image pre-rendering
-  - `mk/images.mk`: New Makefile module with platform-specific targets
-  - `mk/cross.mk`: Updated deploy/release targets to include image generation
-  - `src/splash_screen.cpp`: Added pre-rendered image detection with PNG fallback
-  - `src/main.cpp`: Removed duplicate `show_splash_screen()`, now calls `helix::show_splash_screen()`
-  - `docs/PRE_RENDERED_IMAGES.md`: Full documentation
-- Key decisions:
-  - **Platform-aware generation**: AD5M only gets `small` (400px), Pi gets all sizes
-  - **Build artifacts**: Generated images in `build/assets/images/prerendered/`, not committed
-  - **Fallback mechanism**: PNG + runtime scaling if pre-rendered not found
-- Performance result: ~2 FPS → ~116 FPS during splash on AD5M
 
 ### Session 2025-12-15 (continued)
 - **Image Performance Discovery**: Benchmark proved PNG decoding is the bottleneck
@@ -722,43 +637,3 @@ Record progress across sessions:
   - `AsyncBuildResult` struct needed conditional geometry members
   - `color_count` variable scope issue (fixed)
 - Next steps: Phase 2 (Pi OpenGL ES integration)
-
-### Session 2025-12-17 (continued)
-- **Render mode refactor**: Changed default from AUTO (FPS-based) to 2D (always)
-  - TinyGL is ~3 FPS on ALL platforms (software rasterization) - never usable
-  - Removed FPS-based auto-detection (was measuring cache-build phase incorrectly)
-  - Added `HELIX_GCODE_MODE` env var override (3D/2D) for dev/testing
-  - Priority: cmdline > env var > settings
-  - Updated `helixconfig.json.template` with `gcode_render_mode` option
-  - Documented future GPU detection work for when real OpenGL ES is available
-
-### Session 2025-12-17
-- Phase 5: ✅ Complete
-  - **Background thread ghost rendering**: Moved ghost layer rendering from progressive main-thread to background thread
-  - Performance: 241 layers, 63,773 segments rendered in **6ms** (non-blocking)
-  - Thread safety: Used `std::chrono::steady_clock` instead of `lv_tick_get()`, captured all shared state at thread start
-  - Software Bresenham line drawing to raw ARGB8888 buffer (LVGL not thread-safe)
-  - Critical review agent found 5 issues, all fixed:
-    1. `lv_tick_get()` from background thread → `std::chrono`
-    2. Data race on visibility flags → captured at thread start
-    3. Data race on colors → captured at thread start
-    4. Thread lifecycle bug → always join regardless of running flag
-    5. Buffer stride mismatch → dimension validation + row-by-row fallback
-  - Commit: `f3afdb2`
-
-### Session 2025-12-16
-- Phase 2: ⚠️ Partial
-  - **SDL GPU draw backend** (`LV_USE_DRAW_SDL`): Causes rendering corruption (strobing, blank panels) - disabled
-  - **DRM display driver**: Working for Pi (software rendering)
-  - **OpenGL ES draw backend**: Abandoned - LVGL uses C++11 raw string literals in `.c` shader files
-  - Added OpenGL ES dev libs to Dockerfile.pi for future use
-  - Made GLAD include path conditional on `ENABLE_OPENGLES`
-- Phase 3: ✅ Complete
-  - Native build verified: TinyGL 3D preview working, software rendering
-  - Pi cross-compile verified: DRM backend, aarch64 binary
-  - G-code test panel renders correctly with OrcaCube model
-- Code review findings addressed:
-  - Re-enabled TinyGL for G-code preview (was accidentally disabled)
-  - Simplified nested preprocessor logic in lv_conf.h
-  - Updated install.sh to only install needed deps (libdrm2, libinput10)
-- **Key discovery**: LVGL 9.4's SDL GPU draw backend is broken/incompatible

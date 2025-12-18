@@ -1,0 +1,226 @@
+// Copyright 2025 HelixScreen
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include <lvgl.h>
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+// Forward declarations
+struct PrintFileData;
+struct CardDimensions;
+
+namespace helix::ui {
+
+/**
+ * @file ui_print_select_card_view.h
+ * @brief Virtualized card grid view for print file selection
+ *
+ * Manages a fixed pool of card widgets that are recycled as the user scrolls.
+ * This enables displaying thousands of files without creating thousands of widgets.
+ *
+ * ## Key Features:
+ * - Fixed widget pool (POOL_SIZE cards created once)
+ * - Spacer-based virtualization for smooth scrolling
+ * - Per-card subjects for declarative text binding
+ * - Observer cleanup in destructor prevents crashes
+ *
+ * ## Usage:
+ * @code
+ * PrintSelectCardView card_view;
+ * card_view.setup(container, file_click_callback);
+ * card_view.populate(file_list, calculate_dimensions_callback);
+ * // On scroll:
+ * card_view.update_visible(file_list, dimensions);
+ * @endcode
+ */
+
+/**
+ * @brief Per-card widget data for declarative text binding
+ *
+ * Stored with each pooled card widget. Subjects are bound to labels once
+ * at pool creation, then updated via lv_subject_copy_string() when card is recycled.
+ */
+struct CardWidgetData {
+    lv_subject_t filename_subject;
+    char filename_buf[128] = {0};
+
+    lv_subject_t time_subject;
+    char time_buf[32] = {0};
+
+    lv_subject_t filament_subject;
+    char filament_buf[32] = {0};
+
+    // Observer handles (saved for cleanup before DELETE)
+    lv_observer_t* filename_observer = nullptr;
+    lv_observer_t* time_observer = nullptr;
+    lv_observer_t* filament_observer = nullptr;
+};
+
+/**
+ * @brief Callback for file/directory clicks
+ * @param file_index Index into file list
+ */
+using FileClickCallback = std::function<void(size_t file_index)>;
+
+/**
+ * @brief Callback to trigger metadata fetch for visible range
+ * @param start Start index (inclusive)
+ * @param end End index (exclusive)
+ */
+using MetadataFetchCallback = std::function<void(size_t start, size_t end)>;
+
+/**
+ * @brief Virtualized card grid view with widget pooling
+ */
+class PrintSelectCardView {
+  public:
+    PrintSelectCardView();
+    ~PrintSelectCardView();
+
+    // Non-copyable, movable
+    PrintSelectCardView(const PrintSelectCardView&) = delete;
+    PrintSelectCardView& operator=(const PrintSelectCardView&) = delete;
+    PrintSelectCardView(PrintSelectCardView&& other) noexcept;
+    PrintSelectCardView& operator=(PrintSelectCardView&& other) noexcept;
+
+    // === Configuration ===
+
+    static constexpr int POOL_SIZE = 24;         ///< Fixed pool of card widgets
+    static constexpr int BUFFER_ROWS = 1;        ///< Extra rows above/below viewport
+    static constexpr int MIN_WIDTH = 150;        ///< Minimum card width
+    static constexpr int MAX_WIDTH = 230;        ///< Maximum card width
+    static constexpr int DEFAULT_HEIGHT = 245;   ///< Default card height
+    static constexpr int ROW_3_MIN_HEIGHT = 520; ///< Min height for 3-row layout
+
+    static constexpr const char* COMPONENT_NAME = "print_file_card";
+    static constexpr const char* DEFAULT_THUMB = "A:assets/images/thumbnail-placeholder.png";
+    static constexpr const char* FOLDER_ICON = "A:assets/images/folder.png";
+
+    // Directory card styling (reduced overlay heights)
+    static constexpr int DIR_METADATA_CLIP_HEIGHT = 40;   ///< Metadata clip height for directories
+    static constexpr int DIR_METADATA_OVERLAY_HEIGHT = 48; ///< Metadata overlay height for directories
+
+    // === Setup ===
+
+    /**
+     * @brief Initialize the card view with container and callbacks
+     * @param container Scrollable container widget for cards
+     * @param on_file_click Callback when card is clicked
+     * @param on_metadata_fetch Callback to fetch metadata for visible range
+     * @return true if setup succeeded
+     */
+    bool setup(lv_obj_t* container, FileClickCallback on_file_click,
+               MetadataFetchCallback on_metadata_fetch);
+
+    /**
+     * @brief Clean up resources (observers, spacers)
+     *
+     * Called automatically by destructor. Safe to call multiple times.
+     */
+    void cleanup();
+
+    // === Population ===
+
+    /**
+     * @brief Populate view with file list
+     * @param file_list Reference to file data vector
+     * @param dims Card dimensions for layout
+     *
+     * Resets scroll position and visible range, then updates visible cards.
+     */
+    void populate(const std::vector<PrintFileData>& file_list, const CardDimensions& dims);
+
+    /**
+     * @brief Update visible cards based on scroll position
+     * @param file_list Reference to file data vector
+     * @param dims Card dimensions for layout
+     *
+     * Called on scroll events. Recycles cards that scrolled out of view.
+     */
+    void update_visible(const std::vector<PrintFileData>& file_list, const CardDimensions& dims);
+
+    /**
+     * @brief Refresh content of visible cards without repositioning
+     * @param file_list Reference to file data vector
+     * @param dims Card dimensions for layout
+     *
+     * Called when metadata/thumbnails update asynchronously.
+     */
+    void refresh_content(const std::vector<PrintFileData>& file_list, const CardDimensions& dims);
+
+    // === State Queries ===
+
+    /**
+     * @brief Check if pool has been initialized
+     */
+    [[nodiscard]] bool is_initialized() const { return !card_pool_.empty(); }
+
+    /**
+     * @brief Get current visible row range
+     * @param start_row Output: first visible row (-1 if uninitialized)
+     * @param end_row Output: last visible row (exclusive)
+     */
+    void get_visible_range(int& start_row, int& end_row) const {
+        start_row = visible_start_row_;
+        end_row = visible_end_row_;
+    }
+
+    /**
+     * @brief Get cards per row for current layout
+     */
+    [[nodiscard]] int get_cards_per_row() const { return cards_per_row_; }
+
+  private:
+    // === Widget References ===
+    lv_obj_t* container_ = nullptr;
+    lv_obj_t* leading_spacer_ = nullptr;
+    lv_obj_t* trailing_spacer_ = nullptr;
+
+    // === Pool State ===
+    std::vector<lv_obj_t*> card_pool_;
+    std::vector<ssize_t> card_pool_indices_;
+    std::vector<std::unique_ptr<CardWidgetData>> card_data_pool_;
+
+    // === Visible Range ===
+    int cards_per_row_ = 3;
+    int visible_start_row_ = -1;
+    int visible_end_row_ = -1;
+
+    // === Callbacks ===
+    FileClickCallback on_file_click_;
+    MetadataFetchCallback on_metadata_fetch_;
+
+    // === Internal Methods ===
+
+    /**
+     * @brief Initialize the fixed card pool
+     * @param dims Initial card dimensions
+     */
+    void init_pool(const CardDimensions& dims);
+
+    /**
+     * @brief Configure a pool card to display a specific file
+     * @param card Pool card widget
+     * @param pool_index Index into card_pool_
+     * @param file_index Index into file_list
+     * @param file File data to display
+     * @param dims Card dimensions
+     */
+    void configure_card(lv_obj_t* card, size_t pool_index, size_t file_index,
+                        const PrintFileData& file, const CardDimensions& dims);
+
+    /**
+     * @brief Create spacers for virtualization
+     */
+    void create_spacers();
+
+    // === Static Callbacks ===
+    static void on_card_clicked(lv_event_t* e);
+};
+
+} // namespace helix::ui

@@ -200,8 +200,10 @@ void MacrosPanel::create_macro_card(const std::string& macro_name) {
     entry.is_dangerous = is_dangerous;
     macro_entries_.push_back(entry);
 
-    // Store pointer to MacroEntry in card's user_data for callback lookup
-    lv_obj_set_user_data(card, &macro_entries_.back());
+    // Store index to MacroEntry in card's user_data for callback lookup
+    // Using index instead of pointer prevents use-after-free when vector resizes
+    size_t index = macro_entries_.size() - 1;
+    lv_obj_set_user_data(card, reinterpret_cast<void*>(static_cast<intptr_t>(index)));
 
     spdlog::debug("[{}] Created card for macro '{}' (dangerous: {})", get_name(), macro_name,
                   is_dangerous);
@@ -288,17 +290,23 @@ void MacrosPanel::on_macro_card_clicked(lv_event_t* e) {
     if (!card) {
         spdlog::warn("[MacrosPanel] No target in click event");
     } else {
-        auto* entry = static_cast<MacroEntry*>(lv_obj_get_user_data(card));
-        if (!entry) {
-            spdlog::warn("[MacrosPanel] Card has no MacroEntry user_data");
+        // Retrieve index from user_data (stored as intptr_t)
+        auto index = static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(card)));
+
+        // Bounds check before accessing vector
+        if (index >= self.macro_entries_.size()) {
+            spdlog::error("[MacrosPanel] Invalid macro entry index: {} (size: {})", index,
+                          self.macro_entries_.size());
         } else {
+            auto& entry = self.macro_entries_[index];
+
             // For dangerous macros, could show confirmation dialog
             // For now, execute directly
-            if (entry->is_dangerous) {
-                spdlog::warn("[MacrosPanel] Executing dangerous macro: {}", entry->name);
+            if (entry.is_dangerous) {
+                spdlog::warn("[MacrosPanel] Executing dangerous macro: {}", entry.name);
                 // TODO: Add confirmation modal for dangerous macros
             }
-            self.execute_macro(entry->name);
+            self.execute_macro(entry.name);
         }
     }
 

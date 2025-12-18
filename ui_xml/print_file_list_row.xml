@@ -10,8 +10,8 @@
   </api>
   <!-- List row container (children pass clicks through to parent) -->
   <view name="list_row"
-        extends="lv_obj" width="100%" height="content" style_bg_color="#card_bg" style_bg_opa="255" style_radius="4"
-        style_border_width="0" style_pad_top="8" style_pad_bottom="8" style_pad_left="8" style_pad_right="8"
+        extends="lv_obj" width="100%" height="content" style_bg_color="#card_bg" style_bg_opa="255" style_radius="#space_xs"
+        style_border_width="0" style_pad_top="#space_md" style_pad_bottom="#space_md" style_pad_left="#space_md" style_pad_right="#space_md"
         flex_flow="row" style_flex_main_place="start" style_flex_cross_place="center" clickable="true">
     <!-- Filename (flex-grow, left-aligned) -->
     <text_small name="row_filename"

@@ -1,0 +1,331 @@
+// Copyright 2025 HelixScreen
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "ui_ams_dryer_card.h"
+
+#include "ui_error_reporting.h"
+
+#include "ams_state.h"
+
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
+
+namespace helix::ui {
+
+// Constants
+static constexpr int DEFAULT_FAN_SPEED_PCT = 50;
+
+// Static member initialization
+bool AmsDryerCard::callbacks_registered_ = false;
+
+// ============================================================================
+// Construction / Destruction
+// ============================================================================
+
+AmsDryerCard::AmsDryerCard() {
+    spdlog::debug("[AmsDryerCard] Constructed");
+}
+
+AmsDryerCard::~AmsDryerCard() {
+    cleanup();
+    spdlog::debug("[AmsDryerCard] Destroyed");
+}
+
+AmsDryerCard::AmsDryerCard(AmsDryerCard&& other) noexcept
+    : dryer_card_(other.dryer_card_), dryer_modal_(other.dryer_modal_),
+      progress_fill_(other.progress_fill_),
+      progress_observer_(std::move(other.progress_observer_)) {
+    other.dryer_card_ = nullptr;
+    other.dryer_modal_ = nullptr;
+    other.progress_fill_ = nullptr;
+}
+
+AmsDryerCard& AmsDryerCard::operator=(AmsDryerCard&& other) noexcept {
+    if (this != &other) {
+        cleanup();
+
+        dryer_card_ = other.dryer_card_;
+        dryer_modal_ = other.dryer_modal_;
+        progress_fill_ = other.progress_fill_;
+        progress_observer_ = std::move(other.progress_observer_);
+
+        other.dryer_card_ = nullptr;
+        other.dryer_modal_ = nullptr;
+        other.progress_fill_ = nullptr;
+    }
+    return *this;
+}
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+bool AmsDryerCard::setup(lv_obj_t* panel) {
+    if (!panel) {
+        return false;
+    }
+
+    // Register callbacks once (idempotent)
+    register_callbacks();
+
+    // Find dryer card in panel
+    dryer_card_ = lv_obj_find_by_name(panel, "dryer_card");
+    if (!dryer_card_) {
+        spdlog::debug("[AmsDryerCard] dryer_card not found - dryer UI disabled");
+        return false;
+    }
+
+    // Store 'this' in dryer_card's user_data for callback traversal
+    lv_obj_set_user_data(dryer_card_, this);
+
+    // Find progress bar fill element
+    progress_fill_ = lv_obj_find_by_name(dryer_card_, "progress_fill");
+    if (progress_fill_) {
+        // Set up observer to update width when progress changes
+        progress_observer_ = ObserverGuard(
+            AmsState::instance().get_dryer_progress_pct_subject(),
+            [](lv_observer_t* observer, lv_subject_t* subject) {
+                auto* self = static_cast<AmsDryerCard*>(lv_observer_get_user_data(observer));
+                if (self && self->progress_fill_) {
+                    int progress = lv_subject_get_int(subject);
+                    lv_obj_set_width(self->progress_fill_,
+                                     lv_pct(std::max(0, std::min(100, progress))));
+                }
+            },
+            this);
+
+        spdlog::debug("[AmsDryerCard] Progress bar observer set up");
+    }
+
+    // Create the dryer presets modal on the TOP LAYER (above all overlays)
+    // The modal's visibility is controlled by the dryer_modal_visible subject
+    lv_obj_t* top_layer = lv_layer_top();
+    if (top_layer) {
+        dryer_modal_ =
+            static_cast<lv_obj_t*>(lv_xml_create(top_layer, "dryer_presets_modal", nullptr));
+        if (dryer_modal_) {
+            // Store 'this' in modal's user_data for callback traversal
+            lv_obj_set_user_data(dryer_modal_, this);
+            spdlog::debug("[AmsDryerCard] Dryer presets modal created on top layer");
+        } else {
+            spdlog::warn("[AmsDryerCard] Failed to create dryer presets modal");
+        }
+    } else {
+        spdlog::warn("[AmsDryerCard] No top layer for dryer modal");
+    }
+
+    // Initial sync of dryer state
+    AmsState::instance().sync_dryer_from_backend();
+    spdlog::debug("[AmsDryerCard] Setup complete");
+
+    return true;
+}
+
+void AmsDryerCard::cleanup() {
+    // Remove observer first
+    progress_observer_.reset();
+
+    // Delete modal (created on top layer, won't auto-delete with panel)
+    if (dryer_modal_) {
+        lv_obj_delete(dryer_modal_);
+        dryer_modal_ = nullptr;
+    }
+
+    // Clear widget references (dryer_card_ is owned by panel)
+    dryer_card_ = nullptr;
+    progress_fill_ = nullptr;
+
+    spdlog::debug("[AmsDryerCard] Cleaned up");
+}
+
+// ============================================================================
+// Actions
+// ============================================================================
+
+void AmsDryerCard::start_drying(float temp_c, int duration_min, int fan_pct) {
+    spdlog::info("[AmsDryerCard] Starting dryer: {}°C for {}min, fan {}%", temp_c, duration_min,
+                 fan_pct);
+
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (!backend) {
+        NOTIFY_WARNING("AMS not available");
+        return;
+    }
+
+    DryerInfo dryer = backend->get_dryer_info();
+    if (!dryer.supported) {
+        NOTIFY_WARNING("Dryer not available");
+        return;
+    }
+
+    AmsError error = backend->start_drying(temp_c, duration_min, fan_pct);
+    if (error.result == AmsResult::SUCCESS) {
+        NOTIFY_INFO("Drying started: {}°C", static_cast<int>(temp_c));
+        AmsState::instance().sync_dryer_from_backend();
+        // Close the presets modal
+        lv_subject_set_int(AmsState::instance().get_dryer_modal_visible_subject(), 0);
+    } else {
+        NOTIFY_ERROR("Failed to start drying: {}", error.user_msg);
+    }
+}
+
+void AmsDryerCard::stop_drying() {
+    spdlog::info("[AmsDryerCard] Stopping dryer");
+
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (!backend) {
+        NOTIFY_WARNING("AMS not available");
+        return;
+    }
+
+    AmsError error = backend->stop_drying();
+    if (error.result == AmsResult::SUCCESS) {
+        NOTIFY_INFO("Drying stopped");
+        AmsState::instance().sync_dryer_from_backend();
+    } else {
+        NOTIFY_ERROR("Failed to stop drying: {}", error.user_msg);
+    }
+}
+
+void AmsDryerCard::apply_preset(int temp_c, int duration_min) {
+    // Update modal values via AmsState (reactive binding updates UI)
+    AmsState::instance().set_modal_preset(temp_c, duration_min);
+
+    // If dryer is already running, apply new settings immediately
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (backend && backend->get_dryer_info().active) {
+        start_drying(static_cast<float>(temp_c), duration_min, DEFAULT_FAN_SPEED_PCT);
+    }
+}
+
+// ============================================================================
+// Static Callback Registration
+// ============================================================================
+
+void AmsDryerCard::register_callbacks() {
+    if (callbacks_registered_) {
+        return;
+    }
+
+    lv_xml_register_event_cb(nullptr, "dryer_open_modal_cb", on_open_modal_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_modal_close_cb", on_close_modal_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_preset_pla_cb", on_preset_pla_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_preset_petg_cb", on_preset_petg_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_preset_abs_cb", on_preset_abs_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_stop_cb", on_stop_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_temp_minus_cb", on_temp_minus_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_temp_plus_cb", on_temp_plus_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_duration_minus_cb", on_duration_minus_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_duration_plus_cb", on_duration_plus_cb);
+    lv_xml_register_event_cb(nullptr, "dryer_power_toggled_cb", on_power_toggled_cb);
+
+    callbacks_registered_ = true;
+    spdlog::debug("[AmsDryerCard] Callbacks registered");
+}
+
+// ============================================================================
+// Static Callbacks (Instance Lookup via User Data)
+// ============================================================================
+
+AmsDryerCard* AmsDryerCard::get_instance_from_event(lv_event_t* e) {
+    auto* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+
+    // Traverse parent chain to find dryer_card or dryer_modal with user_data
+    lv_obj_t* obj = target;
+    while (obj) {
+        void* user_data = lv_obj_get_user_data(obj);
+        if (user_data) {
+            return static_cast<AmsDryerCard*>(user_data);
+        }
+        obj = lv_obj_get_parent(obj);
+    }
+
+    spdlog::warn("[AmsDryerCard] Could not find instance from event target");
+    return nullptr;
+}
+
+void AmsDryerCard::on_open_modal_cb(lv_event_t* e) {
+    LV_UNUSED(e);
+    spdlog::debug("[AmsDryerCard] Opening dryer modal");
+    lv_subject_set_int(AmsState::instance().get_dryer_modal_visible_subject(), 1);
+}
+
+void AmsDryerCard::on_close_modal_cb(lv_event_t* e) {
+    LV_UNUSED(e);
+    spdlog::debug("[AmsDryerCard] Closing dryer modal");
+    lv_subject_set_int(AmsState::instance().get_dryer_modal_visible_subject(), 0);
+}
+
+void AmsDryerCard::on_preset_pla_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->apply_preset(45, 240); // PLA: 45°C, 4h
+    }
+}
+
+void AmsDryerCard::on_preset_petg_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->apply_preset(55, 240); // PETG: 55°C, 4h
+    }
+}
+
+void AmsDryerCard::on_preset_abs_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->apply_preset(65, 240); // ABS: 65°C, 4h
+    }
+}
+
+void AmsDryerCard::on_stop_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->stop_drying();
+    }
+}
+
+void AmsDryerCard::on_temp_minus_cb(lv_event_t* e) {
+    LV_UNUSED(e);
+    AmsState::instance().adjust_modal_temp(-5);
+}
+
+void AmsDryerCard::on_temp_plus_cb(lv_event_t* e) {
+    LV_UNUSED(e);
+    AmsState::instance().adjust_modal_temp(+5);
+}
+
+void AmsDryerCard::on_duration_minus_cb(lv_event_t* e) {
+    LV_UNUSED(e);
+    AmsState::instance().adjust_modal_duration(-30);
+}
+
+void AmsDryerCard::on_duration_plus_cb(lv_event_t* e) {
+    LV_UNUSED(e);
+    AmsState::instance().adjust_modal_duration(+30);
+}
+
+void AmsDryerCard::on_power_toggled_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (!self) {
+        return;
+    }
+
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (!backend) {
+        return;
+    }
+
+    DryerInfo dryer = backend->get_dryer_info();
+    if (dryer.active) {
+        // Currently on - stop it
+        self->stop_drying();
+    } else {
+        // Currently off - start with modal settings
+        int temp = AmsState::instance().get_modal_target_temp();
+        int duration = AmsState::instance().get_modal_duration_min();
+        self->start_drying(static_cast<float>(temp), duration, DEFAULT_FAN_SPEED_PCT);
+    }
+}
+
+} // namespace helix::ui

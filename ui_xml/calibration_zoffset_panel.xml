@@ -6,7 +6,8 @@
 <component>
   <view name="calibration_zoffset_panel"
         extends="lv_obj" width="#overlay_panel_width_large" height="100%" align="right_mid" style_bg_opa="255"
-        style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" scrollable="false" flex_flow="column">
+        style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" scrollable="false" flex_flow="column"
+        hidden="true">
     <!-- Header Bar -->
     <header_bar name="overlay_header" title="Z-Offset Calibration"/>
     <!-- Content Area -->
@@ -63,7 +64,7 @@
         <text_small width="80%" text="Please wait while the printer homes and probes." style_text_align="center"/>
         <!-- Abort Button -->
         <lv_button name="btn_abort_probing"
-                   width="120" height="48" style_radius="#border_radius" style_bg_color="#error_color">
+                   width="120" height="#button_height_normal" style_radius="#border_radius" style_bg_color="#error_color">
           <text_body text="Abort" align="center"/>
           <event_cb trigger="clicked" callback="on_zoffset_abort_clicked"/>
         </lv_button>

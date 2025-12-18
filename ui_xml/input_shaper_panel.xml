@@ -32,7 +32,7 @@
             <lv_obj height="1" flex_grow="1" style_bg_opa="0" style_border_width="0" scrollable="false"/>
             <!-- Help button -->
             <lv_button name="btn_help"
-                       width="36" height="36" style_radius="18" style_border_width="0" style_bg_color="#surface_bg_dark"
+                       width="36" height="36" style_radius="#space_lg" style_border_width="0" style_bg_color="#surface_bg_dark"
                        style_bg_opa="128" style_pad_all="0">
               <icon src="help_circle" size="sm" color="#text_secondary"/>
               <event_cb trigger="clicked" callback="input_shaper_help_cb"/>
@@ -246,7 +246,7 @@
           <icon src="alert" size="sm" color="#warning_color"/>
           <text_small text="Apply saves for this session only" style_text_color="#warning_color" flex_grow="1"/>
           <lv_button name="btn_save_config"
-                     width="content" height="32" style_radius="#border_radius" style_border_width="0"
+                     width="content" height="#space_2xl" style_radius="#border_radius" style_border_width="0"
                      style_bg_color="#warning_color" style_pad_left="#space_sm" style_pad_right="#space_sm"
                      flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center"
                      style_pad_gap="#space_xs">

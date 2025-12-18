@@ -7,7 +7,8 @@
 <component>
   <view name="bed_mesh_panel"
         extends="lv_obj" width="#overlay_panel_width_large" height="100%" align="right_mid" style_bg_opa="255"
-        style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" scrollable="false" flex_flow="column">
+        style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" scrollable="false" flex_flow="column"
+        hidden="true">
     <!-- Header Bar with CALIBRATE action button -->
     <header_bar name="overlay_header" title="Bed Mesh" action_button_text="CALIBRATE" hide_action_button="false">
       <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_clicked"/>

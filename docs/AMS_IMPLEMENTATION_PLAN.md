@@ -356,29 +356,61 @@ printer.mmu.endless_spool_groups
 
 ---
 
-### 🔲 Phase 3: Spoolman Integration (NOT STARTED)
+### 🔄 Phase 3: Spoolman Integration (UI COMPLETE - API PENDING)
 
-**Goal:** Edit modal with Spoolman data
+**Goal:** Full Spoolman integration with spool assignment to AMS slots
 
-**Files to Create:**
-- [ ] `include/spoolman_client.h`
-- [ ] `src/spoolman_client.cpp`
-  - HTTP client for Spoolman API
-  - Spool list, vendor list, filament list
-- [ ] `ui_xml/ams_edit_modal.xml`
-  - Spoolman spool dropdown
-  - Manual color picker
-  - Material type selector
-  - Weight/remaining display
+**Status:** UI and mock backend complete (~85%). Only real Moonraker API implementation remaining.
 
-**Files to Modify:**
-- [ ] `src/moonraker_client.cpp` - Spoolman detection
-- [ ] `include/ams_state.h` - Spoolman fields per slot
+#### ✅ Completed
 
-**Verification:**
-- [ ] Edit modal opens from context menu
-- [ ] Spoolman spools populate dropdown
-- [ ] Slot mapping persists to backend
+**SpoolmanPanel** (`src/ui_panel_spoolman.cpp` - 378 lines):
+- [x] Full panel with loading/empty/spool list states
+- [x] Scrollable spool list with 3D canvas visualization
+- [x] Spool count display and refresh button
+- [x] Click-to-select active spool
+
+**Spoolman Picker** (integrated in `src/ui_panel_ams.cpp`):
+- [x] Modal dialog for assigning spools to AMS slots
+- [x] Scrollable spool list within modal
+- [x] Link/unlink functionality
+- [x] Completion callbacks with result handling
+
+**XML Layouts:**
+- [x] `ui_xml/spoolman_panel.xml` (141 lines) - 3-state responsive layout
+- [x] `ui_xml/spoolman_picker_modal.xml` (65 lines) - Slot assignment modal
+- [x] `ui_xml/spoolman_spool_row.xml` (122 lines) - Row with 3D spool canvas
+- [x] `ui_xml/spoolman_spool_item.xml` (37 lines) - Picker list item
+- [x] `ui_xml/ams_edit_modal.xml` - "Sync to Spoolman" button
+- [x] `ui_xml/ams_context_menu.xml` - "Assign Spoolman spool" option
+
+**Data Types** (`include/spoolman_types.h` - 112 lines):
+- [x] SpoolInfo struct with 20+ fields (vendor, material, color, weights, temps)
+- [x] Helper methods: `remaining_percent()`, `is_low()`, `display_name()`
+
+**Mock Backend** (`src/moonraker_api_mock.cpp`):
+- [x] `get_spoolman_status()` - Returns mock connected state
+- [x] `get_spoolman_spools()` - Returns 8 sample filaments
+- [x] `get_spoolman_spool()` - Single spool lookup by ID
+- [x] `update_spoolman_spool_weight()` - Update remaining weight
+- [x] `set_mock_spoolman_enabled()` / `is_mock_spoolman_enabled()`
+
+**Verification (Mock Mode):**
+- [x] Spoolman panel shows spool list in `--test` mode
+- [x] Picker modal opens from AMS context menu
+- [x] Spool assignment to slots works (mock)
+
+#### ❌ Remaining (Phase 3b - Small Effort)
+
+**Real Moonraker API** (`src/moonraker_api_advanced.cpp` - 4 methods stubbed):
+- [ ] `get_spoolman_status()` → `/server/spoolman/status`
+- [ ] `get_spoolman_spools()` → `/server/spoolman/proxy` → `/api/v1/spool`
+- [ ] `get_spoolman_spool(id)` → `/server/spoolman/proxy` → `/api/v1/spool/{id}`
+- [ ] `set_active_spool(id)` → `POST /server/spoolman/spool_id`
+
+**Capability Detection:**
+- [ ] Parse Spoolman availability from `/server/info` components
+- [ ] Set `printer_has_spoolman_` subject from real detection
 
 ---
 

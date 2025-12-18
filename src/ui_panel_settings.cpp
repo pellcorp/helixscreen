@@ -114,6 +114,28 @@ void SettingsPanel::init_subjects() {
     // Initialize SettingsManager subjects (for reactive binding)
     SettingsManager::instance().init_subjects();
 
+    // Initialize slider value subjects (for reactive binding)
+    lv_subject_init_string(&scroll_throw_value_subject_, scroll_throw_value_buf_, nullptr,
+                           sizeof(scroll_throw_value_buf_), "25");
+    lv_xml_register_subject(nullptr, "scroll_throw_value", &scroll_throw_value_subject_);
+
+    lv_subject_init_string(&scroll_limit_value_subject_, scroll_limit_value_buf_, nullptr,
+                           sizeof(scroll_limit_value_buf_), "5");
+    lv_xml_register_subject(nullptr, "scroll_limit_value", &scroll_limit_value_subject_);
+
+    lv_subject_init_string(&brightness_value_subject_, brightness_value_buf_, nullptr,
+                           sizeof(brightness_value_buf_), "100%");
+    lv_xml_register_subject(nullptr, "brightness_value", &brightness_value_subject_);
+
+    // Initialize info row subjects (for reactive binding)
+    lv_subject_init_string(&version_value_subject_, version_value_buf_, nullptr,
+                           sizeof(version_value_buf_), "—");
+    lv_xml_register_subject(nullptr, "version_value", &version_value_subject_);
+
+    lv_subject_init_string(&printer_value_subject_, printer_value_buf_, nullptr,
+                           sizeof(printer_value_buf_), "—");
+    lv_xml_register_subject(nullptr, "printer_value", &printer_value_subject_);
+
     // Register XML event callbacks for dropdowns (already in XML)
     lv_xml_register_event_cb(nullptr, "on_completion_alert_changed",
                              on_completion_alert_dropdown_changed);
@@ -145,6 +167,15 @@ void SettingsPanel::init_subjects() {
     lv_xml_register_event_cb(nullptr, "on_pid_tuning_clicked", on_pid_tuning_clicked);
     lv_xml_register_event_cb(nullptr, "on_network_clicked", on_network_clicked);
     lv_xml_register_event_cb(nullptr, "on_factory_reset_clicked", on_factory_reset_clicked);
+
+    // Register XML event callbacks for modal dialogs and overlays
+    lv_xml_register_event_cb(nullptr, "on_modal_primary_clicked", on_modal_primary_clicked);
+    lv_xml_register_event_cb(nullptr, "on_modal_secondary_clicked", on_modal_secondary_clicked);
+    lv_xml_register_event_cb(nullptr, "on_modal_backdrop_clicked", on_modal_backdrop_clicked);
+    lv_xml_register_event_cb(nullptr, "on_restart_later_clicked", on_restart_later_clicked);
+    lv_xml_register_event_cb(nullptr, "on_restart_now_clicked", on_restart_now_clicked);
+    lv_xml_register_event_cb(nullptr, "on_header_back_clicked", on_header_back_clicked);
+    lv_xml_register_event_cb(nullptr, "on_brightness_changed", on_brightness_changed);
 
     // Note: BedMeshPanel subjects are initialized in main.cpp during startup
 
@@ -278,9 +309,9 @@ void SettingsPanel::setup_scroll_sliders() {
             // Set initial value from SettingsManager
             int value = settings.get_scroll_throw();
             lv_slider_set_value(scroll_throw_slider_, value, LV_ANIM_OFF);
-            if (scroll_throw_value_label_) {
-                lv_label_set_text_fmt(scroll_throw_value_label_, "%d", value);
-            }
+            // Update subject (label binding happens in XML)
+            snprintf(scroll_throw_value_buf_, sizeof(scroll_throw_value_buf_), "%d", value);
+            lv_subject_copy_string(&scroll_throw_value_subject_, scroll_throw_value_buf_);
             spdlog::debug("[{}]   ✓ Scroll throw slider", get_name());
         }
     }
@@ -296,9 +327,9 @@ void SettingsPanel::setup_scroll_sliders() {
             // Set initial value from SettingsManager
             int value = settings.get_scroll_limit();
             lv_slider_set_value(scroll_limit_slider_, value, LV_ANIM_OFF);
-            if (scroll_limit_value_label_) {
-                lv_label_set_text_fmt(scroll_limit_value_label_, "%d", value);
-            }
+            // Update subject (label binding happens in XML)
+            snprintf(scroll_limit_value_buf_, sizeof(scroll_limit_value_buf_), "%d", value);
+            lv_subject_copy_string(&scroll_limit_value_subject_, scroll_limit_value_buf_);
             spdlog::debug("[{}]   ✓ Scroll limit slider", get_name());
         }
     }
@@ -357,7 +388,8 @@ void SettingsPanel::populate_info_rows() {
     if (version_row) {
         version_value_ = lv_obj_find_by_name(version_row, "value");
         if (version_value_) {
-            lv_label_set_text(version_value_, helix_version());
+            // Update subject (label binding happens in XML)
+            lv_subject_copy_string(&version_value_subject_, helix_version());
             spdlog::debug("[{}]   ✓ Version: {}", get_name(), helix_version());
         }
     }
@@ -371,7 +403,8 @@ void SettingsPanel::populate_info_rows() {
             Config* config = Config::get_instance();
             std::string printer_name =
                 config->get<std::string>(config->df() + "printer_name", "Unknown");
-            lv_label_set_text(printer_value_, printer_name.c_str());
+            // Update subject (label binding happens in XML)
+            lv_subject_copy_string(&printer_value_subject_, printer_name.c_str());
             spdlog::debug("[{}]   ✓ Printer: {}", get_name(), printer_name);
         }
     }
@@ -441,50 +474,16 @@ void SettingsPanel::show_theme_restart_dialog() {
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "modal_dialog", attrs));
 
         if (theme_restart_dialog_) {
-            // Wire up "Restart" button (btn_primary) to restart the app
+            // Set user_data on buttons so callbacks can identify which dialog this is
             lv_obj_t* restart_btn = lv_obj_find_by_name(theme_restart_dialog_, "btn_primary");
             if (restart_btn) {
-                lv_obj_add_event_cb(
-                    restart_btn,
-                    [](lv_event_t* /*e*/) {
-                        spdlog::info("[SettingsPanel] User requested app restart for theme change");
-                        // Fork new process with modified args: removes --dark/--light,
-                        // forces -p settings. Theme is read from saved config.
-                        app_request_restart_for_theme();
-                    },
-                    LV_EVENT_CLICKED, nullptr);
+                lv_obj_set_user_data(restart_btn, theme_restart_dialog_);
             }
 
-            // Wire up "OK" button (btn_secondary) to dismiss dialog
             lv_obj_t* ok_btn = lv_obj_find_by_name(theme_restart_dialog_, "btn_secondary");
             if (ok_btn) {
                 lv_obj_set_user_data(ok_btn, theme_restart_dialog_);
-                lv_obj_add_event_cb(
-                    ok_btn,
-                    [](lv_event_t* e) {
-                        auto* btn = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                        auto* dialog = static_cast<lv_obj_t*>(lv_obj_get_user_data(btn));
-                        if (dialog) {
-                            lv_obj_add_flag(dialog, LV_OBJ_FLAG_HIDDEN);
-                        }
-                        spdlog::debug(
-                            "[SettingsPanel] Theme restart dialog dismissed (will restart later)");
-                    },
-                    LV_EVENT_CLICKED, nullptr);
             }
-
-            // Also allow clicking backdrop to dismiss
-            lv_obj_add_event_cb(
-                theme_restart_dialog_,
-                [](lv_event_t* e) {
-                    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                    auto* original = static_cast<lv_obj_t*>(lv_event_get_target(e));
-                    if (target == original) {
-                        lv_obj_add_flag(target, LV_OBJ_FLAG_HIDDEN);
-                        spdlog::debug("[SettingsPanel] Theme restart dialog dismissed (backdrop)");
-                    }
-                },
-                LV_EVENT_CLICKED, nullptr);
 
             // Start hidden
             lv_obj_add_flag(theme_restart_dialog_, LV_OBJ_FLAG_HIDDEN);
@@ -561,34 +560,8 @@ void SettingsPanel::show_restart_prompt() {
         restart_prompt_dialog_ =
             static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "restart_prompt_dialog", nullptr));
         if (restart_prompt_dialog_) {
-            // Wire up Later button
-            lv_obj_t* later_btn = lv_obj_find_by_name(restart_prompt_dialog_, "dialog_later_btn");
-            if (later_btn) {
-                lv_obj_add_event_cb(
-                    later_btn,
-                    [](lv_event_t* e) {
-                        auto* self = static_cast<SettingsPanel*>(lv_event_get_user_data(e));
-                        if (self && self->restart_prompt_dialog_) {
-                            lv_obj_add_flag(self->restart_prompt_dialog_, LV_OBJ_FLAG_HIDDEN);
-                        }
-                    },
-                    LV_EVENT_CLICKED, this);
-            }
-
-            // Wire up Restart Now button
-            lv_obj_t* restart_btn =
-                lv_obj_find_by_name(restart_prompt_dialog_, "dialog_restart_btn");
-            if (restart_btn) {
-                lv_obj_add_event_cb(
-                    restart_btn,
-                    [](lv_event_t*) {
-                        spdlog::info("[SettingsPanel] User requested restart");
-                        // Exit the application - user will restart manually
-                        // In a real embedded system, this would trigger a system restart
-                        exit(0);
-                    },
-                    LV_EVENT_CLICKED, nullptr);
-            }
+            // Event handlers are already wired via XML event_cb elements
+            // No need to wire up buttons here - callbacks registered in init_subjects()
 
             // Initially hidden
             lv_obj_add_flag(restart_prompt_dialog_, LV_OBJ_FLAG_HIDDEN);
@@ -615,17 +588,10 @@ void SettingsPanel::handle_display_settings_clicked() {
         display_settings_overlay_ = static_cast<lv_obj_t*>(
             lv_xml_create(parent_screen_, "display_settings_overlay", nullptr));
         if (display_settings_overlay_) {
-            // Wire up back button
-            lv_obj_t* header = lv_obj_find_by_name(display_settings_overlay_, "overlay_header");
-            if (header) {
-                lv_obj_t* back_btn = lv_obj_find_by_name(header, "back_button");
-                if (back_btn) {
-                    lv_obj_add_event_cb(
-                        back_btn, [](lv_event_t*) { ui_nav_go_back(); }, LV_EVENT_CLICKED, nullptr);
-                }
-            }
+            // Back button event handler already wired via header_bar XML event_cb
+            // Brightness slider event handler already wired via XML event_cb
 
-            // Wire up brightness slider
+            // Wire up brightness slider initial state
             lv_obj_t* brightness_slider =
                 lv_obj_find_by_name(display_settings_overlay_, "brightness_slider");
             lv_obj_t* brightness_label =
@@ -634,26 +600,10 @@ void SettingsPanel::handle_display_settings_clicked() {
                 // Set initial value from settings
                 int brightness = SettingsManager::instance().get_brightness();
                 lv_slider_set_value(brightness_slider, brightness, LV_ANIM_OFF);
-                lv_label_set_text_fmt(brightness_label, "%d%%", brightness);
-
-                // Store label pointer for callback
-                lv_obj_set_user_data(brightness_slider, brightness_label);
-
-                // Wire up value change
-                lv_obj_add_event_cb(
-                    brightness_slider,
-                    [](lv_event_t* e) {
-                        auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                        int value = lv_slider_get_value(slider);
-                        SettingsManager::instance().set_brightness(value);
-
-                        // Update label
-                        auto* label = static_cast<lv_obj_t*>(lv_obj_get_user_data(slider));
-                        if (label) {
-                            lv_label_set_text_fmt(label, "%d%%", value);
-                        }
-                    },
-                    LV_EVENT_VALUE_CHANGED, nullptr);
+                // Update subject (label binding happens in XML)
+                snprintf(brightness_value_buf_, sizeof(brightness_value_buf_), "%d%%", brightness);
+                lv_subject_copy_string(&brightness_value_subject_, brightness_value_buf_);
+                // Event handler already wired via XML event_cb
             }
 
             // Initialize sleep timeout dropdown
@@ -1018,53 +968,17 @@ void SettingsPanel::handle_factory_reset_clicked() {
         return;
     }
 
-    // Wire up Cancel button (btn_secondary)
+    // Set user_data on buttons so callbacks can identify which dialog this is
     lv_obj_t* cancel_btn = lv_obj_find_by_name(factory_reset_dialog_, "btn_secondary");
     if (cancel_btn) {
         lv_obj_set_user_data(cancel_btn, factory_reset_dialog_);
-        lv_obj_add_event_cb(
-            cancel_btn,
-            [](lv_event_t* e) {
-                auto* btn = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                auto* dialog = static_cast<lv_obj_t*>(lv_obj_get_user_data(btn));
-                if (dialog) {
-                    ui_modal_hide(dialog);
-                }
-                spdlog::debug("[SettingsPanel] Factory reset cancelled");
-            },
-            LV_EVENT_CLICKED, nullptr);
     }
 
-    // Wire up Reset button (btn_primary) - perform factory reset
     lv_obj_t* reset_btn = lv_obj_find_by_name(factory_reset_dialog_, "btn_primary");
     if (reset_btn) {
         lv_obj_set_user_data(reset_btn, factory_reset_dialog_);
-        lv_obj_add_event_cb(
-            reset_btn,
-            [](lv_event_t* e) {
-                spdlog::warn("[SettingsPanel] Factory reset confirmed - resetting config!");
-
-                // Get config instance and reset
-                Config* config = Config::get_instance();
-                if (config) {
-                    config->reset_to_defaults();
-                    config->save();
-                    spdlog::info("[SettingsPanel] Config reset to defaults");
-                }
-
-                // Hide the dialog
-                auto* btn = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                auto* dialog = static_cast<lv_obj_t*>(lv_obj_get_user_data(btn));
-                if (dialog) {
-                    ui_modal_hide(dialog);
-                }
-
-                // TODO: In production, this would restart the application
-                // or transition to the setup wizard. For now, just log.
-                spdlog::info("[SettingsPanel] Device should restart or show wizard now");
-            },
-            LV_EVENT_CLICKED, nullptr);
     }
+    // Event handlers already wired via modal_dialog XML event_cb elements
 
     spdlog::info("[{}] Factory reset dialog shown", get_name());
 }
@@ -1135,10 +1049,9 @@ void SettingsPanel::on_scroll_throw_changed(lv_event_t* e) {
     int value = lv_slider_get_value(slider);
     auto& panel = get_global_settings_panel();
     panel.handle_scroll_throw_changed(value);
-    // Update the value label
-    if (panel.scroll_throw_value_label_) {
-        lv_label_set_text_fmt(panel.scroll_throw_value_label_, "%d", value);
-    }
+    // Update subject (label binding happens in XML)
+    snprintf(panel.scroll_throw_value_buf_, sizeof(panel.scroll_throw_value_buf_), "%d", value);
+    lv_subject_copy_string(&panel.scroll_throw_value_subject_, panel.scroll_throw_value_buf_);
     LVGL_SAFE_EVENT_CB_END();
 }
 
@@ -1148,10 +1061,9 @@ void SettingsPanel::on_scroll_limit_changed(lv_event_t* e) {
     int value = lv_slider_get_value(slider);
     auto& panel = get_global_settings_panel();
     panel.handle_scroll_limit_changed(value);
-    // Update the value label
-    if (panel.scroll_limit_value_label_) {
-        lv_label_set_text_fmt(panel.scroll_limit_value_label_, "%d", value);
-    }
+    // Update subject (label binding happens in XML)
+    snprintf(panel.scroll_limit_value_buf_, sizeof(panel.scroll_limit_value_buf_), "%d", value);
+    lv_subject_copy_string(&panel.scroll_limit_value_subject_, panel.scroll_limit_value_buf_);
     LVGL_SAFE_EVENT_CB_END();
 }
 
@@ -1194,6 +1106,125 @@ void SettingsPanel::on_network_clicked(lv_event_t* /*e*/) {
 void SettingsPanel::on_factory_reset_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_factory_reset_clicked");
     get_global_settings_panel().handle_factory_reset_clicked();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+// ============================================================================
+// STATIC TRAMPOLINES - MODAL DIALOGS AND OVERLAYS
+// ============================================================================
+
+// Generic modal dialog callbacks - these are registered globally and can be used
+// by any modal_dialog instance. The specific action is determined by which dialog
+// created the button and what user_data was attached to it.
+void SettingsPanel::on_modal_primary_clicked(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_modal_primary_clicked");
+    auto* btn = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    auto* dialog = static_cast<lv_obj_t*>(lv_obj_get_user_data(btn));
+
+    // Check if this is the theme restart dialog
+    auto& panel = get_global_settings_panel();
+    if (dialog == panel.theme_restart_dialog_) {
+        spdlog::info("[SettingsPanel] User requested app restart for theme change");
+        // Fork new process with modified args: removes --dark/--light,
+        // forces -p settings. Theme is read from saved config.
+        app_request_restart_for_theme();
+    }
+    // Check if this is the factory reset dialog
+    else if (dialog == panel.factory_reset_dialog_) {
+        spdlog::warn("[SettingsPanel] Factory reset confirmed - resetting config!");
+
+        // Get config instance and reset
+        Config* config = Config::get_instance();
+        if (config) {
+            config->reset_to_defaults();
+            config->save();
+            spdlog::info("[SettingsPanel] Config reset to defaults");
+        }
+
+        // Hide the dialog
+        if (dialog) {
+            ui_modal_hide(dialog);
+        }
+
+        // TODO: In production, this would restart the application
+        // or transition to the setup wizard. For now, just log.
+        spdlog::info("[SettingsPanel] Device should restart or show wizard now");
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_modal_secondary_clicked(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_modal_secondary_clicked");
+    auto* btn = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    auto* dialog = static_cast<lv_obj_t*>(lv_obj_get_user_data(btn));
+
+    // Check if this is the theme restart dialog
+    auto& panel = get_global_settings_panel();
+    if (dialog == panel.theme_restart_dialog_) {
+        if (dialog) {
+            lv_obj_add_flag(dialog, LV_OBJ_FLAG_HIDDEN);
+        }
+        spdlog::debug("[SettingsPanel] Theme restart dialog dismissed (will restart later)");
+    }
+    // Check if this is the factory reset dialog
+    else if (dialog == panel.factory_reset_dialog_) {
+        if (dialog) {
+            ui_modal_hide(dialog);
+        }
+        spdlog::debug("[SettingsPanel] Factory reset cancelled");
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_modal_backdrop_clicked(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_modal_backdrop_clicked");
+    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    auto* original = static_cast<lv_obj_t*>(lv_event_get_target(e));
+
+    // Only dismiss if clicking the backdrop itself (not a child element)
+    auto& panel = get_global_settings_panel();
+    if (target == original && target == panel.theme_restart_dialog_) {
+        lv_obj_add_flag(target, LV_OBJ_FLAG_HIDDEN);
+        spdlog::debug("[SettingsPanel] Theme restart dialog dismissed (backdrop)");
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_restart_later_clicked(lv_event_t* /* e */) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_restart_later_clicked");
+    auto& panel = get_global_settings_panel();
+    if (panel.restart_prompt_dialog_) {
+        lv_obj_add_flag(panel.restart_prompt_dialog_, LV_OBJ_FLAG_HIDDEN);
+    }
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_restart_now_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_restart_now_clicked");
+    spdlog::info("[SettingsPanel] User requested restart");
+    // Exit the application - user will restart manually
+    // In a real embedded system, this would trigger a system restart
+    exit(0);
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_header_back_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_header_back_clicked");
+    ui_nav_go_back();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_brightness_changed(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_brightness_changed");
+    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    int value = lv_slider_get_value(slider);
+    SettingsManager::instance().set_brightness(value);
+
+    // Update subject (label binding happens in XML)
+    auto& panel_ref = get_global_settings_panel();
+    snprintf(panel_ref.brightness_value_buf_, sizeof(panel_ref.brightness_value_buf_), "%d%%",
+             value);
+    lv_subject_copy_string(&panel_ref.brightness_value_subject_, panel_ref.brightness_value_buf_);
     LVGL_SAFE_EVENT_CB_END();
 }
 

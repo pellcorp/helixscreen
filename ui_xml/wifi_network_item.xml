@@ -9,7 +9,7 @@
   <!-- Click triggers on_network_item_clicked callback in C++ -->
   <styles>
     <!-- Style applied when item has LV_STATE_CHECKED (connected network) -->
-    <style name="checked_style" border_width="4" border_side="left" border_color="#primary_color" bg_color="#theme_grey"/>
+    <style name="checked_style" border_width="#space_xs" border_side="left" border_color="#primary_color" bg_color="#theme_grey"/>
   </styles>
   <view extends="lv_button"
         width="100%" scrollable="false" clickable="true" style_bg_color="#app_bg_color" style_bg_opa="255"

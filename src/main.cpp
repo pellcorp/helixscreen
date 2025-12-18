@@ -514,6 +514,7 @@ static void initialize_subjects() {
     init_screws_tilt_row_handler();             // Screws tilt row callback
     init_input_shaper_row_handler();            // Input shaper row callback
     init_zoffset_row_handler();                 // Z-Offset row callback
+    init_zoffset_event_callbacks();             // Z-Offset panel event callbacks
     ui_wizard_init_subjects();                  // Wizard subjects (for first-run config)
     ui_keypad_init_subjects();                  // Keypad display subject (for reactive binding)
 

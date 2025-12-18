@@ -56,6 +56,20 @@ class TempControlPanel {
         api_ = api;
     }
 
+    // XML event callbacks (public static for XML registration)
+    static void on_nozzle_confirm_clicked(lv_event_t* e);
+    static void on_bed_confirm_clicked(lv_event_t* e);
+    static void on_nozzle_preset_off_clicked(lv_event_t* e);
+    static void on_nozzle_preset_pla_clicked(lv_event_t* e);
+    static void on_nozzle_preset_petg_clicked(lv_event_t* e);
+    static void on_nozzle_preset_abs_clicked(lv_event_t* e);
+    static void on_bed_preset_off_clicked(lv_event_t* e);
+    static void on_bed_preset_pla_clicked(lv_event_t* e);
+    static void on_bed_preset_petg_clicked(lv_event_t* e);
+    static void on_bed_preset_abs_clicked(lv_event_t* e);
+    static void on_nozzle_custom_clicked(lv_event_t* e);
+    static void on_bed_custom_clicked(lv_event_t* e);
+
   private:
     //
     // Observer callbacks (static trampolines that call instance methods)
@@ -84,17 +98,6 @@ class TempControlPanel {
     // Graph creation helper
     ui_temp_graph_t* create_temp_graph(lv_obj_t* chart_area, const heater_config_t* config,
                                        int target_temp, int* series_id_out);
-
-    // Button callback setup
-    void setup_preset_buttons(lv_obj_t* panel, heater_type_t type);
-    void setup_custom_button(lv_obj_t* panel, heater_type_t type);
-    void setup_confirm_button(lv_obj_t* header, heater_type_t type);
-
-    // Event handlers (static trampolines)
-    static void nozzle_confirm_cb(lv_event_t* e);
-    static void bed_confirm_cb(lv_event_t* e);
-    static void preset_button_cb(lv_event_t* e);
-    static void custom_button_cb(lv_event_t* e);
 
     // Keypad callback
     static void keypad_value_cb(float value, void* user_data);

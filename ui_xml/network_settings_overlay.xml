@@ -63,7 +63,7 @@
               </text_small>
             </lv_obj>
             <!-- Toggle Switch (fixed width, won't shrink) -->
-            <lv_switch name="wlan_toggle" width="50" height="28" flex_shrink="0">
+            <lv_switch name="wlan_toggle" width="50" height="#space_2xl" flex_shrink="0">
               <lv_obj-bind_state_if_eq subject="wifi_enabled" state="checked" ref_value="1"/>
               <event_cb trigger="value_changed" callback="on_wlan_toggle_changed"/>
             </lv_switch>
@@ -172,7 +172,7 @@
         <!-- ============================================================== -->
         <!-- Network Test Button (at bottom of left column) -->
         <!-- ============================================================== -->
-        <lv_button name="test_network_btn" width="100%" height="48" style_radius="#border_radius" style_border_width="0">
+        <lv_button name="test_network_btn" width="100%" height="#space_2xl" style_radius="#border_radius" style_border_width="0">
           <!-- Disable when no network connected -->
           <lv_obj-bind_state_if_eq subject="any_network_connected" state="disabled" ref_value="0"/>
           <lv_obj width="100%"
@@ -208,7 +208,7 @@
           <!-- Refresh Button -->
           <lv_button name="refresh_btn"
                      width="content" height="36" style_radius="#border_radius" style_border_width="0"
-                     style_pad_left="#space_md" style_pad_right="#space_md">
+                     style_pad_left="#space_lg" style_pad_right="#space_lg">
             <lv_obj-bind_state_if_eq subject="wifi_scanning" state="disabled" ref_value="1"/>
             <lv_obj width="content"
                     height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
@@ -251,7 +251,7 @@
           </lv_obj>
         </lv_obj>
         <!-- Add Hidden Network Button -->
-        <lv_button name="add_other_btn" width="100%" height="48" style_radius="#border_radius" style_border_width="0">
+        <lv_button name="add_other_btn" width="100%" height="#space_2xl" style_radius="#border_radius" style_border_width="0">
           <lv_obj width="100%"
                   height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
                   flex_flow="row" style_flex_main_place="center" style_flex_cross_place="center"

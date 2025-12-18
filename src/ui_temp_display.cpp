@@ -17,6 +17,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <unordered_map>
 
 // ============================================================================
@@ -44,6 +45,18 @@ struct TempDisplayData {
     lv_obj_t* separator_label = nullptr;
     lv_obj_t* target_label = nullptr;
     lv_obj_t* unit_label = nullptr;
+
+    // String subjects for reactive text binding
+    lv_subject_t current_text_subject;
+    lv_subject_t target_text_subject;
+
+    // Observers from lv_label_bind_text (must be removed before freeing subjects)
+    lv_observer_t* current_text_observer = nullptr;
+    lv_observer_t* target_text_observer = nullptr;
+
+    // Buffers for formatted text
+    char current_text_buf[16];
+    char target_text_buf[16];
 };
 
 // Static registry for safe cleanup
@@ -219,19 +232,13 @@ static void update_display(TempDisplayData* data) {
     if (!data)
         return;
 
-    char buf[16];
+    // Update current temp via subject
+    snprintf(data->current_text_buf, sizeof(data->current_text_buf), "%d", data->current_temp);
+    lv_subject_copy_string(&data->current_text_subject, data->current_text_buf);
 
-    // Update current temp
-    if (data->current_label) {
-        snprintf(buf, sizeof(buf), "%d", data->current_temp);
-        lv_label_set_text(data->current_label, buf);
-    }
-
-    // Update target temp
-    if (data->target_label) {
-        snprintf(buf, sizeof(buf), "%d", data->target_temp);
-        lv_label_set_text(data->target_label, buf);
-    }
+    // Update target temp via subject
+    snprintf(data->target_text_buf, sizeof(data->target_text_buf), "%d", data->target_temp);
+    lv_subject_copy_string(&data->target_text_subject, data->target_text_buf);
 
     // Show/hide separator and target based on show_target
     if (data->separator_label) {
@@ -258,8 +265,20 @@ static void on_delete(lv_event_t* e) {
     lv_obj_t* obj = lv_event_get_target_obj(e);
     auto it = s_registry.find(obj);
     if (it != s_registry.end()) {
-        delete it->second;
+        std::unique_ptr<TempDisplayData> data(it->second);
         s_registry.erase(it);
+
+        // Remove observers BEFORE freeing subjects (DELETE event fires before
+        // children are deleted, so observers must be explicitly removed first)
+        if (data->current_text_observer) {
+            lv_observer_remove(data->current_text_observer);
+            data->current_text_observer = nullptr;
+        }
+        if (data->target_text_observer) {
+            lv_observer_remove(data->target_text_observer);
+            data->target_text_observer = nullptr;
+        }
+        // data automatically freed when unique_ptr goes out of scope
     }
 }
 
@@ -276,6 +295,8 @@ static void current_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subj
     // Get the parent container and its data
     lv_obj_t* container = lv_obj_get_parent(label);
     auto* data = get_data(container);
+    if (!data)
+        return;
 
     // PrinterState stores temps in centidegrees (×10), convert to degrees for display
     int temp_centi = lv_subject_get_int(subject);
@@ -287,10 +308,9 @@ static void current_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subj
         update_heating_color(data);
     }
 
-    // Update just this label
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d", temp_deg);
-    lv_label_set_text(label, buf);
+    // Update the text subject (which automatically updates the label via binding)
+    snprintf(data->current_text_buf, sizeof(data->current_text_buf), "%d", temp_deg);
+    lv_subject_copy_string(&data->current_text_subject, data->current_text_buf);
 }
 
 /** Observer callback for target temperature subject */
@@ -302,23 +322,23 @@ static void target_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subje
     // Get the parent container and its data
     lv_obj_t* container = lv_obj_get_parent(label);
     auto* data = get_data(container);
+    if (!data)
+        return;
 
     // PrinterState stores temps in centidegrees (×10), convert to degrees for display
     int temp_centi = lv_subject_get_int(subject);
     int temp_deg = temp_centi / 10;
 
-    if (data) {
-        data->target_temp = temp_deg;
-        // Update heating accent: primary_color when target > 0 (heater ON)
-        update_heating_color(data);
-        // Hide separator/target when heater is off
-        update_target_visibility(data);
-    }
+    data->target_temp = temp_deg;
 
-    // Update label text (only matters when visible)
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d", temp_deg);
-    lv_label_set_text(label, buf);
+    // Update the text subject (which automatically updates the label via binding)
+    snprintf(data->target_text_buf, sizeof(data->target_text_buf), "%d", temp_deg);
+    lv_subject_copy_string(&data->target_text_subject, data->target_text_buf);
+
+    // Update heating accent: primary_color when target > 0 (heater ON)
+    update_heating_color(data);
+    // Hide separator/target when heater is off
+    update_target_visibility(data);
 }
 
 // ============================================================================
@@ -347,7 +367,7 @@ static void* ui_temp_display_create_cb(lv_xml_parser_state_t* state, const char*
     lv_obj_set_style_pad_column(container, 0, LV_PART_MAIN); // No gap between labels
 
     // Create user data
-    auto* data = new TempDisplayData();
+    auto data_ptr = std::make_unique<TempDisplayData>();
 
     // Parse size attribute for font selection
     const char* size = lv_xml_get_value_of(attrs, "size");
@@ -357,47 +377,60 @@ static void* ui_temp_display_create_cb(lv_xml_parser_state_t* state, const char*
     // Parse show_target attribute
     const char* show_target_str = lv_xml_get_value_of(attrs, "show_target");
     if (show_target_str && strcmp(show_target_str, "false") == 0) {
-        data->show_target = false;
+        data_ptr->show_target = false;
     }
 
     // Create current temp label
-    data->current_label = lv_label_create(container);
-    lv_label_set_text(data->current_label, "--");
-    lv_obj_set_style_text_font(data->current_label, font, LV_PART_MAIN);
-    lv_obj_set_style_text_color(data->current_label, text_color, LV_PART_MAIN);
+    data_ptr->current_label = lv_label_create(container);
+    lv_obj_set_style_text_font(data_ptr->current_label, font, LV_PART_MAIN);
+    lv_obj_set_style_text_color(data_ptr->current_label, text_color, LV_PART_MAIN);
 
     // Create separator label " / "
-    data->separator_label = lv_label_create(container);
-    lv_label_set_text(data->separator_label, " / ");
-    lv_obj_set_style_text_font(data->separator_label, font, LV_PART_MAIN);
-    lv_obj_set_style_text_color(data->separator_label, ui_theme_get_color("text_secondary"),
+    data_ptr->separator_label = lv_label_create(container);
+    lv_label_set_text(data_ptr->separator_label, " / ");
+    lv_obj_set_style_text_font(data_ptr->separator_label, font, LV_PART_MAIN);
+    lv_obj_set_style_text_color(data_ptr->separator_label, ui_theme_get_color("text_secondary"),
                                 LV_PART_MAIN);
-    if (!data->show_target) {
-        lv_obj_add_flag(data->separator_label, LV_OBJ_FLAG_HIDDEN);
+    if (!data_ptr->show_target) {
+        lv_obj_add_flag(data_ptr->separator_label, LV_OBJ_FLAG_HIDDEN);
     }
 
     // Create target temp label
-    data->target_label = lv_label_create(container);
-    lv_label_set_text(data->target_label, "--");
-    lv_obj_set_style_text_font(data->target_label, font, LV_PART_MAIN);
-    lv_obj_set_style_text_color(data->target_label, text_color, LV_PART_MAIN);
-    if (!data->show_target) {
-        lv_obj_add_flag(data->target_label, LV_OBJ_FLAG_HIDDEN);
+    data_ptr->target_label = lv_label_create(container);
+    lv_obj_set_style_text_font(data_ptr->target_label, font, LV_PART_MAIN);
+    lv_obj_set_style_text_color(data_ptr->target_label, text_color, LV_PART_MAIN);
+    if (!data_ptr->show_target) {
+        lv_obj_add_flag(data_ptr->target_label, LV_OBJ_FLAG_HIDDEN);
     }
 
     // Create unit label "°C"
-    data->unit_label = lv_label_create(container);
-    lv_label_set_text(data->unit_label, "°C");
-    lv_obj_set_style_text_font(data->unit_label, font, LV_PART_MAIN);
-    lv_obj_set_style_text_color(data->unit_label, ui_theme_get_color("text_secondary"),
+    data_ptr->unit_label = lv_label_create(container);
+    lv_label_set_text(data_ptr->unit_label, "°C");
+    lv_obj_set_style_text_font(data_ptr->unit_label, font, LV_PART_MAIN);
+    lv_obj_set_style_text_color(data_ptr->unit_label, ui_theme_get_color("text_secondary"),
                                 LV_PART_MAIN);
 
+    // Initialize string subjects for text binding
+    snprintf(data_ptr->current_text_buf, sizeof(data_ptr->current_text_buf), "--");
+    lv_subject_init_string(&data_ptr->current_text_subject, data_ptr->current_text_buf, nullptr,
+                           sizeof(data_ptr->current_text_buf), data_ptr->current_text_buf);
+
+    snprintf(data_ptr->target_text_buf, sizeof(data_ptr->target_text_buf), "--");
+    lv_subject_init_string(&data_ptr->target_text_subject, data_ptr->target_text_buf, nullptr,
+                           sizeof(data_ptr->target_text_buf), data_ptr->target_text_buf);
+
+    // Bind labels to subjects for reactive updates (save observers for cleanup)
+    data_ptr->current_text_observer =
+        lv_label_bind_text(data_ptr->current_label, &data_ptr->current_text_subject, nullptr);
+    data_ptr->target_text_observer =
+        lv_label_bind_text(data_ptr->target_label, &data_ptr->target_text_subject, nullptr);
+
     // Register data and cleanup
-    s_registry[container] = data;
+    s_registry[container] = data_ptr.release();
     lv_obj_add_event_cb(container, on_delete, LV_EVENT_DELETE, nullptr);
 
     spdlog::trace("[temp_display] Created widget (size={}, show_target={})", size ? size : "md",
-                  data->show_target);
+                  s_registry[container]->show_target);
 
     return container;
 }
@@ -424,9 +457,9 @@ static void ui_temp_display_apply_cb(lv_xml_parser_state_t* state, const char** 
                 // Set initial value (convert centidegrees to degrees)
                 int temp_centi = lv_subject_get_int(subject);
                 data->current_temp = temp_centi / 10;
-                char buf[16];
-                snprintf(buf, sizeof(buf), "%d", data->current_temp);
-                lv_label_set_text(data->current_label, buf);
+                snprintf(data->current_text_buf, sizeof(data->current_text_buf), "%d",
+                         data->current_temp);
+                lv_subject_copy_string(&data->current_text_subject, data->current_text_buf);
                 spdlog::trace("[temp_display] Bound current to subject '{}' ({}°C)", value,
                               data->current_temp);
             } else if (!subject) {
@@ -441,10 +474,10 @@ static void ui_temp_display_apply_cb(lv_xml_parser_state_t* state, const char** 
                 // Set initial value (convert centidegrees to degrees)
                 int temp_centi = lv_subject_get_int(subject);
                 data->target_temp = temp_centi / 10;
-                // Set label text
-                char buf[16];
-                snprintf(buf, sizeof(buf), "%d", data->target_temp);
-                lv_label_set_text(data->target_label, buf);
+                // Set label text via subject
+                snprintf(data->target_text_buf, sizeof(data->target_text_buf), "%d",
+                         data->target_temp);
+                lv_subject_copy_string(&data->target_text_subject, data->target_text_buf);
                 // Apply initial heating color (primary_color if target > 0)
                 update_heating_color(data);
                 // Hide separator/target when heater is off
@@ -490,12 +523,9 @@ void ui_temp_display_set_current(lv_obj_t* obj, int current) {
 
     data->current_temp = current;
 
-    // Only update current label for efficiency
-    if (data->current_label) {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%d", current);
-        lv_label_set_text(data->current_label, buf);
-    }
+    // Update current temp via subject for efficiency
+    snprintf(data->current_text_buf, sizeof(data->current_text_buf), "%d", current);
+    lv_subject_copy_string(&data->current_text_subject, data->current_text_buf);
 }
 
 int ui_temp_display_get_current(lv_obj_t* obj) {

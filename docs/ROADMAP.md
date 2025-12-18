@@ -1,6 +1,6 @@
 # HelixScreen Development Roadmap
 
-**Last Updated:** 2025-12-16
+**Last Updated:** 2025-12-17
 
 ---
 
@@ -35,7 +35,8 @@ Support for Happy Hare and AFC-Klipper multi-filament systems with Bambu-inspire
 - [x] Phase 4.5: Real AFC Backend Integration - Sensor parsing, unit tests
 - [x] Phase 4.6: External Spool Bypass Support - UI and backend
 - [ ] Phase 2.6: Configurable visualization (deferred)
-- [ ] Phase 3: Spoolman integration for material/color info
+- [x] Phase 3: Spoolman integration - UI complete (panel, picker, AMS integration)
+- [ ] Phase 3b: Spoolman real API - 4 Moonraker methods (small effort)
 - [ ] Phase 5: Print integration - Color requirements display
 - [ ] Phase 6: Error recovery wizard
 - [ ] Phase 7: Advanced features - Mapping, endless spool, calibration
@@ -83,7 +84,7 @@ All TIER 1 features are now implemented:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Firmware Retraction** | ⬜ | View/adjust retraction settings |
-| **Spoolman Integration** | ⬜ | Filament tracking, QR scanner |
+| **Spoolman Integration** | 🔄 | UI 100%, needs 4 API methods (~1hr work) |
 | **Job Queue** | ⬜ | Batch printing queue |
 | **Update Manager** | ⬜ | Software updates via Moonraker |
 
@@ -287,6 +288,13 @@ Configure Moonraker-Timelapse plugin:
 ---
 
 ## Recent Work
+
+### December 2025 (Week 3)
+| Feature | Status |
+|---------|--------|
+| **Temp display cooling color** | `68d6a8e` - Blue when cooling to target |
+| **G-code preview in print status** | `5f6d06c` - Show preview during pre-print |
+| **Doc reconciliation** | Merged AMS mock docs, updated Spoolman status |
 
 ### December 2025 (Week 2)
 | Feature | Commit |

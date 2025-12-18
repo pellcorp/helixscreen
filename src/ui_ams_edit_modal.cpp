@@ -1,0 +1,768 @@
+// Copyright 2025 HelixScreen
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "ui_ams_edit_modal.h"
+
+#include "ui_error_reporting.h"
+#include "ui_theme.h"
+
+#include "ams_backend.h"
+#include "ams_state.h"
+#include "color_utils.h"
+#include "filament_database.h"
+#include "moonraker_api.h"
+
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
+#include <cmath>
+
+namespace helix::ui {
+
+// Static member initialization
+bool AmsEditModal::callbacks_registered_ = false;
+
+// ============================================================================
+// Construction / Destruction
+// ============================================================================
+
+AmsEditModal::AmsEditModal() {
+    spdlog::debug("[AmsEditModal] Constructed");
+}
+
+AmsEditModal::~AmsEditModal() {
+    // ModalBase destructor will call hide() if visible
+    spdlog::debug("[AmsEditModal] Destroyed");
+}
+
+AmsEditModal::AmsEditModal(AmsEditModal&& other) noexcept
+    : ModalBase(std::move(other)), slot_index_(other.slot_index_),
+      original_info_(std::move(other.original_info_)),
+      working_info_(std::move(other.working_info_)), api_(other.api_),
+      completion_callback_(std::move(other.completion_callback_)),
+      remaining_pre_edit_pct_(other.remaining_pre_edit_pct_),
+      color_picker_(std::move(other.color_picker_)),
+      subjects_initialized_(other.subjects_initialized_) {
+    // Copy buffers
+    std::memcpy(slot_indicator_buf_, other.slot_indicator_buf_, sizeof(slot_indicator_buf_));
+    std::memcpy(color_name_buf_, other.color_name_buf_, sizeof(color_name_buf_));
+    std::memcpy(temp_nozzle_buf_, other.temp_nozzle_buf_, sizeof(temp_nozzle_buf_));
+    std::memcpy(temp_bed_buf_, other.temp_bed_buf_, sizeof(temp_bed_buf_));
+    std::memcpy(remaining_pct_buf_, other.remaining_pct_buf_, sizeof(remaining_pct_buf_));
+
+    // Subjects are not movable - they stay with original
+    other.subjects_initialized_ = false;
+    other.api_ = nullptr;
+    other.slot_index_ = -1;
+}
+
+AmsEditModal& AmsEditModal::operator=(AmsEditModal&& other) noexcept {
+    if (this != &other) {
+        ModalBase::operator=(std::move(other));
+        slot_index_ = other.slot_index_;
+        original_info_ = std::move(other.original_info_);
+        working_info_ = std::move(other.working_info_);
+        api_ = other.api_;
+        completion_callback_ = std::move(other.completion_callback_);
+        remaining_pre_edit_pct_ = other.remaining_pre_edit_pct_;
+        color_picker_ = std::move(other.color_picker_);
+        subjects_initialized_ = other.subjects_initialized_;
+        std::memcpy(slot_indicator_buf_, other.slot_indicator_buf_, sizeof(slot_indicator_buf_));
+        std::memcpy(color_name_buf_, other.color_name_buf_, sizeof(color_name_buf_));
+        std::memcpy(temp_nozzle_buf_, other.temp_nozzle_buf_, sizeof(temp_nozzle_buf_));
+        std::memcpy(temp_bed_buf_, other.temp_bed_buf_, sizeof(temp_bed_buf_));
+        std::memcpy(remaining_pct_buf_, other.remaining_pct_buf_, sizeof(remaining_pct_buf_));
+        other.subjects_initialized_ = false;
+        other.api_ = nullptr;
+        other.slot_index_ = -1;
+    }
+    return *this;
+}
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+void AmsEditModal::set_completion_callback(CompletionCallback callback) {
+    completion_callback_ = std::move(callback);
+}
+
+bool AmsEditModal::show_for_slot(lv_obj_t* parent, int slot_index, const SlotInfo& initial_info,
+                                 MoonrakerAPI* api) {
+    // Register callbacks once (idempotent)
+    register_callbacks();
+
+    // Initialize subjects if needed
+    init_subjects();
+
+    // Store state
+    slot_index_ = slot_index;
+    original_info_ = initial_info;
+    working_info_ = initial_info;
+    api_ = api;
+    remaining_pre_edit_pct_ = 0;
+
+    // Reset remaining mode subject before showing (0 = view mode)
+    lv_subject_set_int(&remaining_mode_subject_, 0);
+
+    // Show the modal via ModalBase
+    if (!ModalBase::show(parent)) {
+        return false;
+    }
+
+    // Store 'this' in modal's user_data for callback traversal
+    lv_obj_set_user_data(modal_, this);
+
+    spdlog::info("[AmsEditModal] Shown for slot {}", slot_index);
+    return true;
+}
+
+// ============================================================================
+// ModalBase Hooks
+// ============================================================================
+
+void AmsEditModal::on_show() {
+    // Create callback guard for async operations [L012]
+    callback_guard_ = std::make_shared<bool>(true);
+
+    // Bind labels to subjects for reactive text updates (save observers for cleanup)
+    lv_obj_t* slot_indicator = find_widget("slot_indicator");
+    if (slot_indicator) {
+        slot_indicator_observer_ =
+            lv_label_bind_text(slot_indicator, &slot_indicator_subject_, nullptr);
+    }
+
+    lv_obj_t* color_name_label = find_widget("color_name_label");
+    if (color_name_label) {
+        color_name_observer_ = lv_label_bind_text(color_name_label, &color_name_subject_, nullptr);
+    }
+
+    lv_obj_t* temp_nozzle_label = find_widget("temp_nozzle_label");
+    if (temp_nozzle_label) {
+        temp_nozzle_observer_ =
+            lv_label_bind_text(temp_nozzle_label, &temp_nozzle_subject_, nullptr);
+    }
+
+    lv_obj_t* temp_bed_label = find_widget("temp_bed_label");
+    if (temp_bed_label) {
+        temp_bed_observer_ = lv_label_bind_text(temp_bed_label, &temp_bed_subject_, nullptr);
+    }
+
+    lv_obj_t* remaining_pct_label = find_widget("remaining_pct_label");
+    if (remaining_pct_label) {
+        remaining_pct_observer_ =
+            lv_label_bind_text(remaining_pct_label, &remaining_pct_subject_, nullptr);
+    }
+
+    // Update the modal UI with current slot data
+    update_ui();
+
+    // Set initial sync button state (disabled since nothing is dirty yet)
+    update_sync_button_state();
+}
+
+void AmsEditModal::on_hide() {
+    // Invalidate callback guard to prevent async callbacks from using stale 'this' [L012]
+    callback_guard_.reset();
+
+    // Remove observers BEFORE modal destruction [L020]
+    if (slot_indicator_observer_) {
+        lv_observer_remove(slot_indicator_observer_);
+        slot_indicator_observer_ = nullptr;
+    }
+    if (color_name_observer_) {
+        lv_observer_remove(color_name_observer_);
+        color_name_observer_ = nullptr;
+    }
+    if (temp_nozzle_observer_) {
+        lv_observer_remove(temp_nozzle_observer_);
+        temp_nozzle_observer_ = nullptr;
+    }
+    if (temp_bed_observer_) {
+        lv_observer_remove(temp_bed_observer_);
+        temp_bed_observer_ = nullptr;
+    }
+    if (remaining_pct_observer_) {
+        lv_observer_remove(remaining_pct_observer_);
+        remaining_pct_observer_ = nullptr;
+    }
+
+    // Reset edit mode subject
+    lv_subject_set_int(&remaining_mode_subject_, 0);
+    spdlog::debug("[AmsEditModal] Hidden");
+}
+
+// ============================================================================
+// Subject Management
+// ============================================================================
+
+void AmsEditModal::init_subjects() {
+    if (subjects_initialized_) {
+        return;
+    }
+
+    // Initialize string subjects with empty/default buffers
+    slot_indicator_buf_[0] = '-';
+    slot_indicator_buf_[1] = '-';
+    slot_indicator_buf_[2] = '\0';
+    color_name_buf_[0] = '\0';
+    snprintf(temp_nozzle_buf_, sizeof(temp_nozzle_buf_), "200-230°C");
+    snprintf(temp_bed_buf_, sizeof(temp_bed_buf_), "60°C");
+    snprintf(remaining_pct_buf_, sizeof(remaining_pct_buf_), "75%%");
+
+    lv_subject_init_string(&slot_indicator_subject_, slot_indicator_buf_, nullptr,
+                           sizeof(slot_indicator_buf_), "--");
+    lv_subject_init_string(&color_name_subject_, color_name_buf_, nullptr, sizeof(color_name_buf_),
+                           "");
+    lv_subject_init_string(&temp_nozzle_subject_, temp_nozzle_buf_, nullptr,
+                           sizeof(temp_nozzle_buf_), "200-230°C");
+    lv_subject_init_string(&temp_bed_subject_, temp_bed_buf_, nullptr, sizeof(temp_bed_buf_),
+                           "60°C");
+    lv_subject_init_string(&remaining_pct_subject_, remaining_pct_buf_, nullptr,
+                           sizeof(remaining_pct_buf_), "75%");
+
+    // Initialize remaining mode subject (0=view, 1=edit)
+    lv_subject_init_int(&remaining_mode_subject_, 0);
+
+    // Register remaining mode subject globally for XML binding
+    lv_xml_register_subject(nullptr, "edit_remaining_mode", &remaining_mode_subject_);
+
+    subjects_initialized_ = true;
+    spdlog::debug("[AmsEditModal] Subjects initialized");
+}
+
+// ============================================================================
+// Internal Methods
+// ============================================================================
+
+void AmsEditModal::update_ui() {
+    if (!modal_) {
+        return;
+    }
+
+    // Update slot indicator via subject
+    snprintf(slot_indicator_buf_, sizeof(slot_indicator_buf_), "Slot %d", slot_index_ + 1);
+    lv_subject_copy_string(&slot_indicator_subject_, slot_indicator_buf_);
+
+    // Set dropdown options (requires \n separators in C++)
+    lv_obj_t* vendor_dropdown = find_widget("vendor_dropdown");
+    if (vendor_dropdown) {
+        lv_dropdown_set_options(vendor_dropdown,
+                                "Generic\nPolymaker\nBambu\neSUN\nOverture\nPrusa\nHatchbox");
+    }
+
+    lv_obj_t* material_dropdown = find_widget("material_dropdown");
+    if (material_dropdown) {
+        lv_dropdown_set_options(material_dropdown, "PLA\nPETG\nABS\nASA\nTPU\nPA\nPC");
+    }
+
+    // Update color swatch
+    lv_obj_t* color_swatch = find_widget("color_swatch");
+    if (color_swatch) {
+        lv_obj_set_style_bg_color(color_swatch, lv_color_hex(working_info_.color_rgb), 0);
+    }
+
+    // Update color name label via subject
+    if (!working_info_.color_name.empty()) {
+        snprintf(color_name_buf_, sizeof(color_name_buf_), "%s", working_info_.color_name.c_str());
+    } else {
+        color_name_buf_[0] = '\0';
+    }
+    lv_subject_copy_string(&color_name_subject_, color_name_buf_);
+
+    // Update remaining slider and label
+    int remaining_pct = 75; // Default
+    if (working_info_.total_weight_g > 0) {
+        remaining_pct = static_cast<int>(100.0f * working_info_.remaining_weight_g /
+                                         working_info_.total_weight_g);
+        remaining_pct = std::max(0, std::min(100, remaining_pct));
+    }
+
+    lv_obj_t* remaining_slider = find_widget("remaining_slider");
+    if (remaining_slider) {
+        lv_slider_set_value(remaining_slider, remaining_pct, LV_ANIM_OFF);
+    }
+
+    // Update remaining percentage label via subject
+    snprintf(remaining_pct_buf_, sizeof(remaining_pct_buf_), "%d%%", remaining_pct);
+    lv_subject_copy_string(&remaining_pct_subject_, remaining_pct_buf_);
+
+    // Update progress bar fill width (shown in view mode)
+    lv_obj_t* progress_container = find_widget("remaining_progress_container");
+    lv_obj_t* progress_fill = find_widget("remaining_progress_fill");
+    if (progress_container && progress_fill) {
+        lv_obj_update_layout(progress_container);
+        int container_width = lv_obj_get_width(progress_container);
+        int fill_width = container_width * remaining_pct / 100;
+        lv_obj_set_width(progress_fill, fill_width);
+    }
+
+    // Update temperature display based on material
+    update_temp_display();
+
+    // Show/hide Spoolman sync button based on whether slot has spoolman_id
+    lv_obj_t* btn_sync = find_widget("btn_sync_spoolman");
+    if (btn_sync) {
+        if (working_info_.spoolman_id > 0) {
+            lv_obj_remove_flag(btn_sync, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(btn_sync, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
+void AmsEditModal::update_temp_display() {
+    if (!modal_) {
+        return;
+    }
+
+    // Get temperature range from slot info (populated from Spoolman or material defaults)
+    int nozzle_min = working_info_.nozzle_temp_min;
+    int nozzle_max = working_info_.nozzle_temp_max;
+    int bed_temp = working_info_.bed_temp;
+
+    // Fall back to material-based defaults from filament database if not set
+    if (nozzle_min == 0 && nozzle_max == 0 && !working_info_.material.empty()) {
+        auto mat_info = filament::find_material(working_info_.material);
+        if (mat_info) {
+            nozzle_min = mat_info->nozzle_min;
+            nozzle_max = mat_info->nozzle_max;
+            bed_temp = mat_info->bed_temp;
+            spdlog::debug("[AmsEditModal] Using filament database temps for {}: {}-{}°C nozzle, "
+                          "{}°C bed",
+                          working_info_.material, nozzle_min, nozzle_max, bed_temp);
+        } else {
+            // Generic defaults for unknown materials
+            nozzle_min = 200;
+            nozzle_max = 230;
+            bed_temp = 60;
+            spdlog::debug("[AmsEditModal] Material '{}' not in database, using generic defaults",
+                          working_info_.material);
+        }
+    }
+
+    // Update nozzle temp label via subject
+    snprintf(temp_nozzle_buf_, sizeof(temp_nozzle_buf_), "%d-%d°C", nozzle_min, nozzle_max);
+    lv_subject_copy_string(&temp_nozzle_subject_, temp_nozzle_buf_);
+
+    // Update bed temp label via subject
+    snprintf(temp_bed_buf_, sizeof(temp_bed_buf_), "%d°C", bed_temp);
+    lv_subject_copy_string(&temp_bed_subject_, temp_bed_buf_);
+}
+
+bool AmsEditModal::is_dirty() const {
+    // Compare relevant fields that can be edited
+    return working_info_.color_rgb != original_info_.color_rgb ||
+           working_info_.material != original_info_.material ||
+           working_info_.brand != original_info_.brand ||
+           std::abs(working_info_.remaining_weight_g - original_info_.remaining_weight_g) > 0.1f;
+}
+
+void AmsEditModal::update_sync_button_state() {
+    if (!modal_) {
+        return;
+    }
+
+    lv_obj_t* sync_btn = find_widget("btn_sync_spoolman");
+    if (!sync_btn) {
+        return;
+    }
+
+    // Only enable if dirty and has Spoolman link
+    bool should_enable = is_dirty() && working_info_.spoolman_id > 0;
+
+    if (should_enable) {
+        lv_obj_remove_state(sync_btn, LV_STATE_DISABLED);
+        lv_obj_set_style_bg_opa(sync_btn, LV_OPA_COVER, LV_PART_MAIN);
+    } else {
+        lv_obj_add_state(sync_btn, LV_STATE_DISABLED);
+        lv_obj_set_style_bg_opa(sync_btn, LV_OPA_50, LV_PART_MAIN);
+    }
+}
+
+void AmsEditModal::show_color_picker() {
+    if (!parent_) {
+        spdlog::warn("[AmsEditModal] No parent for color picker");
+        return;
+    }
+
+    // Create picker on first use (lazy initialization)
+    if (!color_picker_) {
+        color_picker_ = std::make_unique<AmsColorPicker>();
+    }
+
+    // Set callback to update edit modal when color is selected
+    color_picker_->set_color_callback([this](uint32_t color_rgb, const std::string& color_name) {
+        // Update the working slot info with selected color
+        working_info_.color_rgb = color_rgb;
+        working_info_.color_name = color_name;
+
+        // Update the edit modal's color swatch to show new selection
+        if (modal_) {
+            lv_obj_t* swatch = find_widget("color_swatch");
+            if (swatch) {
+                lv_obj_set_style_bg_color(swatch, lv_color_hex(color_rgb), 0);
+            }
+
+            // Update color name label via subject
+            snprintf(color_name_buf_, sizeof(color_name_buf_), "%s", color_name.c_str());
+            lv_subject_copy_string(&color_name_subject_, color_name_buf_);
+
+            update_sync_button_state();
+        }
+    });
+
+    // Show with current edit color
+    color_picker_->show_with_color(parent_, working_info_.color_rgb);
+}
+
+// ============================================================================
+// Event Handlers
+// ============================================================================
+
+void AmsEditModal::handle_close() {
+    spdlog::debug("[AmsEditModal] Close requested");
+
+    // Invoke callback with cancelled result
+    if (completion_callback_) {
+        EditResult result;
+        result.saved = false;
+        result.slot_index = slot_index_;
+        completion_callback_(result);
+    }
+
+    hide();
+}
+
+void AmsEditModal::handle_vendor_changed(int index) {
+    // Vendor list: Generic, Polymaker, Bambu, eSUN, Overture, Prusa, Hatchbox
+    static const char* vendors[] = {"Generic",  "Polymaker", "Bambu",   "eSUN",
+                                    "Overture", "Prusa",     "Hatchbox"};
+    if (index >= 0 && index < static_cast<int>(sizeof(vendors) / sizeof(vendors[0]))) {
+        working_info_.brand = vendors[index];
+        spdlog::debug("[AmsEditModal] Vendor changed to: {}", working_info_.brand);
+        update_sync_button_state();
+    }
+}
+
+void AmsEditModal::handle_material_changed(int index) {
+    // Material list: PLA, PETG, ABS, ASA, TPU, PA, PC
+    static const char* materials[] = {"PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"};
+    if (index >= 0 && index < static_cast<int>(sizeof(materials) / sizeof(materials[0]))) {
+        working_info_.material = materials[index];
+        spdlog::debug("[AmsEditModal] Material changed to: {}", working_info_.material);
+
+        // Clear existing temp values so update_temp_display uses material-based defaults
+        working_info_.nozzle_temp_min = 0;
+        working_info_.nozzle_temp_max = 0;
+        working_info_.bed_temp = 0;
+
+        // Update temperature display based on new material
+        update_temp_display();
+        update_sync_button_state();
+    }
+}
+
+void AmsEditModal::handle_color_clicked() {
+    spdlog::info("[AmsEditModal] Opening color picker");
+    show_color_picker();
+}
+
+void AmsEditModal::handle_remaining_changed(int percent) {
+    if (!modal_) {
+        return;
+    }
+
+    // Update the percentage label via subject
+    snprintf(remaining_pct_buf_, sizeof(remaining_pct_buf_), "%d%%", percent);
+    lv_subject_copy_string(&remaining_pct_subject_, remaining_pct_buf_);
+
+    // Update slot info remaining weight based on percentage
+    if (working_info_.total_weight_g > 0) {
+        working_info_.remaining_weight_g =
+            working_info_.total_weight_g * static_cast<float>(percent) / 100.0f;
+    }
+
+    update_sync_button_state();
+    spdlog::trace("[AmsEditModal] Remaining changed to {}%", percent);
+}
+
+void AmsEditModal::handle_remaining_edit() {
+    if (!modal_) {
+        return;
+    }
+
+    // Store current remaining percentage before entering edit mode
+    lv_obj_t* slider = find_widget("remaining_slider");
+    if (slider) {
+        remaining_pre_edit_pct_ = lv_slider_get_value(slider);
+    }
+
+    // Enter edit mode - subject binding will show slider/accept/cancel, hide progress/edit button
+    lv_subject_set_int(&remaining_mode_subject_, 1);
+    spdlog::debug("[AmsEditModal] Entered remaining edit mode (was {}%)", remaining_pre_edit_pct_);
+}
+
+void AmsEditModal::handle_remaining_accept() {
+    if (!modal_) {
+        return;
+    }
+
+    // Get the current slider value
+    lv_obj_t* slider = find_widget("remaining_slider");
+    int new_pct = slider ? lv_slider_get_value(slider) : remaining_pre_edit_pct_;
+
+    // Update the progress bar fill to match
+    lv_obj_t* progress_fill = find_widget("remaining_progress_fill");
+    lv_obj_t* progress_container = find_widget("remaining_progress_container");
+    if (progress_fill && progress_container) {
+        int container_width = lv_obj_get_width(progress_container);
+        int fill_width = container_width * new_pct / 100;
+        lv_obj_set_width(progress_fill, fill_width);
+    }
+
+    // Exit edit mode - subject binding will show progress/edit button, hide slider/accept/cancel
+    lv_subject_set_int(&remaining_mode_subject_, 0);
+    spdlog::debug("[AmsEditModal] Accepted remaining edit: {}%", new_pct);
+}
+
+void AmsEditModal::handle_remaining_cancel() {
+    if (!modal_) {
+        return;
+    }
+
+    // Revert slider to pre-edit value
+    lv_obj_t* slider = find_widget("remaining_slider");
+    if (slider) {
+        lv_slider_set_value(slider, remaining_pre_edit_pct_, LV_ANIM_OFF);
+    }
+
+    // Revert the percentage label via subject
+    snprintf(remaining_pct_buf_, sizeof(remaining_pct_buf_), "%d%%", remaining_pre_edit_pct_);
+    lv_subject_copy_string(&remaining_pct_subject_, remaining_pct_buf_);
+
+    // Revert the remaining weight in working_info_
+    if (working_info_.total_weight_g > 0) {
+        working_info_.remaining_weight_g =
+            working_info_.total_weight_g * static_cast<float>(remaining_pre_edit_pct_) / 100.0f;
+    }
+
+    // Exit edit mode
+    lv_subject_set_int(&remaining_mode_subject_, 0);
+    update_sync_button_state();
+    spdlog::debug("[AmsEditModal] Cancelled remaining edit (reverted to {}%)",
+                  remaining_pre_edit_pct_);
+}
+
+void AmsEditModal::handle_sync_spoolman() {
+    if (working_info_.spoolman_id <= 0) {
+        NOTIFY_WARNING("Slot not linked to Spoolman");
+        return;
+    }
+
+    if (!api_) {
+        NOTIFY_ERROR("Spoolman API not available");
+        return;
+    }
+
+    spdlog::info("[AmsEditModal] Sync to Spoolman requested for spool ID {}",
+                 working_info_.spoolman_id);
+
+    // Check if weight changed - this is the primary sync we support
+    bool weight_changed =
+        std::abs(working_info_.remaining_weight_g - original_info_.remaining_weight_g) > 0.1f;
+
+    if (!weight_changed) {
+        NOTIFY_INFO("No changes to sync");
+        return;
+    }
+
+    // Sync remaining weight to Spoolman
+    int spool_id = working_info_.spoolman_id;
+    double new_weight = static_cast<double>(working_info_.remaining_weight_g);
+
+    spdlog::info("[AmsEditModal] Syncing spool {} weight: {:.1f}g -> {:.1f}g", spool_id,
+                 original_info_.remaining_weight_g, new_weight);
+
+    // Capture callback guard to detect if modal destroyed before callback fires [L012]
+    std::weak_ptr<bool> guard = callback_guard_;
+
+    api_->update_spoolman_spool_weight(
+        spool_id, new_weight,
+        [this, spool_id, guard]() {
+            // Check if modal still exists before using 'this'
+            if (guard.expired()) {
+                spdlog::debug("[AmsEditModal] Spoolman sync callback ignored - modal destroyed");
+                return;
+            }
+            spdlog::info("[AmsEditModal] Spoolman spool {} weight synced successfully", spool_id);
+            NOTIFY_SUCCESS("Synced to Spoolman");
+
+            // Update original to match - no longer "dirty"
+            original_info_.remaining_weight_g = working_info_.remaining_weight_g;
+            update_sync_button_state();
+        },
+        [](const MoonrakerError& err) {
+            spdlog::error("[AmsEditModal] Failed to sync to Spoolman: {}", err.message);
+            NOTIFY_ERROR("Sync failed: " + err.message);
+        });
+}
+
+void AmsEditModal::handle_reset() {
+    spdlog::debug("[AmsEditModal] Resetting to original values");
+
+    // Restore original slot info
+    working_info_ = original_info_;
+
+    // Refresh the UI
+    update_ui();
+    update_sync_button_state();
+
+    NOTIFY_INFO("Reset to original values");
+}
+
+void AmsEditModal::handle_save() {
+    spdlog::info("[AmsEditModal] Saving edits for slot {}", slot_index_);
+
+    // Invoke callback with saved result
+    if (completion_callback_) {
+        EditResult result;
+        result.saved = true;
+        result.slot_index = slot_index_;
+        result.slot_info = working_info_;
+        completion_callback_(result);
+    }
+
+    hide();
+}
+
+// ============================================================================
+// Static Callback Registration
+// ============================================================================
+
+void AmsEditModal::register_callbacks() {
+    if (callbacks_registered_) {
+        return;
+    }
+
+    lv_xml_register_event_cb(nullptr, "ams_edit_modal_close_cb", on_close_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_vendor_changed_cb", on_vendor_changed_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_material_changed_cb", on_material_changed_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_color_clicked_cb", on_color_clicked_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_remaining_changed_cb", on_remaining_changed_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_remaining_edit_cb", on_remaining_edit_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_remaining_accept_cb", on_remaining_accept_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_remaining_cancel_cb", on_remaining_cancel_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_sync_spoolman_cb", on_sync_spoolman_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_reset_cb", on_reset_cb);
+    lv_xml_register_event_cb(nullptr, "ams_edit_save_cb", on_save_cb);
+
+    callbacks_registered_ = true;
+    spdlog::debug("[AmsEditModal] Callbacks registered");
+}
+
+// ============================================================================
+// Static Callbacks (Instance Lookup via User Data)
+// ============================================================================
+
+AmsEditModal* AmsEditModal::get_instance_from_event(lv_event_t* e) {
+    auto* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
+
+    // Traverse parent chain to find modal root with user_data
+    lv_obj_t* obj = target;
+    while (obj) {
+        void* user_data = lv_obj_get_user_data(obj);
+        if (user_data) {
+            return static_cast<AmsEditModal*>(user_data);
+        }
+        obj = lv_obj_get_parent(obj);
+    }
+
+    spdlog::warn("[AmsEditModal] Could not find instance from event target");
+    return nullptr;
+}
+
+void AmsEditModal::on_close_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_close();
+    }
+}
+
+void AmsEditModal::on_vendor_changed_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
+        int index = lv_dropdown_get_selected(dropdown);
+        self->handle_vendor_changed(index);
+    }
+}
+
+void AmsEditModal::on_material_changed_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
+        int index = lv_dropdown_get_selected(dropdown);
+        self->handle_material_changed(index);
+    }
+}
+
+void AmsEditModal::on_color_clicked_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_color_clicked();
+    }
+}
+
+void AmsEditModal::on_remaining_changed_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(e));
+        int value = lv_slider_get_value(slider);
+        self->handle_remaining_changed(value);
+    }
+}
+
+void AmsEditModal::on_remaining_edit_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_remaining_edit();
+    }
+}
+
+void AmsEditModal::on_remaining_accept_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_remaining_accept();
+    }
+}
+
+void AmsEditModal::on_remaining_cancel_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_remaining_cancel();
+    }
+}
+
+void AmsEditModal::on_sync_spoolman_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_sync_spoolman();
+    }
+}
+
+void AmsEditModal::on_reset_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_reset();
+    }
+}
+
+void AmsEditModal::on_save_cb(lv_event_t* e) {
+    auto* self = get_instance_from_event(e);
+    if (self) {
+        self->handle_save();
+    }
+}
+
+} // namespace helix::ui

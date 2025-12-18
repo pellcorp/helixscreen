@@ -34,7 +34,7 @@
 
     <!-- LEFT: 3D Spool Canvas (48x48 fixed size) -->
     <spool_canvas name="spool_canvas"
-                  size="48"
+                  size="#button_height"
                   color="0x808080"
                   fill_level="0.5"/>
 

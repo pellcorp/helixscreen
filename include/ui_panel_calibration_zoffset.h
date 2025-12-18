@@ -87,6 +87,21 @@ class ZOffsetCalibrationPanel {
      */
     static void init_subjects();
 
+    // Static trampolines for XML event_cb (must be public for registration)
+    static void on_start_clicked(lv_event_t* e);
+    static void on_z_down_1(lv_event_t* e);
+    static void on_z_down_01(lv_event_t* e);
+    static void on_z_down_005(lv_event_t* e);
+    static void on_z_down_001(lv_event_t* e);
+    static void on_z_up_001(lv_event_t* e);
+    static void on_z_up_005(lv_event_t* e);
+    static void on_z_up_01(lv_event_t* e);
+    static void on_z_up_1(lv_event_t* e);
+    static void on_accept_clicked(lv_event_t* e);
+    static void on_abort_clicked(lv_event_t* e);
+    static void on_done_clicked(lv_event_t* e);
+    static void on_retry_clicked(lv_event_t* e);
+
   private:
     // State management
     State state_ = State::IDLE;
@@ -105,21 +120,6 @@ class ZOffsetCalibrationPanel {
     void handle_abort_clicked();
     void handle_done_clicked();
     void handle_retry_clicked();
-
-    // Static trampolines
-    static void on_start_clicked(lv_event_t* e);
-    static void on_z_down_1(lv_event_t* e);
-    static void on_z_down_01(lv_event_t* e);
-    static void on_z_down_005(lv_event_t* e);
-    static void on_z_down_001(lv_event_t* e);
-    static void on_z_up_001(lv_event_t* e);
-    static void on_z_up_005(lv_event_t* e);
-    static void on_z_up_01(lv_event_t* e);
-    static void on_z_up_1(lv_event_t* e);
-    static void on_accept_clicked(lv_event_t* e);
-    static void on_abort_clicked(lv_event_t* e);
-    static void on_done_clicked(lv_event_t* e);
-    static void on_retry_clicked(lv_event_t* e);
 
     // Widget references
     lv_obj_t* panel_ = nullptr;
@@ -154,3 +154,11 @@ ZOffsetCalibrationPanel& get_global_zoffset_cal_panel();
  * Registers "on_zoffset_row_clicked" callback.
  */
 void init_zoffset_row_handler();
+
+/**
+ * @brief Initialize event callbacks for the Z-Offset calibration panel
+ *
+ * Must be called during app initialization before XML creation.
+ * Registers all button click callbacks used by calibration_zoffset_panel.xml.
+ */
+void init_zoffset_event_callbacks();

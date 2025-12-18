@@ -184,6 +184,20 @@ class HistoryDashboardPanel : public PanelBase {
     // Subject for filter button state binding (0=Day, 1=Week, 2=Month, 3=Year, 4=All)
     lv_subject_t history_filter_subject_;
 
+    // String subjects for stat labels
+    lv_subject_t stat_total_prints_subject_;
+    lv_subject_t stat_print_time_subject_;
+    lv_subject_t stat_filament_subject_;
+    lv_subject_t stat_success_rate_subject_;
+    lv_subject_t trend_period_subject_;
+
+    // Static buffers for string subjects (required for lv_subject_init_string)
+    char stat_total_prints_buf_[32];
+    char stat_print_time_buf_[32];
+    char stat_filament_buf_[32];
+    char stat_success_rate_buf_[16];
+    char trend_period_buf_[32];
+
     //
     // === Data Fetching ===
     //

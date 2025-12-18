@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <unordered_map>
 
 // ============================================================================
@@ -278,14 +279,14 @@ static void on_delete(lv_event_t* e) {
     lv_obj_t* obj = lv_event_get_target_obj(e);
     auto it = s_registry.find(obj);
     if (it != s_registry.end()) {
-        AmsMiniStatusData* data = it->second;
+        std::unique_ptr<AmsMiniStatusData> data(it->second);
         if (data) {
             // Release observers before delete to prevent destructor from calling
             // lv_observer_remove() on potentially destroyed subjects during shutdown
             data->slot_count_observer.release();
             data->slots_version_observer.release();
         }
-        delete data;
+        // data automatically freed when unique_ptr goes out of scope
         s_registry.erase(it);
     }
 }
@@ -327,37 +328,38 @@ lv_obj_t* ui_ams_mini_status_create(lv_obj_t* parent, int32_t height) {
     lv_obj_center(container);
 
     // Create user data
-    auto* data = new AmsMiniStatusData();
-    data->height = height;
-    data->container = container;
+    auto data_ptr = std::make_unique<AmsMiniStatusData>();
+    data_ptr->height = height;
+    data_ptr->container = container;
 
     // Create bars container (holds the slot bars)
-    data->bars_container = lv_obj_create(container);
-    lv_obj_remove_flag(data->bars_container, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(data->bars_container, LV_OBJ_FLAG_EVENT_BUBBLE); // Pass clicks to parent
-    lv_obj_set_style_bg_opa(data->bars_container, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(data->bars_container, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(data->bars_container, 0, LV_PART_MAIN);
-    lv_obj_set_flex_flow(data->bars_container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(data->bars_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END,
+    data_ptr->bars_container = lv_obj_create(container);
+    lv_obj_remove_flag(data_ptr->bars_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(data_ptr->bars_container, LV_OBJ_FLAG_EVENT_BUBBLE); // Pass clicks to parent
+    lv_obj_set_style_bg_opa(data_ptr->bars_container, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(data_ptr->bars_container, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(data_ptr->bars_container, 0, LV_PART_MAIN);
+    lv_obj_set_flex_flow(data_ptr->bars_container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(data_ptr->bars_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(data->bars_container, ui_theme_get_spacing("space_xxs"),
+    lv_obj_set_style_pad_column(data_ptr->bars_container, ui_theme_get_spacing("space_xxs"),
                                 LV_PART_MAIN);
-    lv_obj_set_size(data->bars_container, LV_SIZE_CONTENT, height);
+    lv_obj_set_size(data_ptr->bars_container, LV_SIZE_CONTENT, height);
 
     // Create overflow label (hidden by default) - use responsive font
-    data->overflow_label = lv_label_create(container);
-    lv_obj_add_flag(data->overflow_label, LV_OBJ_FLAG_EVENT_BUBBLE); // Pass clicks to parent
-    lv_label_set_text(data->overflow_label, "+0");
-    lv_obj_set_style_text_color(data->overflow_label, ui_theme_get_color("text_secondary"),
+    data_ptr->overflow_label = lv_label_create(container);
+    lv_obj_add_flag(data_ptr->overflow_label, LV_OBJ_FLAG_EVENT_BUBBLE); // Pass clicks to parent
+    lv_label_set_text(data_ptr->overflow_label, "+0");
+    lv_obj_set_style_text_color(data_ptr->overflow_label, ui_theme_get_color("text_secondary"),
                                 LV_PART_MAIN);
     const char* font_xs_name = lv_xml_get_const(nullptr, "font_xs");
     const lv_font_t* font_xs =
         font_xs_name ? lv_xml_get_font(nullptr, font_xs_name) : &noto_sans_12;
-    lv_obj_set_style_text_font(data->overflow_label, font_xs, LV_PART_MAIN);
-    lv_obj_add_flag(data->overflow_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_text_font(data_ptr->overflow_label, font_xs, LV_PART_MAIN);
+    lv_obj_add_flag(data_ptr->overflow_label, LV_OBJ_FLAG_HIDDEN);
 
     // Register and set up cleanup
+    AmsMiniStatusData* data = data_ptr.release();
     s_registry[container] = data;
     lv_obj_add_event_cb(container, on_delete, LV_EVENT_DELETE, nullptr);
 

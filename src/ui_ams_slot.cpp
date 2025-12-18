@@ -21,6 +21,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cstring>
+#include <memory>
 #include <unordered_map>
 
 // ============================================================================
@@ -71,8 +72,14 @@ struct AmsSlotData {
     lv_obj_t* slot_badge = nullptr;      // Slot number label inside status badge
     lv_obj_t* container = nullptr;       // The ams_slot widget itself
 
-    // Material text buffer (for subject-driven updates if we add material subjects later)
+    // Subjects and buffers for declarative text binding
+    lv_subject_t material_subject;
     char material_buf[16] = {0};
+    lv_observer_t* material_observer = nullptr;
+
+    lv_subject_t slot_badge_subject;
+    char slot_badge_buf[8] = {0};
+    lv_observer_t* slot_badge_observer = nullptr;
 
     // Fill level for Spoolman integration (0.0 = empty, 1.0 = full)
     float fill_level = 1.0f;
@@ -105,15 +112,27 @@ static void register_slot_data(lv_obj_t* obj, AmsSlotData* data) {
 static void unregister_slot_data(lv_obj_t* obj) {
     auto it = s_slot_registry.find(obj);
     if (it != s_slot_registry.end()) {
-        AmsSlotData* data = it->second;
+        // Take ownership with unique_ptr for automatic cleanup
+        std::unique_ptr<AmsSlotData> data(it->second);
         if (data) {
-            // Release observers before delete to prevent destructors
+            // Remove bind_text observers BEFORE freeing subjects (DELETE event fires
+            // before children are deleted, so observers must be explicitly removed)
+            if (data->material_observer) {
+                lv_observer_remove(data->material_observer);
+                data->material_observer = nullptr;
+            }
+            if (data->slot_badge_observer) {
+                lv_observer_remove(data->slot_badge_observer);
+                data->slot_badge_observer = nullptr;
+            }
+
+            // Release ObserverGuard observers before delete to prevent destructors
             // from calling lv_observer_remove() on destroyed subjects
             data->color_observer.release();
             data->status_observer.release();
             data->current_slot_observer.release();
             data->filament_loaded_observer.release();
-            delete data;
+            // Subject buffers are struct members, freed when unique_ptr destructs
         }
         s_slot_registry.erase(it);
     }
@@ -420,7 +439,6 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
     // TODO: Convert ams_slot to XML component - styling should be declarative
     // ========================================================================
     lv_obj_t* material = lv_label_create(container);
-    lv_label_set_text(material, "--");
     const char* font_small_name = lv_xml_get_const(NULL, "font_small");
     const lv_font_t* font_small =
         font_small_name ? lv_xml_get_font(NULL, font_small_name) : &noto_sans_16;
@@ -430,6 +448,11 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
     lv_obj_add_flag(material, LV_OBJ_FLAG_CLICKABLE);    // Make label tappable
     lv_obj_add_flag(material, LV_OBJ_FLAG_EVENT_BUBBLE); // Propagate clicks to slot
     data->material_label = material;
+
+    // Initialize material subject and bind to label (save observer for cleanup)
+    lv_subject_init_string(&data->material_subject, data->material_buf, nullptr,
+                           sizeof(data->material_buf), "--");
+    data->material_observer = lv_label_bind_text(material, &data->material_subject, "%s");
 
     // ========================================================================
     // SPOOL VISUALIZATION (style-dependent: 3D canvas or flat rings)
@@ -567,7 +590,6 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
 
     // Slot number label inside badge (replaces status icon)
     lv_obj_t* slot_label = lv_label_create(status_badge);
-    lv_label_set_text(slot_label, "?");
     const char* font_xs_name = lv_xml_get_const(NULL, "font_xs");
     const lv_font_t* font_xs = font_xs_name ? lv_xml_get_font(NULL, font_xs_name) : &noto_sans_12;
     lv_obj_set_style_text_font(slot_label, font_xs, LV_PART_MAIN);
@@ -575,6 +597,11 @@ static void create_slot_children(lv_obj_t* container, AmsSlotData* data) {
     lv_obj_center(slot_label);
     lv_obj_add_flag(slot_label, LV_OBJ_FLAG_EVENT_BUBBLE); // Propagate clicks to slot
     data->slot_badge = slot_label;
+
+    // Initialize slot badge subject and bind to label (save observer for cleanup)
+    lv_subject_init_string(&data->slot_badge_subject, data->slot_badge_buf, nullptr,
+                           sizeof(data->slot_badge_buf), "?");
+    data->slot_badge_observer = lv_label_bind_text(slot_label, &data->slot_badge_subject, "%s");
 
     data->container = container;
 }
@@ -616,7 +643,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     if (data->slot_badge) {
         char badge_text[8];
         snprintf(badge_text, sizeof(badge_text), "%d", data->slot_index + 1);
-        lv_label_set_text(data->slot_badge, badge_text);
+        lv_subject_copy_string(&data->slot_badge_subject, badge_text);
     }
 
     // Trigger initial updates from current subject values
@@ -635,7 +662,7 @@ static void setup_slot_observers(AmsSlotData* data) {
     if (backend) {
         SlotInfo slot = backend->get_slot_info(data->slot_index);
         if (!slot.material.empty()) {
-            lv_label_set_text(data->material_label, slot.material.c_str());
+            lv_subject_copy_string(&data->material_subject, slot.material.c_str());
         }
     }
 
@@ -661,9 +688,10 @@ static void* ams_slot_xml_create(lv_xml_parser_state_t* state, const char** attr
     }
 
     // Allocate and register user data
-    auto* data = new AmsSlotData();
-    data->slot_index = -1; // Will be set by xml_apply when slot_index attr is parsed
-    register_slot_data(obj, data);
+    auto data_ptr = std::make_unique<AmsSlotData>();
+    data_ptr->slot_index = -1; // Will be set by xml_apply when slot_index attr is parsed
+    AmsSlotData* data = data_ptr.get();
+    register_slot_data(obj, data_ptr.release());
 
     // Register event handler for cleanup
     lv_obj_add_event_cb(obj, ams_slot_event_cb, LV_EVENT_DELETE, nullptr);
@@ -814,9 +842,9 @@ void ui_ams_slot_refresh(lv_obj_t* obj) {
     if (backend && data->material_label) {
         SlotInfo slot = backend->get_slot_info(data->slot_index);
         if (!slot.material.empty()) {
-            lv_label_set_text(data->material_label, slot.material.c_str());
+            lv_subject_copy_string(&data->material_subject, slot.material.c_str());
         } else {
-            lv_label_set_text(data->material_label, "--");
+            lv_subject_copy_string(&data->material_subject, "--");
         }
     }
 

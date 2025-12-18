@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 
 // ============================================================================
 // Global Instance
@@ -47,6 +48,21 @@ struct NetworkItemData {
     std::string ssid;
     bool is_secured;
 };
+
+/**
+ * @brief DELETE event handler for network list items
+ * Automatically frees NetworkItemData when widget is deleted
+ */
+static void network_item_delete_cb(lv_event_t* e) {
+    lv_obj_t* obj = lv_event_get_target_obj(e);
+    NetworkItemData* data = static_cast<NetworkItemData*>(lv_obj_get_user_data(obj));
+    if (data) {
+        // Use unique_ptr for RAII cleanup
+        std::unique_ptr<NetworkItemData> auto_delete(data);
+        lv_obj_set_user_data(obj, nullptr);
+        // data automatically freed when unique_ptr goes out of scope
+    }
+}
 
 // ============================================================================
 // Constructor / Destructor
@@ -583,6 +599,9 @@ void NetworkSettingsOverlay::populate_network_list(const std::vector<WiFiNetwork
         auto* data = new NetworkItemData{network.ssid, network.is_secured};
         lv_obj_set_user_data(item, data);
 
+        // Register DELETE handler for automatic cleanup
+        lv_obj_add_event_cb(item, network_item_delete_cb, LV_EVENT_DELETE, nullptr);
+
         spdlog::debug("[NetworkSettingsOverlay] Added network: {} ({}%, {})", network.ssid,
                       network.signal_strength, network.is_secured ? "secured" : "open");
     }
@@ -611,12 +630,7 @@ void NetworkSettingsOverlay::clear_network_list() {
 
         const char* name = lv_obj_get_name(child);
         if (name && strncmp(name, "network_item_", 13) == 0) {
-            // Delete user data
-            NetworkItemData* item_data = static_cast<NetworkItemData*>(lv_obj_get_user_data(child));
-            if (item_data) {
-                delete item_data;
-            }
-
+            // Delete widget - DELETE event handler will automatically clean up user_data
             lv_obj_delete(child);
         }
     }

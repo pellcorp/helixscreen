@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <unordered_map>
 
 // Geometry constants for Bambu-style 3D spool (SIDE VIEW)
@@ -318,12 +319,13 @@ static void spool_canvas_event_cb(lv_event_t* e) {
         lv_obj_t* obj = lv_event_get_target_obj(e);
         auto it = s_registry.find(obj);
         if (it != s_registry.end()) {
-            SpoolCanvasData* data = it->second;
+            std::unique_ptr<SpoolCanvasData> data(it->second);
             if (data && data->draw_buf) {
                 lv_draw_buf_destroy(data->draw_buf);
             }
-            delete data;
+            lv_obj_set_user_data(obj, nullptr);
             s_registry.erase(it);
+            // data automatically freed
         }
     }
 }
@@ -336,21 +338,24 @@ static void* spool_canvas_xml_create(lv_xml_parser_state_t* state, const char** 
     if (!canvas)
         return nullptr;
 
-    auto* data = new SpoolCanvasData();
-    data->canvas = canvas;
-    data->size = DEFAULT_SIZE;
-    data->color = lv_color_hex(DEFAULT_COLOR);
-    data->fill_level = 1.0f;
+    auto data_ptr = std::make_unique<SpoolCanvasData>();
+    data_ptr->canvas = canvas;
+    data_ptr->size = DEFAULT_SIZE;
+    data_ptr->color = lv_color_hex(DEFAULT_COLOR);
+    data_ptr->fill_level = 1.0f;
 
     // Create draw buffer
-    data->draw_buf = lv_draw_buf_create(data->size, data->size, LV_COLOR_FORMAT_ARGB8888, 0);
-    if (data->draw_buf) {
-        lv_canvas_set_draw_buf(canvas, data->draw_buf);
+    data_ptr->draw_buf =
+        lv_draw_buf_create(data_ptr->size, data_ptr->size, LV_COLOR_FORMAT_ARGB8888, 0);
+    if (data_ptr->draw_buf) {
+        lv_canvas_set_draw_buf(canvas, data_ptr->draw_buf);
     }
 
-    lv_obj_set_size(canvas, data->size, data->size);
-    s_registry[canvas] = data;
+    lv_obj_set_size(canvas, data_ptr->size, data_ptr->size);
+    s_registry[canvas] = data_ptr.get();
     lv_obj_add_event_cb(canvas, spool_canvas_event_cb, LV_EVENT_DELETE, nullptr);
+
+    SpoolCanvasData* data = data_ptr.release();
 
     redraw_spool(data);
 
@@ -433,26 +438,27 @@ lv_obj_t* ui_spool_canvas_create(lv_obj_t* parent, int32_t size) {
         return nullptr;
     }
 
-    auto* data = new SpoolCanvasData();
-    data->canvas = canvas;
-    data->size = size;
-    data->color = lv_color_hex(DEFAULT_COLOR);
-    data->fill_level = 1.0f;
+    auto data_ptr = std::make_unique<SpoolCanvasData>();
+    data_ptr->canvas = canvas;
+    data_ptr->size = size;
+    data_ptr->color = lv_color_hex(DEFAULT_COLOR);
+    data_ptr->fill_level = 1.0f;
 
     // Create draw buffer
-    data->draw_buf = lv_draw_buf_create(size, size, LV_COLOR_FORMAT_ARGB8888, 0);
-    if (data->draw_buf) {
-        lv_canvas_set_draw_buf(canvas, data->draw_buf);
+    data_ptr->draw_buf = lv_draw_buf_create(size, size, LV_COLOR_FORMAT_ARGB8888, 0);
+    if (data_ptr->draw_buf) {
+        lv_canvas_set_draw_buf(canvas, data_ptr->draw_buf);
     } else {
         spdlog::error("[SpoolCanvas] Failed to create draw buffer");
-        delete data;
         lv_obj_delete(canvas);
         return nullptr;
     }
 
     lv_obj_set_size(canvas, size, size);
-    s_registry[canvas] = data;
+    s_registry[canvas] = data_ptr.get();
     lv_obj_add_event_cb(canvas, spool_canvas_event_cb, LV_EVENT_DELETE, nullptr);
+
+    SpoolCanvasData* data = data_ptr.release();
 
     redraw_spool(data);
 

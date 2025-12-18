@@ -3,12 +3,18 @@
 
 #pragma once
 
+#include "ui_ams_color_picker.h"
+#include "ui_ams_context_menu.h"
+#include "ui_ams_dryer_card.h"
+#include "ui_ams_edit_modal.h"
+#include "ui_ams_spoolman_picker.h"
 #include "ui_observer_guard.h"
 #include "ui_panel_base.h"
 
 #include "ams_state.h"
-#include "ams_types.h"      // For SlotInfo
-#include "spoolman_types.h" // For SpoolInfo
+#include "ams_types.h" // For SlotInfo
+
+#include <memory>
 
 /**
  * @file ui_panel_ams.h
@@ -104,30 +110,12 @@ class AmsPanel : public PanelBase {
     lv_obj_t* label_widgets_[MAX_VISIBLE_SLOTS] = {nullptr}; ///< Separate label layer for z-order
     lv_obj_t* labels_layer_ = nullptr; ///< Container for labels (drawn on top of all spools)
 
-    // === Context Menu ===
+    // === Extracted UI Modules ===
 
-    lv_obj_t* context_menu_ = nullptr; ///< Active context menu (nullptr if hidden)
-    int context_menu_slot_ = -1;       ///< Slot index for active context menu
-
-    // === Spoolman Picker ===
-
-    lv_obj_t* spoolman_picker_ = nullptr;         ///< Spoolman spool picker modal
-    int picker_target_slot_ = -1;                 ///< Slot to assign selected spool to
-    std::vector<SpoolInfo> picker_spools_;        ///< Cached spools for lookup on selection
-    std::shared_ptr<bool> picker_callback_guard_; ///< RAII guard for async picker callbacks
-
-    // === Edit Modal ===
-
-    lv_obj_t* edit_modal_ = nullptr;      ///< Edit filament modal overlay
-    int edit_slot_index_ = -1;            ///< Slot being edited
-    SlotInfo edit_original_slot_info_{};  ///< Original slot info (for reset)
-    SlotInfo edit_slot_info_{};           ///< Working copy of slot info being edited
-    int edit_remaining_pre_edit_pct_ = 0; ///< Remaining % before edit mode (for cancel)
-
-    // === Color Picker ===
-
-    lv_obj_t* color_picker_ = nullptr;   ///< Color picker modal overlay
-    uint32_t picker_selected_color_ = 0; ///< Currently selected color in picker (RGB)
+    std::unique_ptr<helix::ui::AmsContextMenu> context_menu_;       ///< Slot context menu
+    std::unique_ptr<helix::ui::AmsSpoolmanPicker> spoolman_picker_; ///< Spoolman spool picker
+    std::unique_ptr<helix::ui::AmsEditModal> edit_modal_;           ///< Edit filament modal
+    std::unique_ptr<helix::ui::AmsDryerCard> dryer_card_;           ///< Dryer card and modal
 
     // === Observers (RAII cleanup via ObserverGuard) ===
 
@@ -137,7 +125,6 @@ class AmsPanel : public PanelBase {
     ObserverGuard slot_count_observer_;
     ObserverGuard path_segment_observer_;
     ObserverGuard path_topology_observer_;
-    ObserverGuard dryer_progress_observer_;
 
     // === Dynamic Slot State ===
 
@@ -148,18 +135,12 @@ class AmsPanel : public PanelBase {
 
     lv_obj_t* path_canvas_ = nullptr; ///< Filament path visualization widget
 
-    // === Dryer Card ===
-
-    lv_obj_t* dryer_progress_fill_ = nullptr; ///< Dryer progress bar fill element
-    lv_obj_t* dryer_modal_ = nullptr;         ///< Dryer presets modal overlay
-
     // === Setup Helpers ===
 
     void setup_system_header();
     void setup_slots();
     void setup_action_buttons();
     void setup_status_display();
-    void setup_dryer_card();
     void setup_path_canvas();
     void update_path_canvas_from_backend();
 
@@ -202,26 +183,15 @@ class AmsPanel : public PanelBase {
 
     static void on_path_slot_clicked(int slot_index, void* user_data);
 
-    // === Context Menu Callbacks (static trampolines) ===
-
-    static void on_context_backdrop_clicked(lv_event_t* e);
-    static void on_context_load_clicked(lv_event_t* e);
-    static void on_context_unload_clicked(lv_event_t* e);
-    static void on_context_edit_clicked(lv_event_t* e);
-
-    // === Context Menu Management ===
-
-    void show_context_menu(int slot_index, lv_obj_t* near_widget);
-
     // === Spoolman Integration ===
 
     void sync_spoolman_active_spool();
 
-    // === Spoolman Picker Management ===
+    // === UI Module Helpers (internal, show modals with callbacks) ===
 
+    void show_context_menu(int slot_index, lv_obj_t* near_widget);
     void show_spoolman_picker(int slot_index);
-    void hide_spoolman_picker();
-    void populate_spoolman_picker();
+    void show_edit_modal(int slot_index);
 
     // === Action Handlers (public for XML event callbacks) ===
   public:
@@ -229,55 +199,8 @@ class AmsPanel : public PanelBase {
     void handle_unload();
     void handle_reset();
     void handle_bypass_toggle();
-
-    // Dryer handlers
     void handle_dryer_preset(float temp_c, int duration_min, int fan_pct);
     void handle_dryer_stop();
-
-    // Context menu handlers (public for XML event callbacks)
-    void hide_context_menu();
-    void handle_context_load();
-    void handle_context_unload();
-    void handle_context_edit();
-    void handle_context_spoolman();
-
-    // Spoolman picker handlers (public for XML event callbacks)
-    void handle_picker_close();
-    void handle_picker_unlink();
-    void handle_picker_spool_selected(int spool_id);
-
-    // Edit modal handlers (public for XML event callbacks)
-    void handle_edit_modal_close();
-    void handle_edit_vendor_changed(int vendor_index);
-    void handle_edit_material_changed(int material_index);
-    void handle_edit_color_clicked();
-    void handle_edit_remaining_changed(int percent);
-    void handle_edit_remaining_edit();   ///< Enter edit mode for remaining weight
-    void handle_edit_remaining_accept(); ///< Accept edited remaining weight
-    void handle_edit_remaining_cancel(); ///< Cancel edit mode, revert to original
-    void handle_edit_sync_spoolman();
-    void handle_edit_reset();
-    void handle_edit_save();
-
-    // Color picker handlers (public for XML event callbacks)
-    void handle_color_picker_close();
-    void handle_color_swatch_clicked(lv_obj_t* swatch);
-    void handle_color_picker_cancel();
-    void handle_color_picker_select();
-
-  private:
-    // Edit modal helpers
-    void show_edit_modal(int slot_index);
-    void hide_edit_modal();
-    void update_edit_modal_ui();
-    void update_edit_temp_display();
-    bool is_edit_dirty() const;      ///< Check if edit data differs from original
-    void update_sync_button_state(); ///< Enable/disable sync button based on dirty state
-
-    // Color picker helpers
-    void show_color_picker();
-    void hide_color_picker();
-    void update_color_picker_selection(uint32_t color_rgb, bool from_hsv_picker = false);
 };
 
 /**

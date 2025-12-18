@@ -72,7 +72,8 @@ struct NetworkItemData {
     lv_subject_t* is_secured;
     lv_subject_t* signal_icon_state; // Combined state 1-8 for icon visibility binding
     char ssid_buffer[64];
-    WizardWifiStep* parent; // Back-reference for callbacks
+    WizardWifiStep* parent;                 // Back-reference for callbacks
+    lv_observer_t* ssid_observer = nullptr; // Track observer for cleanup
 
     NetworkItemData(const WiFiNetwork& net, WizardWifiStep* p) : network(net), parent(p) {
         ssid = new lv_subject_t();
@@ -315,10 +316,10 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
         // Create per-instance data with back-reference to this step
         NetworkItemData* item_data = new NetworkItemData(network, this);
 
-        // Bind SSID label
+        // Bind SSID label (save observer for cleanup)
         lv_obj_t* ssid_label = lv_obj_find_by_name(item, "ssid_label");
         if (ssid_label) {
-            lv_label_bind_text(ssid_label, item_data->ssid, nullptr);
+            item_data->ssid_observer = lv_label_bind_text(ssid_label, item_data->ssid, nullptr);
         }
 
         // Set security type text
@@ -369,6 +370,9 @@ void WizardWifiStep::populate_network_list(const std::vector<WiFiNetwork>& netwo
         // Store network data for click handler (callback registered via XML event_cb)
         lv_obj_set_user_data(item, item_data);
 
+        // Register DELETE handler for automatic cleanup when widget is deleted
+        lv_obj_add_event_cb(item, network_item_delete_cb, LV_EVENT_DELETE, nullptr);
+
         spdlog::debug("[{}] Added network: {} ({}%, {})", get_name(), network.ssid,
                       network.signal_strength, network.is_secured ? "secured" : "open");
     }
@@ -402,12 +406,8 @@ void WizardWifiStep::clear_network_list() {
         if (name && strncmp(name, "network_item_", 13) == 0) {
             spdlog::debug("[{}] Deleting network item: {}", get_name(), name);
 
-            NetworkItemData* item_data = static_cast<NetworkItemData*>(lv_obj_get_user_data(child));
+            // Delete the widget - the DELETE handler will automatically clean up NetworkItemData
             lv_obj_delete(child);
-
-            if (item_data) {
-                delete item_data;
-            }
         }
     }
 
@@ -417,6 +417,27 @@ void WizardWifiStep::clear_network_list() {
 // ============================================================================
 // Static Trampolines for LVGL Callbacks
 // ============================================================================
+
+void WizardWifiStep::network_item_delete_cb(lv_event_t* e) {
+    lv_obj_t* obj = static_cast<lv_obj_t*>(lv_event_get_target(e));
+    if (!obj)
+        return;
+
+    // Get data before cleanup
+    NetworkItemData* data = static_cast<NetworkItemData*>(lv_obj_get_user_data(obj));
+    if (!data)
+        return;
+
+    // Remove observer BEFORE freeing subjects (DELETE event fires before children deleted)
+    if (data->ssid_observer) {
+        lv_observer_remove(data->ssid_observer);
+        data->ssid_observer = nullptr;
+    }
+
+    // Clear user data and free
+    lv_obj_set_user_data(obj, nullptr);
+    delete data;
+}
 
 void WizardWifiStep::on_wifi_toggle_changed_static(lv_event_t* e) {
     // Use global accessor pattern (XML event_cb doesn't provide user_data)

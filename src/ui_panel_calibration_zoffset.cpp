@@ -67,77 +67,12 @@ void ZOffsetCalibrationPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen,
     }
 
     // State visibility is handled via XML subject bindings
+    // Event handlers are registered via init_zoffset_event_callbacks() before XML creation
 
-    // Find display elements
+    // Find display elements (for programmatic updates not covered by subject bindings)
     z_position_display_ = lv_obj_find_by_name(panel_, "z_position_display");
     final_offset_label_ = lv_obj_find_by_name(panel_, "final_offset_label");
     error_message_ = lv_obj_find_by_name(panel_, "error_message");
-
-    // Wire up button handlers
-    // Start button
-    lv_obj_t* btn_start = lv_obj_find_by_name(panel_, "btn_start");
-    if (btn_start) {
-        lv_obj_add_event_cb(btn_start, on_start_clicked, LV_EVENT_CLICKED, this);
-    }
-
-    // Abort buttons (in probing and adjusting states)
-    lv_obj_t* btn_abort_probing = lv_obj_find_by_name(panel_, "btn_abort_probing");
-    if (btn_abort_probing) {
-        lv_obj_add_event_cb(btn_abort_probing, on_abort_clicked, LV_EVENT_CLICKED, this);
-    }
-    lv_obj_t* btn_abort = lv_obj_find_by_name(panel_, "btn_abort");
-    if (btn_abort) {
-        lv_obj_add_event_cb(btn_abort, on_abort_clicked, LV_EVENT_CLICKED, this);
-    }
-
-    // Accept button
-    lv_obj_t* btn_accept = lv_obj_find_by_name(panel_, "btn_accept");
-    if (btn_accept) {
-        lv_obj_add_event_cb(btn_accept, on_accept_clicked, LV_EVENT_CLICKED, this);
-    }
-
-    // Done button
-    lv_obj_t* btn_done = lv_obj_find_by_name(panel_, "btn_done");
-    if (btn_done) {
-        lv_obj_add_event_cb(btn_done, on_done_clicked, LV_EVENT_CLICKED, this);
-    }
-
-    // Error state buttons
-    lv_obj_t* btn_close_error = lv_obj_find_by_name(panel_, "btn_close_error");
-    if (btn_close_error) {
-        lv_obj_add_event_cb(btn_close_error, on_done_clicked, LV_EVENT_CLICKED, this);
-    }
-    lv_obj_t* btn_retry = lv_obj_find_by_name(panel_, "btn_retry");
-    if (btn_retry) {
-        lv_obj_add_event_cb(btn_retry, on_retry_clicked, LV_EVENT_CLICKED, this);
-    }
-
-    // Z adjustment buttons
-    lv_obj_t* btn = nullptr;
-    btn = lv_obj_find_by_name(panel_, "btn_z_down_1");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_down_1, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_down_01");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_down_01, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_down_005");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_down_005, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_down_001");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_down_001, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_up_001");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_up_001, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_up_005");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_up_005, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_up_01");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_up_01, LV_EVENT_CLICKED, this);
-    btn = lv_obj_find_by_name(panel_, "btn_z_up_1");
-    if (btn)
-        lv_obj_add_event_cb(btn, on_z_up_1, LV_EVENT_CLICKED, this);
 
     // Set initial state
     set_state(State::IDLE);
@@ -327,106 +262,93 @@ void ZOffsetCalibrationPanel::on_calibration_result(bool success, const std::str
 // ============================================================================
 
 void ZOffsetCalibrationPanel::on_start_clicked(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_start_clicked");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_start_clicked();
+    get_global_zoffset_cal_panel().handle_start_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_down_1(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_down_1");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(-1.0f);
+    get_global_zoffset_cal_panel().handle_z_adjust(-1.0f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_down_01(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_down_01");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(-0.1f);
+    get_global_zoffset_cal_panel().handle_z_adjust(-0.1f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_down_005(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_down_005");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(-0.05f);
+    get_global_zoffset_cal_panel().handle_z_adjust(-0.05f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_down_001(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_down_001");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(-0.01f);
+    get_global_zoffset_cal_panel().handle_z_adjust(-0.01f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_up_001(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_up_001");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(0.01f);
+    get_global_zoffset_cal_panel().handle_z_adjust(0.01f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_up_005(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_up_005");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(0.05f);
+    get_global_zoffset_cal_panel().handle_z_adjust(0.05f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_up_01(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_up_01");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(0.1f);
+    get_global_zoffset_cal_panel().handle_z_adjust(0.1f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_z_up_1(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_z_up_1");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_z_adjust(1.0f);
+    get_global_zoffset_cal_panel().handle_z_adjust(1.0f);
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_accept_clicked(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_accept_clicked");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_accept_clicked();
+    get_global_zoffset_cal_panel().handle_accept_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_abort_clicked(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_abort_clicked");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_abort_clicked();
+    get_global_zoffset_cal_panel().handle_abort_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_done_clicked(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_done_clicked");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_done_clicked();
+    get_global_zoffset_cal_panel().handle_done_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void ZOffsetCalibrationPanel::on_retry_clicked(lv_event_t* e) {
+    (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[ZOffsetCal] on_retry_clicked");
-    auto* self = static_cast<ZOffsetCalibrationPanel*>(lv_event_get_user_data(e));
-    if (self)
-        self->handle_retry_clicked();
+    get_global_zoffset_cal_panel().handle_retry_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
@@ -495,6 +417,35 @@ ZOffsetCalibrationPanel& get_global_zoffset_cal_panel() {
 void init_zoffset_row_handler() {
     lv_xml_register_event_cb(nullptr, "on_zoffset_row_clicked", on_zoffset_row_clicked);
     spdlog::debug("[ZOffsetCal] Row click callback registered");
+}
+
+void init_zoffset_event_callbacks() {
+    // Register all button event callbacks used by calibration_zoffset_panel.xml
+    lv_xml_register_event_cb(nullptr, "on_zoffset_start_clicked",
+                             ZOffsetCalibrationPanel::on_start_clicked);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_abort_clicked",
+                             ZOffsetCalibrationPanel::on_abort_clicked);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_accept_clicked",
+                             ZOffsetCalibrationPanel::on_accept_clicked);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_done_clicked",
+                             ZOffsetCalibrationPanel::on_done_clicked);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_retry_clicked",
+                             ZOffsetCalibrationPanel::on_retry_clicked);
+
+    // Z adjustment buttons
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_down_1", ZOffsetCalibrationPanel::on_z_down_1);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_down_01",
+                             ZOffsetCalibrationPanel::on_z_down_01);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_down_005",
+                             ZOffsetCalibrationPanel::on_z_down_005);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_down_001",
+                             ZOffsetCalibrationPanel::on_z_down_001);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_up_001", ZOffsetCalibrationPanel::on_z_up_001);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_up_005", ZOffsetCalibrationPanel::on_z_up_005);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_up_01", ZOffsetCalibrationPanel::on_z_up_01);
+    lv_xml_register_event_cb(nullptr, "on_zoffset_z_up_1", ZOffsetCalibrationPanel::on_z_up_1);
+
+    spdlog::debug("[ZOffsetCal] Event callbacks registered");
 }
 
 /**

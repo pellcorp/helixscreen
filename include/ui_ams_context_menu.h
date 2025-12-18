@@ -1,0 +1,120 @@
+// Copyright 2025 HelixScreen
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include <functional>
+#include <lvgl.h>
+
+namespace helix::ui {
+
+/**
+ * @file ui_ams_context_menu.h
+ * @brief Context menu for AMS slot operations
+ *
+ * Displays a popup menu near a slot with options to load, unload,
+ * edit, or assign a Spoolman spool. Automatically positions itself
+ * relative to the target slot widget.
+ *
+ * ## Usage:
+ * @code
+ * helix::ui::AmsContextMenu menu;
+ * menu.set_action_callback([](MenuAction action, int slot_index) {
+ *     switch (action) {
+ *         case MenuAction::LOAD: // load filament...
+ *         case MenuAction::UNLOAD: // unload filament...
+ *         case MenuAction::EDIT: // show edit modal...
+ *         case MenuAction::SPOOLMAN: // show spoolman picker...
+ *     }
+ * });
+ * menu.show_near_widget(parent, slot_index, slot_widget);
+ * @endcode
+ */
+class AmsContextMenu {
+  public:
+    enum class MenuAction {
+        CANCELLED, ///< User dismissed menu without action
+        LOAD,      ///< Load filament from this slot
+        UNLOAD,    ///< Unload filament
+        EDIT,      ///< Edit slot properties
+        SPOOLMAN   ///< Assign Spoolman spool
+    };
+
+    using ActionCallback = std::function<void(MenuAction action, int slot_index)>;
+
+    AmsContextMenu();
+    ~AmsContextMenu();
+
+    // Non-copyable
+    AmsContextMenu(const AmsContextMenu&) = delete;
+    AmsContextMenu& operator=(const AmsContextMenu&) = delete;
+
+    // Movable
+    AmsContextMenu(AmsContextMenu&& other) noexcept;
+    AmsContextMenu& operator=(AmsContextMenu&& other) noexcept;
+
+    /**
+     * @brief Show context menu near a slot widget
+     * @param parent Parent screen for the menu
+     * @param slot_index Slot this menu is for (0-based)
+     * @param near_widget Widget to position menu near (typically slot widget)
+     * @return true if menu was shown successfully
+     */
+    bool show_near_widget(lv_obj_t* parent, int slot_index, lv_obj_t* near_widget);
+
+    /**
+     * @brief Hide the context menu
+     */
+    void hide();
+
+    /**
+     * @brief Check if menu is currently visible
+     */
+    [[nodiscard]] bool is_visible() const {
+        return menu_ != nullptr;
+    }
+
+    /**
+     * @brief Get slot index the menu is currently shown for
+     */
+    [[nodiscard]] int get_slot_index() const {
+        return slot_index_;
+    }
+
+    /**
+     * @brief Set callback for menu actions
+     */
+    void set_action_callback(ActionCallback callback);
+
+  private:
+    // === State ===
+    lv_obj_t* menu_ = nullptr;
+    lv_obj_t* parent_ = nullptr;
+    int slot_index_ = -1;
+    ActionCallback action_callback_;
+
+    // === Event Handlers ===
+    void handle_backdrop_clicked();
+    void handle_load();
+    void handle_unload();
+    void handle_edit();
+    void handle_spoolman();
+
+    // === Static Callback Registration ===
+    static void register_callbacks();
+    static bool callbacks_registered_;
+
+    // === Static Callbacks ===
+    static void on_backdrop_cb(lv_event_t* e);
+    static void on_load_cb(lv_event_t* e);
+    static void on_unload_cb(lv_event_t* e);
+    static void on_edit_cb(lv_event_t* e);
+    static void on_spoolman_cb(lv_event_t* e);
+
+    /**
+     * @brief Find menu instance from event target
+     */
+    static AmsContextMenu* get_instance_from_event(lv_event_t* e);
+};
+
+} // namespace helix::ui

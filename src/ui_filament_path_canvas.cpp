@@ -20,6 +20,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <unordered_map>
 
 // ============================================================================
@@ -1014,13 +1015,13 @@ static void filament_path_delete_cb(lv_event_t* e) {
     auto it = s_registry.find(obj);
     if (it != s_registry.end()) {
         // Stop any running animations before deleting
-        FilamentPathData* data = it->second;
+        std::unique_ptr<FilamentPathData> data(it->second);
         if (data) {
             lv_anim_delete(obj, segment_anim_cb);
             lv_anim_delete(obj, error_pulse_anim_cb);
         }
-        delete data;
         s_registry.erase(it);
+        // data automatically freed when unique_ptr goes out of scope
     }
 }
 
@@ -1036,8 +1037,9 @@ static void* filament_path_xml_create(lv_xml_parser_state_t* state, const char**
     if (!obj)
         return nullptr;
 
-    auto* data = new FilamentPathData();
-    s_registry[obj] = data;
+    auto data_ptr = std::make_unique<FilamentPathData>();
+    s_registry[obj] = data_ptr.get();
+    auto* data = data_ptr.release();
 
     // Load theme-aware colors, fonts, and sizes
     load_theme_colors(data);
@@ -1138,8 +1140,9 @@ lv_obj_t* ui_filament_path_canvas_create(lv_obj_t* parent) {
         return nullptr;
     }
 
-    auto* data = new FilamentPathData();
-    s_registry[obj] = data;
+    auto data_ptr = std::make_unique<FilamentPathData>();
+    s_registry[obj] = data_ptr.get();
+    auto* data = data_ptr.release();
 
     // Load theme-aware colors, fonts, and sizes
     load_theme_colors(data);

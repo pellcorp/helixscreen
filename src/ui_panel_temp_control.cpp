@@ -32,7 +32,7 @@ TempControlPanel::TempControlPanel(PrinterState& printer_state, MoonrakerAPI* ap
     nozzle_config_ = {.type = HEATER_NOZZLE,
                       .name = "Nozzle",
                       .title = "Nozzle Temperature",
-                      .color = lv_color_hex(0xFF4444),
+                      .color = ui_theme_get_color("heating_color"),
                       .temp_range_max = 320.0f,
                       .y_axis_increment = 80,
                       .presets = {0, 210, 240, 250},
@@ -41,7 +41,7 @@ TempControlPanel::TempControlPanel(PrinterState& printer_state, MoonrakerAPI* ap
     bed_config_ = {.type = HEATER_BED,
                    .name = "Bed",
                    .title = "Heatbed Temperature",
-                   .color = lv_color_hex(0x00CED1),
+                   .color = ui_theme_get_color("cooling_color"),
                    .temp_range_max = 140.0f,
                    .y_axis_increment = 35,
                    .presets = {0, 60, 80, 100},
@@ -373,7 +373,7 @@ ui_temp_graph_t* TempControlPanel::create_temp_graph(lv_obj_t* chart_area,
     return graph;
 }
 
-void TempControlPanel::nozzle_confirm_cb(lv_event_t* e) {
+void TempControlPanel::on_nozzle_confirm_clicked(lv_event_t* e) {
     auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
     if (!self)
         return;
@@ -405,10 +405,10 @@ void TempControlPanel::nozzle_confirm_cb(lv_event_t* e) {
     ui_nav_go_back();
 }
 
-void TempControlPanel::bed_confirm_cb(lv_event_t* e) {
+void TempControlPanel::on_bed_confirm_clicked(lv_event_t* e) {
     auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
     if (!self) {
-        spdlog::error("[TempPanel] bed_confirm_cb: self is null!");
+        spdlog::error("[TempPanel] on_bed_confirm_clicked: self is null!");
         return;
     }
 
@@ -442,28 +442,86 @@ void TempControlPanel::bed_confirm_cb(lv_event_t* e) {
     ui_nav_go_back();
 }
 
-// Struct to pass context to preset button callback
-struct PresetCallbackData {
-    TempControlPanel* panel;
-    heater_type_t type;
-    int temp;
-};
-
-void TempControlPanel::preset_button_cb(lv_event_t* e) {
-    auto* data = static_cast<PresetCallbackData*>(lv_event_get_user_data(e));
-    if (!data || !data->panel)
+// Nozzle preset button callbacks
+void TempControlPanel::on_nozzle_preset_off_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
         return;
+    self->nozzle_pending_ = self->nozzle_config_.presets.off;
+    self->update_nozzle_display();
+    spdlog::debug("[TempPanel] Nozzle pending selection: {}°C (not sent yet)",
+                  self->nozzle_config_.presets.off);
+}
 
-    if (data->type == HEATER_NOZZLE) {
-        data->panel->nozzle_pending_ = data->temp;
-        data->panel->update_nozzle_display();
-    } else {
-        data->panel->bed_pending_ = data->temp;
-        data->panel->update_bed_display();
-    }
+void TempControlPanel::on_nozzle_preset_pla_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->nozzle_pending_ = self->nozzle_config_.presets.pla;
+    self->update_nozzle_display();
+    spdlog::debug("[TempPanel] Nozzle pending selection: {}°C (not sent yet)",
+                  self->nozzle_config_.presets.pla);
+}
 
-    spdlog::debug("[TempPanel] {} pending selection: {}°C (not sent yet)",
-                  data->type == HEATER_NOZZLE ? "Nozzle" : "Bed", data->temp);
+void TempControlPanel::on_nozzle_preset_petg_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->nozzle_pending_ = self->nozzle_config_.presets.petg;
+    self->update_nozzle_display();
+    spdlog::debug("[TempPanel] Nozzle pending selection: {}°C (not sent yet)",
+                  self->nozzle_config_.presets.petg);
+}
+
+void TempControlPanel::on_nozzle_preset_abs_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->nozzle_pending_ = self->nozzle_config_.presets.abs;
+    self->update_nozzle_display();
+    spdlog::debug("[TempPanel] Nozzle pending selection: {}°C (not sent yet)",
+                  self->nozzle_config_.presets.abs);
+}
+
+// Bed preset button callbacks
+void TempControlPanel::on_bed_preset_off_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->bed_pending_ = self->bed_config_.presets.off;
+    self->update_bed_display();
+    spdlog::debug("[TempPanel] Bed pending selection: {}°C (not sent yet)",
+                  self->bed_config_.presets.off);
+}
+
+void TempControlPanel::on_bed_preset_pla_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->bed_pending_ = self->bed_config_.presets.pla;
+    self->update_bed_display();
+    spdlog::debug("[TempPanel] Bed pending selection: {}°C (not sent yet)",
+                  self->bed_config_.presets.pla);
+}
+
+void TempControlPanel::on_bed_preset_petg_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->bed_pending_ = self->bed_config_.presets.petg;
+    self->update_bed_display();
+    spdlog::debug("[TempPanel] Bed pending selection: {}°C (not sent yet)",
+                  self->bed_config_.presets.petg);
+}
+
+void TempControlPanel::on_bed_preset_abs_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
+    self->bed_pending_ = self->bed_config_.presets.abs;
+    self->update_bed_display();
+    spdlog::debug("[TempPanel] Bed pending selection: {}°C (not sent yet)",
+                  self->bed_config_.presets.abs);
 }
 
 // Struct for keypad callback
@@ -490,77 +548,61 @@ void TempControlPanel::keypad_value_cb(float value, void* user_data) {
                   data->type == HEATER_NOZZLE ? "Nozzle" : "Bed", temp);
 }
 
-void TempControlPanel::custom_button_cb(lv_event_t* e) {
-    auto* data = static_cast<KeypadCallbackData*>(lv_event_get_user_data(e));
-    if (!data || !data->panel)
+// Static storage for keypad callback data (needed because LVGL holds raw pointers)
+static KeypadCallbackData nozzle_keypad_data;
+static KeypadCallbackData bed_keypad_data;
+
+void TempControlPanel::on_nozzle_custom_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
         return;
 
-    const heater_config_t& config =
-        (data->type == HEATER_NOZZLE) ? data->panel->nozzle_config_ : data->panel->bed_config_;
+    nozzle_keypad_data = {self, HEATER_NOZZLE};
 
-    int current_target =
-        (data->type == HEATER_NOZZLE) ? data->panel->nozzle_target_ : data->panel->bed_target_;
-
-    ui_keypad_config_t keypad_config = {
-        .initial_value = static_cast<float>(current_target),
-        .min_value = config.keypad_range.min,
-        .max_value = config.keypad_range.max,
-        .title_label = (data->type == HEATER_NOZZLE) ? "Nozzle Temp" : "Heat Bed Temp",
-        .unit_label = "°C",
-        .allow_decimal = false,
-        .allow_negative = false,
-        .callback = keypad_value_cb,
-        .user_data = data};
+    ui_keypad_config_t keypad_config = {.initial_value = static_cast<float>(self->nozzle_target_),
+                                        .min_value = self->nozzle_config_.keypad_range.min,
+                                        .max_value = self->nozzle_config_.keypad_range.max,
+                                        .title_label = "Nozzle Temp",
+                                        .unit_label = "°C",
+                                        .allow_decimal = false,
+                                        .allow_negative = false,
+                                        .callback = keypad_value_cb,
+                                        .user_data = &nozzle_keypad_data};
 
     ui_keypad_show(&keypad_config);
 }
 
-// Static storage for callback data (needed because LVGL holds raw pointers)
-// These persist for the lifetime of the application
-static PresetCallbackData nozzle_preset_data[4];
-static PresetCallbackData bed_preset_data[4];
-static KeypadCallbackData nozzle_keypad_data;
-static KeypadCallbackData bed_keypad_data;
+void TempControlPanel::on_bed_custom_clicked(lv_event_t* e) {
+    auto* self = static_cast<TempControlPanel*>(lv_event_get_user_data(e));
+    if (!self)
+        return;
 
-void TempControlPanel::setup_preset_buttons(lv_obj_t* panel, heater_type_t type) {
-    const char* preset_names[] = {"preset_off", "preset_pla", "preset_petg", "preset_abs"};
-    const heater_config_t& config = (type == HEATER_NOZZLE) ? nozzle_config_ : bed_config_;
-    PresetCallbackData* preset_data =
-        (type == HEATER_NOZZLE) ? nozzle_preset_data : bed_preset_data;
+    bed_keypad_data = {self, HEATER_BED};
 
-    int presets[] = {config.presets.off, config.presets.pla, config.presets.petg,
-                     config.presets.abs};
+    ui_keypad_config_t keypad_config = {.initial_value = static_cast<float>(self->bed_target_),
+                                        .min_value = self->bed_config_.keypad_range.min,
+                                        .max_value = self->bed_config_.keypad_range.max,
+                                        .title_label = "Heat Bed Temp",
+                                        .unit_label = "°C",
+                                        .allow_decimal = false,
+                                        .allow_negative = false,
+                                        .callback = keypad_value_cb,
+                                        .user_data = &bed_keypad_data};
 
-    for (int i = 0; i < 4; i++) {
-        lv_obj_t* btn = lv_obj_find_by_name(panel, preset_names[i]);
-        if (btn) {
-            preset_data[i] = {this, type, presets[i]};
-            lv_obj_add_event_cb(btn, preset_button_cb, LV_EVENT_CLICKED, &preset_data[i]);
-        }
-    }
-}
-
-void TempControlPanel::setup_custom_button(lv_obj_t* panel, heater_type_t type) {
-    lv_obj_t* btn = lv_obj_find_by_name(panel, "btn_custom");
-    if (btn) {
-        KeypadCallbackData* data = (type == HEATER_NOZZLE) ? &nozzle_keypad_data : &bed_keypad_data;
-        *data = {this, type};
-        lv_obj_add_event_cb(btn, custom_button_cb, LV_EVENT_CLICKED, data);
-    }
-}
-
-void TempControlPanel::setup_confirm_button(lv_obj_t* header, heater_type_t type) {
-    lv_obj_t* action_button = lv_obj_find_by_name(header, "action_button");
-    if (action_button) {
-        lv_event_cb_t cb = (type == HEATER_NOZZLE) ? nozzle_confirm_cb : bed_confirm_cb;
-        lv_obj_add_event_cb(action_button, cb, LV_EVENT_CLICKED, this);
-        spdlog::debug("[TempPanel] {} confirm button wired",
-                      type == HEATER_NOZZLE ? "Nozzle" : "Bed");
-    }
+    ui_keypad_show(&keypad_config);
 }
 
 void TempControlPanel::setup_nozzle_panel(lv_obj_t* panel, lv_obj_t* parent_screen) {
     nozzle_panel_ = panel;
+
+    // Register XML event callbacks BEFORE creating XML components
+    lv_xml_register_event_cb(nullptr, "on_nozzle_confirm_clicked", on_nozzle_confirm_clicked);
+    lv_xml_register_event_cb(nullptr, "on_nozzle_preset_off_clicked", on_nozzle_preset_off_clicked);
+    lv_xml_register_event_cb(nullptr, "on_nozzle_preset_pla_clicked", on_nozzle_preset_pla_clicked);
+    lv_xml_register_event_cb(nullptr, "on_nozzle_preset_petg_clicked",
+                             on_nozzle_preset_petg_clicked);
+    lv_xml_register_event_cb(nullptr, "on_nozzle_preset_abs_clicked", on_nozzle_preset_abs_clicked);
+    lv_xml_register_event_cb(nullptr, "on_nozzle_custom_clicked", on_nozzle_custom_clicked);
 
     // Read current values from PrinterState (observers only fire on changes, not initial state)
     nozzle_current_ = lv_subject_get_int(printer_state_.get_extruder_temp_subject());
@@ -579,6 +621,32 @@ void TempControlPanel::setup_nozzle_panel(lv_obj_t* panel, lv_obj_t* parent_scre
         spdlog::error("[TempPanel] Nozzle: overlay_content not found!");
         return;
     }
+
+    // Set user_data on all buttons for event callbacks
+    lv_obj_t* overlay_header = lv_obj_find_by_name(panel, "overlay_header");
+    if (overlay_header) {
+        lv_obj_t* action_button = lv_obj_find_by_name(overlay_header, "action_button");
+        if (action_button) {
+            lv_obj_set_user_data(action_button, this);
+        }
+    }
+
+    lv_obj_t* preset_off = lv_obj_find_by_name(overlay_content, "preset_off");
+    lv_obj_t* preset_pla = lv_obj_find_by_name(overlay_content, "preset_pla");
+    lv_obj_t* preset_petg = lv_obj_find_by_name(overlay_content, "preset_petg");
+    lv_obj_t* preset_abs = lv_obj_find_by_name(overlay_content, "preset_abs");
+    lv_obj_t* btn_custom = lv_obj_find_by_name(overlay_content, "btn_custom");
+
+    if (preset_off)
+        lv_obj_set_user_data(preset_off, this);
+    if (preset_pla)
+        lv_obj_set_user_data(preset_pla, this);
+    if (preset_petg)
+        lv_obj_set_user_data(preset_petg, this);
+    if (preset_abs)
+        lv_obj_set_user_data(preset_abs, this);
+    if (btn_custom)
+        lv_obj_set_user_data(btn_custom, this);
 
     // Load theme-aware graph color
     lv_xml_component_scope_t* scope = lv_xml_component_get_scope("nozzle_temp_panel");
@@ -611,16 +679,6 @@ void TempControlPanel::setup_nozzle_panel(lv_obj_t* panel, lv_obj_t* parent_scre
     // Replay buffered temperature history to graph (shows data from app start)
     replay_nozzle_history_to_graph();
 
-    // Wire up confirm button
-    lv_obj_t* header = lv_obj_find_by_name(panel, "overlay_header");
-    if (header) {
-        setup_confirm_button(header, HEATER_NOZZLE);
-    }
-
-    // Wire up preset and custom buttons
-    setup_preset_buttons(overlay_content, HEATER_NOZZLE);
-    setup_custom_button(overlay_content, HEATER_NOZZLE);
-
     // Attach heating icon animator (simplified to single icon, color controlled programmatically)
     lv_obj_t* heater_icon = lv_obj_find_by_name(panel, "heater_icon");
     if (heater_icon) {
@@ -635,6 +693,14 @@ void TempControlPanel::setup_nozzle_panel(lv_obj_t* panel, lv_obj_t* parent_scre
 
 void TempControlPanel::setup_bed_panel(lv_obj_t* panel, lv_obj_t* parent_screen) {
     bed_panel_ = panel;
+
+    // Register XML event callbacks BEFORE creating XML components
+    lv_xml_register_event_cb(nullptr, "on_bed_confirm_clicked", on_bed_confirm_clicked);
+    lv_xml_register_event_cb(nullptr, "on_bed_preset_off_clicked", on_bed_preset_off_clicked);
+    lv_xml_register_event_cb(nullptr, "on_bed_preset_pla_clicked", on_bed_preset_pla_clicked);
+    lv_xml_register_event_cb(nullptr, "on_bed_preset_petg_clicked", on_bed_preset_petg_clicked);
+    lv_xml_register_event_cb(nullptr, "on_bed_preset_abs_clicked", on_bed_preset_abs_clicked);
+    lv_xml_register_event_cb(nullptr, "on_bed_custom_clicked", on_bed_custom_clicked);
 
     // Read current values from PrinterState (observers only fire on changes, not initial state)
     bed_current_ = lv_subject_get_int(printer_state_.get_bed_temp_subject());
@@ -653,6 +719,32 @@ void TempControlPanel::setup_bed_panel(lv_obj_t* panel, lv_obj_t* parent_screen)
         spdlog::error("[TempPanel] Bed: overlay_content not found!");
         return;
     }
+
+    // Set user_data on all buttons for event callbacks
+    lv_obj_t* overlay_header = lv_obj_find_by_name(panel, "overlay_header");
+    if (overlay_header) {
+        lv_obj_t* action_button = lv_obj_find_by_name(overlay_header, "action_button");
+        if (action_button) {
+            lv_obj_set_user_data(action_button, this);
+        }
+    }
+
+    lv_obj_t* preset_off = lv_obj_find_by_name(overlay_content, "preset_off");
+    lv_obj_t* preset_pla = lv_obj_find_by_name(overlay_content, "preset_pla");
+    lv_obj_t* preset_petg = lv_obj_find_by_name(overlay_content, "preset_petg");
+    lv_obj_t* preset_abs = lv_obj_find_by_name(overlay_content, "preset_abs");
+    lv_obj_t* btn_custom = lv_obj_find_by_name(overlay_content, "btn_custom");
+
+    if (preset_off)
+        lv_obj_set_user_data(preset_off, this);
+    if (preset_pla)
+        lv_obj_set_user_data(preset_pla, this);
+    if (preset_petg)
+        lv_obj_set_user_data(preset_petg, this);
+    if (preset_abs)
+        lv_obj_set_user_data(preset_abs, this);
+    if (btn_custom)
+        lv_obj_set_user_data(btn_custom, this);
 
     // Load theme-aware graph color
     lv_xml_component_scope_t* scope = lv_xml_component_get_scope("bed_temp_panel");
@@ -683,16 +775,6 @@ void TempControlPanel::setup_bed_panel(lv_obj_t* panel, lv_obj_t* parent_screen)
 
     // Replay buffered temperature history to graph (shows data from app start)
     replay_bed_history_to_graph();
-
-    // Wire up confirm button
-    lv_obj_t* header = lv_obj_find_by_name(panel, "overlay_header");
-    if (header) {
-        setup_confirm_button(header, HEATER_BED);
-    }
-
-    // Wire up preset and custom buttons
-    setup_preset_buttons(overlay_content, HEATER_BED);
-    setup_custom_button(overlay_content, HEATER_BED);
 
     // Attach heating icon animator to the bed icon container
     // The bed uses composite icons (heat_wave + train_flatbed), we animate the container

@@ -7,11 +7,11 @@
   <!-- See ui_wizard.cpp::ui_wizard_container_register_responsive_constants() -->
   <consts>
     <!-- Layout dimensions (RESPONSIVE: SMALL=4/MEDIUM=6/LARGE=8) -->
-    <const name="list_item_padding" value="8"/>
+    <const name="list_item_padding" value="#space_md"/>
     <!-- Layout dimensions (RESPONSIVE: inherits from globals padding_normal/gap_normal) -->
-    <const name="wizard_padding" value="20"/>
+    <const name="wizard_padding" value="#space_xl"/>
     <!-- SMALL=12/MEDIUM=16/LARGE=20 -->
-    <const name="wizard_gap" value="12"/>
+    <const name="wizard_gap" value="#space_lg"/>
     <!-- SMALL=8/MEDIUM=10/LARGE=12 -->
     <!-- Layout dimensions (RESPONSIVE: scales with screen size) -->
     <const name="wizard_header_height" value="48"/>

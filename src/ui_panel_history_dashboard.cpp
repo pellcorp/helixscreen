@@ -83,6 +83,27 @@ void HistoryDashboardPanel::init_subjects() {
     lv_subject_init_int(&history_filter_subject_, 4); // Default to ALL_TIME
     lv_xml_register_subject(nullptr, "history_filter", &history_filter_subject_);
 
+    // Initialize string subjects for stat labels
+    lv_subject_init_string(&stat_total_prints_subject_, stat_total_prints_buf_, nullptr,
+                           sizeof(stat_total_prints_buf_), "0");
+    lv_xml_register_subject(nullptr, "stat_total_prints", &stat_total_prints_subject_);
+
+    lv_subject_init_string(&stat_print_time_subject_, stat_print_time_buf_, nullptr,
+                           sizeof(stat_print_time_buf_), "0h");
+    lv_xml_register_subject(nullptr, "stat_print_time", &stat_print_time_subject_);
+
+    lv_subject_init_string(&stat_filament_subject_, stat_filament_buf_, nullptr,
+                           sizeof(stat_filament_buf_), "0m");
+    lv_xml_register_subject(nullptr, "stat_filament", &stat_filament_subject_);
+
+    lv_subject_init_string(&stat_success_rate_subject_, stat_success_rate_buf_, nullptr,
+                           sizeof(stat_success_rate_buf_), "0%");
+    lv_xml_register_subject(nullptr, "stat_success_rate", &stat_success_rate_subject_);
+
+    lv_subject_init_string(&trend_period_subject_, trend_period_buf_, nullptr,
+                           sizeof(trend_period_buf_), "Last 7 days");
+    lv_xml_register_subject(nullptr, "trend_period", &trend_period_subject_);
+
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
 }
@@ -254,15 +275,11 @@ void HistoryDashboardPanel::update_statistics(const std::vector<PrintHistoryJob>
     lv_subject_set_int(&history_has_jobs_subject_, jobs.empty() ? 0 : 1);
 
     if (jobs.empty()) {
-        // Clear stats labels (bindings hide the containers, but labels keep old values)
-        if (stat_total_prints_)
-            lv_label_set_text(stat_total_prints_, "0");
-        if (stat_print_time_)
-            lv_label_set_text(stat_print_time_, "0h");
-        if (stat_filament_)
-            lv_label_set_text(stat_filament_, "0m");
-        if (stat_success_rate_)
-            lv_label_set_text(stat_success_rate_, "0%");
+        // Clear stats via subjects (bindings will update UI automatically)
+        lv_subject_copy_string(&stat_total_prints_subject_, "0");
+        lv_subject_copy_string(&stat_print_time_subject_, "0h");
+        lv_subject_copy_string(&stat_filament_subject_, "0m");
+        lv_subject_copy_string(&stat_success_rate_subject_, "0%");
         return;
     }
 
@@ -288,25 +305,19 @@ void HistoryDashboardPanel::update_statistics(const std::vector<PrintHistoryJob>
             (static_cast<double>(completed_count) / static_cast<double>(total_prints)) * 100.0;
     }
 
-    // Update stat labels
-    if (stat_total_prints_) {
-        lv_label_set_text_fmt(stat_total_prints_, "%llu",
-                              static_cast<unsigned long long>(total_prints));
-    }
+    // Update stat subjects (bindings will update UI automatically)
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%llu", static_cast<unsigned long long>(total_prints));
+    lv_subject_copy_string(&stat_total_prints_subject_, buf);
 
-    if (stat_print_time_) {
-        std::string time_str = format_duration(total_time);
-        lv_label_set_text(stat_print_time_, time_str.c_str());
-    }
+    std::string time_str = format_duration(total_time);
+    lv_subject_copy_string(&stat_print_time_subject_, time_str.c_str());
 
-    if (stat_filament_) {
-        std::string filament_str = format_filament(total_filament);
-        lv_label_set_text(stat_filament_, filament_str.c_str());
-    }
+    std::string filament_str = format_filament(total_filament);
+    lv_subject_copy_string(&stat_filament_subject_, filament_str.c_str());
 
-    if (stat_success_rate_) {
-        lv_label_set_text_fmt(stat_success_rate_, "%.0f%%", success_rate);
-    }
+    snprintf(buf, sizeof(buf), "%.0f%%", success_rate);
+    lv_subject_copy_string(&stat_success_rate_subject_, buf);
 
     // Update charts
     update_trend_chart(jobs);
@@ -474,28 +485,26 @@ void HistoryDashboardPanel::update_trend_chart(const std::vector<PrintHistoryJob
     double period_seconds = get_trend_period_seconds();
     double now = static_cast<double>(std::time(nullptr));
 
-    // Update period label text
-    if (trend_period_label_) {
-        const char* period_text = "Last 7 days";
-        switch (current_filter_) {
-        case HistoryTimeFilter::DAY:
-            period_text = "Last 24 hours";
-            break;
-        case HistoryTimeFilter::WEEK:
-            period_text = "Last 7 days";
-            break;
-        case HistoryTimeFilter::MONTH:
-            period_text = "Last 30 days";
-            break;
-        case HistoryTimeFilter::YEAR:
-            period_text = "Last 12 months";
-            break;
-        case HistoryTimeFilter::ALL_TIME:
-            period_text = "All time";
-            break;
-        }
-        lv_label_set_text(trend_period_label_, period_text);
+    // Update period label text via subject (binding will update UI automatically)
+    const char* period_text = "Last 7 days";
+    switch (current_filter_) {
+    case HistoryTimeFilter::DAY:
+        period_text = "Last 24 hours";
+        break;
+    case HistoryTimeFilter::WEEK:
+        period_text = "Last 7 days";
+        break;
+    case HistoryTimeFilter::MONTH:
+        period_text = "Last 30 days";
+        break;
+    case HistoryTimeFilter::YEAR:
+        period_text = "Last 12 months";
+        break;
+    case HistoryTimeFilter::ALL_TIME:
+        period_text = "All time";
+        break;
     }
+    lv_subject_copy_string(&trend_period_subject_, period_text);
 
     // Count prints per period bucket
     std::vector<int> counts(static_cast<size_t>(period_count), 0);
