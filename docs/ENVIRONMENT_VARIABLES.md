@@ -7,7 +7,7 @@ This document provides a comprehensive reference for all environment variables u
 | Category | Count | Prefix |
 |----------|-------|--------|
 | [Display & Backend](#display--backend-configuration) | 7 | `HELIX_` |
-| [G-Code Viewer](#g-code-viewer) | 2 | `HELIX_` |
+| [G-Code Viewer](#g-code-viewer) | 3 | `HELIX_` |
 | [Bed Mesh](#bed-mesh) | 1 | `HELIX_` |
 | [Mock & Testing](#mock--testing) | 9 | `HELIX_MOCK_*` |
 | [UI Automation](#ui-automation) | 3 | `HELIX_AUTO_*` |
@@ -156,6 +156,45 @@ HELIX_FORCE_GCODE_MEMORY_FAIL=1 ./build/bin/helix-screen --test -p print-status 
 ```
 
 **Use case:** Testing that the thumbnail displays immediately when G-code rendering is unavailable, without needing to deploy to memory-constrained hardware.
+
+### `HELIX_GCODE_STREAMING`
+
+Control G-code streaming mode for memory-efficient loading of large files. Streaming loads layers on-demand instead of the entire file at once, enabling 10MB+ G-code files on memory-constrained devices like AD5M.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `on` (always stream), `off` (always full load), `auto` (calculate based on RAM) |
+| **Default** | `auto` |
+| **Config** | `gcode_viewer.streaming_mode` in `helixconfig.json` |
+| **File** | `src/gcode_streaming_config.cpp` |
+
+**Priority order:**
+1. Environment variable (highest) - for testing/debugging
+2. Config file setting - for user preference
+3. Auto-detection based on available RAM
+
+```bash
+# Force streaming mode (useful for testing streaming behavior)
+HELIX_GCODE_STREAMING=on ./build/bin/helix-screen --test -p print-status -vv
+
+# Force full load mode (may crash on large files with low RAM!)
+HELIX_GCODE_STREAMING=off ./build/bin/helix-screen --test --gcode-file large.gcode -vv
+
+# Use auto-detection (default)
+HELIX_GCODE_STREAMING=auto ./build/bin/helix-screen --test -p print-status -vv
+```
+
+**Auto-detection thresholds** (at 40% RAM threshold, 15x expansion factor):
+| Available RAM | Streaming kicks in at |
+|---------------|----------------------|
+| 47 MB (AD5M)  | ~1.25 MB |
+| 256 MB        | ~6.8 MB |
+| 1 GB          | ~27 MB |
+| 4 GB          | ~107 MB |
+
+**Related config options:**
+- `gcode_viewer.streaming_mode`: `"auto"`, `"on"`, or `"off"`
+- `gcode_viewer.streaming_threshold_percent`: 1-90 (default 40)
 
 ---
 
