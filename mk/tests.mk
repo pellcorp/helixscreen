@@ -573,10 +573,66 @@ clean-tinygl-tests:
 	$(ECHO) "$(GREEN)✓ TinyGL test artifacts cleaned$(RESET)"
 
 # ============================================================================
+# Sanitizer Targets (Memory Safety Testing)
+# ============================================================================
+# These targets rebuild the test binary with sanitizers enabled for detecting:
+# - ASAN: Memory leaks, use-after-free, buffer overflows
+# - TSAN: Data races, deadlocks, thread safety issues
+#
+# Note: Sanitizer builds are slower and use more memory.
+# Results are printed to stderr with detailed stack traces.
+
+# Sanitizer flags
+ASAN_FLAGS := -fsanitize=address -fno-omit-frame-pointer -g
+TSAN_FLAGS := -fsanitize=thread -fno-omit-frame-pointer -g
+
+# AddressSanitizer test binary
+TEST_ASAN_BIN := $(BIN_DIR)/run_tests_asan
+
+# ThreadSanitizer test binary
+TEST_TSAN_BIN := $(BIN_DIR)/run_tests_tsan
+
+# Build and run tests with AddressSanitizer
+test-asan: clean-tests
+	$(ECHO) "$(CYAN)$(BOLD)Building tests with AddressSanitizer...$(RESET)"
+	@$(MAKE) CXXFLAGS="$(CXXFLAGS) $(ASAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(ASAN_FLAGS)" TEST_BIN=$(TEST_ASAN_BIN) $(TEST_ASAN_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running tests with AddressSanitizer...$(RESET)"
+	@ASAN_OPTIONS=detect_leaks=1:halt_on_error=0 $(TEST_ASAN_BIN) "~[.]" 2>&1 | tee /tmp/asan_output.txt
+	$(ECHO) "$(GREEN)✓ ASAN test complete - check /tmp/asan_output.txt for issues$(RESET)"
+
+# Build and run tests with ThreadSanitizer
+test-tsan: clean-tests
+	$(ECHO) "$(CYAN)$(BOLD)Building tests with ThreadSanitizer...$(RESET)"
+	@$(MAKE) CXXFLAGS="$(CXXFLAGS) $(TSAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(TSAN_FLAGS)" TEST_BIN=$(TEST_TSAN_BIN) $(TEST_TSAN_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running tests with ThreadSanitizer...$(RESET)"
+	@TSAN_OPTIONS=halt_on_error=0 $(TEST_TSAN_BIN) "~[.]" 2>&1 | tee /tmp/tsan_output.txt
+	$(ECHO) "$(GREEN)✓ TSAN test complete - check /tmp/tsan_output.txt for issues$(RESET)"
+
+# Run specific test with ASAN (usage: make test-asan-one TEST="[streaming]")
+test-asan-one: clean-tests
+	$(ECHO) "$(CYAN)$(BOLD)Building tests with AddressSanitizer...$(RESET)"
+	@$(MAKE) CXXFLAGS="$(CXXFLAGS) $(ASAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(ASAN_FLAGS)" TEST_BIN=$(TEST_ASAN_BIN) $(TEST_ASAN_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running test '$(TEST)' with AddressSanitizer...$(RESET)"
+	@ASAN_OPTIONS=detect_leaks=1:halt_on_error=0 $(TEST_ASAN_BIN) "$(TEST)" 2>&1 | tee /tmp/asan_output.txt
+
+# Run specific test with TSAN (usage: make test-tsan-one TEST="[streaming]")
+test-tsan-one: clean-tests
+	$(ECHO) "$(CYAN)$(BOLD)Building tests with ThreadSanitizer...$(RESET)"
+	@$(MAKE) CXXFLAGS="$(CXXFLAGS) $(TSAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(TSAN_FLAGS)" TEST_BIN=$(TEST_TSAN_BIN) $(TEST_TSAN_BIN)
+	$(ECHO) "$(CYAN)$(BOLD)Running test '$(TEST)' with ThreadSanitizer...$(RESET)"
+	@TSAN_OPTIONS=halt_on_error=0 $(TEST_TSAN_BIN) "$(TEST)" 2>&1 | tee /tmp/tsan_output.txt
+
+# Clean sanitizer binaries
+clean-sanitizers:
+	$(ECHO) "$(YELLOW)Cleaning sanitizer binaries...$(RESET)"
+	$(Q)rm -f $(TEST_ASAN_BIN) $(TEST_TSAN_BIN)
+	$(ECHO) "$(GREEN)✓ Sanitizer binaries cleaned$(RESET)"
+
+# ============================================================================
 # Test Help
 # ============================================================================
 
-.PHONY: help-test
+.PHONY: help-test test-asan test-tsan test-asan-one test-tsan-one clean-sanitizers
 help-test:
 	@if [ -t 1 ] && [ -n "$(TERM)" ] && [ "$(TERM)" != "dumb" ]; then \
 		B='$(BOLD)'; G='$(GREEN)'; Y='$(YELLOW)'; C='$(CYAN)'; X='$(RESET)'; \
@@ -615,6 +671,13 @@ help-test:
 	echo "  $${G}test-timing$${X}          - Show slowest tests (top 20)"; \
 	echo "  $${G}test-summary$${X}         - Test coverage by tag"; \
 	echo ""; \
+	echo "$${C}Sanitizers (Memory/Thread Safety):$${X}"; \
+	echo "  $${G}test-asan$${X}            - Run all tests with AddressSanitizer"; \
+	echo "  $${G}test-tsan$${X}            - Run all tests with ThreadSanitizer"; \
+	echo "  $${G}test-asan-one TEST=X$${X} - Run specific test with ASAN"; \
+	echo "  $${G}test-tsan-one TEST=X$${X} - Run specific test with TSAN"; \
+	echo ""; \
 	echo "$${C}Cleanup:$${X}"; \
 	echo "  $${G}clean-tests$${X}          - Remove test build artifacts"; \
-	echo "  $${G}clean-tinygl-tests$${X}   - Remove TinyGL test artifacts"
+	echo "  $${G}clean-tinygl-tests$${X}   - Remove TinyGL test artifacts"; \
+	echo "  $${G}clean-sanitizers$${X}     - Remove sanitizer test binaries"
