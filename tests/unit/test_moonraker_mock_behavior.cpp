@@ -76,8 +76,12 @@
  * - Initial subscription response has full status in result.status
  */
 
-#include "moonraker_client_mock.h"
-#include "printer_hardware.h"
+#include "../../include/moonraker_api.h"
+#include "../../include/moonraker_api_mock.h"
+#include "../../include/moonraker_client_mock.h"
+#include "../../include/printer_hardware.h"
+#include "../../include/printer_state.h"
+#include "moonraker_api.h"
 
 #include <atomic>
 #include <chrono>
@@ -88,6 +92,12 @@
 
 #include "../catch_amalgamated.hpp"
 
+// Suppress deprecated warnings for testing mock behavior
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+// ============================================================================
+// Test Fixture for Mock Behavior Testing
 // ============================================================================
 // Test Fixture for Mock Behavior Testing
 // ============================================================================
@@ -734,14 +744,24 @@ TEST_CASE("MoonrakerClientMock hardware discovery", "[moonraker][mock][hardware_
     SECTION("discover_printer() populates bed mesh") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
 
+        // Set up API for testing bed mesh functionality
+        PrinterState state;
+        state.init_subjects();
+        mock.connect("ws://mock/websocket", []() {}, []() {});
         mock.discover_printer([]() {});
+        MoonrakerAPIMock api(mock, state);
 
-        REQUIRE(mock.has_bed_mesh());
-        const auto& mesh = mock.get_active_bed_mesh();
-        REQUIRE(mesh.x_count > 0);
-        REQUIRE(mesh.y_count > 0);
-        REQUIRE(!mesh.probed_matrix.empty());
-        REQUIRE(mesh.name == "default");
+        // Test through API (non-deprecated methods)
+        REQUIRE(api.has_bed_mesh());
+        const auto* mesh = api.get_active_bed_mesh();
+        REQUIRE(mesh != nullptr);
+        REQUIRE(mesh->x_count > 0);
+        REQUIRE(mesh->y_count > 0);
+        REQUIRE(!mesh->probed_matrix.empty());
+        REQUIRE(mesh->name == "default");
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 }
 
@@ -2683,3 +2703,5 @@ TEST_CASE("MoonrakerClientMock parses EXCLUDE_OBJECT command", "[mock][gcode][ex
         REQUIRE(mock.get_excluded_objects().empty());
     }
 }
+
+#pragma GCC diagnostic pop

@@ -18,6 +18,8 @@
 # on any armv7-a Linux system regardless of glibc version.
 #
 # Note: SSL/TLS is disabled for embedded targets - Moonraker communication is local
+#
+# Multi-arch support: Automatically uses native toolchain on both x86_64 and aarch64 hosts
 
 FROM debian:bookworm-slim
 
@@ -25,6 +27,9 @@ LABEL maintainer="HelixScreen <dev@helixscreen.io>"
 LABEL description="Cross-compilation toolchain for Adventurer 5M (armv7-a Cortex-A7)"
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Docker buildx provides TARGETARCH (amd64, arm64, etc.)
+ARG TARGETARCH
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,13 +46,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Download ARM's pre-built GCC 10.3-2021.07 toolchain
-# This is the official ARM toolchain from developer.arm.com
-# It has a glibc 2.33 sysroot BUT we use -static linking to avoid version issues
+# ARM provides both x86_64-hosted and aarch64-hosted variants - we select based on TARGETARCH
+# Both produce identical armv7-a output binaries, just the compiler itself differs
+#
+# Toolchain variants:
+#   - x86_64:  gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf
+#   - aarch64: gcc-arm-10.3-2021.07-aarch64-arm-none-linux-gnueabihf
 WORKDIR /opt
-RUN wget -q https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf.tar.xz && \
-    tar xf gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf.tar.xz && \
-    rm gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf.tar.xz && \
-    mv gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf arm-toolchain
+RUN HOSTARCH=$(case "$TARGETARCH" in \
+        amd64) echo "x86_64" ;; \
+        arm64) echo "aarch64" ;; \
+        *) echo "x86_64" ;; \
+    esac) && \
+    TOOLCHAIN_NAME="gcc-arm-10.3-2021.07-${HOSTARCH}-arm-none-linux-gnueabihf" && \
+    echo "Downloading ${TOOLCHAIN_NAME} for ${TARGETARCH} host..." && \
+    wget -q "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/${TOOLCHAIN_NAME}.tar.xz" && \
+    tar xf "${TOOLCHAIN_NAME}.tar.xz" && \
+    rm "${TOOLCHAIN_NAME}.tar.xz" && \
+    mv "${TOOLCHAIN_NAME}" arm-toolchain
 
 # ==============================================================================
 # Cross-Compilation Environment
