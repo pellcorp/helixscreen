@@ -52,6 +52,9 @@ compile_commands.json
 SESSION_SUMMARY.md
 IMPLEMENTATION_PLAN.md
 
+# Claude Code lessons (session-specific learning)
+.claude/LESSONS.md
+
 # ============================================================================
 # Platform-Specific
 # ============================================================================
