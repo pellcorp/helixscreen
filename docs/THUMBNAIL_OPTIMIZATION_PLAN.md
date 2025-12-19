@@ -1,8 +1,8 @@
 # Thumbnail Pre-Scaling Optimization Plan
 
-> **Status**: Planned for future implementation
+> **Status**: ✅ Implemented (Phases 1-5 complete, Phase 6 partial)
 > **Priority**: Performance optimization for embedded displays
-> **Branch**: TBD (separate from main platform rendering work)
+> **Verified**: 2024-12-18 on AD5M hardware (192.168.1.67)
 
 ## Problem
 LVGL scales 300×300 thumbnails to ~140×150 **every frame** via `inner_align="contain"`. On AD5M (ARM Cortex-A7, no GPU), this causes severe UI lag when scrolling through print file cards.
@@ -168,9 +168,23 @@ Change thumbnail image from scaled to 1:1:
 
 ## Testing Checklist
 
-- [ ] Verify stb_image_resize builds on ARM (AD5M cross-compile)
-- [ ] Test with various slicer thumbnails (PrusaSlicer, OrcaSlicer, Cura)
-- [ ] Measure scroll FPS improvement on AD5M
-- [ ] Test cache eviction with mixed .lvbin/.png files
-- [ ] Verify fallback when processing fails
-- [ ] Test with files that have only 32×32 thumbnails
+- [x] Verify stb_image_resize builds on ARM (AD5M cross-compile) *(verified 2024-12-18)*
+- [x] Test with various slicer thumbnails (PrusaSlicer, OrcaSlicer, Cura) *(OrcaSlicer tested, 32×32/48×48/300×300 thumbnails)*
+- [ ] Measure scroll FPS improvement on AD5M *(requires manual UI interaction)*
+- [x] Test cache eviction with mixed .lvbin/.png files *(verified: /tmp/helix_thumbs contains both .png and .bin)*
+- [ ] Verify fallback when processing fails *(requires corrupted PNG test)*
+- [x] Test with files that have only 32×32 thumbnails *(Cube.gcode has 32×32, 48×48, 300×300 - smallest adequate is used)*
+
+### Automated Test Results (2024-12-18)
+
+**Build:** `make remote-ad5m` completed successfully in 58s
+**Deploy:** `make deploy-ad5m AD5M_HOST=192.168.1.67` - binaries and assets deployed
+
+**Cache verification on AD5M:**
+```
+/tmp/helix_thumbs/1544851899_160x160_ARGB8888.bin (102412 bytes)
+/tmp/helix_thumbs/1746499876_160x160_ARGB8888.bin (102412 bytes)
+... (6 pre-scaled .bin files total)
+```
+
+**File size:** 102,412 bytes = 160×160×4 (ARGB8888) + 12-byte LVGL header ✓

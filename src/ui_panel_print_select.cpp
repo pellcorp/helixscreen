@@ -828,6 +828,11 @@ void PrintSelectPanel::fetch_metadata_range(size_t start, size_t end) {
 void PrintSelectPanel::set_api(MoonrakerAPI* api) {
     api_ = api;
 
+    // Update file provider's API reference (it was created with nullptr in setup())
+    if (file_provider_) {
+        file_provider_->set_api(api_);
+    }
+
     // Note: Don't auto-refresh here - WebSocket may not be connected yet.
     // refresh_files() has a connection check that will silently return if not connected.
     // Files will be loaded lazily via on_activate() when user navigates to this panel.
