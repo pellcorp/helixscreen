@@ -181,6 +181,14 @@ class AmsState {
     }
 
     /**
+     * @brief Get current tool text subject
+     * @return Subject holding formatted tool string (e.g., "T0", "T1", or "---")
+     */
+    lv_subject_t* get_current_tool_text_subject() {
+        return &current_tool_text_;
+    }
+
+    /**
      * @brief Get filament loaded subject
      * @return Subject holding 0 (not loaded) or 1 (loaded)
      */
@@ -600,6 +608,8 @@ class AmsState {
     char action_detail_buf_[64];
     lv_subject_t ams_system_name_;
     char system_name_buf_[32];
+    lv_subject_t current_tool_text_;
+    char current_tool_text_buf_[8]; // "T0" to "T15" or "---"
 
     // Filament path visualization subjects
     lv_subject_t path_topology_;

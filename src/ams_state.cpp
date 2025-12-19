@@ -92,6 +92,8 @@ void AmsState::init_subjects(bool register_xml) {
                            sizeof(action_detail_buf_), "");
     lv_subject_init_string(&ams_system_name_, system_name_buf_, nullptr, sizeof(system_name_buf_),
                            "");
+    lv_subject_init_string(&current_tool_text_, current_tool_text_buf_, nullptr,
+                           sizeof(current_tool_text_buf_), "---");
 
     // Filament path visualization subjects
     lv_subject_init_int(&path_topology_, static_cast<int>(PathTopology::HUB));
@@ -145,6 +147,7 @@ void AmsState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "ams_system_name", &ams_system_name_);
         lv_xml_register_subject(NULL, "ams_current_slot", &current_slot_);
         lv_xml_register_subject(NULL, "ams_current_tool", &current_tool_);
+        lv_xml_register_subject(NULL, "ams_current_tool_text", &current_tool_text_);
         lv_xml_register_subject(NULL, "ams_filament_loaded", &filament_loaded_);
         lv_xml_register_subject(NULL, "ams_bypass_active", &bypass_active_);
         lv_xml_register_subject(NULL, "ams_supports_bypass", &supports_bypass_);
@@ -371,6 +374,15 @@ void AmsState::sync_from_backend() {
     }
     lv_subject_set_int(&current_slot_, info.current_slot);
     lv_subject_set_int(&current_tool_, info.current_tool);
+
+    // Update formatted tool text (e.g., "T0", "T1", or "---" when no tool active)
+    if (info.current_tool >= 0) {
+        snprintf(current_tool_text_buf_, sizeof(current_tool_text_buf_), "T%d", info.current_tool);
+        lv_subject_copy_string(&current_tool_text_, current_tool_text_buf_);
+    } else {
+        lv_subject_copy_string(&current_tool_text_, "---");
+    }
+
     lv_subject_set_int(&filament_loaded_, info.filament_loaded ? 1 : 0);
     lv_subject_set_int(&bypass_active_, info.current_slot == -2 ? 1 : 0);
     lv_subject_set_int(&supports_bypass_, info.supports_bypass ? 1 : 0);

@@ -2,6 +2,7 @@
 
 #include "xml_registration.h"
 
+#include "ui_ams_current_tool.h"
 #include "ui_fonts.h"
 #include "ui_gcode_viewer.h"
 #include "ui_hsv_picker.h"
@@ -133,6 +134,7 @@ void register_xml_components() {
     ui_gcode_viewer_register();
     ui_spool_canvas_register(); // Needed by Spoolman panel (and AMS panel)
     ui_hsv_picker_register();   // HSV color picker for edit filament modal
+    ui_ams_current_tool_init(); // AMS current tool indicator callbacks
     // NOTE: Other AMS widgets (ams_slot, filament_path_canvas) are
     // registered lazily in ui_panel_ams.cpp when the AMS panel is first accessed
 
@@ -182,6 +184,7 @@ void register_xml_components() {
     lv_xml_register_component_from_file("A:ui_xml/bed_temp_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/extrusion_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/fan_panel.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_current_tool.xml");
     lv_xml_register_component_from_file("A:ui_xml/print_status_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/print_tune_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/filament_panel.xml");
@@ -264,6 +267,7 @@ void register_xml_components() {
     lv_xml_register_component_from_file("A:ui_xml/wizard_heater_select.xml");
     lv_xml_register_component_from_file("A:ui_xml/wizard_fan_select.xml");
     lv_xml_register_component_from_file("A:ui_xml/wizard_led_select.xml");
+    lv_xml_register_component_from_file("A:ui_xml/wizard_filament_sensor_select.xml");
     lv_xml_register_component_from_file("A:ui_xml/wizard_summary.xml");
 
     spdlog::debug("[XML Registration] XML component registration complete");

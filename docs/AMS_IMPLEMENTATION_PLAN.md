@@ -3,7 +3,7 @@
 **Feature Branch:** `feature/ams`
 **Repository:** `/Users/pbrown/code/helixscreen-ams`
 **Started:** 2025-12-07
-**Last Updated:** 2025-12-18 (Marked Phase 3 complete - real API was already implemented)
+**Last Updated:** 2025-12-18 (Phase 5 complete - in-print status + predictive features documented)
 
 ---
 
@@ -571,55 +571,63 @@ the AMS runs out of a color.
 
 ---
 
-### 🔄 Phase 5: Print Integration (PARTIALLY COMPLETE)
+### ✅ Phase 5: Print Integration (COMPLETE)
 
-**Goal:** Color preview and in-print status
+**Goal:** Color preview, mismatch warning, and in-print status
 
-**Status:** G-code color extraction and print preview done. In-print overlay remaining.
+**Status:** Complete. All core features implemented.
 
-#### ✅ Already Implemented
-
-**G-Code Color Extraction** (`src/gcode_parser.cpp`):
+#### G-Code Color Extraction (`src/gcode_parser.cpp`)
 - [x] `parse_extruder_color_metadata()` - Parses slicer color comments
 - [x] Supports OrcaSlicer, PrusaSlicer, BambuStudio format: `"; extruder_colour = #ED1C24;#00C1AE"`
 - [x] Semicolon-separated hex color parsing
 - [x] Stores in `ParsedGCodeFile::tool_color_palette`
 - [x] Tool change command parsing (T0, T1, T2)
 
-**Print File Data Flow**:
+#### Print File Data Flow
 - [x] `PrintFileData::filament_colors` vector passes colors through system
 - [x] Moonraker metadata fetched includes slicer color info
 - [x] Colors flow from file list → detail view
 
-**Print File Detail UI** (`ui_xml/print_file_detail.xml` + `src/ui_print_select_detail_view.cpp`):
+#### Print File Detail UI (`ui_xml/print_file_detail.xml` + `src/ui_print_select_detail_view.cpp`)
 - [x] `color_requirements_card` - Hidden by default, shown for multi-color
 - [x] `color_swatches_row` - Flex row for color chips
 - [x] `update_color_swatches()` - Creates T0, T1, T2 labeled swatches (lines 279-347)
 - [x] Contrast text calculation for readability on light/dark colors
 - [x] Card auto-hides for single-color prints
 
-**Verification (Print Preview):**
-- [x] Print detail shows required colors with tool labels
-- [x] Multi-color G-code files display color swatches
-- [x] Single-color files hide the color card
-
-#### ❌ Remaining (In-Print Features)
-
-**AMS In-Print Status Overlay:**
-- [ ] `ui_xml/ams_in_print_status.xml` - Compact overlay during printing
-- [ ] Show current/next tool color during printing
-- [ ] Integrate with `ui_panel_print_status.cpp`
-
-**Real-Time Tool Change Detection:**
-- [ ] Detect upcoming M600/tool changes during print
-- [ ] Pre-select AMS slot before tool change
-- [ ] Show "Tool change imminent" notification
-
-**Color Mismatch Warning** (`src/ui_panel_print_select.cpp`):
-- [x] `check_ams_color_match()` - Compares G-code tool colors to AMS slot colors (lines 1754-1812)
-- [x] `show_color_mismatch_warning()` - Modal dialog listing missing tools/colors (lines 1814-1865)
+#### Color Mismatch Warning (`src/ui_panel_print_select.cpp`)
+- [x] `check_ams_color_match()` - Compares G-code tool colors to AMS slot colors
+- [x] `show_color_mismatch_warning()` - Modal dialog listing missing tools/colors
 - [x] Perceptual color distance matching with tolerance (40/255 threshold)
 - [x] User can proceed anyway or cancel to load correct filaments
+
+#### Color Utilities (`include/ui_utils.h`, `src/ui_utils.cpp`)
+- [x] `ui_parse_hex_color()` - Returns `std::optional<uint32_t>` (handles black correctly)
+- [x] `ui_color_distance()` - Perceptual color distance with luminance weighting
+
+#### AMS In-Print Status (`ui_xml/ams_current_tool.xml` + `src/ui_ams_current_tool.cpp`)
+- [x] Compact widget showing active tool (T0, T1, etc.) with color swatch
+- [x] Auto-hides when no AMS available (slot_count == 0)
+- [x] Auto-hides when no tool active (current_tool < 0)
+- [x] Click opens AMS panel for slot management
+- [x] Reactive color binding via ObserverGuard
+- [x] Integrated into `print_status_panel.xml`
+
+#### AmsState Tool Text Subject (`include/ams_state.h`, `src/ams_state.cpp`)
+- [x] `ams_current_tool_text` subject - Formatted string ("T0", "T1", etc.)
+- [x] Updated in `sync_from_backend()` when current_tool changes
+
+**Verification:**
+- [x] Print detail shows required colors with tool labels
+- [x] Color mismatch warning before print start
+- [x] In-print status shows current tool and color
+- [x] 21 Spoolman tests + 9 AMS tests pass
+
+#### ❌ Deferred (User decided not needed)
+
+**Tool Change Notifications:**
+- Decided against implementing - unnecessary UI element for most workflows
 
 ---
 
@@ -684,6 +692,86 @@ the AMS runs out of a color.
 - [ ] `docs/AMS_USER_GUIDE.md`
 - [ ] Settings panel AMS section
 - [ ] Unit test suite for AMS classes
+
+---
+
+## Future Work: Predictive Features
+
+These features were identified during Phase 5 implementation but deferred for future consideration.
+
+### 1. Spool Usage Prediction (Low complexity)
+
+**Goal:** Warn user before print if spool doesn't have enough filament.
+
+**Implementation:**
+- Compare G-code's `filament_used` metadata against `remaining_weight_g` from Spoolman
+- Show warning: "This print needs 45g, Slot 2 only has 32g remaining"
+- Could integrate into the existing color mismatch warning flow
+- Add `check_spool_capacity()` to `PrintSelectPanel`
+
+**Data sources:**
+- `ParsedGCodeFile::filament_used_g` - From G-code metadata
+- `SlotInfo::remaining_weight_g` - From Spoolman via AmsState
+
+### 2. Next Tool Preview (Medium complexity)
+
+**Goal:** Show what tool will be loaded next during a print.
+
+**Implementation:**
+- Parse G-code during print to find next `Tx` command
+- Show "Next: T2 (Blue)" in the print status panel alongside current tool
+- Extend `ams_current_tool` widget or create `ams_next_tool` companion widget
+- Requires G-code streaming/parsing during print (not just at start)
+
+**Use cases:**
+- Manual material changes
+- Anticipating filament runout
+- Multi-color print progress awareness
+
+### 3. Color Sequence Timeline (Medium complexity)
+
+**Goal:** Visual preview of all colors in the order they'll be used.
+
+**Implementation:**
+- Show horizontal strip of color swatches in sequence order
+- Could be part of print file detail or print status panel
+- Parse G-code for tool change sequence at print start
+- Store `std::vector<int> tool_sequence` in `ParsedGCodeFile`
+
+**UI consideration:**
+- Compact horizontal scroll for many colors
+- Current position indicator during print
+
+### 4. Auto-Slot Mapping (Higher complexity)
+
+**Goal:** Automatically suggest AMS slot → G-code tool mapping based on color matching.
+
+**Implementation:**
+- Compare `ParsedGCodeFile::tool_color_palette` to AmsState slot colors
+- Use `ui_color_distance()` to find best matches
+- Present suggestions: "T0 (Red) → Slot 3, T1 (Blue) → Slot 1"
+- Allow user to accept, modify, or reject mapping
+- Could use Happy Hare/AFC tool-to-gate mapping if available
+
+**Challenges:**
+- Multiple valid mappings when colors are similar
+- User may want specific slots for other reasons (spool age, quantity)
+- Need UI for manual override
+
+### 5. Filament Runout Prediction (Higher complexity)
+
+**Goal:** Predict mid-print runout and warn before it happens.
+
+**Implementation:**
+- Track per-tool filament usage during print via G-code parsing
+- Compare accumulated usage to spool remaining weight
+- Show warning: "Slot 2 may run out at 73% print progress"
+- Could suggest endless spool activation or pause-and-swap
+
+**Requirements:**
+- Real-time G-code progress tracking
+- Accurate remaining weight from Spoolman
+- Density/diameter conversion for accurate prediction
 
 ---
 

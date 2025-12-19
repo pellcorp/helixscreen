@@ -3,6 +3,7 @@
 
 #include "ui_panel_print_status.h"
 
+#include "ui_ams_current_tool.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_gcode_viewer.h"
@@ -336,6 +337,13 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         lv_bar_set_range(preparing_progress_bar_, 0, 100);
         lv_bar_set_value(preparing_progress_bar_, 0, LV_ANIM_OFF);
         spdlog::debug("[{}]   ✓ Preparing progress bar", get_name());
+    }
+
+    // AMS current tool indicator (auto-hides when no AMS or no tool active)
+    lv_obj_t* ams_indicator = lv_obj_find_by_name(overlay_content, "ams_current_tool_indicator");
+    if (ams_indicator) {
+        ui_ams_current_tool_setup(ams_indicator);
+        spdlog::debug("[{}]   ✓ AMS current tool indicator", get_name());
     }
 
     // Check if --gcode-file was specified on command line for this panel
