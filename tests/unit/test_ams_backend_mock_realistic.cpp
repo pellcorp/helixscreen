@@ -30,12 +30,12 @@
 class FastTimingScope {
   public:
     FastTimingScope() {
-        auto* config = get_mutable_runtime_config();
+        auto* config = get_runtime_config();
         original_speedup_ = config->sim_speedup;
         config->sim_speedup = 1000.0; // 1000x speedup for fast tests
     }
     ~FastTimingScope() {
-        auto* config = get_mutable_runtime_config();
+        auto* config = get_runtime_config();
         config->sim_speedup = original_speedup_;
     }
 
@@ -45,13 +45,13 @@ class FastTimingScope {
 
 // Helper to set up fast timing for realistic mode tests
 static void setup_fast_timing() {
-    auto* config = get_mutable_runtime_config();
+    auto* config = get_runtime_config();
     config->sim_speedup = 1000.0; // 1000x speedup for fast tests
 }
 
 // Helper to restore timing after tests
 static void restore_timing() {
-    auto* config = get_mutable_runtime_config();
+    auto* config = get_runtime_config();
     config->sim_speedup = 1.0;
 }
 

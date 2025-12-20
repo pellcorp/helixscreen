@@ -25,7 +25,7 @@
 # - All the manual TEST_*_DEPS groups → single TEST_APP_OBJS
 
 # Core test infrastructure (always required)
-TEST_CORE_DEPS := $(TEST_MAIN_OBJ) $(CATCH2_OBJ) $(UI_TEST_UTILS_OBJ) $(LVGL_TEST_FIXTURE_OBJ) $(TEST_FIXTURES_OBJ) $(TEST_OBJS)
+TEST_CORE_DEPS := $(TEST_MAIN_OBJ) $(CATCH2_OBJ) $(UI_TEST_UTILS_OBJ) $(LVGL_TEST_FIXTURE_OBJ) $(TEST_FIXTURES_OBJ) $(TEST_OBJS) $(TEST_APP_OBJS_EXTRA)
 
 # LVGL + Graphics stack (required for all UI tests)
 TEST_LVGL_DEPS := $(LVGL_OBJS) $(THORVG_OBJS)
@@ -69,7 +69,12 @@ TEST_APP_OBJS := $(filter-out \
     $(OBJ_DIR)/ui_text_input.o \
     $(OBJ_DIR)/ui_emergency_stop.o \
     $(OBJ_DIR)/ui_switch.o \
-    ,$(APP_OBJS) $(APP_C_OBJS))
+    $(OBJ_DIR)/application/application.o \
+    $(OBJ_DIR)/application/lvgl_initializer.o \
+    $(OBJ_DIR)/application/subject_initializer.o \
+    $(OBJ_DIR)/application/moonraker_manager.o \
+    $(OBJ_DIR)/application/panel_factory.o \
+    ,$(APP_OBJS) $(APP_C_OBJS) $(APP_MODULE_OBJS))
 
 # ============================================================================
 # Test Targets
@@ -323,6 +328,12 @@ $(OBJ_DIR)/tests/%.o: $(TEST_UNIT_DIR)/%.cpp
 	$(Q)mkdir -p $(dir $@)
 	$(ECHO) "$(BLUE)[TEST]$(RESET) $<"
 	$(Q)$(CXX) $(CXXFLAGS) $(DEPFLAGS) -I$(TEST_DIR) $(INCLUDES) -c $< -o $@
+
+# Compile application subdirectory test sources
+$(OBJ_DIR)/tests/application/%.o: $(TEST_UNIT_DIR)/application/%.cpp
+	$(Q)mkdir -p $(dir $@)
+	$(ECHO) "$(BLUE)[TEST-APP]$(RESET) $<"
+	$(Q)$(CXX) $(CXXFLAGS) $(DEPFLAGS) -I$(TEST_DIR) -I$(TEST_UNIT_DIR)/application $(INCLUDES) -c $< -o $@
 
 # Compile mock sources
 # Uses DEPFLAGS to track header dependencies

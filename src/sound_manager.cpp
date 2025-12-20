@@ -24,7 +24,7 @@ void SoundManager::set_moonraker_client(MoonrakerClient* client) {
 bool SoundManager::is_available() const {
     // In test mode, sounds are always "available" for UI testing
     // (the actual M300 won't do anything without a real printer)
-    if (get_runtime_config().is_test_mode()) {
+    if (get_runtime_config()->is_test_mode()) {
         return true;
     }
 

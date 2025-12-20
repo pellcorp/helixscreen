@@ -233,6 +233,10 @@ APP_C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(APP_C_SRCS))
 APP_SRCS := $(filter-out $(SRC_DIR)/test_dynamic_cards.cpp $(SRC_DIR)/test_responsive_theme.cpp $(SRC_DIR)/test_tinygl_triangle.cpp $(SRC_DIR)/test_gcode_geometry.cpp $(SRC_DIR)/test_gcode_analysis.cpp $(SRC_DIR)/test_sdf_reconstruction.cpp $(SRC_DIR)/test_sparse_grid.cpp $(SRC_DIR)/test_partial_extraction.cpp $(SRC_DIR)/test_render_comparison.cpp $(SRC_DIR)/test_network_tester.cpp $(SRC_DIR)/helix_splash.cpp,$(wildcard $(SRC_DIR)/*.cpp))
 APP_OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(APP_SRCS))
 
+# Application module sources (src/application/*.cpp - modular components)
+APP_MODULE_SRCS := $(wildcard $(SRC_DIR)/application/*.cpp)
+APP_MODULE_OBJS := $(patsubst $(SRC_DIR)/application/%.cpp,$(OBJ_DIR)/application/%.o,$(APP_MODULE_SRCS))
+
 # Objective-C++ sources (macOS only - .mm files)
 # Only include on macOS, exclude on Linux to avoid linking errors
 ifeq ($(UNAME_S),Darwin)
@@ -502,8 +506,11 @@ TEST_BIN := $(BIN_DIR)/run_tests
 TEST_INTEGRATION_BIN := $(BIN_DIR)/run_integration_tests
 
 # Unit tests (use real LVGL) - exclude mock example
+# Include tests from unit/ directory and unit/application/ subdirectory
 TEST_SRCS := $(filter-out $(TEST_UNIT_DIR)/test_mock_example.cpp,$(wildcard $(TEST_UNIT_DIR)/*.cpp))
+TEST_APP_SRCS := $(wildcard $(TEST_UNIT_DIR)/application/*.cpp)
 TEST_OBJS := $(patsubst $(TEST_UNIT_DIR)/%.cpp,$(OBJ_DIR)/tests/%.o,$(TEST_SRCS))
+TEST_APP_OBJS_EXTRA := $(patsubst $(TEST_UNIT_DIR)/application/%.cpp,$(OBJ_DIR)/tests/application/%.o,$(TEST_APP_SRCS))
 
 # Integration tests (use mocks instead of real LVGL)
 TEST_INTEGRATION_SRCS := $(TEST_UNIT_DIR)/test_mock_example.cpp

@@ -103,17 +103,18 @@ void GcodeTestPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Apply render mode - priority: cmdline > env var > settings
     // Note: HELIX_GCODE_MODE env var is handled at widget creation
-    const RuntimeConfig& rt_config = get_runtime_config();
+    const RuntimeConfig* rt_config = get_runtime_config();
     const char* env_mode = std::getenv("HELIX_GCODE_MODE");
 
-    if (rt_config.gcode_render_mode >= 0) {
+    if (rt_config->gcode_render_mode >= 0) {
         // Command line takes highest priority
-        auto render_mode = static_cast<gcode_viewer_render_mode_t>(rt_config.gcode_render_mode);
+        auto render_mode = static_cast<gcode_viewer_render_mode_t>(rt_config->gcode_render_mode);
         ui_gcode_viewer_set_render_mode(gcode_viewer_, render_mode);
-        spdlog::info("[{}] Render mode: {} ({}) [cmdline]", get_name(), rt_config.gcode_render_mode,
-                     rt_config.gcode_render_mode == 0   ? "Auto"
-                     : rt_config.gcode_render_mode == 1 ? "3D"
-                                                        : "2D Layers");
+        spdlog::info("[{}] Render mode: {} ({}) [cmdline]", get_name(),
+                     rt_config->gcode_render_mode,
+                     rt_config->gcode_render_mode == 0   ? "Auto"
+                     : rt_config->gcode_render_mode == 1 ? "3D"
+                                                         : "2D Layers");
     } else if (env_mode) {
         // Env var already applied at widget creation - just log
         spdlog::info("[{}] Render mode: {} [env var HELIX_GCODE_MODE]", get_name(),
@@ -132,9 +133,9 @@ void GcodeTestPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Auto-load file (either from config or default)
     std::string default_path = std::string(ASSETS_DIR) + "/" + DEFAULT_TEST_FILE;
-    const RuntimeConfig& config = get_runtime_config();
+    const RuntimeConfig* config = get_runtime_config();
     const char* file_to_load =
-        config.gcode_test_file ? config.gcode_test_file : default_path.c_str();
+        config->gcode_test_file ? config->gcode_test_file : default_path.c_str();
 
     spdlog::info("[{}] Auto-loading file: {}", get_name(), file_to_load);
     load_file(file_to_load);
@@ -427,25 +428,25 @@ void GcodeTestPanel::apply_runtime_config() {
         return;
     }
 
-    const RuntimeConfig& config = get_runtime_config();
+    const RuntimeConfig* config = get_runtime_config();
 
-    if (config.gcode_camera_azimuth_set) {
-        spdlog::info("[{}] Setting camera azimuth: {}", get_name(), config.gcode_camera_azimuth);
-        ui_gcode_viewer_set_camera_azimuth(gcode_viewer_, config.gcode_camera_azimuth);
+    if (config->gcode_camera_azimuth_set) {
+        spdlog::info("[{}] Setting camera azimuth: {}", get_name(), config->gcode_camera_azimuth);
+        ui_gcode_viewer_set_camera_azimuth(gcode_viewer_, config->gcode_camera_azimuth);
     }
 
-    if (config.gcode_camera_elevation_set) {
+    if (config->gcode_camera_elevation_set) {
         spdlog::info("[{}] Setting camera elevation: {}", get_name(),
-                     config.gcode_camera_elevation);
-        ui_gcode_viewer_set_camera_elevation(gcode_viewer_, config.gcode_camera_elevation);
+                     config->gcode_camera_elevation);
+        ui_gcode_viewer_set_camera_elevation(gcode_viewer_, config->gcode_camera_elevation);
     }
 
-    if (config.gcode_camera_zoom_set) {
-        spdlog::info("[{}] Setting camera zoom: {}", get_name(), config.gcode_camera_zoom);
-        ui_gcode_viewer_set_camera_zoom(gcode_viewer_, config.gcode_camera_zoom);
+    if (config->gcode_camera_zoom_set) {
+        spdlog::info("[{}] Setting camera zoom: {}", get_name(), config->gcode_camera_zoom);
+        ui_gcode_viewer_set_camera_zoom(gcode_viewer_, config->gcode_camera_zoom);
     }
 
-    if (config.gcode_debug_colors) {
+    if (config->gcode_debug_colors) {
         spdlog::info("[{}] Enabling debug face colors", get_name());
         ui_gcode_viewer_set_debug_colors(gcode_viewer_, true);
     }

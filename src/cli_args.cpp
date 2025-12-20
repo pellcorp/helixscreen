@@ -18,8 +18,11 @@
 // External globals that CLI args modify
 extern int g_screen_width;
 extern int g_screen_height;
-extern std::string g_log_dest_cli;
-extern std::string g_log_file_cli;
+
+// Logging configuration globals (defined here, populated by parse_cli_args)
+// These are extern'd by application.cpp for use during logging initialization
+std::string g_log_dest_cli; // CLI override for log destination
+std::string g_log_file_cli; // CLI override for log file path
 
 namespace helix {
 
@@ -40,7 +43,7 @@ std::optional<ui_panel_id_t> panel_name_to_id(const char* name) {
 }
 
 void print_test_mode_banner() {
-    RuntimeConfig& config = *get_mutable_runtime_config();
+    RuntimeConfig& config = *get_runtime_config();
 
     printf("╔════════════════════════════════════════╗\n");
     printf("║           TEST MODE ENABLED            ║\n");
@@ -286,7 +289,7 @@ static bool parse_camera_arg(const char* camera_str, RuntimeConfig& config) {
 }
 
 bool parse_cli_args(int argc, char** argv, CliArgs& args, int& screen_width, int& screen_height) {
-    RuntimeConfig& config = *get_mutable_runtime_config();
+    RuntimeConfig& config = *get_runtime_config();
 
     for (int i = 1; i < argc; i++) {
         // Screen size

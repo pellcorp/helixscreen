@@ -923,7 +923,7 @@ bool AmsBackendMock::is_tool_changer_mode() const {
 }
 
 int AmsBackendMock::get_effective_delay_ms(int base_ms, float variance) const {
-    double speedup = get_runtime_config().sim_speedup;
+    double speedup = get_runtime_config()->sim_speedup;
     if (speedup <= 0)
         speedup = 1.0;
 

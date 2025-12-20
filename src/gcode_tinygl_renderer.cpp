@@ -938,10 +938,10 @@ void GCodeTinyGLRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode
     }
 
     // Draw camera debug info overlay (if verbose mode OR camera params set via CLI)
-    const RuntimeConfig& config = get_runtime_config();
+    const RuntimeConfig* config = get_runtime_config();
     bool show_debug_overlay = spdlog::get_level() <= spdlog::level::debug ||
-                              config.gcode_camera_azimuth_set ||
-                              config.gcode_camera_elevation_set || config.gcode_camera_zoom_set;
+                              config->gcode_camera_azimuth_set ||
+                              config->gcode_camera_elevation_set || config->gcode_camera_zoom_set;
     if (show_debug_overlay) {
         char debug_text[128];
         snprintf(debug_text, sizeof(debug_text), "Az: %.1f° El: %.1f° Zoom: %.1fx",

@@ -1,0 +1,1022 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright 2025 HelixScreen
+
+#include "application.h"
+
+#include "asset_manager.h"
+#include "config.h"
+#include "display_manager.h"
+#include "moonraker_manager.h"
+#include "panel_factory.h"
+#include "subject_initializer.h"
+
+// UI headers
+#include "ui_bed_mesh.h"
+#include "ui_card.h"
+#include "ui_component_header_bar.h"
+#include "ui_dialog.h"
+#include "ui_gcode_viewer.h"
+#include "ui_gradient_canvas.h"
+#include "ui_icon.h"
+#include "ui_icon_loader.h"
+#include "ui_keyboard.h"
+#include "ui_nav.h"
+#include "ui_panel_ams.h"
+#include "ui_panel_bed_mesh.h"
+#include "ui_panel_calibration_pid.h"
+#include "ui_panel_calibration_zoffset.h"
+#include "ui_panel_extrusion.h"
+#include "ui_panel_fan.h"
+#include "ui_panel_gcode_test.h"
+#include "ui_panel_glyphs.h"
+#include "ui_panel_history_dashboard.h"
+#include "ui_panel_input_shaper.h"
+#include "ui_panel_memory_stats.h"
+#include "ui_panel_motion.h"
+#include "ui_panel_print_select.h"
+#include "ui_panel_print_status.h"
+#include "ui_panel_screws_tilt.h"
+#include "ui_panel_spoolman.h"
+#include "ui_panel_step_test.h"
+#include "ui_panel_temp_control.h"
+#include "ui_panel_test.h"
+#include "ui_severity_card.h"
+#include "ui_status_bar.h"
+#include "ui_switch.h"
+#include "ui_temp_display.h"
+#include "ui_theme.h"
+#include "ui_toast.h"
+#include "ui_utils.h"
+#include "ui_wizard.h"
+#include "ui_wizard_wifi.h"
+
+// Backend headers
+#include "app_globals.h"
+#include "filament_sensor_manager.h"
+#include "gcode_file_modifier.h"
+#include "logging_init.h"
+#include "lvgl/src/xml/lv_xml.h"
+#include "memory_profiling.h"
+#include "memory_utils.h"
+#include "moonraker_api.h"
+#include "moonraker_client.h"
+#include "printer_state.h"
+#include "settings_manager.h"
+#include "splash_screen.h"
+#include "tips_manager.h"
+#include "xml_registration.h"
+
+#include <spdlog/spdlog.h>
+
+#ifdef HELIX_DISPLAY_SDL
+#include <SDL.h>
+#endif
+
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+#include <signal.h>
+#include <unistd.h>
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
+// External globals for logging (defined in cli_args.cpp, populated by parse_cli_args)
+extern std::string g_log_dest_cli;
+extern std::string g_log_file_cli;
+
+Application::Application() = default;
+
+Application::~Application() {
+    shutdown();
+}
+
+int Application::run(int argc, char** argv) {
+    spdlog::info("[Application] Starting HelixScreen...");
+
+    // Store argv early for restart capability
+    app_store_argv(argc, argv);
+
+    // Ensure we're running from the project root
+    ensure_project_root_cwd();
+
+    // Phase 1: Parse command line args
+    if (!parse_args(argc, argv)) {
+        return 0; // Help shown or parse error
+    }
+
+    // Phase 2: Initialize config system
+    if (!init_config()) {
+        return 1;
+    }
+
+    // Phase 3: Initialize logging
+    if (!init_logging()) {
+        return 1;
+    }
+
+    spdlog::info("[Application] ========================");
+    spdlog::debug("[Application] Target: {}x{}", m_screen_width, m_screen_height);
+    spdlog::debug("[Application] DPI: {}{}", (m_args.dpi > 0 ? m_args.dpi : LV_DPI_DEF),
+                  (m_args.dpi > 0 ? " (custom)" : " (default)"));
+    spdlog::debug("[Application] Initial Panel: {}", m_args.initial_panel);
+
+    // Cleanup stale temp files from G-code modifications
+    size_t cleaned = helix::gcode::GCodeFileModifier::cleanup_temp_files();
+    if (cleaned > 0) {
+        spdlog::info("[Application] Cleaned up {} stale G-code temp file(s)", cleaned);
+    }
+
+    // Phase 4: Initialize display
+    if (!init_display()) {
+        return 1;
+    }
+
+    // Phase 5: Initialize theme
+    if (!init_theme()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 6: Register fonts and images
+    if (!init_assets()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 7: Register widgets
+    if (!register_widgets()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 8: Register XML components
+    if (!register_xml_components()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 9: Initialize reactive subjects
+    if (!init_subjects()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 10: Create UI and wire panels
+    if (!init_ui()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 11: Initialize Moonraker
+    if (!init_moonraker()) {
+        shutdown();
+        return 1;
+    }
+
+    // Phase 12: Run wizard if needed
+    if (run_wizard()) {
+        // Wizard is active - it handles its own flow
+        m_wizard_active = true;
+    }
+
+    // Phase 13: Create overlay panels (if not in wizard)
+    if (!m_wizard_active) {
+        create_overlays();
+    }
+
+    // Phase 14: Connect to printer
+    if (!connect_moonraker()) {
+        // Non-fatal - app can still run without connection
+        spdlog::warn("[Application] Running without printer connection");
+    }
+
+    // Phase 15: Main loop
+    int result = main_loop();
+
+    // Phase 16: Shutdown
+    shutdown();
+
+    return result;
+}
+
+void Application::ensure_project_root_cwd() {
+    char exe_path[PATH_MAX];
+
+#ifdef __APPLE__
+    uint32_t size = sizeof(exe_path);
+    if (_NSGetExecutablePath(exe_path, &size) != 0) {
+        return;
+    }
+    char resolved[PATH_MAX];
+    if (realpath(exe_path, resolved)) {
+        strncpy(exe_path, resolved, PATH_MAX - 1);
+        exe_path[PATH_MAX - 1] = '\0';
+    }
+#elif defined(__linux__)
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len == -1) {
+        return;
+    }
+    exe_path[len] = '\0';
+#else
+    return;
+#endif
+
+    char* last_slash = strrchr(exe_path, '/');
+    if (!last_slash)
+        return;
+    *last_slash = '\0';
+
+    size_t dir_len = strlen(exe_path);
+    const char* suffix = "/build/bin";
+    size_t suffix_len = strlen(suffix);
+
+    if (dir_len >= suffix_len && strcmp(exe_path + dir_len - suffix_len, suffix) == 0) {
+        exe_path[dir_len - suffix_len] = '\0';
+        if (chdir(exe_path) == 0) {
+            spdlog::debug("[Application] Changed working directory to: {}", exe_path);
+        }
+    }
+}
+
+bool Application::parse_args(int argc, char** argv) {
+    // Auto-configure mock state based on requested panel
+    auto_configure_mock_state();
+
+    // Parse CLI args
+    if (!helix::parse_cli_args(argc, argv, m_args, m_screen_width, m_screen_height)) {
+        return false;
+    }
+
+    // Check HELIX_AUTO_QUIT_MS environment variable
+    if (m_args.timeout_sec == 0) {
+        const char* auto_quit_env = std::getenv("HELIX_AUTO_QUIT_MS");
+        if (auto_quit_env != nullptr) {
+            char* endptr;
+            long val = strtol(auto_quit_env, &endptr, 10);
+            if (*endptr == '\0' && val >= 100 && val <= 3600000) {
+                m_args.timeout_sec = static_cast<int>((val + 999) / 1000);
+            }
+        }
+    }
+
+    // Check HELIX_AUTO_SCREENSHOT
+    const char* auto_screenshot_env = std::getenv("HELIX_AUTO_SCREENSHOT");
+    if (auto_screenshot_env != nullptr && strcmp(auto_screenshot_env, "1") == 0) {
+        m_args.screenshot_enabled = true;
+    }
+
+    // Check HELIX_AMS_GATES
+    const char* ams_gates_env = std::getenv("HELIX_AMS_GATES");
+    if (ams_gates_env != nullptr) {
+        char* endptr;
+        long val = strtol(ams_gates_env, &endptr, 10);
+        if (*endptr == '\0' && val >= 1 && val <= 16) {
+            get_runtime_config()->mock_ams_gate_count = static_cast<int>(val);
+        }
+    }
+
+    // Check benchmark mode
+    m_benchmark_mode = (std::getenv("HELIX_BENCHMARK") != nullptr);
+    if (m_benchmark_mode) {
+        spdlog::info("[Application] Benchmark mode enabled");
+    }
+
+    return true;
+}
+
+void Application::auto_configure_mock_state() {
+    RuntimeConfig* config = get_runtime_config();
+
+    if (config->test_mode && !config->use_real_moonraker) {
+        if (m_args.overlays.print_status) {
+            config->mock_auto_start_print = true;
+            config->gcode_test_file = RuntimeConfig::get_default_test_file_path();
+            printf("  [Auto] Mock will simulate active print for print-status panel\n");
+        }
+
+        if (m_args.initial_panel == UI_PANEL_PRINT_SELECT && !config->select_file) {
+            config->select_file = RuntimeConfig::DEFAULT_TEST_FILE;
+            printf("  [Auto] Auto-selecting '%s' for print-select panel\n",
+                   RuntimeConfig::DEFAULT_TEST_FILE);
+        }
+
+        if (m_args.overlays.history_dashboard) {
+            config->mock_auto_history = true;
+            printf("  [Auto] Mock will generate history data for history panel\n");
+        }
+    }
+}
+
+bool Application::init_config() {
+    m_config = Config::get_instance();
+    m_config->init("helixconfig.json");
+    return true;
+}
+
+bool Application::init_logging() {
+    helix::logging::LogConfig log_config;
+
+    switch (m_args.verbosity) {
+    case 0:
+        log_config.level = spdlog::level::warn;
+        break;
+    case 1:
+        log_config.level = spdlog::level::info;
+        break;
+    case 2:
+        log_config.level = spdlog::level::debug;
+        break;
+    default:
+        log_config.level = spdlog::level::trace;
+        break;
+    }
+
+    std::string log_dest_str = g_log_dest_cli;
+    if (log_dest_str.empty()) {
+        log_dest_str = m_config->get<std::string>("/log_dest", "auto");
+    }
+    log_config.target = helix::logging::parse_log_target(log_dest_str);
+
+    log_config.file_path = g_log_file_cli;
+    if (log_config.file_path.empty()) {
+        log_config.file_path = m_config->get<std::string>("/log_path", "");
+    }
+
+    helix::logging::init(log_config);
+    return true;
+}
+
+bool Application::init_display() {
+    // Signal external splash process to exit BEFORE creating our display
+    RuntimeConfig* runtime_config = get_runtime_config();
+    if (runtime_config->splash_pid > 0) {
+        spdlog::info("[Application] Signaling splash process (PID {}) to exit...",
+                     runtime_config->splash_pid);
+        if (kill(runtime_config->splash_pid, SIGUSR1) == 0) {
+            int wait_attempts = 50;
+            while (wait_attempts-- > 0 && kill(runtime_config->splash_pid, 0) == 0) {
+                usleep(20000);
+            }
+            if (wait_attempts <= 0) {
+                spdlog::warn("[Application] Splash process did not exit in time");
+            }
+        }
+        runtime_config->splash_pid = 0;
+    }
+
+#ifdef HELIX_DISPLAY_SDL
+    // Set window position environment variables
+    if (m_args.display_num >= 0) {
+        char display_str[32];
+        snprintf(display_str, sizeof(display_str), "%d", m_args.display_num);
+        setenv("HELIX_SDL_DISPLAY", display_str, 1);
+    }
+    if (m_args.x_pos >= 0 && m_args.y_pos >= 0) {
+        char x_str[32], y_str[32];
+        snprintf(x_str, sizeof(x_str), "%d", m_args.x_pos);
+        snprintf(y_str, sizeof(y_str), "%d", m_args.y_pos);
+        setenv("HELIX_SDL_XPOS", x_str, 1);
+        setenv("HELIX_SDL_YPOS", y_str, 1);
+    }
+#endif
+
+    m_display = std::make_unique<DisplayManager>();
+    DisplayManager::Config config;
+    config.width = m_screen_width;
+    config.height = m_screen_height;
+
+    // Get scroll config from helixconfig.json
+    config.scroll_throw = m_config->get<int>("/input/scroll_throw", 25);
+    config.scroll_limit = m_config->get<int>("/input/scroll_limit", 5);
+
+    if (!m_display->init(config)) {
+        spdlog::error("[Application] Display initialization failed");
+        return false;
+    }
+
+    // Apply custom DPI if specified
+    if (m_args.dpi > 0) {
+        lv_display_set_dpi(m_display->display(), m_args.dpi);
+    }
+
+    // Get active screen
+    m_screen = lv_screen_active();
+
+    // Set window icon
+    ui_set_window_icon(m_display->display());
+
+    // Initialize resize handler
+    ui_resize_handler_init(m_screen);
+
+    // Initialize tips manager
+    TipsManager* tips_mgr = TipsManager::get_instance();
+    if (!tips_mgr->init("config/printing_tips.json")) {
+        spdlog::warn("[Application] Failed to initialize tips manager");
+    }
+
+    spdlog::debug("[Application] Display initialized");
+    return true;
+}
+
+bool Application::init_theme() {
+    // Determine theme mode
+    bool dark_mode;
+    if (m_args.dark_mode_cli >= 0) {
+        dark_mode = (m_args.dark_mode_cli == 1);
+    } else {
+        dark_mode = m_config->get<bool>("/dark_mode", true);
+    }
+
+    // Register globals.xml first (required for theme constants)
+    lv_xml_register_component_from_file("A:ui_xml/globals.xml");
+
+    // Initialize theme
+    ui_theme_init(m_display->display(), dark_mode);
+
+    // Apply background color to screen
+    ui_theme_apply_bg_color(m_screen, "app_bg_color", LV_PART_MAIN);
+
+    // Show splash screen if not skipped
+    if (!get_runtime_config()->should_skip_splash()) {
+        helix::show_splash_screen(m_screen_width, m_screen_height);
+    }
+
+    spdlog::debug("[Application] Theme initialized (dark={})", dark_mode);
+    return true;
+}
+
+bool Application::init_assets() {
+    AssetManager::register_all();
+    spdlog::debug("[Application] Assets registered");
+    return true;
+}
+
+bool Application::register_widgets() {
+    ui_icon_register_widget();
+    ui_switch_register();
+    ui_card_register();
+    ui_temp_display_init();
+    ui_severity_card_register();
+    ui_dialog_register();
+    ui_bed_mesh_register();
+    ui_gcode_viewer_register();
+    ui_gradient_canvas_register();
+
+    // Initialize component systems
+    ui_component_header_bar_init();
+
+    // Small delay to stabilize display
+    DisplayManager::delay(100);
+
+    // Initialize memory profiling
+    helix::MemoryProfiler::init(m_args.memory_report);
+
+    // Log system memory info
+    auto mem = helix::get_system_memory_info();
+    spdlog::info("[Application] System memory: total={}MB, available={}MB", mem.total_kb / 1024,
+                 mem.available_mb());
+
+    spdlog::debug("[Application] Widgets registered");
+    return true;
+}
+
+bool Application::register_xml_components() {
+    helix::register_xml_components();
+    spdlog::debug("[Application] XML components registered");
+    return true;
+}
+
+bool Application::init_subjects() {
+    m_subjects = std::make_unique<SubjectInitializer>();
+    if (!m_subjects->init_all(*get_runtime_config())) {
+        spdlog::error("[Application] Subject initialization failed");
+        return false;
+    }
+
+    // Register status bar callbacks
+    ui_status_bar_register_callbacks();
+    ui_panel_screws_tilt_register_callbacks();
+    ui_panel_input_shaper_register_callbacks();
+
+    spdlog::debug("[Application] Subjects initialized");
+    return true;
+}
+
+bool Application::init_ui() {
+    // Create entire UI from XML
+    m_app_layout = static_cast<lv_obj_t*>(lv_xml_create(m_screen, "app_layout", NULL));
+    if (!m_app_layout) {
+        spdlog::error("[Application] Failed to create app_layout from XML");
+        return false;
+    }
+
+    // Disable scrollbars on screen
+    lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(m_screen, LV_SCROLLBAR_MODE_OFF);
+
+    // Force layout calculation
+    lv_obj_update_layout(m_screen);
+
+    // Register app_layout with navigation
+    ui_nav_set_app_layout(m_app_layout);
+
+    // Initialize status bar
+    ui_status_bar_init();
+
+    // Initialize toast system
+    ui_toast_init();
+
+    // Initialize overlay backdrop
+    ui_nav_init_overlay_backdrop(m_screen);
+
+    // Find navbar and content area
+    lv_obj_t* navbar = lv_obj_find_by_name(m_app_layout, "navbar");
+    lv_obj_t* content_area = lv_obj_find_by_name(m_app_layout, "content_area");
+
+    if (!navbar || !content_area) {
+        spdlog::error("[Application] Failed to find navbar/content_area");
+        return false;
+    }
+
+    // Wire navigation
+    ui_nav_wire_events(navbar);
+
+    // Find panel container
+    lv_obj_t* panel_container = lv_obj_find_by_name(content_area, "panel_container");
+    if (!panel_container) {
+        spdlog::error("[Application] Failed to find panel_container");
+        return false;
+    }
+
+    // Initialize panels
+    m_panels = std::make_unique<PanelFactory>();
+    if (!m_panels->find_panels(panel_container)) {
+        return false;
+    }
+    m_panels->setup_panels(m_screen);
+
+    // Create print status overlay
+    if (!m_panels->create_print_status_overlay(m_screen)) {
+        spdlog::error("[Application] Failed to create print status overlay");
+        return false;
+    }
+    m_overlay_panels.print_status = m_panels->print_status_panel();
+
+    // Initialize keypad
+    m_panels->init_keypad(m_screen);
+
+    spdlog::info("[Application] UI created successfully");
+    return true;
+}
+
+bool Application::init_moonraker() {
+    m_moonraker = std::make_unique<MoonrakerManager>();
+    if (!m_moonraker->init(*get_runtime_config(), m_config)) {
+        spdlog::error("[Application] Moonraker initialization failed");
+        return false;
+    }
+
+    // Inject API into panels
+    m_subjects->inject_api(m_moonraker->api());
+
+    // Initialize global keyboard
+    ui_keyboard_init(m_screen);
+
+    // Initialize memory stats overlay
+    MemoryStatsOverlay::instance().init(m_screen, m_args.show_memory);
+
+    spdlog::debug("[Application] Moonraker initialized");
+    return true;
+}
+
+bool Application::run_wizard() {
+    bool wizard_required = (m_args.force_wizard || m_config->is_wizard_required()) &&
+                           !m_args.overlays.step_test && !m_args.overlays.test_panel &&
+                           !m_args.overlays.keypad && !m_args.overlays.keyboard &&
+                           !m_args.overlays.gcode_test && !m_args.panel_requested;
+
+    if (!wizard_required) {
+        return false;
+    }
+
+    spdlog::info("[Application] Starting first-run wizard");
+
+    ui_wizard_register_event_callbacks();
+    ui_wizard_container_register_responsive_constants();
+
+    lv_obj_t* wizard = ui_wizard_create(m_screen);
+    if (!wizard) {
+        spdlog::error("[Application] Failed to create wizard");
+        return false;
+    }
+
+    int initial_step = (m_args.wizard_step >= 1) ? m_args.wizard_step : 1;
+    ui_wizard_navigate_to_step(initial_step);
+
+    // Move keyboard above wizard
+    lv_obj_t* keyboard = ui_keyboard_get_instance();
+    if (keyboard) {
+        lv_obj_move_foreground(keyboard);
+    }
+
+    return true;
+}
+
+void Application::create_overlays() {
+    // Navigate to initial panel
+    if (m_args.initial_panel >= 0) {
+        ui_nav_set_active(static_cast<ui_panel_id_t>(m_args.initial_panel));
+    }
+
+    // Create requested overlay panels
+    if (m_args.overlays.motion) {
+        if (auto* p = create_overlay_panel(m_screen, "motion_panel", "motion")) {
+            m_overlay_panels.motion = p;
+            get_global_motion_panel().setup(p, m_screen);
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.nozzle_temp) {
+        if (auto* p = create_overlay_panel(m_screen, "nozzle_temp_panel", "nozzle temp")) {
+            m_overlay_panels.nozzle_temp = p;
+            m_subjects->temp_control_panel()->setup_nozzle_panel(p, m_screen);
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.bed_temp) {
+        if (auto* p = create_overlay_panel(m_screen, "bed_temp_panel", "bed temp")) {
+            m_overlay_panels.bed_temp = p;
+            m_subjects->temp_control_panel()->setup_bed_panel(p, m_screen);
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.extrusion) {
+        if (auto* p = create_overlay_panel(m_screen, "extrusion_panel", "extrusion")) {
+            m_overlay_panels.extrusion = p;
+            get_global_extrusion_panel().setup(p, m_screen);
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.fan) {
+        auto& fan_panel = get_global_fan_panel();
+        if (!fan_panel.are_subjects_initialized()) {
+            fan_panel.init_subjects();
+        }
+        lv_obj_t* fan_obj = static_cast<lv_obj_t*>(lv_xml_create(m_screen, "fan_panel", nullptr));
+        if (fan_obj) {
+            fan_panel.setup(fan_obj, m_screen);
+            ui_nav_push_overlay(fan_obj);
+        }
+    }
+
+    if (m_args.overlays.print_status && m_overlay_panels.print_status) {
+        ui_nav_push_overlay(m_overlay_panels.print_status);
+    }
+
+    if (m_args.overlays.bed_mesh) {
+        if (auto* p = create_overlay_panel(m_screen, "bed_mesh_panel", "bed mesh")) {
+            get_global_bed_mesh_panel().setup(p, m_screen);
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.zoffset) {
+        if (auto* p = create_overlay_panel(m_screen, "calibration_zoffset_panel", "Z-offset")) {
+            get_global_zoffset_cal_panel().setup(p, m_screen, m_moonraker->client());
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.pid) {
+        if (auto* p = create_overlay_panel(m_screen, "calibration_pid_panel", "PID tuning")) {
+            get_global_pid_cal_panel().setup(p, m_screen, m_moonraker->client());
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.screws_tilt) {
+        if (auto* p = create_overlay_panel(m_screen, "screws_tilt_panel", "screws tilt")) {
+            get_global_screws_tilt_panel().setup(p, m_screen, m_moonraker->client(),
+                                                 m_moonraker->api());
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.input_shaper) {
+        if (auto* p = create_overlay_panel(m_screen, "input_shaper_panel", "input shaper")) {
+            get_global_input_shaper_panel().setup(p, m_screen, m_moonraker->client(),
+                                                  m_moonraker->api());
+            ui_nav_push_overlay(p);
+        }
+    }
+
+    if (m_args.overlays.history_dashboard) {
+        if (auto* p = create_overlay_panel(m_screen, "history_dashboard_panel", "history")) {
+            get_global_history_dashboard_panel().setup(p, m_screen);
+            ui_nav_push_overlay(p);
+            get_global_history_dashboard_panel().on_activate();
+        }
+    }
+
+    if (m_args.overlays.step_test) {
+        if (auto* p = create_overlay_panel(m_screen, "step_progress_test", "step progress")) {
+            get_global_step_test_panel().setup(p, m_screen);
+        }
+    }
+
+    if (m_args.overlays.test_panel) {
+        if (auto* p = create_overlay_panel(m_screen, "test_panel", "test")) {
+            get_global_test_panel().setup(p, m_screen);
+        }
+    }
+
+    if (m_args.overlays.gcode_test) {
+        ui_panel_gcode_test_create(m_screen);
+    }
+
+    if (m_args.overlays.glyphs) {
+        ui_panel_glyphs_create(m_screen);
+    }
+
+    if (m_args.overlays.gradient_test) {
+        create_overlay_panel(m_screen, "gradient_test_panel", "gradient test");
+    }
+
+    if (m_args.overlays.ams) {
+        auto& ams_panel = get_global_ams_panel();
+        if (!ams_panel.are_subjects_initialized()) {
+            ams_panel.init_subjects();
+        }
+        lv_obj_t* panel_obj = ams_panel.get_panel();
+        if (panel_obj) {
+            ams_panel.on_activate();
+            ui_nav_push_overlay(panel_obj);
+        }
+    }
+
+    if (m_args.overlays.spoolman) {
+        auto* panel_obj =
+            static_cast<lv_obj_t*>(lv_xml_create(m_screen, "spoolman_panel", nullptr));
+        if (panel_obj) {
+            get_global_spoolman_panel().setup(panel_obj, m_screen);
+            ui_nav_push_overlay(panel_obj);
+        }
+    }
+
+    // Handle --select-file flag
+    RuntimeConfig* runtime_config = get_runtime_config();
+    if (runtime_config->select_file != nullptr) {
+        ui_nav_set_active(UI_PANEL_PRINT_SELECT);
+        auto* print_panel = get_print_select_panel(get_printer_state(), m_moonraker->api());
+        if (print_panel) {
+            print_panel->set_pending_file_selection(runtime_config->select_file);
+        }
+    }
+}
+
+bool Application::connect_moonraker() {
+    // Determine if we should connect
+    std::string saved_host = m_config->get<std::string>(m_config->df() + "moonraker_host", "");
+    bool has_cli_url = !m_args.moonraker_url.empty();
+    bool should_connect =
+        has_cli_url || get_runtime_config()->test_mode ||
+        (!m_args.force_wizard && !m_config->is_wizard_required() && !saved_host.empty());
+
+    if (!should_connect) {
+        return true; // Not connecting is not an error
+    }
+
+    std::string moonraker_url;
+    std::string http_base_url;
+
+    if (has_cli_url) {
+        moonraker_url = m_args.moonraker_url;
+        std::string host_port = moonraker_url.substr(5);
+        auto ws_pos = host_port.find("/websocket");
+        if (ws_pos != std::string::npos) {
+            host_port = host_port.substr(0, ws_pos);
+        }
+        http_base_url = "http://" + host_port;
+    } else {
+        moonraker_url =
+            "ws://" + m_config->get<std::string>(m_config->df() + "moonraker_host") + ":" +
+            std::to_string(m_config->get<int>(m_config->df() + "moonraker_port")) + "/websocket";
+        http_base_url = "http://" + m_config->get<std::string>(m_config->df() + "moonraker_host") +
+                        ":" + std::to_string(m_config->get<int>(m_config->df() + "moonraker_port"));
+    }
+
+    // Set up discovery callbacks
+    MoonrakerClient* client = m_moonraker->client();
+    MoonrakerAPI* api = m_moonraker->api();
+
+    client->set_on_hardware_discovered([api, client](const PrinterCapabilities& caps) {
+        lv_async_call(
+            [](void* user_data) {
+                auto* ctx = static_cast<
+                    std::pair<PrinterCapabilities, std::pair<MoonrakerAPI*, MoonrakerClient*>>*>(
+                    user_data);
+                AmsState::instance().init_backend_from_capabilities(ctx->first, ctx->second.first,
+                                                                    ctx->second.second);
+                if (ctx->first.has_filament_sensors()) {
+                    auto& fsm = helix::FilamentSensorManager::instance();
+                    fsm.discover_sensors(ctx->first.get_filament_sensor_names());
+                    fsm.load_config();
+                }
+                delete ctx;
+            },
+            new std::pair<PrinterCapabilities, std::pair<MoonrakerAPI*, MoonrakerClient*>>(
+                caps, {api, client}));
+    });
+
+    client->set_on_discovery_complete([client](const PrinterCapabilities& caps) {
+        lv_async_call(
+            [](void* user_data) {
+                auto* ctx =
+                    static_cast<std::pair<PrinterCapabilities, MoonrakerClient*>*>(user_data);
+                get_printer_state().set_printer_capabilities(ctx->first);
+                get_printer_state().init_fans(ctx->second->get_fans());
+                get_printer_state().set_klipper_version(ctx->second->get_software_version());
+                get_printer_state().set_moonraker_version(ctx->second->get_moonraker_version());
+                delete ctx;
+            },
+            new std::pair<PrinterCapabilities, MoonrakerClient*>(caps, client));
+    });
+
+    // Set HTTP base URL for API
+    api->set_http_base_url(http_base_url);
+
+    // Connect
+    spdlog::debug("[Application] Connecting to {}", moonraker_url);
+    int result = m_moonraker->connect(moonraker_url, http_base_url);
+
+    if (result != 0) {
+        spdlog::error("[Application] Failed to initiate connection (code {})", result);
+        return false;
+    }
+
+    // Start auto-discovery (client handles this internally after connect)
+
+    // Initialize print start collector (monitors PRINT_START macro progress)
+    m_moonraker->init_print_start_collector();
+
+    return true;
+}
+
+lv_obj_t* Application::create_overlay_panel(lv_obj_t* screen, const char* component_name,
+                                            const char* display_name) {
+    spdlog::debug("[Application] Opening {} overlay", display_name);
+    lv_obj_t* panel = static_cast<lv_obj_t*>(lv_xml_create(screen, component_name, nullptr));
+    if (!panel) {
+        spdlog::error("[Application] Failed to create {} overlay from '{}'", display_name,
+                      component_name);
+    }
+    return panel;
+}
+
+int Application::main_loop() {
+    spdlog::info("[Application] Entering main loop");
+    m_running = true;
+
+    // Initialize timing
+    m_start_time = DisplayManager::get_ticks();
+    m_screenshot_time = m_start_time + (static_cast<uint32_t>(m_args.screenshot_delay_sec) * 1000U);
+    m_last_timeout_check = m_start_time;
+    m_timeout_check_interval = static_cast<uint32_t>(
+        m_config->get<int>(m_config->df() + "moonraker_timeout_check_interval_ms", 2000));
+
+    if (m_benchmark_mode) {
+        m_benchmark_start_time = m_start_time;
+        m_benchmark_last_report = m_start_time;
+    }
+
+    // Main event loop
+    while (lv_display_get_next(NULL) && !app_quit_requested()) {
+        handle_keyboard_shortcuts();
+
+        // Auto-screenshot
+        if (m_args.screenshot_enabled && !m_screenshot_taken &&
+            DisplayManager::get_ticks() >= m_screenshot_time) {
+            // Screenshot logic would go here
+            m_screenshot_taken = true;
+        }
+
+        // Auto-quit timeout
+        if (m_args.timeout_sec > 0) {
+            uint32_t elapsed = DisplayManager::get_ticks() - m_start_time;
+            if (elapsed >= static_cast<uint32_t>(m_args.timeout_sec) * 1000U) {
+                spdlog::info("[Application] Timeout reached ({} seconds)", m_args.timeout_sec);
+                break;
+            }
+        }
+
+        // Process timeouts
+        check_timeouts();
+
+        // Process Moonraker notifications
+        process_notifications();
+
+        // Check display sleep
+        SettingsManager::instance().check_display_sleep();
+
+        // Run LVGL tasks
+        lv_timer_handler();
+        fflush(stdout);
+
+        // Benchmark mode
+        if (m_benchmark_mode) {
+            lv_obj_invalidate(lv_screen_active());
+            m_benchmark_frame_count++;
+            uint32_t now = DisplayManager::get_ticks();
+            if (now - m_benchmark_last_report >= 5000) {
+                float elapsed_sec = (now - m_benchmark_last_report) / 1000.0f;
+                float fps = m_benchmark_frame_count / elapsed_sec;
+                spdlog::info("[Application] Benchmark FPS: {:.1f}", fps);
+                m_benchmark_frame_count = 0;
+                m_benchmark_last_report = now;
+            }
+        }
+
+        DisplayManager::delay(5);
+    }
+
+    m_running = false;
+
+    if (m_benchmark_mode) {
+        uint32_t total_time = DisplayManager::get_ticks() - m_benchmark_start_time;
+        spdlog::info("[Application] Benchmark total runtime: {:.1f}s", total_time / 1000.0f);
+    }
+
+    return 0;
+}
+
+void Application::handle_keyboard_shortcuts() {
+#ifdef HELIX_DISPLAY_SDL
+    SDL_Keymod modifiers = SDL_GetModState();
+    const Uint8* keyboard_state = SDL_GetKeyboardState(NULL);
+
+    // Cmd+Q / Win+Q to quit
+    if ((modifiers & KMOD_GUI) && keyboard_state[SDL_SCANCODE_Q]) {
+        spdlog::info("[Application] Cmd+Q/Win+Q pressed - exiting");
+        app_request_quit();
+    }
+
+    // M key toggle for memory stats (with debounce)
+    static bool m_key_was_pressed = false;
+    bool m_key_pressed = keyboard_state[SDL_SCANCODE_M] != 0;
+    if (m_key_pressed && !m_key_was_pressed) {
+        MemoryStatsOverlay::instance().toggle();
+    }
+    m_key_was_pressed = m_key_pressed;
+#endif
+}
+
+void Application::process_notifications() {
+    if (m_moonraker) {
+        m_moonraker->process_notifications();
+    }
+}
+
+void Application::check_timeouts() {
+    uint32_t current_time = DisplayManager::get_ticks();
+    if (current_time - m_last_timeout_check >= m_timeout_check_interval) {
+        if (m_moonraker) {
+            m_moonraker->process_timeouts();
+        }
+        m_last_timeout_check = current_time;
+    }
+}
+
+void Application::shutdown() {
+    spdlog::info("[Application] Shutting down...");
+
+    // Clear app_globals references
+    set_moonraker_api(nullptr);
+    set_moonraker_client(nullptr);
+
+    // Reset managers in reverse order (MoonrakerManager handles print_start_collector cleanup)
+    m_moonraker.reset();
+    m_panels.reset();
+    m_subjects.reset();
+
+    // Clean up wizard
+    destroy_wizard_wifi_step();
+
+    // Restore display backlight
+    SettingsManager::instance().restore_display_on_shutdown();
+
+    // Shutdown display (calls lv_deinit)
+    m_display.reset();
+
+    spdlog::info("[Application] Shutdown complete");
+
+    // Shutdown spdlog LAST - no logging after this point
+    spdlog::shutdown();
+}

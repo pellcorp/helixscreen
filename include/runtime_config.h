@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdio>      // For snprintf in get_default_test_file_path()
 #include <sys/types.h> // For pid_t
 
 /**
@@ -148,12 +149,6 @@ struct RuntimeConfig {
 
 /**
  * @brief Get global runtime configuration
- * @return Reference to the global runtime configuration
- */
-const RuntimeConfig& get_runtime_config();
-
-/**
- * @brief Get mutable runtime configuration (for initialization only)
  * @return Pointer to the global runtime configuration
  */
-RuntimeConfig* get_mutable_runtime_config();
+RuntimeConfig* get_runtime_config();

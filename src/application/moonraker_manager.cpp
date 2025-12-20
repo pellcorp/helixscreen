@@ -1,0 +1,356 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright 2025 HelixScreen
+
+#include "moonraker_manager.h"
+
+#include "ui_emergency_stop.h"
+#include "ui_error_reporting.h"
+
+#include "ams_state.h"
+#include "app_globals.h"
+#include "config.h"
+#include "moonraker_api.h"
+#include "moonraker_api_mock.h"
+#include "moonraker_client.h"
+#include "moonraker_client_mock.h"
+#include "print_start_collector.h"
+#include "printer_state.h"
+#include "settings_manager.h"
+#include "sound_manager.h"
+
+#include <spdlog/spdlog.h>
+
+#include <cstdlib>
+
+MoonrakerManager::MoonrakerManager() = default;
+
+MoonrakerManager::~MoonrakerManager() {
+    shutdown();
+}
+
+bool MoonrakerManager::init(const RuntimeConfig& runtime_config, Config* config) {
+    if (m_initialized) {
+        spdlog::warn("[MoonrakerManager] Already initialized");
+        return false;
+    }
+
+    spdlog::debug("[MoonrakerManager] Initializing...");
+
+    // Create client (mock or real)
+    create_client(runtime_config);
+
+    // Configure timeouts from config file
+    if (config) {
+        configure_timeouts(config);
+    }
+
+    // Register callbacks for notifications and state changes
+    register_callbacks();
+
+    // Create API (mock or real)
+    create_api(runtime_config);
+
+    m_initialized = true;
+    spdlog::info("[MoonrakerManager] Initialized (not connected yet)");
+
+    return true;
+}
+
+void MoonrakerManager::shutdown() {
+    if (!m_initialized) {
+        return;
+    }
+
+    spdlog::debug("[MoonrakerManager] Shutting down...");
+
+    // Stop print start collector first (before client is destroyed)
+    if (m_print_start_collector) {
+        m_print_start_collector->stop();
+        m_print_start_collector.reset();
+    }
+
+    // Release observer guards
+    m_print_start_observer.reset();
+    m_print_start_phase_observer.reset();
+    m_print_layer_fallback_observer.reset();
+    m_print_progress_fallback_observer.reset();
+
+    // Clear API before client (API uses client)
+    m_api.reset();
+    m_client.reset();
+
+    // Clear notification queue
+    {
+        std::lock_guard<std::mutex> lock(m_notification_mutex);
+        while (!m_notification_queue.empty()) {
+            m_notification_queue.pop();
+        }
+    }
+
+    m_initialized = false;
+    spdlog::info("[MoonrakerManager] Shutdown complete");
+}
+
+int MoonrakerManager::connect(const std::string& websocket_url, const std::string& http_base_url) {
+    if (!m_initialized || !m_client) {
+        spdlog::error("[MoonrakerManager] Cannot connect - not initialized");
+        return -1;
+    }
+
+    spdlog::info("[MoonrakerManager] Connecting to {} ...", websocket_url);
+
+    // Set HTTP base URL for API
+    if (m_api) {
+        m_api->set_http_base_url(http_base_url);
+    }
+
+    // Connect client with empty callbacks (state changes go through notification queue)
+    return m_client->connect(websocket_url.c_str(), []() {}, []() {});
+}
+
+void MoonrakerManager::process_notifications() {
+    std::lock_guard<std::mutex> lock(m_notification_mutex);
+
+    while (!m_notification_queue.empty()) {
+        json notification = m_notification_queue.front();
+        m_notification_queue.pop();
+
+        // Check for connection state change (queued from state_change_callback)
+        if (notification.contains("_connection_state")) {
+            int new_state = notification["new_state"].get<int>();
+            static const char* messages[] = {
+                "Disconnected",     // DISCONNECTED
+                "Connecting...",    // CONNECTING
+                "Connected",        // CONNECTED
+                "Reconnecting...",  // RECONNECTING
+                "Connection Failed" // FAILED
+            };
+            spdlog::trace("[MoonrakerManager] Processing connection state change: {}",
+                          messages[new_state]);
+            get_printer_state().set_printer_connection_state(new_state, messages[new_state]);
+        } else {
+            // Regular Moonraker notification
+            get_printer_state().update_from_notification(notification);
+        }
+    }
+}
+
+void MoonrakerManager::process_timeouts() {
+    if (m_client) {
+        m_client->process_timeouts();
+    }
+}
+
+size_t MoonrakerManager::pending_notification_count() const {
+    std::lock_guard<std::mutex> lock(m_notification_mutex);
+    return m_notification_queue.size();
+}
+
+void MoonrakerManager::create_client(const RuntimeConfig& runtime_config) {
+    spdlog::debug("[MoonrakerManager] Creating Moonraker client...");
+
+    if (runtime_config.should_mock_moonraker()) {
+        double speedup = runtime_config.sim_speedup;
+        spdlog::debug("[MoonrakerManager] Creating MOCK client (Voron 2.4, {}x speed)", speedup);
+        auto mock = std::make_unique<MoonrakerClientMock>(
+            MoonrakerClientMock::PrinterType::VORON_24, speedup);
+        m_client = std::move(mock);
+    } else {
+        spdlog::debug("[MoonrakerManager] Creating REAL client");
+        m_client = std::make_unique<MoonrakerClient>();
+    }
+
+    // Register with app_globals
+    set_moonraker_client(m_client.get());
+
+    // Initialize SoundManager with client for M300 audio feedback
+    SoundManager::instance().set_moonraker_client(m_client.get());
+}
+
+void MoonrakerManager::configure_timeouts(Config* config) {
+    if (!m_client || !config) {
+        return;
+    }
+
+    uint32_t connection_timeout = static_cast<uint32_t>(
+        config->get<int>(config->df() + "moonraker_connection_timeout_ms", 10000));
+    uint32_t request_timeout = static_cast<uint32_t>(
+        config->get<int>(config->df() + "moonraker_request_timeout_ms", 30000));
+    uint32_t keepalive_interval = static_cast<uint32_t>(
+        config->get<int>(config->df() + "moonraker_keepalive_interval_ms", 10000));
+    uint32_t reconnect_min_delay = static_cast<uint32_t>(
+        config->get<int>(config->df() + "moonraker_reconnect_min_delay_ms", 200));
+    uint32_t reconnect_max_delay = static_cast<uint32_t>(
+        config->get<int>(config->df() + "moonraker_reconnect_max_delay_ms", 2000));
+
+    m_client->configure_timeouts(connection_timeout, request_timeout, keepalive_interval,
+                                 reconnect_min_delay, reconnect_max_delay);
+
+    spdlog::debug("[MoonrakerManager] Timeouts: connection={}ms, request={}ms, keepalive={}ms",
+                  connection_timeout, request_timeout, keepalive_interval);
+}
+
+void MoonrakerManager::register_callbacks() {
+    if (!m_client) {
+        return;
+    }
+
+    // Register event handler for UI notifications
+    m_client->register_event_handler([](const MoonrakerEvent& evt) {
+        const char* title = nullptr;
+        if (evt.type == MoonrakerEventType::CONNECTION_FAILED) {
+            title = "Connection Failed";
+        } else if (evt.type == MoonrakerEventType::KLIPPY_DISCONNECTED) {
+            title = "Printer Firmware Disconnected";
+        }
+
+        if (evt.is_error) {
+            bool is_critical = (evt.type == MoonrakerEventType::CONNECTION_FAILED ||
+                                evt.type == MoonrakerEventType::KLIPPY_DISCONNECTED);
+            if (is_critical) {
+                NOTIFY_ERROR_MODAL(title, "{}", evt.message);
+            } else {
+                NOTIFY_ERROR_T(title, "{}", evt.message);
+            }
+        } else {
+            NOTIFY_WARNING("{}", evt.message);
+        }
+    });
+
+    // Set up state change callback to queue updates for main thread
+    // CRITICAL: This runs on Moonraker thread, NOT main thread
+    m_client->set_state_change_callback(
+        [this](ConnectionState old_state, ConnectionState new_state) {
+            spdlog::trace("[MoonrakerManager] State change: {} -> {} (queueing)",
+                          static_cast<int>(old_state), static_cast<int>(new_state));
+
+            std::lock_guard<std::mutex> lock(m_notification_mutex);
+            json state_change;
+            state_change["_connection_state"] = true;
+            state_change["old_state"] = static_cast<int>(old_state);
+            state_change["new_state"] = static_cast<int>(new_state);
+            m_notification_queue.push(state_change);
+        });
+
+    // Register notification callback to queue updates for main thread
+    m_client->register_notify_update([this](json notification) {
+        std::lock_guard<std::mutex> lock(m_notification_mutex);
+        m_notification_queue.push(notification);
+    });
+}
+
+void MoonrakerManager::create_api(const RuntimeConfig& runtime_config) {
+    spdlog::debug("[MoonrakerManager] Creating Moonraker API...");
+
+    if (runtime_config.should_use_test_files()) {
+        spdlog::debug("[MoonrakerManager] Creating MOCK API (local file transfers)");
+        auto mock_api = std::make_unique<MoonrakerAPIMock>(*m_client, get_printer_state());
+
+        // Check HELIX_MOCK_SPOOLMAN env var
+        const char* spoolman_env = std::getenv("HELIX_MOCK_SPOOLMAN");
+        if (spoolman_env &&
+            (std::string(spoolman_env) == "0" || std::string(spoolman_env) == "off")) {
+            mock_api->set_mock_spoolman_enabled(false);
+            spdlog::info("[MoonrakerManager] Mock Spoolman disabled via HELIX_MOCK_SPOOLMAN=0");
+        }
+
+        m_api = std::move(mock_api);
+    } else {
+        m_api = std::make_unique<MoonrakerAPI>(*m_client, get_printer_state());
+    }
+
+    // Register with app_globals
+    set_moonraker_api(m_api.get());
+
+    // Set API for AmsState Spoolman integration
+    AmsState::instance().set_moonraker_api(m_api.get());
+
+    // Initialize E-Stop overlay with dependencies
+    EmergencyStopOverlay::instance().init(get_printer_state(), m_api.get());
+    EmergencyStopOverlay::instance().create();
+    EmergencyStopOverlay::instance().set_require_confirmation(
+        SettingsManager::instance().get_estop_require_confirmation());
+    EmergencyStopOverlay::instance().on_panel_changed("home_panel");
+}
+
+void MoonrakerManager::init_print_start_collector() {
+    if (!m_client) {
+        spdlog::warn("[MoonrakerManager] Cannot init print_start_collector - no client");
+        return;
+    }
+
+    // Create collector
+    m_print_start_collector = std::make_shared<PrintStartCollector>(*m_client, get_printer_state());
+
+    // Store shared_ptr in a static for the lambda captures
+    // This avoids the capturing lambda issue with ObserverGuard
+    static std::weak_ptr<PrintStartCollector> s_collector;
+    s_collector = m_print_start_collector;
+
+    // Observer to start/stop collector based on print state
+    m_print_start_observer = ObserverGuard(
+        get_printer_state().get_print_state_enum_subject(),
+        [](lv_observer_t*, lv_subject_t* subject) {
+            auto collector = s_collector.lock();
+            if (!collector)
+                return;
+
+            auto state = static_cast<PrintJobState>(lv_subject_get_int(subject));
+            if (state == PrintJobState::PRINTING) {
+                if (!collector->is_active()) {
+                    collector->reset();
+                    collector->start();
+                    collector->enable_fallbacks();
+                    spdlog::info("[MoonrakerManager] PRINT_START collector started");
+                }
+            } else {
+                if (collector->is_active()) {
+                    collector->stop();
+                    spdlog::info("[MoonrakerManager] PRINT_START collector stopped");
+                }
+            }
+        },
+        nullptr);
+
+    // Observer for print start phase completion
+    m_print_start_phase_observer = ObserverGuard(
+        get_printer_state().get_print_start_phase_subject(),
+        [](lv_observer_t*, lv_subject_t* subject) {
+            auto collector = s_collector.lock();
+            if (!collector)
+                return;
+
+            auto phase = static_cast<PrintStartPhase>(lv_subject_get_int(subject));
+            if (phase == PrintStartPhase::COMPLETE) {
+                if (collector->is_active()) {
+                    collector->stop();
+                    spdlog::info(
+                        "[MoonrakerManager] PRINT_START collector stopped (phase=COMPLETE)");
+                }
+            }
+        },
+        nullptr);
+
+    // Fallback observers
+    m_print_layer_fallback_observer = ObserverGuard(
+        get_printer_state().get_print_layer_current_subject(),
+        [](lv_observer_t*, lv_subject_t*) {
+            auto collector = s_collector.lock();
+            if (collector && collector->is_active()) {
+                collector->check_fallback_completion();
+            }
+        },
+        nullptr);
+
+    m_print_progress_fallback_observer = ObserverGuard(
+        get_printer_state().get_print_progress_subject(),
+        [](lv_observer_t*, lv_subject_t*) {
+            auto collector = s_collector.lock();
+            if (collector && collector->is_active()) {
+                collector->check_fallback_completion();
+            }
+        },
+        nullptr);
+
+    spdlog::debug("[MoonrakerManager] Print start collector initialized");
+}

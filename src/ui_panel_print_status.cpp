@@ -263,15 +263,15 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         // Apply render mode - priority: cmdline > env var > settings
         // Note: HELIX_GCODE_MODE env var is handled at widget creation, so we only
         // override if there's an explicit command-line option or if no env var was set
-        const auto& config = get_runtime_config();
+        const auto* config = get_runtime_config();
         const char* env_mode = std::getenv("HELIX_GCODE_MODE");
 
-        if (config.gcode_render_mode >= 0) {
+        if (config->gcode_render_mode >= 0) {
             // Command line takes highest priority
-            auto render_mode = static_cast<gcode_viewer_render_mode_t>(config.gcode_render_mode);
+            auto render_mode = static_cast<gcode_viewer_render_mode_t>(config->gcode_render_mode);
             ui_gcode_viewer_set_render_mode(gcode_viewer_, render_mode);
             spdlog::info("[{}]   ✓ Set G-code render mode: {} (cmdline)", get_name(),
-                         config.gcode_render_mode);
+                         config->gcode_render_mode);
         } else if (env_mode) {
             // Env var already applied at widget creation - just log
             spdlog::info("[{}]   ✓ G-code render mode: {} (env var)", get_name(),
@@ -347,20 +347,20 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     }
 
     // Check if --gcode-file was specified on command line for this panel
-    const auto& config = get_runtime_config();
-    if (config.gcode_test_file && gcode_viewer_) {
+    const auto* config = get_runtime_config();
+    if (config->gcode_test_file && gcode_viewer_) {
         // Check file size and memory safety before loading
-        std::ifstream file(config.gcode_test_file, std::ios::binary | std::ios::ate);
+        std::ifstream file(config->gcode_test_file, std::ios::binary | std::ios::ate);
         if (file) {
             size_t file_size = static_cast<size_t>(file.tellg());
             if (helix::is_gcode_3d_render_safe(file_size)) {
                 spdlog::info("[{}] Loading G-code file from command line: {}", get_name(),
-                             config.gcode_test_file);
-                load_gcode_file(config.gcode_test_file);
+                             config->gcode_test_file);
+                load_gcode_file(config->gcode_test_file);
             } else {
                 spdlog::warn("[{}] G-code file too large for rendering: {} ({} bytes) - using "
                              "thumbnail only",
-                             get_name(), config.gcode_test_file, file_size);
+                             get_name(), config->gcode_test_file, file_size);
             }
         }
     }
@@ -2305,13 +2305,13 @@ void PrintStatusPanel::show_runout_guidance_modal() {
     spdlog::info("[{}] Showing runout guidance modal", get_name());
 
     // Configure modal with centered position
-    ui_modal_config_t config = {};
-    config.position.use_alignment = true;
-    config.position.alignment = LV_ALIGN_CENTER;
-    config.backdrop_opa = 200;
-    config.persistent = false;
+    ui_modal_config_t modal_config = {};
+    modal_config.position.use_alignment = true;
+    modal_config.position.alignment = LV_ALIGN_CENTER;
+    modal_config.backdrop_opa = 200;
+    modal_config.persistent = false;
 
-    runout_guidance_modal_ = ui_modal_show("runout_guidance_modal", &config, nullptr);
+    runout_guidance_modal_ = ui_modal_show("runout_guidance_modal", &modal_config, nullptr);
     if (!runout_guidance_modal_) {
         spdlog::error("[{}] Failed to create runout guidance modal", get_name());
         return;

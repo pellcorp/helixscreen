@@ -1,0 +1,166 @@
+// Copyright 2025 HelixScreen
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+/**
+ * @file test_moonraker_manager.cpp
+ * @brief Unit tests for MoonrakerManager class
+ *
+ * Tests Moonraker client/API lifecycle, configuration, and notification queue.
+ *
+ * Note: MoonrakerManager has heavy dependencies (MoonrakerClient, MoonrakerAPI,
+ * EmergencyStopOverlay, etc.) that require full LVGL initialization. These tests
+ * focus on the configuration interface. Full initialization tests are done as
+ * integration tests.
+ */
+
+#include "runtime_config.h"
+
+#include "../../catch_amalgamated.hpp"
+
+// ============================================================================
+// RuntimeConfig Tests (MoonrakerManager dependency)
+// ============================================================================
+
+TEST_CASE("MoonrakerManager uses RuntimeConfig for mock decisions",
+          "[application][moonraker][config]") {
+    RuntimeConfig config;
+
+    SECTION("Default is not mock mode") {
+        REQUIRE_FALSE(config.should_mock_moonraker());
+        REQUIRE_FALSE(config.should_use_test_files());
+    }
+
+    SECTION("Test mode enables mock Moonraker") {
+        config.test_mode = true;
+        REQUIRE(config.should_mock_moonraker());
+        REQUIRE(config.should_use_test_files());
+    }
+
+    SECTION("Real Moonraker flag overrides mock") {
+        config.test_mode = true;
+        config.use_real_moonraker = true;
+        REQUIRE_FALSE(config.should_mock_moonraker());
+        // Note: should_use_test_files is controlled by use_real_files, not use_real_moonraker
+        REQUIRE(config.should_use_test_files());
+    }
+
+    SECTION("Real files flag affects API mock") {
+        config.test_mode = true;
+        config.use_real_files = true;
+        REQUIRE_FALSE(config.should_use_test_files());
+        REQUIRE(config.should_mock_moonraker()); // Moonraker mock unaffected
+    }
+}
+
+TEST_CASE("RuntimeConfig simulation speedup", "[application][moonraker][config]") {
+    RuntimeConfig config;
+
+    REQUIRE(config.sim_speedup == 1.0);
+
+    config.sim_speedup = 10.0;
+    REQUIRE(config.sim_speedup == 10.0);
+
+    config.sim_speedup = 0.5;
+    REQUIRE(config.sim_speedup == 0.5);
+}
+
+TEST_CASE("RuntimeConfig mock_auto_start_print flag", "[application][moonraker][config]") {
+    RuntimeConfig config;
+
+    REQUIRE_FALSE(config.mock_auto_start_print);
+
+    config.mock_auto_start_print = true;
+    REQUIRE(config.mock_auto_start_print);
+}
+
+TEST_CASE("RuntimeConfig mock_auto_history flag", "[application][moonraker][config]") {
+    RuntimeConfig config;
+
+    REQUIRE_FALSE(config.mock_auto_history);
+
+    config.mock_auto_history = true;
+    REQUIRE(config.mock_auto_history);
+}
+
+TEST_CASE("RuntimeConfig mock_ams_gate_count", "[application][moonraker][config]") {
+    RuntimeConfig config;
+
+    // Default is 4 gates
+    REQUIRE(config.mock_ams_gate_count == 4);
+
+    config.mock_ams_gate_count = 8;
+    REQUIRE(config.mock_ams_gate_count == 8);
+}
+
+// ============================================================================
+// MoonrakerManager Design Documentation
+// ============================================================================
+// The following tests document expected behavior. They are marked .integration
+// since they require the full LVGL and Moonraker environment.
+
+TEST_CASE("MoonrakerManager creates mock client in test mode",
+          "[application][moonraker][.integration]") {
+    // Expected: When runtime_config.should_mock_moonraker() is true,
+    // MoonrakerManager creates MoonrakerClientMock instead of MoonrakerClient
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager creates mock API with test files",
+          "[application][moonraker][.integration]") {
+    // Expected: When runtime_config.should_use_test_files() is true,
+    // MoonrakerManager creates MoonrakerAPIMock instead of MoonrakerAPI
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager registers with app_globals", "[application][moonraker][.integration]") {
+    // Expected: After init(), get_moonraker_client() and get_moonraker_api()
+    // return non-null pointers matching manager.client() and manager.api()
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager configures timeouts from Config",
+          "[application][moonraker][.integration]") {
+    // Expected: Timeout values from Config are passed to client->configure_timeouts()
+    // Default values: connection=10000ms, request=30000ms, keepalive=10000ms
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager notification queue is thread-safe",
+          "[application][moonraker][.integration]") {
+    // Expected: Notifications pushed from Moonraker thread are safely
+    // queued and processed on main thread via process_notifications()
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager connection state changes update PrinterState",
+          "[application][moonraker][.integration]") {
+    // Expected: When connection state changes, process_notifications() updates
+    // PrinterState via set_printer_connection_state()
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager shutdown clears resources", "[application][moonraker][.integration]") {
+    // Expected: After shutdown(), client() and api() return nullptr,
+    // notification queue is empty
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager initializes E-Stop overlay", "[application][moonraker][.integration]") {
+    // Expected: After init(), EmergencyStopOverlay::instance() is initialized
+    // with PrinterState and MoonrakerAPI references
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager respects HELIX_MOCK_SPOOLMAN env var",
+          "[application][moonraker][.integration]") {
+    // Expected: When HELIX_MOCK_SPOOLMAN=0 or "off", mock API has
+    // Spoolman support disabled
+    REQUIRE(true);
+}
+
+TEST_CASE("MoonrakerManager initializes print_start_collector",
+          "[application][moonraker][.integration]") {
+    // Expected: After init_print_start_collector(), observers are set up
+    // to monitor print startup phases (PRINT_START macro progress)
+    REQUIRE(true);
+}

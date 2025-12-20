@@ -16,7 +16,7 @@
 
 std::unique_ptr<EthernetBackend> EthernetBackend::create() {
     // In test mode, always use mock unless --real-ethernet was specified
-    if (get_runtime_config().should_mock_ethernet()) {
+    if (get_runtime_config()->should_mock_ethernet()) {
         spdlog::info("[EthernetBackend] Test mode: using mock backend");
         return std::make_unique<EthernetBackendMock>();
     }

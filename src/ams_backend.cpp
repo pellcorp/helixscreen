@@ -54,32 +54,32 @@ static std::unique_ptr<AmsBackendMock> create_mock_with_features(int gate_count)
 }
 
 std::unique_ptr<AmsBackend> AmsBackend::create(AmsType detected_type) {
-    const auto& config = get_runtime_config();
+    const auto* config = get_runtime_config();
 
     // Check if mock mode is requested
-    if (config.should_mock_ams()) {
+    if (config->should_mock_ams()) {
         spdlog::debug("[AMS Backend] Creating mock backend with {} gates (mock mode enabled)",
-                      config.mock_ams_gate_count);
-        return create_mock_with_features(config.mock_ams_gate_count);
+                      config->mock_ams_gate_count);
+        return create_mock_with_features(config->mock_ams_gate_count);
     }
 
     // Without API/client dependencies, we can only return mock backends
     switch (detected_type) {
     case AmsType::HAPPY_HARE:
         spdlog::warn("[AMS Backend] Happy Hare detected but no API/client provided - using mock");
-        return std::make_unique<AmsBackendMock>(config.mock_ams_gate_count);
+        return std::make_unique<AmsBackendMock>(config->mock_ams_gate_count);
 
     case AmsType::AFC:
         spdlog::warn("[AMS Backend] AFC detected but no API/client provided - using mock");
-        return std::make_unique<AmsBackendMock>(config.mock_ams_gate_count);
+        return std::make_unique<AmsBackendMock>(config->mock_ams_gate_count);
 
     case AmsType::VALGACE:
         spdlog::warn("[AMS Backend] ValgACE detected but no API/client provided - using mock");
-        return std::make_unique<AmsBackendMock>(config.mock_ams_gate_count);
+        return std::make_unique<AmsBackendMock>(config->mock_ams_gate_count);
 
     case AmsType::TOOL_CHANGER:
         spdlog::warn("[AMS Backend] Tool changer detected but no API/client provided - using mock");
-        return std::make_unique<AmsBackendMock>(config.mock_ams_gate_count);
+        return std::make_unique<AmsBackendMock>(config->mock_ams_gate_count);
 
     case AmsType::NONE:
     default:
@@ -90,13 +90,13 @@ std::unique_ptr<AmsBackend> AmsBackend::create(AmsType detected_type) {
 
 std::unique_ptr<AmsBackend> AmsBackend::create(AmsType detected_type, MoonrakerAPI* api,
                                                MoonrakerClient* client) {
-    const auto& config = get_runtime_config();
+    const auto* config = get_runtime_config();
 
     // Check if mock mode is requested
-    if (config.should_mock_ams()) {
+    if (config->should_mock_ams()) {
         spdlog::debug("[AMS Backend] Creating mock backend with {} gates (mock mode enabled)",
-                      config.mock_ams_gate_count);
-        return create_mock_with_features(config.mock_ams_gate_count);
+                      config->mock_ams_gate_count);
+        return create_mock_with_features(config->mock_ams_gate_count);
     }
 
     switch (detected_type) {

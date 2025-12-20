@@ -925,14 +925,14 @@ void PrinterState::set_printer_capabilities_internal(const PrinterCapabilities& 
     lv_subject_set_int(&printer_has_accelerometer_, caps.has_accelerometer() ? 1 : 0);
 
     // Speaker capability (with test mode override - always show in test mode for UI testing)
-    bool has_speaker = caps.has_speaker() || get_runtime_config().is_test_mode();
+    bool has_speaker = caps.has_speaker() || get_runtime_config()->is_test_mode();
     lv_subject_set_int(&printer_has_speaker_, has_speaker ? 1 : 0);
 
     // Timelapse capability (Moonraker-Timelapse plugin)
     lv_subject_set_int(&printer_has_timelapse_, caps.has_timelapse() ? 1 : 0);
 
     // Firmware retraction capability (with test mode override for UI testing)
-    bool has_fw_retraction = caps.has_firmware_retraction() || get_runtime_config().is_test_mode();
+    bool has_fw_retraction = caps.has_firmware_retraction() || get_runtime_config()->is_test_mode();
     lv_subject_set_int(&printer_has_firmware_retraction_, has_fw_retraction ? 1 : 0);
 
     // Spoolman requires async check - default to 0, updated separately

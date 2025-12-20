@@ -28,6 +28,26 @@ make test-integration
 cd experimental && make test_multicolor_gcode
 ```
 
+### Running Tests by Tag (Direct Binary)
+
+**⚠️ ALWAYS use `"~[.]"` to exclude hidden/pending tests:**
+
+```bash
+# ✅ CORRECT - run [application] tests, exclude hidden
+./build/bin/run_tests "[application]" "~[.]"
+
+# ✅ CORRECT - run [gcode] tests, exclude hidden  
+./build/bin/run_tests "[gcode]" "~[.]"
+
+# ❌ WRONG - may hang on hidden tests!
+./build/bin/run_tests "[application]"
+```
+
+Hidden tests (tagged `.pending`, `.integration`, `.slow`) require special
+environments and will hang or fail if run directly. The `make test-run`
+target handles this automatically, but direct binary invocation requires
+the `"~[.]"` filter.
+
 ## Test Organization
 
 ```
@@ -169,11 +189,59 @@ Use tags to organize and filter tests:
 - `[file]` - Tests requiring external files
 - `[moonraker]` - Moonraker API tests
 - `[wifi]` - WiFi/networking tests
+- `[application]` - Application module tests
 
-Run specific tags:
+**Special tags (hidden tests):**
+- `[.pending]` - Test not yet implemented (placeholder)
+- `[.integration]` - Requires full environment (skip in unit tests)
+- `[.slow]` - Long-running test (skip in fast runs)
+- `[.disabled]` - Temporarily disabled
+
+Any tag starting with `.` is a **hidden test** in Catch2.
+
+### Running Tests by Tag
+
 ```bash
+# Run specific tag
 ./build/bin/run_tests "[multicolor]"
 ./build/bin/run_tests "[gcode][parser]"
+
+# IMPORTANT: Exclude hidden tests with ~[.]
+./build/bin/run_tests "[application]" "~[.]"
+
+# Run ALL non-hidden tests
+./build/bin/run_tests "~[.]"
+```
+
+### ⚠️ CRITICAL: Always Exclude Hidden Tests
+
+**Hidden tests (marked `.pending`, `.integration`, etc.) may hang or fail!**
+
+When running tests by tag, ALWAYS add `"~[.]"` to exclude hidden tests:
+
+```bash
+# ❌ WRONG - may hang on pending tests
+./build/bin/run_tests "[application]"
+
+# ✅ CORRECT - excludes hidden/pending tests  
+./build/bin/run_tests "[application]" "~[.]"
+```
+
+The `make test-run` target does this automatically, but when running
+`./build/bin/run_tests` directly, you must add the filter yourself.
+
+**Why tests are hidden:**
+- `[.pending]` - Placeholder for future implementation
+- `[.integration]` - Needs full app environment (LVGL display, Moonraker, etc.)
+- `[.slow]` - Takes >5 seconds, skip for quick iteration
+
+**Example hidden test:**
+```cpp
+// This test requires full LVGL initialization - mark as .integration
+TEST_CASE("Full app initialization", "[application][.integration]") {
+    // Requires display, fonts, themes loaded
+    // Skip in normal test runs
+}
 ```
 
 ## Integration Tests
@@ -438,14 +506,33 @@ TEST_CASE("MultiColor - Backward compatibility", "[multicolor][compatibility]") 
 
 ### Run Specific Tests
 ```bash
-# Run all multicolor tests
-./build/bin/run_tests "[multicolor]"
+# Run all multicolor tests (excluding hidden)
+./build/bin/run_tests "[multicolor]" "~[.]"
 
-# Run specific test case
+# Run specific test case by name
 ./build/bin/run_tests "MultiColor - Parse extruder_colour"
 
-# List all tests
+# Run tests matching multiple tags
+./build/bin/run_tests "[gcode][parser]" "~[.]"
+
+# List all tests (including hidden)
 ./build/bin/run_tests --list-tests
+
+# List tests matching a tag
+./build/bin/run_tests --list-tests "[application]"
+```
+
+### ⚠️ Avoiding Test Hangs
+
+If a test run hangs, it's likely hitting a hidden test that requires
+resources not available in the test environment. Always use `"~[.]"`:
+
+```bash
+# This may hang on [.pending] or [.integration] tests:
+./build/bin/run_tests "[application]"  # ❌
+
+# This excludes hidden tests and completes quickly:
+./build/bin/run_tests "[application]" "~[.]"  # ✅
 ```
 
 ### Verbose Output

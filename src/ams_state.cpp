@@ -231,7 +231,7 @@ void AmsState::init_backend_from_capabilities(const PrinterCapabilities& caps, M
     }
 
     // Skip if already in mock mode (mock backend was created at startup)
-    if (get_runtime_config().should_mock_ams()) {
+    if (get_runtime_config()->should_mock_ams()) {
         spdlog::debug("[AMS State] Mock mode active, skipping real backend initialization");
         return;
     }

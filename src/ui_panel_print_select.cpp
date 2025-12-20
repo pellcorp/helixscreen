@@ -357,10 +357,10 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 if (!panel->pending_file_selection_.empty()) {
                     pending = panel->pending_file_selection_;
                     panel->pending_file_selection_.clear();
-                } else if (get_runtime_config().select_file != nullptr) {
+                } else if (get_runtime_config()->select_file != nullptr) {
                     static bool select_file_checked = false;
                     if (!select_file_checked) {
-                        pending = get_runtime_config().select_file;
+                        pending = get_runtime_config()->select_file;
                         select_file_checked = true;
                     }
                 }

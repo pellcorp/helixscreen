@@ -136,7 +136,7 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
     // Check if we should simulate disconnected state for testing
-    if (get_runtime_config().simulate_disconnect) {
+    if (get_runtime_config()->simulate_disconnect) {
         spdlog::warn(
             "[MoonrakerClientMock] --disconnected flag set, simulating connection failure");
         set_connection_state(ConnectionState::DISCONNECTED);
@@ -157,7 +157,7 @@ int MoonrakerClientMock::connect(const char* url, std::function<void()> on_conne
     dispatch_initial_state();
 
     // Auto-start a print if configured (e.g., when testing print-status panel)
-    if (get_runtime_config().mock_auto_start_print) {
+    if (get_runtime_config()->mock_auto_start_print) {
         spdlog::info("[MoonrakerClientMock] Auto-starting print simulation with '{}'",
                      RuntimeConfig::DEFAULT_TEST_FILE);
         start_print_internal(RuntimeConfig::DEFAULT_TEST_FILE);
