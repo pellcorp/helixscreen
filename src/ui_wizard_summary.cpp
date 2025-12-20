@@ -180,23 +180,17 @@ void WizardSummaryStep::init_subjects() {
         config ? config->get<std::string>(helix::wizard::PRINTER_NAME, "Unnamed Printer")
                : "Unnamed Printer";
     spdlog::debug("[{}] Printer name from config: '{}'", get_name(), printer_name);
-    strncpy(printer_name_buffer_, printer_name.c_str(), sizeof(printer_name_buffer_) - 1);
-    printer_name_buffer_[sizeof(printer_name_buffer_) - 1] = '\0';
 
     // Printer type
     std::string printer_type =
         config ? config->get<std::string>(helix::wizard::PRINTER_TYPE, "Unknown") : "Unknown";
     spdlog::debug("[{}] Printer type from config: '{}'", get_name(), printer_type);
-    strncpy(printer_type_buffer_, printer_type.c_str(), sizeof(printer_type_buffer_) - 1);
-    printer_type_buffer_[sizeof(printer_type_buffer_) - 1] = '\0';
 
     // WiFi SSID
     std::string wifi_ssid =
         config ? config->get<std::string>(helix::wizard::WIFI_SSID, "Not configured")
                : "Not configured";
     spdlog::debug("[{}] WiFi SSID from config: '{}'", get_name(), wifi_ssid);
-    strncpy(wifi_ssid_buffer_, wifi_ssid.c_str(), sizeof(wifi_ssid_buffer_) - 1);
-    wifi_ssid_buffer_[sizeof(wifi_ssid_buffer_) - 1] = '\0';
 
     // Moonraker connection (host:port)
     std::string moonraker_host =
@@ -205,47 +199,33 @@ void WizardSummaryStep::init_subjects() {
     int moonraker_port = config ? config->get<int>(helix::wizard::MOONRAKER_PORT, 7125) : 7125;
     spdlog::debug("[{}] Moonraker host from config: '{}', port: {}", get_name(), moonraker_host,
                   moonraker_port);
-    std::stringstream moonraker_ss;
+    std::string moonraker_connection;
     if (moonraker_host != "Not configured") {
-        moonraker_ss << moonraker_host << ":" << moonraker_port;
+        moonraker_connection = moonraker_host + ":" + std::to_string(moonraker_port);
     } else {
-        moonraker_ss << "Not configured";
+        moonraker_connection = "Not configured";
     }
-    strncpy(moonraker_connection_buffer_, moonraker_ss.str().c_str(),
-            sizeof(moonraker_connection_buffer_) - 1);
-    moonraker_connection_buffer_[sizeof(moonraker_connection_buffer_) - 1] = '\0';
-    spdlog::debug("[{}] Moonraker connection buffer: '{}'", get_name(),
-                  moonraker_connection_buffer_);
+    spdlog::debug("[{}] Moonraker connection: '{}'", get_name(), moonraker_connection);
 
     // Bed configuration
     std::string bed_summary = config ? format_bed_summary() : "Not configured";
-    strncpy(bed_buffer_, bed_summary.c_str(), sizeof(bed_buffer_) - 1);
-    bed_buffer_[sizeof(bed_buffer_) - 1] = '\0';
 
     // Hotend configuration
     std::string hotend_summary = config ? format_hotend_summary() : "Not configured";
-    strncpy(hotend_buffer_, hotend_summary.c_str(), sizeof(hotend_buffer_) - 1);
-    hotend_buffer_[sizeof(hotend_buffer_) - 1] = '\0';
 
     // Part cooling fan
     std::string part_fan =
         config ? config->get<std::string>(helix::wizard::PART_FAN, "None") : "None";
-    strncpy(part_fan_buffer_, part_fan.c_str(), sizeof(part_fan_buffer_) - 1);
-    part_fan_buffer_[sizeof(part_fan_buffer_) - 1] = '\0';
     int part_fan_visible = (part_fan != "None") ? 1 : 0;
 
     // Hotend cooling fan
     std::string hotend_fan =
         config ? config->get<std::string>(helix::wizard::HOTEND_FAN, "None") : "None";
-    strncpy(hotend_fan_buffer_, hotend_fan.c_str(), sizeof(hotend_fan_buffer_) - 1);
-    hotend_fan_buffer_[sizeof(hotend_fan_buffer_) - 1] = '\0';
     int hotend_fan_visible = (hotend_fan != "None") ? 1 : 0;
 
     // LED strip
     std::string led_strip =
         config ? config->get<std::string>(helix::wizard::LED_STRIP, "None") : "None";
-    strncpy(led_strip_buffer_, led_strip.c_str(), sizeof(led_strip_buffer_) - 1);
-    led_strip_buffer_[sizeof(led_strip_buffer_) - 1] = '\0';
     int led_strip_visible = (led_strip != "None") ? 1 : 0;
 
     // Filament sensor - get from FilamentSensorManager
@@ -271,35 +251,37 @@ void WizardSummaryStep::init_subjects() {
             }
         }
     }
-    strncpy(filament_sensor_buffer_, filament_sensor.c_str(), sizeof(filament_sensor_buffer_) - 1);
-    filament_sensor_buffer_[sizeof(filament_sensor_buffer_) - 1] = '\0';
 
     // Initialize and register all subjects
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(printer_name_, printer_name_buffer_, printer_name_buffer_,
+    // NOTE: Pass std::string.c_str() as initial_value, NOT the buffer itself.
+    // The macro copies initial_value to buffer - passing the same pointer for both
+    // is undefined behavior (overlapping source/dest in snprintf).
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(printer_name_, printer_name_buffer_, printer_name.c_str(),
                                         "summary_printer_name");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(printer_type_, printer_type_buffer_, printer_type_buffer_,
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(printer_type_, printer_type_buffer_, printer_type.c_str(),
                                         "summary_printer_type");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wifi_ssid_, wifi_ssid_buffer_, wifi_ssid_buffer_,
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(wifi_ssid_, wifi_ssid_buffer_, wifi_ssid.c_str(),
                                         "summary_wifi_ssid");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(moonraker_connection_, moonraker_connection_buffer_,
-                                        moonraker_connection_buffer_,
+                                        moonraker_connection.c_str(),
                                         "summary_moonraker_connection");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(bed_, bed_buffer_, bed_buffer_, "summary_bed");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(hotend_, hotend_buffer_, hotend_buffer_, "summary_hotend");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(part_fan_, part_fan_buffer_, part_fan_buffer_,
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(bed_, bed_buffer_, bed_summary.c_str(), "summary_bed");
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(hotend_, hotend_buffer_, hotend_summary.c_str(),
+                                        "summary_hotend");
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(part_fan_, part_fan_buffer_, part_fan.c_str(),
                                         "summary_part_fan");
     UI_SUBJECT_INIT_AND_REGISTER_INT(part_fan_visible_, part_fan_visible,
                                      "summary_part_fan_visible");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(hotend_fan_, hotend_fan_buffer_, hotend_fan_buffer_,
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(hotend_fan_, hotend_fan_buffer_, hotend_fan.c_str(),
                                         "summary_hotend_fan");
     UI_SUBJECT_INIT_AND_REGISTER_INT(hotend_fan_visible_, hotend_fan_visible,
                                      "summary_hotend_fan_visible");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(led_strip_, led_strip_buffer_, led_strip_buffer_,
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(led_strip_, led_strip_buffer_, led_strip.c_str(),
                                         "summary_led_strip");
     UI_SUBJECT_INIT_AND_REGISTER_INT(led_strip_visible_, led_strip_visible,
                                      "summary_led_strip_visible");
     UI_SUBJECT_INIT_AND_REGISTER_STRING(filament_sensor_, filament_sensor_buffer_,
-                                        filament_sensor_buffer_, "summary_filament_sensor");
+                                        filament_sensor.c_str(), "summary_filament_sensor");
     UI_SUBJECT_INIT_AND_REGISTER_INT(filament_sensor_visible_, filament_sensor_visible,
                                      "summary_filament_sensor_visible");
 
