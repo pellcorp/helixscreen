@@ -55,6 +55,9 @@ IMPLEMENTATION_PLAN.md
 # Claude Code lessons (session-specific learning)
 .claude/LESSONS.md
 
+# OpenCode local state
+.opencode/state/
+
 # ============================================================================
 # Platform-Specific
 # ============================================================================

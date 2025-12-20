@@ -4,10 +4,11 @@ CompileFlags:
     - -I.
     - -Iinclude
     - -Itests
-    # Library includes
+    # Library includes - order matters for resolution
     - -Ilib
     - -Ilib/lvgl
     - -Ilib/lvgl/src
+    - -Ilib/libhv
     - -Ilib/libhv/include
     - -Ilib/libhv/cpputil
     - -Ilib/spdlog/include
@@ -16,7 +17,10 @@ CompileFlags:
     - -Ilib/tinygl/include-demo
     - -Ilib/wpa_supplicant/src/common
     - -Ilib/wpa_supplicant/src/utils
-    # System includes (macOS)
+    # SDL2 includes
+    - -Ilib/sdl2/include
+    - -Ilib/sdl2/include/SDL2
+    # System includes (macOS homebrew fallback)
     - -I/opt/homebrew/include
     - -I/opt/homebrew/include/SDL2
     # Required defines for LVGL
