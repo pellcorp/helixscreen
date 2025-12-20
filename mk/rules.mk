@@ -296,14 +296,15 @@ compile_commands:
 	$(ECHO) "$(CYAN)Generating compile_commands.json...$(RESET)"
 	$(Q)if command -v compiledb >/dev/null 2>&1; then \
 		echo "$(CYAN)Using compiledb...$(RESET)"; \
-		compiledb make -n -B; \
+		compiledb make -n -B all test-build; \
 	elif [ -f .venv/bin/compiledb ]; then \
 		echo "$(CYAN)Using .venv/bin/compiledb...$(RESET)"; \
-		.venv/bin/compiledb make -n -B; \
+		.venv/bin/compiledb make -n -B all test-build; \
 	elif command -v bear >/dev/null 2>&1; then \
 		echo "$(CYAN)Using bear...$(RESET)"; \
 		bear -- $(MAKE) clean; \
-		bear -- $(MAKE); \
+		bear -- $(MAKE) all; \
+		bear --append -- $(MAKE) test-build; \
 	else \
 		echo "$(RED)Error: Neither 'compiledb' nor 'bear' found$(RESET)"; \
 		echo "Install compiledb: $(YELLOW)pip install compiledb$(RESET)"; \
