@@ -104,8 +104,22 @@ int MoonrakerManager::connect(const std::string& websocket_url, const std::strin
         m_api->set_http_base_url(http_base_url);
     }
 
-    // Connect client with empty callbacks (state changes go through notification queue)
-    return m_client->connect(websocket_url.c_str(), []() {}, []() {});
+    // Connect client - on_connected triggers printer discovery which subscribes to status updates
+    // CRITICAL: Without discover_printer(), we never call printer.objects.subscribe,
+    // so we never receive notify_status_update messages (print_stats, temperatures, etc.)
+    MoonrakerClient* client = m_client.get();
+    return m_client->connect(
+        websocket_url.c_str(),
+        [client]() {
+            // Connection established - start printer discovery
+            // This queries printer capabilities and subscribes to status updates
+            spdlog::info("[MoonrakerManager] Connected, starting printer discovery...");
+            client->discover_printer(
+                []() { spdlog::info("[MoonrakerManager] Printer discovery complete"); });
+        },
+        []() {
+            // Disconnected - state changes are handled via notification queue
+        });
 }
 
 void MoonrakerManager::process_notifications() {
