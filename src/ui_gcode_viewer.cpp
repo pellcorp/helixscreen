@@ -314,7 +314,10 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
     }
 
     // If no G-code loaded, draw placeholder message
-    if (st->viewer_state != GCODE_VIEWER_STATE_LOADED || !st->gcode_file) {
+    // In streaming mode, gcode_file is null but streaming_controller_ is set
+    bool has_gcode =
+        st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
+    if (st->viewer_state != GCODE_VIEWER_STATE_LOADED || !has_gcode) {
         return;
     }
 
@@ -336,7 +339,14 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
     if (st->is_using_2d_mode()) {
         // 2D Layer Renderer (orthographic top-down view)
         if (!st->layer_renderer_2d_) {
-            // Lazy initialization of 2D renderer
+            // Lazy initialization of 2D renderer (non-streaming mode only)
+            // In streaming mode, layer_renderer_2d_ is already initialized in open_file_async
+            // callback
+            if (!st->gcode_file) {
+                spdlog::error(
+                    "[GCode Viewer] 2D lazy init but no gcode_file - streaming init failed?");
+                return;
+            }
             st->layer_renderer_2d_ = std::make_unique<helix::gcode::GCodeLayerRenderer>();
             st->layer_renderer_2d_->set_gcode(st->gcode_file.get());
             int width = lv_area_get_width(&widget_coords);
@@ -963,6 +973,16 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                     st->layer_renderer_2d_ = std::make_unique<helix::gcode::GCodeLayerRenderer>();
                     st->layer_renderer_2d_->set_streaming_controller(
                         st->streaming_controller_.get());
+
+                    // Apply filament color from G-code metadata if available
+                    const auto& stats = st->streaming_controller_->get_index_stats();
+                    if (!stats.filament_color.empty()) {
+                        lv_color_t color = lv_color_hex(
+                            std::strtol(stats.filament_color.c_str() + 1, nullptr, 16));
+                        st->layer_renderer_2d_->set_extrusion_color(color);
+                        spdlog::info("[GCode Viewer] Using filament color from metadata: {}",
+                                     stats.filament_color);
+                    }
 
                     // Get canvas size from widget
                     lv_area_t coords;
@@ -1780,11 +1800,34 @@ void ui_gcode_viewer_set_ghost_mode(lv_obj_t* obj, int mode) {
     lv_obj_invalidate(obj);
 }
 
+void ui_gcode_viewer_set_content_offset_y(lv_obj_t* obj, float offset_percent) {
+    gcode_viewer_state_t* st = get_state(obj);
+    if (!st)
+        return;
+
+    // Apply to 2D renderer (3D renderer doesn't support this yet)
+    if (st->layer_renderer_2d_) {
+        st->layer_renderer_2d_->set_content_offset_y(offset_percent);
+        lv_obj_invalidate(obj);
+    }
+}
+
 int ui_gcode_viewer_get_max_layer(lv_obj_t* obj) {
     gcode_viewer_state_t* st = get_state(obj);
     if (!st)
         return -1;
 
+    // In streaming mode, get layer count from streaming controller
+    if (st->streaming_controller_ && st->streaming_controller_->is_open()) {
+        return static_cast<int>(st->streaming_controller_->get_layer_count()) - 1;
+    }
+
+    // In 2D mode with parsed gcode, get from 2D renderer
+    if (st->layer_renderer_2d_) {
+        return st->layer_renderer_2d_->get_layer_count() - 1;
+    }
+
+    // Fallback to 3D renderer
     return st->renderer_->get_max_layer_index();
 }
 

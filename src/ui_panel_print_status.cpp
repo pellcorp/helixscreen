@@ -350,15 +350,16 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     const auto* config = get_runtime_config();
     if (config->gcode_test_file && gcode_viewer_) {
         // Check file size and memory safety before loading
+        // Use 2D streaming check since that's the mode used on memory-constrained devices
         std::ifstream file(config->gcode_test_file, std::ios::binary | std::ios::ate);
         if (file) {
             size_t file_size = static_cast<size_t>(file.tellg());
-            if (helix::is_gcode_3d_render_safe(file_size)) {
+            if (helix::is_gcode_2d_streaming_safe(file_size)) {
                 spdlog::info("[{}] Loading G-code file from command line: {}", get_name(),
                              config->gcode_test_file);
                 load_gcode_file(config->gcode_test_file);
             } else {
-                spdlog::warn("[{}] G-code file too large for rendering: {} ({} bytes) - using "
+                spdlog::warn("[{}] G-code file too large for 2D streaming: {} ({} bytes) - using "
                              "thumbnail only",
                              get_name(), config->gcode_test_file, file_size);
             }
@@ -483,6 +484,10 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
             lv_obj_update_layout(viewer);
             // Reset camera to fit model to new viewport dimensions
             ui_gcode_viewer_reset_camera(viewer);
+
+            // Shift render up to account for metadata overlay at bottom (-10% of canvas height)
+            // This prevents the model from being obscured by the progress bar and filename
+            ui_gcode_viewer_set_content_offset_y(viewer, -0.10f);
 
             // Set print progress to layer 0 (entire model in ghost mode initially)
             ui_gcode_viewer_set_print_progress(viewer, 0);
@@ -1821,65 +1826,78 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
         return;
     }
 
-    // Get file metadata first to check size before downloading
+    // Generate temp file path - check if we already have a cached copy
+    std::string temp_path =
+        "/tmp/helix_print_view_" + std::to_string(std::hash<std::string>{}(filename)) + ".gcode";
+
+    // Check if file already exists and is non-empty (cached from previous session)
+    std::ifstream cached_file(temp_path, std::ios::binary | std::ios::ate);
+    if (cached_file && cached_file.tellg() > 0) {
+        size_t cached_size = static_cast<size_t>(cached_file.tellg());
+        cached_file.close();
+
+        // Check if cached file is safe to render
+        if (helix::is_gcode_2d_streaming_safe(cached_size)) {
+            spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
+                         temp_path);
+            temp_gcode_path_ = temp_path;
+            load_gcode_file(temp_path.c_str());
+            return;
+        } else {
+            spdlog::debug("[{}] Cached file too large for 2D streaming, removing", get_name());
+            std::remove(temp_path.c_str());
+        }
+    }
+
+    // Get file metadata to check size before downloading
     // This prevents OOM on memory-constrained devices like AD5M
     std::string metadata_filename = resolve_gcode_filename(filename);
     api_->get_file_metadata(
         metadata_filename,
-        [this, filename](const FileMetadata& metadata) {
-            // Check if 3D rendering is safe for this file size + available RAM
-            if (!helix::is_gcode_3d_render_safe(metadata.size)) {
+        [this, filename, temp_path](const FileMetadata& metadata) {
+            // Check if 2D streaming rendering is safe for this file size + available RAM
+            // 2D streaming has much lower memory requirements than 3D:
+            // - Layer index: ~24 bytes per layer
+            // - LRU cache: 1MB fixed
+            // - Ghost buffer: display_width * display_height * 4 bytes
+            // - File streams directly to disk (no memory spike during download)
+            if (!helix::is_gcode_2d_streaming_safe(metadata.size)) {
                 auto mem = helix::get_system_memory_info();
                 spdlog::warn(
-                    "[{}] G-code too large for 3D rendering: file={} bytes, available RAM={}MB "
+                    "[{}] G-code too large for 2D streaming: file={} bytes, available RAM={}MB "
                     "- using thumbnail only",
                     get_name(), metadata.size, mem.available_mb());
-                // Revert to thumbnail mode since 3D rendering is not safe
+                // Revert to thumbnail mode since rendering is not safe
                 show_gcode_viewer(false);
                 return;
             }
 
-            spdlog::debug("[{}] G-code size {} bytes - safe to render, downloading...", get_name(),
-                          metadata.size);
+            spdlog::debug("[{}] G-code size {} bytes - safe to render, streaming to disk...",
+                          get_name(), metadata.size);
 
-            // Download the G-code file using the API
-            // For mock mode, this reads from test_gcodes/ directory
-            // For real mode, this downloads from Moonraker
-            api_->download_file(
-                "gcodes", filename,
-                [this, filename](const std::string& content) {
-                    // Clean up previous temp file if any
-                    if (!temp_gcode_path_.empty()) {
-                        std::remove(temp_gcode_path_.c_str());
-                        temp_gcode_path_.clear();
-                    }
+            // Clean up previous temp file if any
+            if (!temp_gcode_path_.empty() && temp_gcode_path_ != temp_path) {
+                std::remove(temp_gcode_path_.c_str());
+                temp_gcode_path_.clear();
+            }
 
-                    // Save to a temp file for the viewer to load
-                    std::string temp_path = "/tmp/helix_print_view_" +
-                                            std::to_string(std::hash<std::string>{}(filename)) +
-                                            ".gcode";
-
-                    std::ofstream file(temp_path, std::ios::binary);
-                    if (!file) {
-                        spdlog::error("[{}] Failed to create temp file for G-code viewing: {}",
-                                      get_name(), temp_path);
-                        return;
-                    }
-
-                    file.write(content.data(), static_cast<std::streamsize>(content.size()));
-                    file.close();
-
+            // Stream download directly to disk (no memory spike)
+            // For mock mode, this copies from test_gcodes/ directory
+            // For real mode, this streams from Moonraker using libhv's chunked download
+            api_->download_file_to_path(
+                "gcodes", filename, temp_path,
+                [this, temp_path](const std::string& path) {
                     // Track the temp file for cleanup
-                    temp_gcode_path_ = temp_path;
+                    temp_gcode_path_ = path;
 
-                    spdlog::info("[{}] Downloaded G-code ({} bytes), loading into viewer: {}",
-                                 get_name(), content.size(), temp_path);
+                    spdlog::info("[{}] Streamed G-code to disk, loading into viewer: {}",
+                                 get_name(), path);
 
                     // Load into the viewer widget
-                    load_gcode_file(temp_path.c_str());
+                    load_gcode_file(path.c_str());
                 },
                 [this, filename](const MoonrakerError& err) {
-                    spdlog::warn("[{}] Failed to download G-code for viewing '{}': {}", get_name(),
+                    spdlog::warn("[{}] Failed to stream G-code for viewing '{}': {}", get_name(),
                                  filename, err.message);
                     // Revert to thumbnail mode on download failure
                     show_gcode_viewer(false);

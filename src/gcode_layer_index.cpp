@@ -80,6 +80,69 @@ bool has_positive_extrusion(const char* line, size_t len) {
     return false;
 }
 
+// Extract filament/extruder color from metadata comment
+// Looks for patterns like:
+//   ; extruder_colour = #26A69A
+//   ; filament_colour = "#FF0000"
+//   ;extruder_color = #00FF00
+bool extract_filament_color(const char* line, size_t len, std::string& out_color) {
+    // Only check comment lines
+    if (len < 10 || line[0] != ';') {
+        return false;
+    }
+
+    // Convert to lowercase for matching (limited to first 50 chars)
+    char lower[64];
+    size_t check_len = std::min(len, size_t(63));
+    for (size_t i = 0; i < check_len; ++i) {
+        lower[i] = (line[i] >= 'A' && line[i] <= 'Z') ? (line[i] + 32) : line[i];
+    }
+    lower[check_len] = '\0';
+
+    // Look for color keywords
+    const char* color_pos = nullptr;
+    if (std::strstr(lower, "extruder_colour") || std::strstr(lower, "extruder_color")) {
+        color_pos = std::strchr(line, '=');
+    } else if (std::strstr(lower, "filament_colour") || std::strstr(lower, "filament_color")) {
+        color_pos = std::strchr(line, '=');
+    }
+
+    if (!color_pos) {
+        return false;
+    }
+
+    // Find the hex color after '='
+    ++color_pos; // Skip '='
+    while (*color_pos && (*color_pos == ' ' || *color_pos == '"' || *color_pos == '\'')) {
+        ++color_pos;
+    }
+
+    // Look for '#' followed by hex digits
+    const char* hash = std::strchr(color_pos, '#');
+    if (!hash) {
+        return false;
+    }
+
+    // Extract 6 or 8 hex digits after #
+    std::string color = "#";
+    const char* p = hash + 1;
+    while (*p &&
+           ((*p >= '0' && *p <= '9') || (*p >= 'A' && *p <= 'F') || (*p >= 'a' && *p <= 'f'))) {
+        color += *p;
+        ++p;
+        if (color.length() >= 9) { // #RRGGBBAA max
+            break;
+        }
+    }
+
+    if (color.length() >= 7) { // At least #RRGGBB
+        out_color = color;
+        return true;
+    }
+
+    return false;
+}
+
 // Check if line is a layer change marker
 bool is_layer_marker(const char* line, size_t len) {
     // Look for ;LAYER_CHANGE or ; LAYER_CHANGE
@@ -165,6 +228,16 @@ bool GCodeLayerIndex::build_from_file(const std::string& filepath) {
             // We'll start the new layer when we see the next Z move
         }
 
+        // Extract filament color from metadata (only if not already found)
+        // Only check comment lines in the header (first ~1000 lines)
+        if (stats_.filament_color.empty() && stats_.total_lines < 1000) {
+            std::string color;
+            if (extract_filament_color(line.c_str(), line_len, color)) {
+                stats_.filament_color = color;
+                spdlog::debug("[LayerIndex] Found filament color: {}", color);
+            }
+        }
+
         // Check for movement commands
         if (is_movement_command(line.c_str(), line_len)) {
             float z;
@@ -236,6 +309,23 @@ bool GCodeLayerIndex::build_from_file(const std::string& filepath) {
     }
 
     stats_.total_layers = entries_.size();
+
+    // If no filament color found in header, scan the file footer (OrcaSlicer puts metadata at end)
+    if (stats_.filament_color.empty() && stats_.total_bytes > 0) {
+        // Read last 32KB of file to find metadata
+        size_t footer_size = std::min(stats_.total_bytes, size_t(32768));
+        file.clear();
+        file.seekg(-static_cast<std::streamoff>(footer_size), std::ios::end);
+
+        while (std::getline(file, line)) {
+            std::string color;
+            if (extract_filament_color(line.c_str(), line.length(), color)) {
+                stats_.filament_color = color;
+                spdlog::debug("[LayerIndex] Found filament color in footer: {}", color);
+                break;
+            }
+        }
+    }
 
     auto end_time = std::chrono::high_resolution_clock::now();
     stats_.build_time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();

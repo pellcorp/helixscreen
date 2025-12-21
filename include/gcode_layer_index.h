@@ -37,14 +37,15 @@ struct StreamingLayerEntry {
  * @brief Statistics collected during index building
  */
 struct LayerIndexStats {
-    size_t total_layers{0};    ///< Number of layers found
-    size_t total_lines{0};     ///< Total G-code lines processed
-    size_t total_bytes{0};     ///< Total file size
-    float min_z{0.0f};         ///< Minimum Z height
-    float max_z{0.0f};         ///< Maximum Z height
-    size_t extrusion_moves{0}; ///< Count of G1 E+ moves
-    size_t travel_moves{0};    ///< Count of G0/G1 without extrusion
-    double build_time_ms{0.0}; ///< Time to build index
+    size_t total_layers{0};     ///< Number of layers found
+    size_t total_lines{0};      ///< Total G-code lines processed
+    size_t total_bytes{0};      ///< Total file size
+    float min_z{0.0f};          ///< Minimum Z height
+    float max_z{0.0f};          ///< Maximum Z height
+    size_t extrusion_moves{0};  ///< Count of G1 E+ moves
+    size_t travel_moves{0};     ///< Count of G0/G1 without extrusion
+    double build_time_ms{0.0};  ///< Time to build index
+    std::string filament_color; ///< Filament color hex (e.g., "#26A69A") from metadata
 };
 
 /**

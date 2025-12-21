@@ -147,6 +147,16 @@ class GCodeLayerRenderer {
      */
     void set_canvas_size(int width, int height);
 
+    /**
+     * @brief Set vertical content offset (shifts render center up/down)
+     * @param offset_percent Offset as percentage of canvas height (-1.0 to 1.0)
+     *                       Negative = shift content up, Positive = shift down
+     *
+     * Use this to account for overlapping UI elements (e.g., metadata overlay at bottom).
+     * A value of -0.1 shifts the render center up by 10% of canvas height.
+     */
+    void set_content_offset_y(float offset_percent);
+
     // =========================================================================
     // Display Options
     // =========================================================================
@@ -399,6 +409,7 @@ class GCodeLayerRenderer {
     // Canvas dimensions
     int canvas_width_ = 400;
     int canvas_height_ = 400;
+    float content_offset_y_percent_ = 0.0f; // Vertical content offset (-1.0 to 1.0)
 
     // Viewport transform (world → screen)
     float scale_ = 1.0f;

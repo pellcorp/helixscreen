@@ -476,6 +476,17 @@ void ui_gcode_viewer_set_ghost_opacity(lv_obj_t* obj, lv_opa_t opacity);
 void ui_gcode_viewer_set_ghost_mode(lv_obj_t* obj, int mode);
 
 /**
+ * @brief Set vertical content offset (shifts render center up/down)
+ * @param obj Viewer widget
+ * @param offset_percent Offset as percentage of canvas height (-1.0 to 1.0)
+ *                       Negative = shift content up, Positive = shift down
+ *
+ * Use this to account for overlapping UI elements (e.g., metadata overlay at bottom).
+ * A value of -0.1 shifts the render center up by 10% of canvas height.
+ */
+void ui_gcode_viewer_set_content_offset_y(lv_obj_t* obj, float offset_percent);
+
+/**
  * @brief Get maximum layer index in current geometry
  * @param obj Viewer widget
  * @return Max layer index (0-based), or -1 if no geometry loaded

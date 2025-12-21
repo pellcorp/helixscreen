@@ -102,6 +102,11 @@ void GCodeLayerRenderer::set_canvas_size(int width, int height) {
     bounds_valid_ = false; // Recalculate fit on next render
 }
 
+void GCodeLayerRenderer::set_content_offset_y(float offset_percent) {
+    // Clamp to reasonable range
+    content_offset_y_percent_ = std::clamp(offset_percent, -1.0f, 1.0f);
+}
+
 // ============================================================================
 // Colors
 // ============================================================================
@@ -993,6 +998,10 @@ glm::ivec2 GCodeLayerRenderer::world_to_screen(float x, float y, float z) const 
         break;
     }
     }
+
+    // Apply content offset (shifts render center for UI overlapping elements)
+    // Negative offset_percent shifts content UP (toward top of canvas)
+    sy += content_offset_y_percent_ * static_cast<float>(canvas_height_);
 
     // Add widget's screen offset (drawing is in screen coordinates)
     return {static_cast<int>(sx) + widget_offset_x_, static_cast<int>(sy) + widget_offset_y_};

@@ -247,7 +247,12 @@ void GCodeStreamingController::open_file_async(const std::string& filepath,
         }
 
         if (callback) {
+            spdlog::debug("[StreamingController] Invoking completion callback (success={})",
+                          success);
             callback(success);
+            spdlog::debug("[StreamingController] Completion callback returned");
+        } else {
+            spdlog::debug("[StreamingController] No completion callback registered");
         }
 
         return success;
