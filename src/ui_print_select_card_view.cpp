@@ -379,19 +379,21 @@ void PrintSelectCardView::update_visible(const std::vector<PrintFileData>& file_
         lv_obj_set_height(trailing_spacer_, std::max(0, trailing_height));
     }
 
-    // Mark all pool cards as available
-    std::fill(card_pool_indices_.begin(), card_pool_indices_.end(), static_cast<ssize_t>(-1));
-
-    // Assign pool cards to visible indices
+    // Assign pool cards to visible indices, skipping cards that already show correct file
     size_t pool_idx = 0;
     for (int file_idx = first_visible_idx;
          file_idx < last_visible_idx && pool_idx < card_pool_.size(); file_idx++, pool_idx++) {
         lv_obj_t* card = card_pool_[pool_idx];
-        configure_card(card, pool_idx, static_cast<size_t>(file_idx), file_list[file_idx], dims);
-        card_pool_indices_[pool_idx] = file_idx;
 
-        // Move card after spacer in container order
-        lv_obj_move_to_index(card, static_cast<int>(pool_idx) + 1);
+        // Skip reconfiguration if this card already shows this file
+        if (card_pool_indices_[pool_idx] != file_idx) {
+            configure_card(card, pool_idx, static_cast<size_t>(file_idx), file_list[file_idx],
+                           dims);
+            card_pool_indices_[pool_idx] = file_idx;
+
+            // Move card after spacer in container order
+            lv_obj_move_to_index(card, static_cast<int>(pool_idx) + 1);
+        }
     }
 
     // Hide unused pool cards

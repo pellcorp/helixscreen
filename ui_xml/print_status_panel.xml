@@ -24,10 +24,11 @@
         <lv_obj name="viewer_area"
                 width="100%" flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false">
           <!-- All children use absolute positioning (width/height 100%) -->
-          <!-- Gradient background (shown in thumbnail[0] and 2D[2] modes, hidden in 3D[1]) -->
-          <ui_gradient_canvas name="gradient_background" width="100%" height="100%" dither="true">
+          <!-- Pre-rendered gradient background (shown in thumbnail[0] and 2D[2] modes, hidden in 3D[1]) -->
+          <lv_image name="gradient_background" src="A:assets/images/gradient-panel-medium.bin" 
+                    width="100%" height="100%">
             <lv_obj-bind_flag_if_eq subject="gcode_viewer_mode" flag="hidden" ref_value="1"/>
-          </ui_gradient_canvas>
+          </lv_image>
           <!-- G-code Viewer (shown in 3D[1] and 2D[2] modes, hidden in thumbnail[0]) -->
           <gcode_viewer name="print_gcode_viewer" width="100%" height="100%">
             <lv_obj-bind_flag_if_eq subject="gcode_viewer_mode" flag="hidden" ref_value="0"/>
@@ -129,7 +130,7 @@
                  style_pad_gap="#space_xxs">
           <event_cb trigger="clicked" callback="on_print_status_nozzle_clicked"/>
           <text_small text="Nozzle"/>
-          <temp_display name="nozzle_temp_display" size="lg" bind_current="extruder_temp" bind_target="extruder_target"/>
+          <temp_display name="nozzle_temp_display" size="lg" show_target="true" bind_current="extruder_temp" bind_target="extruder_target"/>
         </ui_card>
         <!-- Bed Temperature Card -->
         <ui_card name="bed_temp_card"
@@ -138,7 +139,7 @@
                  style_pad_gap="#space_xxs">
           <event_cb trigger="clicked" callback="on_print_status_bed_clicked"/>
           <text_small text="Bed"/>
-          <temp_display name="bed_temp_display" size="lg" bind_current="bed_temp" bind_target="bed_target"/>
+          <temp_display name="bed_temp_display" size="lg" show_target="true" bind_current="bed_temp" bind_target="bed_target"/>
         </ui_card>
         <!-- Filament Sensor Status (hidden if no sensors) -->
         <lv_obj name="filament_status_row"
