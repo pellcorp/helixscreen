@@ -551,6 +551,29 @@ void GCodeFileModifier::disable_operations(const ScanResult& scan_result,
     }
 }
 
+bool GCodeFileModifier::add_print_start_skip_params(
+    const ScanResult& scan_result,
+    const std::vector<std::pair<std::string, std::string>>& skip_params) {
+    if (!scan_result.print_start.found || skip_params.empty()) {
+        spdlog::debug("[GCodeFileModifier] Cannot add skip params: PRINT_START {} found, {} params",
+                      scan_result.print_start.found ? "" : "NOT", skip_params.size());
+        return false;
+    }
+
+    // Build the modified line with skip params appended
+    std::string modified_line = scan_result.print_start.with_skip_params(skip_params);
+
+    // Create a REPLACE modification for the PRINT_START line
+    add_modification(Modification::replace(scan_result.print_start.line_number, modified_line,
+                                           "HelixScreen: Added skip parameters"));
+
+    spdlog::info("[GCodeFileModifier] Adding skip params to {} at line {}: {}",
+                 scan_result.print_start.macro_name, scan_result.print_start.line_number,
+                 modified_line.substr(0, 80));
+
+    return true;
+}
+
 std::string GCodeFileModifier::generate_temp_path(const std::filesystem::path& original_path) {
     // Generate unique temp file path
     // Format: /tmp/helixscreen_mod_XXXXXX_filename.gcode

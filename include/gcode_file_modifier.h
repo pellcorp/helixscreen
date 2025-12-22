@@ -257,6 +257,20 @@ class GCodeFileModifier {
     void disable_operations(const ScanResult& scan_result,
                             const std::vector<OperationType>& types_to_disable);
 
+    /**
+     * @brief Add skip parameters to the PRINT_START call
+     *
+     * Modifies the PRINT_START/START_PRINT line in the G-code to append
+     * skip parameters like SKIP_BED_MESH=1, SKIP_QGL=1, etc.
+     *
+     * @param scan_result Result from GCodeOpsDetector (must have print_start.found == true)
+     * @param skip_params Vector of (param_name, value) pairs to append
+     * @return true if modification was added, false if PRINT_START not found
+     */
+    bool add_print_start_skip_params(
+        const ScanResult& scan_result,
+        const std::vector<std::pair<std::string, std::string>>& skip_params);
+
     // =========================================================================
     // Static utilities
     // =========================================================================

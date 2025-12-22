@@ -91,7 +91,7 @@ void PrintPreparationManager::analyze_print_start_macro() {
     spdlog::info("[PrintPreparationManager] Starting PRINT_START macro analysis");
 
     auto* self = this;
-    auto alive = alive_guard_;  // Capture shared_ptr to detect destruction
+    auto alive = alive_guard_; // Capture shared_ptr to detect destruction
     helix::PrintStartAnalyzer analyzer;
 
     analyzer.analyze(
@@ -112,8 +112,9 @@ void PrintPreparationManager::analyze_print_start_macro() {
                 [](MacroAnalysisData* d) {
                     // Check if manager was destroyed before this callback executed
                     if (!d->alive_guard || !*d->alive_guard) {
-                        spdlog::debug("[PrintPreparationManager] Skipping macro analysis callback - "
-                                      "manager destroyed");
+                        spdlog::debug(
+                            "[PrintPreparationManager] Skipping macro analysis callback - "
+                            "manager destroyed");
                         return;
                     }
                     d->mgr->macro_analysis_ = d->result;
@@ -125,7 +126,8 @@ void PrintPreparationManager::analyze_print_start_macro() {
         },
         // Error callback - NOTE: runs on HTTP thread
         [self, alive](const MoonrakerError& error) {
-            spdlog::warn("[PrintPreparationManager] PRINT_START analysis failed: {}", error.message);
+            spdlog::warn("[PrintPreparationManager] PRINT_START analysis failed: {}",
+                         error.message);
 
             // Defer shared state updates to main LVGL thread
             struct MacroErrorData {
@@ -214,7 +216,8 @@ bool PrintPreparationManager::is_macro_op_controllable(helix::PrintStartOpCatego
     return op && op->has_skip_param;
 }
 
-std::string PrintPreparationManager::get_macro_skip_param(helix::PrintStartOpCategory category) const {
+std::string
+PrintPreparationManager::get_macro_skip_param(helix::PrintStartOpCategory category) const {
     if (!macro_analysis_.has_value() || !macro_analysis_->found) {
         return "";
     }
@@ -257,7 +260,7 @@ void PrintPreparationManager::scan_file_for_operations(const std::string& filena
                  file_path);
 
     auto* self = this;
-    auto alive = alive_guard_;  // Capture shared_ptr to detect destruction
+    auto alive = alive_guard_; // Capture shared_ptr to detect destruction
     api_->download_file(
         "gcodes", file_path,
         // Success: parse content and cache result
@@ -289,7 +292,8 @@ void PrintPreparationManager::scan_file_for_operations(const std::string& filena
                 gcode::ScanResult result;
             };
             ui_async_call_safe<ScanUpdateData>(
-                std::make_unique<ScanUpdateData>(ScanUpdateData{self, alive, filename, scan_result}),
+                std::make_unique<ScanUpdateData>(
+                    ScanUpdateData{self, alive, filename, scan_result}),
                 [](ScanUpdateData* d) {
                     // Check if manager was destroyed before this callback executed
                     if (!d->alive_guard || !*d->alive_guard) {
@@ -316,8 +320,7 @@ void PrintPreparationManager::scan_file_for_operations(const std::string& filena
                 std::shared_ptr<bool> alive_guard;
             };
             ui_async_call_safe<ScanErrorData>(
-                std::make_unique<ScanErrorData>(ScanErrorData{self, alive}),
-                [](ScanErrorData* d) {
+                std::make_unique<ScanErrorData>(ScanErrorData{self, alive}), [](ScanErrorData* d) {
                     // Check if manager was destroyed before this callback executed
                     if (!d->alive_guard || !*d->alive_guard) {
                         spdlog::debug("[PrintPreparationManager] Skipping scan error callback - "
@@ -595,7 +598,15 @@ void PrintPreparationManager::start_print(const std::string& filename,
     // Check if user disabled operations that are embedded in the G-code file
     std::vector<gcode::OperationType> ops_to_disable = collect_ops_to_disable();
 
-    if (!ops_to_disable.empty()) {
+    // Check if user disabled operations that are in the PRINT_START macro
+    // These need skip params appended to the PRINT_START call
+    std::vector<std::pair<std::string, std::string>> macro_skip_params = collect_macro_skip_params();
+
+    // Determine if we need to modify the G-code file
+    bool needs_file_modification = !ops_to_disable.empty();
+    bool needs_macro_params = !macro_skip_params.empty();
+
+    if (needs_file_modification || needs_macro_params) {
         // SAFETY CHECK: Verify we can safely modify the G-code file
         // On resource-constrained devices (e.g., AD5M with 512MB RAM), loading large
         // G-code files into memory can exhaust resources and crash both Moonraker and Klipper.
@@ -606,16 +617,18 @@ void PrintPreparationManager::start_print(const std::string& filename,
                          capability.reason);
             spdlog::warn(
                 "[PrintPreparationManager] Skipping modification - printing original file");
-            // Clear ops_to_disable so we fall through to normal print path
+            // Clear modifications so we fall through to normal print path
             ops_to_disable.clear();
+            macro_skip_params.clear();
             // Show user notification about skipped modification
             NOTIFY_WARNING("Cannot modify G-code: {}. Printing original file.", capability.reason);
         } else {
-            spdlog::info("[PrintPreparationManager] User disabled {} embedded operations - "
-                         "modifying G-code (method: {})",
-                         ops_to_disable.size(),
+            spdlog::info("[PrintPreparationManager] Modifying G-code: {} file ops, {} macro params "
+                         "(method: {})",
+                         ops_to_disable.size(), macro_skip_params.size(),
                          capability.has_plugin ? "server-side plugin" : "streaming fallback");
-            modify_and_print(filename_to_print, ops_to_disable, on_navigate_to_status);
+            modify_and_print(filename_to_print, ops_to_disable, macro_skip_params,
+                             on_navigate_to_status);
             return; // modify_and_print handles everything including navigation
         }
     }
@@ -682,8 +695,76 @@ std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disabl
     return ops_to_disable;
 }
 
+std::vector<std::pair<std::string, std::string>>
+PrintPreparationManager::collect_macro_skip_params() const {
+    // THREADING: This method reads macro_analysis_ and checkbox states.
+    // Must be called from the main LVGL thread (same thread that updates these via
+    // ui_async_call_safe callbacks). LVGL's single-threaded model ensures no races.
+
+    std::vector<std::pair<std::string, std::string>> skip_params;
+
+    // If no macro analysis, nothing to skip
+    if (!macro_analysis_.has_value() || !macro_analysis_->found) {
+        return skip_params;
+    }
+
+    // Check each controllable macro operation against user's checkbox state
+    // Note: We only add skip params for operations that:
+    // 1. Exist in PRINT_START macro (detected by analyzer)
+    // 2. Have a skip parameter (controllable)
+    // 3. User has disabled (checkbox unchecked)
+
+    // Bed mesh
+    if (is_macro_op_controllable(helix::PrintStartOpCategory::BED_LEVELING) &&
+        is_option_disabled(bed_leveling_checkbox_)) {
+        std::string param = get_macro_skip_param(helix::PrintStartOpCategory::BED_LEVELING);
+        if (!param.empty()) {
+            skip_params.emplace_back(param, "1");
+            spdlog::debug("[PrintPreparationManager] Adding skip param for bed mesh: {}=1", param);
+        }
+    }
+
+    // QGL
+    if (is_macro_op_controllable(helix::PrintStartOpCategory::QGL) &&
+        is_option_disabled(qgl_checkbox_)) {
+        std::string param = get_macro_skip_param(helix::PrintStartOpCategory::QGL);
+        if (!param.empty()) {
+            skip_params.emplace_back(param, "1");
+            spdlog::debug("[PrintPreparationManager] Adding skip param for QGL: {}=1", param);
+        }
+    }
+
+    // Z-Tilt
+    if (is_macro_op_controllable(helix::PrintStartOpCategory::Z_TILT) &&
+        is_option_disabled(z_tilt_checkbox_)) {
+        std::string param = get_macro_skip_param(helix::PrintStartOpCategory::Z_TILT);
+        if (!param.empty()) {
+            skip_params.emplace_back(param, "1");
+            spdlog::debug("[PrintPreparationManager] Adding skip param for Z-tilt: {}=1", param);
+        }
+    }
+
+    // Nozzle clean
+    if (is_macro_op_controllable(helix::PrintStartOpCategory::NOZZLE_CLEAN) &&
+        is_option_disabled(nozzle_clean_checkbox_)) {
+        std::string param = get_macro_skip_param(helix::PrintStartOpCategory::NOZZLE_CLEAN);
+        if (!param.empty()) {
+            skip_params.emplace_back(param, "1");
+            spdlog::debug("[PrintPreparationManager] Adding skip param for nozzle clean: {}=1",
+                          param);
+        }
+    }
+
+    if (!skip_params.empty()) {
+        spdlog::info("[PrintPreparationManager] Collected {} macro skip params", skip_params.size());
+    }
+
+    return skip_params;
+}
+
 void PrintPreparationManager::modify_and_print(
     const std::string& file_path, const std::vector<gcode::OperationType>& ops_to_disable,
+    const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
     NavigateToStatusCallback on_navigate_to_status) {
     if (!api_) {
         NOTIFY_ERROR("Cannot start print - not connected to printer");
@@ -696,8 +777,9 @@ void PrintPreparationManager::modify_and_print(
         return;
     }
 
-    spdlog::info("[PrintPreparationManager] Modifying G-code to disable {} operations",
-                 ops_to_disable.size());
+    spdlog::info("[PrintPreparationManager] Modifying G-code: {} file ops to disable, {} macro "
+                 "skip params",
+                 ops_to_disable.size(), macro_skip_params.size());
 
     // Extract just the filename for display purposes
     size_t last_slash = file_path.rfind('/');
@@ -709,19 +791,23 @@ void PrintPreparationManager::modify_and_print(
     for (const auto& op : ops_to_disable) {
         mod_names.push_back(gcode::GCodeOpsDetector::operation_type_name(op) + "_disabled");
     }
+    // Add skip params to mod_names for tracking
+    for (const auto& [param_name, param_value] : macro_skip_params) {
+        mod_names.push_back("skip_" + param_name);
+    }
 
     // Check if helix_print plugin is available FIRST (before downloading)
     // Plugin path uses server-side modification, so memory isn't a concern
     if (api_->has_helix_plugin()) {
         spdlog::info("[PrintPreparationManager] Using helix_print plugin for modified print");
-        modify_and_print_via_plugin(file_path, display_filename, ops_to_disable, mod_names,
-                                    on_navigate_to_status);
+        modify_and_print_via_plugin(file_path, display_filename, ops_to_disable, macro_skip_params,
+                                    mod_names, on_navigate_to_status);
     } else {
         // STREAMING PATH: Download to disk, modify file-to-file, upload from disk
         // This avoids loading the entire G-code file into memory
         spdlog::info("[PrintPreparationManager] Using streaming fallback (helix_print plugin not "
                      "available)");
-        modify_and_print_streaming(file_path, display_filename, ops_to_disable,
+        modify_and_print_streaming(file_path, display_filename, ops_to_disable, macro_skip_params,
                                    on_navigate_to_status);
     }
 }
@@ -729,8 +815,10 @@ void PrintPreparationManager::modify_and_print(
 void PrintPreparationManager::modify_and_print_via_plugin(
     const std::string& file_path, const std::string& display_filename,
     const std::vector<gcode::OperationType>& ops_to_disable,
+    const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
     const std::vector<std::string>& mod_names, NavigateToStatusCallback on_navigate_to_status) {
     auto* self = this;
+    auto alive = alive_guard_; // Capture for lifetime checking in async callbacks
     auto scan_result = cached_scan_result_; // Copy for lambda capture
 
     // Validate scan_result before proceeding
@@ -742,11 +830,30 @@ void PrintPreparationManager::modify_and_print_via_plugin(
     // Download file to memory (acceptable for plugin path since server does the work)
     api_->download_file(
         "gcodes", file_path,
-        [self, file_path, display_filename, ops_to_disable, mod_names, on_navigate_to_status,
-         scan_result](const std::string& content) {
+        [self, alive, file_path, display_filename, ops_to_disable, macro_skip_params, mod_names,
+         on_navigate_to_status, scan_result](const std::string& content) {
+            // Check if manager was destroyed before this callback executed
+            if (!alive || !*alive) {
+                spdlog::debug("[PrintPreparationManager] Skipping plugin download callback - "
+                              "manager destroyed");
+                return;
+            }
             // Apply modifications in memory (safe - no shared state)
             gcode::GCodeFileModifier modifier;
+
+            // Disable file-embedded operations (comment them out)
             modifier.disable_operations(*scan_result, ops_to_disable);
+
+            // Add skip parameters to PRINT_START call (if any)
+            if (!macro_skip_params.empty()) {
+                if (modifier.add_print_start_skip_params(*scan_result, macro_skip_params)) {
+                    spdlog::info("[PrintPreparationManager] Added {} skip params to PRINT_START",
+                                 macro_skip_params.size());
+                } else {
+                    spdlog::warn("[PrintPreparationManager] Could not add skip params - "
+                                 "PRINT_START not found in G-code");
+                }
+            }
 
             std::string modified_content = modifier.apply_to_content(content);
             if (modified_content.empty()) {
@@ -797,8 +904,10 @@ void PrintPreparationManager::modify_and_print_via_plugin(
 void PrintPreparationManager::modify_and_print_streaming(
     const std::string& file_path, const std::string& display_filename,
     const std::vector<gcode::OperationType>& ops_to_disable,
+    const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
     NavigateToStatusCallback on_navigate_to_status) {
     auto* self = this;
+    auto alive = alive_guard_; // Capture for lifetime checking in async callbacks
     auto scan_result = cached_scan_result_; // Copy for lambda capture
 
     // Validate scan_result before proceeding (SERIOUS-3 fix)
@@ -826,14 +935,37 @@ void PrintPreparationManager::modify_and_print_streaming(
     api_->download_file_to_path(
         "gcodes", file_path, local_download_path,
         // Download success - NOTE: runs on HTTP thread
-        [self, file_path, display_filename, ops_to_disable, scan_result, local_download_path,
-         remote_temp_path, on_navigate_to_status](const std::string& /*dest_path*/) {
+        [self, alive, file_path, display_filename, ops_to_disable, macro_skip_params, scan_result,
+         local_download_path, remote_temp_path,
+         on_navigate_to_status](const std::string& /*dest_path*/) {
+            // Check if manager was destroyed before this callback executed
+            if (!alive || !*alive) {
+                spdlog::debug("[PrintPreparationManager] Skipping streaming download callback - "
+                              "manager destroyed");
+                // Clean up download file since we're bailing out
+                std::error_code ec;
+                std::filesystem::remove(local_download_path, ec);
+                return;
+            }
             spdlog::info("[PrintPreparationManager] Downloaded to disk, applying streaming "
                          "modification");
 
             // Step 2: Apply streaming modification (file-to-file, minimal memory)
             gcode::GCodeFileModifier modifier;
+
+            // Disable file-embedded operations (comment them out)
             modifier.disable_operations(*scan_result, ops_to_disable);
+
+            // Add skip parameters to PRINT_START call (if any)
+            if (!macro_skip_params.empty()) {
+                if (modifier.add_print_start_skip_params(*scan_result, macro_skip_params)) {
+                    spdlog::info("[PrintPreparationManager] Added {} skip params to PRINT_START",
+                                 macro_skip_params.size());
+                } else {
+                    spdlog::warn("[PrintPreparationManager] Could not add skip params - "
+                                 "PRINT_START not found in G-code");
+                }
+            }
 
             auto result = modifier.apply_streaming(local_download_path);
 
@@ -859,14 +991,22 @@ void PrintPreparationManager::modify_and_print_streaming(
             self->api_->upload_file_from_path(
                 "gcodes", remote_temp_path, modified_path,
                 // Upload success - NOTE: runs on HTTP thread, defer LVGL ops
-                [self, modified_path, display_filename, remote_temp_path, on_navigate_to_status]() {
-                    // Clean up local modified file (safe - filesystem op)
+                [self, alive, modified_path, display_filename, remote_temp_path,
+                 on_navigate_to_status]() {
+                    // Clean up local modified file (safe - filesystem op, always do it)
                     std::error_code ec;
                     std::filesystem::remove(modified_path, ec);
                     if (ec) {
                         spdlog::warn(
                             "[PrintPreparationManager] Failed to clean up modified file: {}",
                             ec.message());
+                    }
+
+                    // Check if manager was destroyed before this callback executed
+                    if (!alive || !*alive) {
+                        spdlog::debug("[PrintPreparationManager] Skipping upload callback - "
+                                      "manager destroyed");
+                        return;
                     }
 
                     spdlog::info("[PrintPreparationManager] Modified file uploaded, starting "
@@ -898,13 +1038,20 @@ void PrintPreparationManager::modify_and_print_streaming(
                                 });
                         },
                         // Print error - also try to clean up remote temp file
-                        [self, remote_temp_path](const MoonrakerError& error) {
+                        [self, alive, remote_temp_path](const MoonrakerError& error) {
                             NOTIFY_ERROR("Failed to start print: {}", error.message);
                             LOG_ERROR_INTERNAL(
                                 "[PrintPreparationManager] Print start failed for {}: {}",
                                 remote_temp_path, error.message);
 
-                            // Clean up remote temp file on failure (SERIOUS-1 fix)
+                            // Check if manager still valid before cleanup
+                            if (!alive || !*alive) {
+                                spdlog::debug("[PrintPreparationManager] Skipping remote "
+                                              "cleanup - manager destroyed");
+                                return;
+                            }
+
+                            // Clean up remote temp file on failure
                             self->api_->delete_file(
                                 remote_temp_path,
                                 []() {

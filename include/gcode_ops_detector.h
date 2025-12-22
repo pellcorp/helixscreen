@@ -67,13 +67,36 @@ struct DetectionConfig {
 };
 
 /**
+ * @brief Information about the PRINT_START/START_PRINT macro call in the G-code
+ *
+ * This is used to modify the call to add skip parameters for macro-embedded operations.
+ */
+struct PrintStartCallInfo {
+    bool found = false;           ///< True if PRINT_START/START_PRINT call was found
+    std::string macro_name;       ///< "PRINT_START" or "START_PRINT"
+    std::string raw_line;         ///< Full line text (e.g., "PRINT_START EXTRUDER=210 BED=60")
+    size_t line_number = 0;       ///< 1-indexed line number
+    size_t byte_offset = 0;       ///< Byte offset in file
+
+    /**
+     * @brief Build a modified line with skip parameters appended
+     *
+     * @param skip_params Map of param name to value (e.g., {"SKIP_BED_MESH": "1"})
+     * @return Modified line with params appended
+     */
+    [[nodiscard]] std::string with_skip_params(
+        const std::vector<std::pair<std::string, std::string>>& skip_params) const;
+};
+
+/**
  * @brief Result of scanning a G-code file for operations
  */
 struct ScanResult {
     std::vector<DetectedOperation> operations;
     size_t lines_scanned = 0;
     size_t bytes_scanned = 0;
-    bool reached_limit = false; ///< True if scan stopped due to limits
+    bool reached_limit = false;       ///< True if scan stopped due to limits
+    PrintStartCallInfo print_start;   ///< Info about PRINT_START call (if found)
 
     /**
      * @brief Check if a specific operation type was detected

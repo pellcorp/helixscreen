@@ -555,3 +555,276 @@ TEST_CASE("GCodeFileModifier - Auto-select streaming for large files",
         std::filesystem::remove(result.modified_path);
     }
 }
+
+// ============================================================================
+// PrintStartCallInfo Tests (Phase 5C)
+// ============================================================================
+
+TEST_CASE("PrintStartCallInfo - with_skip_params", "[gcode][detector][print_start]") {
+    SECTION("Basic skip param addition") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "PRINT_START EXTRUDER=210 BED=60";
+        info.line_number = 5;
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_BED_MESH", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        REQUIRE(result == "PRINT_START EXTRUDER=210 BED=60 SKIP_BED_MESH=1");
+    }
+
+    SECTION("Multiple skip params") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "PRINT_START EXTRUDER=210";
+        info.line_number = 3;
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {
+            {"SKIP_BED_MESH", "1"}, {"SKIP_QGL", "1"}, {"SKIP_CLEAN", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        REQUIRE(result == "PRINT_START EXTRUDER=210 SKIP_BED_MESH=1 SKIP_QGL=1 SKIP_CLEAN=1");
+    }
+
+    SECTION("Handles trailing whitespace in original line") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "PRINT_START EXTRUDER=210  \n";
+        info.line_number = 1;
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_MESH", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        REQUIRE(result == "PRINT_START EXTRUDER=210 SKIP_MESH=1");
+    }
+
+    SECTION("Returns original line if not found") {
+        PrintStartCallInfo info;
+        info.found = false;
+        info.raw_line = "G28";
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_MESH", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        REQUIRE(result == "G28");
+    }
+
+    SECTION("Returns original line if no skip params") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "PRINT_START EXTRUDER=210";
+
+        std::vector<std::pair<std::string, std::string>> skip_params;
+
+        std::string result = info.with_skip_params(skip_params);
+        REQUIRE(result == "PRINT_START EXTRUDER=210");
+    }
+
+    SECTION("Works with START_PRINT variant") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "START_PRINT";
+        info.raw_line = "START_PRINT TEMP=200";
+        info.line_number = 2;
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_BED_MESH", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        REQUIRE(result == "START_PRINT TEMP=200 SKIP_BED_MESH=1");
+    }
+
+    SECTION("Handles empty raw_line") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "";
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_MESH", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        // Empty line should produce skip params only (with leading space)
+        REQUIRE(result == " SKIP_MESH=1");
+    }
+
+    SECTION("Handles raw_line with only whitespace") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "   \n";
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_MESH", "1"}};
+
+        std::string result = info.with_skip_params(skip_params);
+        // Whitespace should be trimmed, resulting in skip params only
+        REQUIRE(result == " SKIP_MESH=1");
+    }
+
+    SECTION("Validates param names - rejects invalid characters") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "PRINT_START";
+
+        // These should be rejected (spaces, special chars)
+        std::vector<std::pair<std::string, std::string>> bad_params = {
+            {"SKIP MESH", "1"},   // space
+            {"SKIP;MESH", "1"},   // semicolon (G-code comment)
+            {"SKIP\nMESH", "1"},  // newline
+            {"", "1"}             // empty
+        };
+
+        std::string result = info.with_skip_params(bad_params);
+        // Should reject all invalid params, returning original line
+        REQUIRE(result == "PRINT_START");
+    }
+
+    SECTION("Validates param names - accepts valid characters") {
+        PrintStartCallInfo info;
+        info.found = true;
+        info.macro_name = "PRINT_START";
+        info.raw_line = "PRINT_START";
+
+        // These should all be accepted
+        std::vector<std::pair<std::string, std::string>> good_params = {
+            {"SKIP_BED_MESH", "1"},
+            {"SKIP123", "1"},
+            {"skip_lower", "0"}  // lowercase is valid
+        };
+
+        std::string result = info.with_skip_params(good_params);
+        REQUIRE(result == "PRINT_START SKIP_BED_MESH=1 SKIP123=1 skip_lower=0");
+    }
+}
+
+// ============================================================================
+// GCodeFileModifier - PRINT_START Skip Params (Phase 5C)
+// ============================================================================
+
+TEST_CASE("GCodeFileModifier - add_print_start_skip_params", "[gcode][modifier][print_start]") {
+    GCodeOpsDetector detector;
+    GCodeFileModifier modifier;
+
+    SECTION("Adds skip params to PRINT_START call") {
+        std::string content = "G28\nPRINT_START EXTRUDER=210 BED=60\nG1 X0 Y0\n";
+        auto scan = detector.scan_content(content);
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_BED_MESH", "1"}};
+
+        bool added = modifier.add_print_start_skip_params(scan, skip_params);
+        REQUIRE(added);
+
+        std::string result = modifier.apply_to_content(content);
+        REQUIRE(result.find("PRINT_START EXTRUDER=210 BED=60 SKIP_BED_MESH=1") != std::string::npos);
+    }
+
+    SECTION("Adds multiple skip params") {
+        std::string content = "; Start\nPRINT_START BED=55\nG1 X10\n";
+        auto scan = detector.scan_content(content);
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {
+            {"SKIP_MESH", "1"}, {"SKIP_QGL", "1"}};
+
+        bool added = modifier.add_print_start_skip_params(scan, skip_params);
+        REQUIRE(added);
+
+        std::string result = modifier.apply_to_content(content);
+        REQUIRE(result.find("SKIP_MESH=1") != std::string::npos);
+        REQUIRE(result.find("SKIP_QGL=1") != std::string::npos);
+    }
+
+    SECTION("Returns false when PRINT_START not found") {
+        std::string content = "G28\nG1 X0 Y0\nM104 S200\n";
+        auto scan = detector.scan_content(content);
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_BED_MESH", "1"}};
+
+        bool added = modifier.add_print_start_skip_params(scan, skip_params);
+        REQUIRE_FALSE(added);
+    }
+
+    SECTION("Returns false with empty skip params") {
+        std::string content = "PRINT_START EXTRUDER=200\n";
+        auto scan = detector.scan_content(content);
+
+        std::vector<std::pair<std::string, std::string>> skip_params;
+
+        bool added = modifier.add_print_start_skip_params(scan, skip_params);
+        REQUIRE_FALSE(added);
+    }
+
+    SECTION("Works with START_PRINT variant") {
+        std::string content = "G28\nSTART_PRINT TEMP=215\nG1 Z0.2\n";
+        auto scan = detector.scan_content(content);
+
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_CLEAN", "1"}};
+
+        bool added = modifier.add_print_start_skip_params(scan, skip_params);
+        REQUIRE(added);
+
+        std::string result = modifier.apply_to_content(content);
+        REQUIRE(result.find("START_PRINT TEMP=215 SKIP_CLEAN=1") != std::string::npos);
+    }
+}
+
+TEST_CASE("GCodeFileModifier - Combined file ops and skip params",
+          "[gcode][modifier][print_start]") {
+    GCodeOpsDetector detector;
+    GCodeFileModifier modifier;
+
+    SECTION("Disable file operations AND add skip params") {
+        std::string content = R"(G28
+PRINT_START EXTRUDER=210 BED=60
+BED_MESH_CALIBRATE
+QUAD_GANTRY_LEVEL
+G1 X0 Y0
+)";
+
+        auto scan = detector.scan_content(content);
+
+        // Disable file-embedded operations
+        modifier.disable_operations(scan, {OperationType::QGL});
+
+        // Add skip params for macro operations
+        std::vector<std::pair<std::string, std::string>> skip_params = {{"SKIP_BED_MESH", "1"}};
+        modifier.add_print_start_skip_params(scan, skip_params);
+
+        std::string result = modifier.apply_to_content(content);
+
+        // QGL should be commented out (file operation)
+        REQUIRE(result.find("; QUAD_GANTRY_LEVEL") != std::string::npos);
+
+        // PRINT_START should have skip param added (macro operation)
+        REQUIRE(result.find("SKIP_BED_MESH=1") != std::string::npos);
+
+        // BED_MESH_CALIBRATE should remain (not disabled)
+        REQUIRE(result.find("BED_MESH_CALIBRATE\n") != std::string::npos);
+    }
+
+    SECTION("Voron-style print with mixed operations") {
+        std::string content = R"(; PrusaSlicer G-code for Voron 2.4
+PRINT_START EXTRUDER=240 BED=110
+; Start sequence handled by macro
+G1 X10 Y10 F3000
+)";
+
+        auto scan = detector.scan_content(content);
+
+        // Add multiple skip params
+        std::vector<std::pair<std::string, std::string>> skip_params = {
+            {"SKIP_BED_MESH", "1"}, {"SKIP_QGL", "1"}, {"SKIP_CLEAN", "1"}};
+        modifier.add_print_start_skip_params(scan, skip_params);
+
+        std::string result = modifier.apply_to_content(content);
+
+        // All skip params should be present
+        REQUIRE(result.find("PRINT_START EXTRUDER=240 BED=110 SKIP_BED_MESH=1 SKIP_QGL=1 "
+                            "SKIP_CLEAN=1") != std::string::npos);
+
+        // Original structure preserved
+        REQUIRE(result.find("G1 X10 Y10 F3000") != std::string::npos);
+    }
+}

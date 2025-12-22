@@ -373,15 +373,18 @@ class PrintPreparationManager {
     /**
      * @brief Download, modify, and print a G-code file
      *
-     * Used when user disabled an operation that's embedded in the G-code.
+     * Used when user disabled an operation that's embedded in the G-code
+     * or when macro skip parameters need to be added to PRINT_START.
      *
      * @param file_path Full path to file relative to gcodes root
      * @param ops_to_disable Operations to comment out in the file
+     * @param macro_skip_params Skip params to append to PRINT_START call
      * @param on_navigate_to_status Callback to navigate to print status panel
      */
-    void modify_and_print(const std::string& file_path,
-                          const std::vector<gcode::OperationType>& ops_to_disable,
-                          NavigateToStatusCallback on_navigate_to_status);
+    void modify_and_print(
+        const std::string& file_path, const std::vector<gcode::OperationType>& ops_to_disable,
+        const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
+        NavigateToStatusCallback on_navigate_to_status);
 
     /**
      * @brief Modify and print using helix_print plugin (server-side modification)
@@ -389,11 +392,11 @@ class PrintPreparationManager {
      * Downloads file to memory and sends to plugin for processing.
      * Memory usage is acceptable since plugin handles the heavy lifting.
      */
-    void modify_and_print_via_plugin(const std::string& file_path,
-                                     const std::string& display_filename,
-                                     const std::vector<gcode::OperationType>& ops_to_disable,
-                                     const std::vector<std::string>& mod_names,
-                                     NavigateToStatusCallback on_navigate_to_status);
+    void modify_and_print_via_plugin(
+        const std::string& file_path, const std::string& display_filename,
+        const std::vector<gcode::OperationType>& ops_to_disable,
+        const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
+        const std::vector<std::string>& mod_names, NavigateToStatusCallback on_navigate_to_status);
 
     /**
      * @brief Modify and print using streaming fallback (disk-based modification)
@@ -401,10 +404,11 @@ class PrintPreparationManager {
      * Downloads file to disk, applies streaming modification (file-to-file),
      * then uploads from disk. Minimizes memory usage on resource-constrained devices.
      */
-    void modify_and_print_streaming(const std::string& file_path,
-                                    const std::string& display_filename,
-                                    const std::vector<gcode::OperationType>& ops_to_disable,
-                                    NavigateToStatusCallback on_navigate_to_status);
+    void modify_and_print_streaming(
+        const std::string& file_path, const std::string& display_filename,
+        const std::vector<gcode::OperationType>& ops_to_disable,
+        const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
+        NavigateToStatusCallback on_navigate_to_status);
 
     /**
      * @brief Execute pre-print sequence then start print
@@ -426,6 +430,16 @@ class PrintPreparationManager {
      * @brief Helper to check if a checkbox is visible and unchecked
      */
     static bool is_option_disabled(lv_obj_t* checkbox);
+
+    /**
+     * @brief Collect macro skip parameters based on user checkboxes and macro analysis
+     *
+     * Checks which macro operations the user disabled (checkbox unchecked) and
+     * are controllable (have skip parameters). Returns the params to add to PRINT_START.
+     *
+     * @return Vector of (param_name, value) pairs like {"SKIP_BED_MESH", "1"}
+     */
+    [[nodiscard]] std::vector<std::pair<std::string, std::string>> collect_macro_skip_params() const;
 };
 
 } // namespace helix::ui

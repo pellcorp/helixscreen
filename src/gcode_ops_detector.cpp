@@ -41,6 +41,49 @@ std::string DetectedOperation::display_name() const {
 }
 
 // ============================================================================
+// PrintStartCallInfo implementation
+// ============================================================================
+
+std::string PrintStartCallInfo::with_skip_params(
+    const std::vector<std::pair<std::string, std::string>>& skip_params) const {
+    if (!found || skip_params.empty()) {
+        return raw_line;
+    }
+
+    // Start with the original line, trimmed of trailing whitespace/newlines
+    std::string modified = raw_line;
+    while (!modified.empty() && (modified.back() == '\n' || modified.back() == '\r' ||
+                                  modified.back() == ' ' || modified.back() == '\t')) {
+        modified.pop_back();
+    }
+
+    // Append skip parameters (validated for safe characters)
+    for (const auto& [param_name, param_value] : skip_params) {
+        // Validate param_name contains only safe characters (A-Z, 0-9, _)
+        // This prevents injection of malformed parameters
+        bool valid_name = !param_name.empty() &&
+                          std::all_of(param_name.begin(), param_name.end(), [](char c) {
+                              return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+                          });
+        if (!valid_name) {
+            spdlog::warn("[PrintStartCallInfo] Skipping invalid param name: {}", param_name);
+            continue;
+        }
+
+        modified += " ";
+        modified += param_name;
+        modified += "=";
+        modified += param_value;
+    }
+
+    spdlog::debug("[PrintStartCallInfo] Modified line: {}... -> {}...",
+                  raw_line.substr(0, std::min<size_t>(raw_line.size(), 50)),
+                  modified.substr(0, std::min<size_t>(modified.size(), 80)));
+
+    return modified;
+}
+
+// ============================================================================
 // ScanResult implementation
 // ============================================================================
 
@@ -232,9 +275,31 @@ ScanResult GCodeOpsDetector::scan_stream(std::istream& stream) const {
 
         // Skip comment-only lines and empty lines (but still track byte offset)
         if (!line.empty() && line[0] != ';') {
-            // Check for START_PRINT with parameters (case-insensitive)
+            // Check for PRINT_START or START_PRINT macro call (case-insensitive)
             std::string upper_line = line;
             std::transform(upper_line.begin(), upper_line.end(), upper_line.begin(), ::toupper);
+
+            // Capture the PRINT_START call info (first occurrence only)
+            if (!result.print_start.found) {
+                // Look for PRINT_START (more common) or START_PRINT
+                size_t ps_pos = upper_line.find("PRINT_START");
+                size_t sp_pos = upper_line.find("START_PRINT");
+
+                if (ps_pos != std::string::npos || sp_pos != std::string::npos) {
+                    result.print_start.found = true;
+                    result.print_start.macro_name =
+                        (ps_pos != std::string::npos) ? "PRINT_START" : "START_PRINT";
+                    result.print_start.raw_line = line;
+                    result.print_start.line_number = line_number;
+                    result.print_start.byte_offset = byte_offset;
+
+                    spdlog::debug("[GCodeOpsDetector] Found {} call at line {}: {}",
+                                  result.print_start.macro_name, line_number,
+                                  line.substr(0, std::min<size_t>(line.size(), 60)));
+                }
+            }
+
+            // Also parse params from the START_PRINT line
             if (upper_line.find("START_PRINT") != std::string::npos) {
                 parse_start_print_params(line, line_number, byte_offset, result);
             }
