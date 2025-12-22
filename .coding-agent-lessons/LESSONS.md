@@ -97,13 +97,13 @@
 - **Uses**: 6 | **Learned**: 2025-12-19 | **Last**: 2025-12-22 | **Category**: gotcha
 > When set_X() updates a member, also update child objects that cached the old value (e.g., file_provider_->set_api() in PrintSelectPanel::set_api)
 
-### [L023] [***+-/-----] Stage files explicitly
-- **Uses**: 7 | **Learned**: 2025-12-19 | **Last**: 2025-12-21 | **Category**: correction
+### [L023] [****+/-----] Stage files explicitly
+- **Uses**: 9 | **Learned**: 2025-12-19 | **Last**: 2025-12-22 | **Category**: correction
 > When committing, stage only files you actually modified (`git add <file>`) rather than `git add -A` which sweeps up unrelated changes from previous sessions. Creates cleaner atomic commits.
 
 
-### [L024] [****+/-----] WIP file safety
-- **Uses**: 9 | **Learned**: 2025-12-21 | **Last**: 2025-12-22 | **Category**: correction
+### [L024] [*****/+----] WIP file safety
+- **Uses**: 11 | **Learned**: 2025-12-21 | **Last**: 2025-12-22 | **Category**: correction
 > Never modify, stash, restore, or commit files that are part of uncommitted WIP changes without explicit user permission. Focus only on the specific files/changes requested.
 
 ### [L025] [*----/-----] Button content centering

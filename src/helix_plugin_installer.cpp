@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -83,6 +84,82 @@ std::string extract_host_from_websocket_url(const std::string& url) {
 
     // Return everything before the colon (the host)
     return remainder.substr(0, colon_pos);
+}
+
+// ============================================================================
+// Process Execution Helpers
+// ============================================================================
+
+/**
+ * @brief Wait result from wait_for_child_with_timeout()
+ */
+struct WaitResult {
+    bool timed_out = false;
+    bool error = false;
+    int exit_code = -1;
+    std::string error_message;
+};
+
+/**
+ * @brief Wait for child process with timeout, handling EINTR
+ *
+ * Uses non-blocking waitpid with polling to implement timeout.
+ * Properly handles EINTR interruptions from signals.
+ *
+ * @param pid Child process ID to wait for
+ * @param timeout_seconds Maximum time to wait
+ * @param operation_name Name for logging ("Installation" or "Uninstallation")
+ * @return WaitResult with exit code or error info
+ */
+static WaitResult wait_for_child_with_timeout(pid_t pid, int timeout_seconds,
+                                              const char* operation_name) {
+    constexpr int POLL_INTERVAL_MS = 100;
+    WaitResult result;
+
+    int status = 0;
+    auto start_time = std::chrono::steady_clock::now();
+
+    while (true) {
+        pid_t wait_result = waitpid(pid, &status, WNOHANG);
+
+        if (wait_result == pid) {
+            // Child exited
+            result.exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+            return result;
+        }
+
+        if (wait_result < 0) {
+            // Handle EINTR - signal interrupted waitpid, just retry
+            if (errno == EINTR) {
+                continue;
+            }
+            // Actual error
+            result.error = true;
+            result.error_message = strerror(errno);
+            spdlog::error("[PluginInstaller] waitpid error: {}", result.error_message);
+            return result;
+        }
+
+        // Check timeout
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed > std::chrono::seconds(timeout_seconds)) {
+            spdlog::error("[PluginInstaller] {} timed out after {} seconds", operation_name,
+                          timeout_seconds);
+            // Kill the child process
+            kill(pid, SIGTERM);
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            kill(pid, SIGKILL); // Force kill if still running
+
+            // Reap the zombie (blocking, but child should be dead)
+            waitpid(pid, &status, 0);
+
+            result.timed_out = true;
+            return result;
+        }
+
+        // Sleep before next poll
+        std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
+    }
 }
 
 // ============================================================================
@@ -162,47 +239,10 @@ void HelixPluginInstaller::install_local(InstallCallback callback) {
     }
 
     // Parent process - wait for child with timeout
-    // We poll with WNOHANG to implement a timeout, preventing indefinite hangs
     constexpr int INSTALL_TIMEOUT_SECONDS = 60;
-    constexpr int POLL_INTERVAL_MS = 100;
+    WaitResult result = wait_for_child_with_timeout(pid, INSTALL_TIMEOUT_SECONDS, "Installation");
 
-    int status = 0;
-    auto start_time = std::chrono::steady_clock::now();
-    bool timed_out = false;
-
-    while (true) {
-        pid_t result = waitpid(pid, &status, WNOHANG);
-
-        if (result == pid) {
-            // Child exited
-            break;
-        }
-
-        if (result < 0) {
-            // Error in waitpid
-            spdlog::error("[PluginInstaller] waitpid error: {}", strerror(errno));
-            break;
-        }
-
-        // Check timeout
-        auto elapsed = std::chrono::steady_clock::now() - start_time;
-        if (elapsed > std::chrono::seconds(INSTALL_TIMEOUT_SECONDS)) {
-            spdlog::error("[PluginInstaller] Installation timed out after {} seconds",
-                          INSTALL_TIMEOUT_SECONDS);
-            // Kill the child process
-            kill(pid, SIGTERM);
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            kill(pid, SIGKILL);       // Force kill if still running
-            waitpid(pid, &status, 0); // Reap the zombie
-            timed_out = true;
-            break;
-        }
-
-        // Sleep before next poll
-        std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
-    }
-
-    if (timed_out) {
+    if (result.timed_out) {
         state_.store(PluginInstallState::FAILED);
         if (callback) {
             callback(false, "Installation timed out. The script may be stuck.");
@@ -210,9 +250,15 @@ void HelixPluginInstaller::install_local(InstallCallback callback) {
         return;
     }
 
-    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    if (result.error) {
+        state_.store(PluginInstallState::FAILED);
+        if (callback) {
+            callback(false, "Installation failed: " + result.error_message);
+        }
+        return;
+    }
 
-    if (exit_code == 0) {
+    if (result.exit_code == 0) {
         state_.store(PluginInstallState::SUCCESS);
         spdlog::info("[PluginInstaller] Installation completed successfully");
         if (callback) {
@@ -220,7 +266,7 @@ void HelixPluginInstaller::install_local(InstallCallback callback) {
         }
     } else {
         state_.store(PluginInstallState::FAILED);
-        spdlog::error("[PluginInstaller] Installation failed (exit code {})", exit_code);
+        spdlog::error("[PluginInstaller] Installation failed (exit code {})", result.exit_code);
         if (callback) {
             callback(false, "Installation failed. Check logs for details.");
         }
@@ -266,42 +312,12 @@ void HelixPluginInstaller::uninstall_local(InstallCallback callback) {
         _exit(127);
     }
 
-    // Wait with timeout (same as install)
+    // Parent process - wait for child with timeout
     constexpr int UNINSTALL_TIMEOUT_SECONDS = 60;
-    constexpr int POLL_INTERVAL_MS = 100;
+    WaitResult result =
+        wait_for_child_with_timeout(pid, UNINSTALL_TIMEOUT_SECONDS, "Uninstallation");
 
-    int status = 0;
-    auto start_time = std::chrono::steady_clock::now();
-    bool timed_out = false;
-
-    while (true) {
-        pid_t result = waitpid(pid, &status, WNOHANG);
-
-        if (result == pid) {
-            break;
-        }
-
-        if (result < 0) {
-            spdlog::error("[PluginInstaller] waitpid error: {}", strerror(errno));
-            break;
-        }
-
-        auto elapsed = std::chrono::steady_clock::now() - start_time;
-        if (elapsed > std::chrono::seconds(UNINSTALL_TIMEOUT_SECONDS)) {
-            spdlog::error("[PluginInstaller] Uninstallation timed out after {} seconds",
-                          UNINSTALL_TIMEOUT_SECONDS);
-            kill(pid, SIGTERM);
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            kill(pid, SIGKILL);
-            waitpid(pid, &status, 0);
-            timed_out = true;
-            break;
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
-    }
-
-    if (timed_out) {
+    if (result.timed_out) {
         state_.store(PluginInstallState::FAILED);
         if (callback) {
             callback(false, "Uninstallation timed out. The script may be stuck.");
@@ -309,9 +325,15 @@ void HelixPluginInstaller::uninstall_local(InstallCallback callback) {
         return;
     }
 
-    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    if (result.error) {
+        state_.store(PluginInstallState::FAILED);
+        if (callback) {
+            callback(false, "Uninstallation failed: " + result.error_message);
+        }
+        return;
+    }
 
-    if (exit_code == 0) {
+    if (result.exit_code == 0) {
         state_.store(PluginInstallState::SUCCESS);
         spdlog::info("[PluginInstaller] Uninstallation completed successfully");
         if (callback) {
@@ -319,7 +341,7 @@ void HelixPluginInstaller::uninstall_local(InstallCallback callback) {
         }
     } else {
         state_.store(PluginInstallState::FAILED);
-        spdlog::error("[PluginInstaller] Uninstallation failed (exit code {})", exit_code);
+        spdlog::error("[PluginInstaller] Uninstallation failed (exit code {})", result.exit_code);
         if (callback) {
             callback(false, "Uninstallation failed. Check logs for details.");
         }

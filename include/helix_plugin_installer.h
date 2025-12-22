@@ -65,10 +65,12 @@ enum class PluginInstallState {
 /**
  * @brief Manages helix_print plugin detection and installation
  *
- * @note Thread Safety: This class is NOT thread-safe. All methods must be
- *       called from the main/UI thread only. The install_local() method
- *       blocks during script execution - for non-blocking UI, wrap in
- *       std::async or similar.
+ * @note Thread Safety:
+ *       - install_local() / uninstall_local(): MUST be called from main thread only.
+ *         These methods block during script execution. For non-blocking UI,
+ *         wrap in std::thread or std::async.
+ *       - get_state() / is_installing(): Thread-safe (atomic read).
+ *       - All other methods: Main thread only.
  *
  * Usage:
  *   1. Create installer and set API

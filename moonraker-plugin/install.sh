@@ -100,15 +100,13 @@ Please provide the path: ./install.sh /path/to/moonraker"
     # Create symlink
     local target="$components_dir/helix_print.py"
 
-    if [[ -L "$target" ]]; then
-        warn "Symlink already exists, removing..."
-        rm "$target"
-    elif [[ -f "$target" ]]; then
+    if [[ -f "$target" && ! -L "$target" ]]; then
         error "A file (not symlink) exists at $target
 Please remove it manually before installing."
     fi
 
-    ln -s "$PLUGIN_FILE" "$target"
+    # Use ln -sf for atomic replacement (removes existing symlink first)
+    ln -sf "$PLUGIN_FILE" "$target"
     info "Created symlink: $target -> $PLUGIN_FILE"
     echo ""
 
@@ -205,6 +203,11 @@ auto_uninstall() {
         local moonraker_conf="$config_dir/moonraker.conf"
 
         if grep -q '^\[helix_print\]' "$moonraker_conf"; then
+            # Create backup before modifying config
+            local backup_file="${moonraker_conf}.bak.$(date +%Y%m%d_%H%M%S)"
+            cp "$moonraker_conf" "$backup_file"
+            info "Created backup: $backup_file"
+
             info "Removing [helix_print] section from moonraker.conf"
             # Use awk for cross-platform config section removal
             # This correctly handles helix_print as the last section in the file
@@ -309,14 +312,12 @@ auto_install() {
     # Create symlink
     local target="$components_dir/helix_print.py"
 
-    if [[ -L "$target" ]]; then
-        info "Symlink already exists, updating..."
-        rm "$target"
-    elif [[ -f "$target" ]]; then
+    if [[ -f "$target" && ! -L "$target" ]]; then
         error "A file (not symlink) exists at $target"
     fi
 
-    ln -s "$PLUGIN_FILE" "$target"
+    # Use ln -sf for atomic replacement (removes existing symlink first)
+    ln -sf "$PLUGIN_FILE" "$target"
     info "Created symlink: $target"
 
     # Auto-configure moonraker.conf if possible
@@ -327,6 +328,11 @@ auto_install() {
         if grep -q '^\[helix_print\]' "$moonraker_conf"; then
             info "Config section [helix_print] already exists"
         else
+            # Create backup before modifying config
+            local backup_file="${moonraker_conf}.bak.$(date +%Y%m%d_%H%M%S)"
+            cp "$moonraker_conf" "$backup_file"
+            info "Created backup: $backup_file"
+
             info "Adding [helix_print] section to moonraker.conf"
             echo "" >> "$moonraker_conf"
             echo "[helix_print]" >> "$moonraker_conf"
@@ -375,6 +381,11 @@ case "${1:-}" in
         echo ""
         echo "Arguments:"
         echo "  MOONRAKER_PATH     Path to Moonraker installation (auto-detected if not provided)"
+        echo ""
+        echo "Environment Variables:"
+        echo "  MOONRAKER_URL      URL for Moonraker API health check after restart"
+        echo "                     Default: http://localhost:7125"
+        echo "                     Example: MOONRAKER_URL=http://192.168.1.100:7125 ./install.sh --auto"
         ;;
     *)
         main "$1"

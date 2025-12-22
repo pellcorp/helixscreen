@@ -76,6 +76,12 @@ void PluginInstallModal::on_show() {
             std::string cmd = installer_->get_remote_install_command();
             lv_textarea_set_text(command_textarea_, cmd.c_str());
         }
+
+        // Reset copy feedback from previous show
+        if (copy_feedback_) {
+            lv_label_set_text(copy_feedback_, "");
+            lv_obj_add_flag(copy_feedback_, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 
     // Wire cancel button and set user_data for all buttons
