@@ -36,7 +36,7 @@
               width="#printer_container_width" height="100%" style_bg_opa="0%" style_border_width="0" style_pad_all="0"
               style_pad_bottom="#space_lg" scrollable="false" align="center">
         <lv_image name="printer_image"
-                  width="100%" height="100%" src="A:assets/images/printer_400.png" inner_align="contain">
+                  align="center">
           <!-- Dim image when disconnected (state 0) or connecting (state 1) -->
           <bind_style name="image_dimmed" subject="printer_connection_state" ref_value="0"/>
           <bind_style name="image_dimmed" subject="printer_connection_state" ref_value="1"/>
