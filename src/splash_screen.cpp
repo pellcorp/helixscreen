@@ -145,8 +145,10 @@ void show_splash_screen(int screen_width, int screen_height) {
         helix::timing::delay(5);
     }
 
-    // Clean up splash screen
-    lv_obj_delete(container);
+    // Clean up splash screen (guard against early shutdown)
+    if (lv_is_initialized() && container && lv_obj_is_valid(container)) {
+        lv_obj_delete(container);
+    }
 
     spdlog::debug("[Splash Screen] complete");
 }
