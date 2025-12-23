@@ -427,7 +427,15 @@ std::string HelixPluginInstaller::get_install_script_path() const {
 bool HelixPluginInstaller::should_prompt_install() const {
     Config* config = Config::get_instance();
     if (!config) {
-        return true; // Default to prompting if config not available
+        return false; // Don't prompt if config not available
+    }
+
+    // Don't show plugin prompt until the first-run wizard is complete.
+    // The prompt will be triggered when wizard completes and connects to Moonraker,
+    // which fires PrintSelectPanel's connection observer.
+    if (config->is_wizard_required()) {
+        spdlog::debug("[PluginInstaller] Wizard not complete, deferring plugin prompt");
+        return false;
     }
 
     // If user previously declined, don't prompt

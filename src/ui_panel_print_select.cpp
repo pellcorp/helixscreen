@@ -519,6 +519,9 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
                         self->api_->check_helix_plugin(
                             [self](bool available) {
+                                // Update subject for UI binding
+                                self->printer_state_.set_helix_plugin_installed(available);
+
                                 if (available) {
                                     spdlog::info("[PrintSelectPanel] helix_print plugin available");
                                 } else {

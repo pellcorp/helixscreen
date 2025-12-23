@@ -675,6 +675,18 @@ class PrinterState {
     void set_spoolman_available(bool available);
 
     /**
+     * @brief Set HelixPrint plugin installation status
+     *
+     * Called after checking Moonraker for the helix_print plugin.
+     * Updates helix_plugin_installed_ subject for UI visibility gating.
+     *
+     * Thread-safe: Can be called from any thread, defers LVGL update to main thread.
+     *
+     * @param installed True if HelixPrint plugin is installed
+     */
+    void set_helix_plugin_installed(bool installed);
+
+    /**
      * @brief Set printer kinematics type and update bed_moves subject
      *
      * Updates printer_bed_moves_ subject based on kinematics type.
@@ -802,6 +814,7 @@ class PrinterState {
     lv_subject_t printer_has_spoolman_;      // Integer: 0=no, 1=yes (for filament tracking)
     lv_subject_t printer_has_speaker_;       // Integer: 0=no, 1=yes (for M300 audio feedback)
     lv_subject_t printer_has_timelapse_; // Integer: 0=no, 1=yes (for Moonraker-Timelapse plugin)
+    lv_subject_t helix_plugin_installed_;    // Integer: 0=no, 1=yes (for HelixPrint plugin)
     lv_subject_t printer_has_firmware_retraction_; // Integer: 0=no, 1=yes (for G10/G11 retraction)
     lv_subject_t printer_bed_moves_; // Integer: 0=no (gantry moves), 1=yes (bed moves on Z)
 

@@ -54,6 +54,10 @@ void AdvancedPanel::init_subjects() {
     lv_xml_register_event_cb(nullptr, "on_advanced_spoolman", on_spoolman_clicked);
     lv_xml_register_event_cb(nullptr, "on_advanced_macros", on_macros_clicked);
     lv_xml_register_event_cb(nullptr, "on_configure_print_start", on_configure_print_start_clicked);
+    lv_xml_register_event_cb(nullptr, "on_helix_plugin_install_clicked",
+                             on_helix_plugin_install_clicked);
+    lv_xml_register_event_cb(nullptr, "on_helix_plugin_uninstall_clicked",
+                             on_helix_plugin_uninstall_clicked);
 
     // Note: Input shaping uses on_input_shaper_row_clicked registered by InputShaperPanel
     // Note: Restart row doesn't exist - restart buttons have their own callbacks in
@@ -80,6 +84,17 @@ void AdvancedPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
 void AdvancedPanel::on_activate() {
     spdlog::debug("[{}] Activated", get_name());
+
+    // Check HelixPrint plugin status and update subject for conditional visibility
+    if (api_) {
+        api_->check_helix_plugin(
+            [this](bool available) {
+                printer_state_.set_helix_plugin_installed(available);
+            },
+            [](const MoonrakerError&) {
+                // Silently ignore errors - assume not installed
+            });
+    }
 }
 
 // ============================================================================
@@ -171,4 +186,49 @@ void AdvancedPanel::on_macros_clicked(lv_event_t* /*e*/) {
 
 void AdvancedPanel::on_configure_print_start_clicked(lv_event_t* /*e*/) {
     get_global_advanced_panel().handle_configure_print_start_clicked();
+}
+
+void AdvancedPanel::on_helix_plugin_install_clicked(lv_event_t* /*e*/) {
+    get_global_advanced_panel().handle_helix_plugin_install_clicked();
+}
+
+void AdvancedPanel::on_helix_plugin_uninstall_clicked(lv_event_t* /*e*/) {
+    get_global_advanced_panel().handle_helix_plugin_uninstall_clicked();
+}
+
+// ============================================================================
+// HELIXPRINT PLUGIN HANDLERS
+// ============================================================================
+
+void AdvancedPanel::handle_helix_plugin_install_clicked() {
+    spdlog::debug("[{}] HelixPrint Plugin Install clicked", get_name());
+
+    // Double-check plugin isn't already installed (defensive)
+    if (api_ && api_->has_helix_plugin()) {
+        spdlog::info("[{}] Plugin already installed, refreshing UI", get_name());
+        printer_state_.set_helix_plugin_installed(true);
+        ui_toast_show(ToastSeverity::INFO, "Plugin already installed", 2000);
+        return;
+    }
+
+    // Update installer's websocket URL for local/remote detection
+    if (api_) {
+        plugin_installer_.set_websocket_url(api_->get_client().get_last_url());
+    }
+
+    // Show the install modal
+    plugin_install_modal_.set_installer(&plugin_installer_);
+    plugin_install_modal_.set_on_install_complete([this](bool success) {
+        if (success) {
+            printer_state_.set_helix_plugin_installed(true);
+            ui_toast_show(ToastSeverity::SUCCESS, "Plugin installed successfully", 2000);
+        }
+    });
+    plugin_install_modal_.show(lv_screen_active());
+}
+
+void AdvancedPanel::handle_helix_plugin_uninstall_clicked() {
+    spdlog::debug("[{}] HelixPrint Plugin Uninstall clicked", get_name());
+    // TODO: Implement uninstall functionality
+    ui_toast_show(ToastSeverity::INFO, "Uninstall: Coming soon", 2000);
 }

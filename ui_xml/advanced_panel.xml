@@ -112,6 +112,30 @@
     <setting_action_row name="row_macros" label="Macro Browser" icon="console" description="Execute printer macros">
       <event_cb trigger="clicked" callback="on_advanced_macros"/>
     </setting_action_row>
+    <!-- HelixPrint Plugin (NOT installed - show Install row) -->
+    <lv_obj name="container_helix_plugin_install"
+            width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false">
+      <lv_obj-bind_flag_if_eq subject="helix_plugin_installed" flag="hidden" ref_value="1"/>
+      <setting_action_row name="row_helix_plugin_install" label="Install HelixPrint Plugin" icon="puzzle_outline" description="Control optional print start features">
+        <event_cb trigger="clicked" callback="on_helix_plugin_install_clicked"/>
+      </setting_action_row>
+    </lv_obj>
+    <!-- HelixPrint Plugin (INSTALLED - show Uninstall row) -->
+    <lv_obj name="container_helix_plugin_uninstall"
+            width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false">
+      <lv_obj-bind_flag_if_eq subject="helix_plugin_installed" flag="hidden" ref_value="0"/>
+      <setting_action_row name="row_helix_plugin_uninstall" label="Uninstall HelixPrint Plugin" icon="puzzle_outline" description="Remove plugin from printer">
+        <event_cb trigger="clicked" callback="on_helix_plugin_uninstall_clicked"/>
+      </setting_action_row>
+    </lv_obj>
+    <!-- HelixPrint Plugin Help Text -->
+    <lv_obj width="100%"
+            height="content" style_bg_opa="0" style_border_width="0" style_pad_left="#space_lg"
+            style_pad_right="#space_lg" style_pad_top="0" style_pad_bottom="#space_md" scrollable="false">
+      <text_small width="100%"
+                  text="This plugin lets HelixScreen control print start options like bed mesh and QGL. Once installed, use Configure PRINT_START below to enable optional steps."
+                  long_mode="wrap" style_text_color="#text_secondary"/>
+    </lv_obj>
     <!-- Configure PRINT_START -->
     <setting_action_row name="row_configure_print_start" label="Configure PRINT_START" icon="code_braces" description="Make bed mesh and QGL skippable">
       <event_cb trigger="clicked" callback="on_configure_print_start"/>

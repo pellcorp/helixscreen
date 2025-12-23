@@ -225,6 +225,7 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&printer_has_spoolman_);
     lv_subject_deinit(&printer_has_speaker_);
     lv_subject_deinit(&printer_has_timelapse_);
+    lv_subject_deinit(&helix_plugin_installed_);
     lv_subject_deinit(&printer_has_firmware_retraction_);
     lv_subject_deinit(&printer_bed_moves_);
     lv_subject_deinit(&retract_length_);
@@ -320,6 +321,7 @@ void PrinterState::init_subjects(bool register_xml) {
     lv_subject_init_int(&printer_has_spoolman_, 0);
     lv_subject_init_int(&printer_has_speaker_, 0);
     lv_subject_init_int(&printer_has_timelapse_, 0);
+    lv_subject_init_int(&helix_plugin_installed_, 0);
     lv_subject_init_int(&printer_has_firmware_retraction_, 0);
     lv_subject_init_int(&printer_bed_moves_, 0); // 0=gantry moves, 1=bed moves (cartesian)
 
@@ -384,6 +386,7 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "printer_has_spoolman", &printer_has_spoolman_);
         lv_xml_register_subject(NULL, "printer_has_speaker", &printer_has_speaker_);
         lv_xml_register_subject(NULL, "printer_has_timelapse", &printer_has_timelapse_);
+        lv_xml_register_subject(NULL, "helix_plugin_installed", &helix_plugin_installed_);
         lv_xml_register_subject(NULL, "printer_has_firmware_retraction",
                                 &printer_has_firmware_retraction_);
         lv_xml_register_subject(NULL, "printer_bed_moves", &printer_bed_moves_);
@@ -999,6 +1002,23 @@ void PrinterState::set_spoolman_available(bool available) {
         delete ctx;
     };
     lv_async_call(callback, new SpoolmanAvailContext{this, available});
+}
+
+// Context struct for async HelixPrint plugin status update
+struct HelixPluginContext {
+    PrinterState* state;
+    bool installed;
+};
+
+void PrinterState::set_helix_plugin_installed(bool installed) {
+    // Thread-safe: Use lv_async_call to update LVGL subject from any thread
+    auto callback = [](void* user_data) {
+        auto* ctx = static_cast<HelixPluginContext*>(user_data);
+        lv_subject_set_int(&ctx->state->helix_plugin_installed_, ctx->installed ? 1 : 0);
+        spdlog::info("[PrinterState] HelixPrint plugin installed: {}", ctx->installed);
+        delete ctx;
+    };
+    lv_async_call(callback, new HelixPluginContext{this, installed});
 }
 
 void PrinterState::set_excluded_objects(const std::unordered_set<std::string>& objects) {
