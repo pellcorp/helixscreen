@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # helix-launcher.sh - Launch HelixScreen with early splash screen
@@ -6,6 +6,8 @@
 # This script starts the splash screen immediately for instant visual feedback,
 # then launches the main application in parallel. The splash automatically exits
 # when the main app takes over the display.
+#
+# NOTE: Written for POSIX sh compatibility (no bash arrays) to work on AD5M BusyBox.
 #
 # Usage:
 #   ./helix-launcher.sh [options]
@@ -39,8 +41,9 @@ DEBUG_MODE="${HELIX_DEBUG:-0}"
 LOG_DEST="${HELIX_LOG_DEST:-auto}"
 LOG_FILE="${HELIX_LOG_FILE:-}"
 
-# Parse launcher-specific arguments
-PASSTHROUGH_ARGS=()
+# Parse launcher-specific arguments (POSIX-compatible, no arrays)
+# Passthrough args stored as space-separated string
+PASSTHROUGH_ARGS=""
 for arg in "$@"; do
     case "$arg" in
         --debug)
@@ -53,13 +56,14 @@ for arg in "$@"; do
             LOG_FILE="${arg#--log-file=}"
             ;;
         *)
-            PASSTHROUGH_ARGS+=("$arg")
+            PASSTHROUGH_ARGS="${PASSTHROUGH_ARGS} ${arg}"
             ;;
     esac
 done
 
 # Determine script and binary locations
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use $0 instead of BASH_SOURCE for POSIX compatibility
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Support installed, deployed, and development layouts
 if [ -x "${SCRIPT_DIR}/helix-splash" ]; then
@@ -79,6 +83,16 @@ fi
 
 SPLASH_BIN="${BIN_DIR}/helix-splash"
 MAIN_BIN="${BIN_DIR}/helix-screen"
+WATCHDOG_BIN="${BIN_DIR}/helix-watchdog"
+
+# Default screen dimensions (can be overridden by environment)
+: "${HELIX_SCREEN_WIDTH:=800}"
+: "${HELIX_SCREEN_HEIGHT:=480}"
+
+# Log function (must be defined before first use)
+log() {
+    echo "[helix-launcher] $*"
+}
 
 # Verify main binary exists
 if [ ! -x "${MAIN_BIN}" ]; then
@@ -86,22 +100,23 @@ if [ ! -x "${MAIN_BIN}" ]; then
     exit 1
 fi
 
-# Default screen dimensions (can be overridden by environment)
-: "${HELIX_SCREEN_WIDTH:=800}"
-: "${HELIX_SCREEN_HEIGHT:=480}"
-
-# Log function
-log() {
-    echo "[helix-launcher] $*"
-}
+# Check if watchdog is available (embedded targets only, provides crash recovery)
+USE_WATCHDOG=0
+if [ -x "${WATCHDOG_BIN}" ]; then
+    USE_WATCHDOG=1
+    log "Watchdog available: crash recovery enabled"
+fi
 
 # Cleanup function for signal handling
 cleanup() {
     log "Shutting down..."
-    if [ -n "${SPLASH_PID}" ] && kill -0 "${SPLASH_PID}" 2>/dev/null; then
+    # Kill splash if still running
+    if [ -n "${SPLASH_PID:-}" ] && kill -0 "${SPLASH_PID}" 2>/dev/null; then
         kill "${SPLASH_PID}" 2>/dev/null || true
         wait "${SPLASH_PID}" 2>/dev/null || true
     fi
+    # Kill watchdog/helix-screen if we started them
+    killall helix-watchdog helix-screen 2>/dev/null || true
 }
 
 trap cleanup EXIT INT TERM
@@ -146,9 +161,22 @@ if [ -n "${LOG_FILE}" ]; then
     log "Log file: ${LOG_FILE}"
 fi
 
-# Run main application
-"${MAIN_BIN}" ${SPLASH_ARGS} ${EXTRA_FLAGS} "${PASSTHROUGH_ARGS[@]}"
-EXIT_CODE=$?
+# Run main application (via watchdog if available for crash recovery)
+# Note: PASSTHROUGH_ARGS is unquoted to allow word splitting (POSIX compatible)
+if [ "${USE_WATCHDOG}" = "1" ]; then
+    # Watchdog supervises helix-screen: fork/exec, monitor for crash, show recovery dialog
+    # Pass screen dimensions to watchdog, then use -- to separate helix-screen args
+    log "Starting via watchdog supervisor"
+    # shellcheck disable=SC2086
+    "${WATCHDOG_BIN}" -w "${HELIX_SCREEN_WIDTH}" -h "${HELIX_SCREEN_HEIGHT}" -- \
+        "${MAIN_BIN}" ${SPLASH_ARGS} ${EXTRA_FLAGS} ${PASSTHROUGH_ARGS}
+    EXIT_CODE=$?
+else
+    # Direct launch (development, or watchdog not built)
+    # shellcheck disable=SC2086
+    "${MAIN_BIN}" ${SPLASH_ARGS} ${EXTRA_FLAGS} ${PASSTHROUGH_ARGS}
+    EXIT_CODE=$?
+fi
 
 # Ensure splash is terminated (should have exited when main app took display)
 if [ -n "${SPLASH_PID}" ] && kill -0 "${SPLASH_PID}" 2>/dev/null; then

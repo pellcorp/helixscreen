@@ -704,8 +704,9 @@ stop_service() {
                 $SUDO "$init_script" stop 2>/dev/null || true
             fi
         done
-        # Also try to kill by name
+        # Also try to kill by name (watchdog first to prevent crash dialog flash)
         if command -v killall &> /dev/null; then
+            $SUDO killall helix-watchdog 2>/dev/null || true
             $SUDO killall helix-screen 2>/dev/null || true
             $SUDO killall helix-splash 2>/dev/null || true
         fi
@@ -738,8 +739,9 @@ uninstall() {
         done
     fi
 
-    # Kill any remaining processes
+    # Kill any remaining processes (watchdog first to prevent crash dialog flash)
     if command -v killall &> /dev/null; then
+        $SUDO killall helix-watchdog 2>/dev/null || true
         $SUDO killall helix-screen 2>/dev/null || true
         $SUDO killall helix-splash 2>/dev/null || true
     fi

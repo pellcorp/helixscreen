@@ -115,6 +115,7 @@ package_platform() {
     # Copy binaries
     cp "${build_dir}/bin/helix-screen" "$pkg_dir/bin/"
     cp "${build_dir}/bin/helix-splash" "$pkg_dir/bin/" 2>/dev/null || true
+    cp "${build_dir}/bin/helix-watchdog" "$pkg_dir/bin/" 2>/dev/null || true
 
     # Copy UI XML files
     cp -r "${PROJECT_DIR}/ui_xml" "$pkg_dir/"
@@ -154,6 +155,8 @@ package_platform() {
     # Copy config files
     cp "${PROJECT_DIR}/config/helixscreen.init" "$pkg_dir/config/"
     cp "${PROJECT_DIR}/config/helixscreen.service" "$pkg_dir/config/"
+    cp "${PROJECT_DIR}/config/helix-launcher.sh" "$pkg_dir/config/"
+    chmod +x "$pkg_dir/config/helix-launcher.sh"
     cp "${PROJECT_DIR}/config/helixconfig.json.template" "$pkg_dir/config/" 2>/dev/null || true
     cp "${PROJECT_DIR}/config/printer_database.json" "$pkg_dir/config/" 2>/dev/null || true
     cp "${PROJECT_DIR}/config/printing_tips.json" "$pkg_dir/config/" 2>/dev/null || true
