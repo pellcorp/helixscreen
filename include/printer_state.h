@@ -248,6 +248,30 @@ class PrinterState {
     } // "standby", "printing", "paused", "complete" (string for UI display)
 
     /**
+     * @brief Get print thumbnail path subject for UI binding
+     *
+     * String subject holding the LVGL path to the current print's thumbnail.
+     * Set by PrintStatusPanel when thumbnail loads, cleared when print ends.
+     * HomePanel observes this to show the same thumbnail on the print card.
+     *
+     * @return Pointer to string subject
+     */
+    lv_subject_t* get_print_thumbnail_path_subject() {
+        return &print_thumbnail_path_;
+    }
+
+    /**
+     * @brief Set the current print's thumbnail path
+     *
+     * Called by PrintStatusPanel after successfully loading a thumbnail.
+     * This allows other UI components (e.g., HomePanel) to display the
+     * same thumbnail without duplicating the loading logic.
+     *
+     * @param path LVGL-compatible path (e.g., "A:/tmp/thumbnail_xxx.bin")
+     */
+    void set_print_thumbnail_path(const std::string& path);
+
+    /**
      * @brief Get print job state enum subject
      *
      * Integer subject holding PrintJobState enum value for type-safe comparisons.
@@ -810,11 +834,12 @@ class PrinterState {
     lv_subject_t bed_target_;
 
     // Print progress subjects
-    lv_subject_t print_progress_;   // Integer 0-100
-    lv_subject_t print_filename_;   // String buffer
-    lv_subject_t print_state_;      // String buffer (for UI display binding)
-    lv_subject_t print_state_enum_; // Integer: PrintJobState enum (for type-safe logic)
-    lv_subject_t print_active_;     // Integer: 1 when PRINTING/PAUSED, 0 otherwise
+    lv_subject_t print_progress_;        // Integer 0-100
+    lv_subject_t print_filename_;        // String buffer
+    lv_subject_t print_state_;           // String buffer (for UI display binding)
+    lv_subject_t print_state_enum_;      // Integer: PrintJobState enum (for type-safe logic)
+    lv_subject_t print_active_;          // Integer: 1 when PRINTING/PAUSED, 0 otherwise
+    lv_subject_t print_thumbnail_path_;  // String: LVGL path to current print thumbnail
 
     // Layer tracking subjects (from Moonraker print_stats.info)
     lv_subject_t print_layer_current_; // Current layer (0-based)
@@ -911,6 +936,7 @@ class PrinterState {
 
     // String buffers for subject storage
     char print_filename_buf_[256];
+    char print_thumbnail_path_buf_[512];  // LVGL path to current print thumbnail
     char print_state_buf_[32];
     char homed_axes_buf_[8];
     char printer_connection_message_buf_[128];

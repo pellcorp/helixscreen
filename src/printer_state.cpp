@@ -269,6 +269,8 @@ void PrinterState::init_subjects(bool register_xml) {
                            "standby");
     lv_subject_init_int(&print_state_enum_, static_cast<int>(PrintJobState::STANDBY));
     lv_subject_init_int(&print_active_, 0); // 0 when idle, 1 when PRINTING/PAUSED
+    lv_subject_init_string(&print_thumbnail_path_, print_thumbnail_path_buf_, nullptr,
+                           sizeof(print_thumbnail_path_buf_), "");
 
     // Layer tracking subjects (from Moonraker print_stats.info)
     lv_subject_init_int(&print_layer_current_, 0);
@@ -1232,4 +1234,15 @@ void PrinterState::reset_print_start_state() {
             }
         },
         this);
+}
+
+void PrinterState::set_print_thumbnail_path(const std::string& path) {
+    // Thumbnail path is set from PrintStatusPanel's main-thread callback,
+    // so we can safely update the subject directly without ui_async_call.
+    if (path.empty()) {
+        spdlog::debug("[PrinterState] Clearing print thumbnail path");
+    } else {
+        spdlog::debug("[PrinterState] Setting print thumbnail path: {}", path);
+    }
+    lv_subject_copy_string(&print_thumbnail_path_, path.c_str());
 }

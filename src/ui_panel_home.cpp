@@ -13,6 +13,7 @@
 #include "ui_panel_print_status.h"
 #include "ui_panel_temp_control.h"
 #include "ui_subject_registry.h"
+#include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "ams_state.h"
@@ -25,7 +26,6 @@
 #include "printer_detector.h"
 #include "printer_state.h"
 #include "settings_manager.h"
-#include "thumbnail_cache.h"
 #include "wifi_manager.h"
 #include "wizard_config_paths.h"
 
@@ -59,11 +59,12 @@ HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
                                              print_progress_observer_cb, this);
     print_time_left_observer_ = ObserverGuard(printer_state_.get_print_time_left_subject(),
                                               print_time_left_observer_cb, this);
-    print_filename_observer_ = ObserverGuard(printer_state_.get_print_filename_subject(),
-                                             print_filename_observer_cb, this);
+    print_thumbnail_path_observer_ =
+        ObserverGuard(printer_state_.get_print_thumbnail_path_subject(),
+                      print_thumbnail_path_observer_cb, this);
 
     spdlog::debug("[{}] Subscribed to PrinterState extruder temperature and target", get_name());
-    spdlog::debug("[{}] Subscribed to PrinterState print state/progress/time/filename", get_name());
+    spdlog::debug("[{}] Subscribed to PrinterState print state/progress/time/thumbnail", get_name());
 
     // Load configured LED from wizard settings and tell PrinterState to track it
     Config* config = Config::get_instance();
@@ -246,8 +247,9 @@ void HomePanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
     // Look up print card widgets for dynamic updates during printing
     print_card_thumb_ = lv_obj_find_by_name(panel_, "print_card_thumb");
+    print_card_active_thumb_ = lv_obj_find_by_name(panel_, "print_card_active_thumb");
     print_card_label_ = lv_obj_find_by_name(panel_, "print_card_label");
-    if (print_card_thumb_ && print_card_label_) {
+    if (print_card_thumb_ && print_card_active_thumb_ && print_card_label_) {
         spdlog::debug("[{}] Found print card widgets for dynamic updates", get_name());
 
         // Check initial print state (observer may have fired before setup)
@@ -1034,17 +1036,45 @@ void HomePanel::print_time_left_observer_cb(lv_observer_t* observer, lv_subject_
     }
 }
 
-void HomePanel::print_filename_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
+void HomePanel::print_thumbnail_path_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
     if (self) {
-        // If a print is active, reload thumbnail when filename changes
-        auto state = static_cast<PrintJobState>(
-            lv_subject_get_int(self->printer_state_.get_print_state_enum_subject()));
-        if (state == PrintJobState::PRINTING || state == PrintJobState::PAUSED) {
-            self->load_current_print_thumbnail();
-        }
+        const char* path = lv_subject_get_string(subject);
+        self->on_print_thumbnail_path_changed(path);
     }
+}
+
+void HomePanel::on_print_thumbnail_path_changed(const char* path) {
+    if (!print_card_active_thumb_) {
+        return;
+    }
+
+    // Defer the image update to avoid LVGL assertion when called during render
+    // (observer callbacks can fire during subject updates which may be mid-render)
+    std::string path_copy = path ? path : "";
+    ui_async_call(
+        [](void* user_data) {
+            auto* self = static_cast<HomePanel*>(user_data);
+            if (!self->print_card_active_thumb_) {
+                return;
+            }
+
+            const char* current_path =
+                lv_subject_get_string(self->printer_state_.get_print_thumbnail_path_subject());
+
+            if (current_path && current_path[0] != '\0') {
+                // Thumbnail available - set it on the active print card
+                lv_image_set_src(self->print_card_active_thumb_, current_path);
+                spdlog::debug("[{}] Active print thumbnail updated: {}", self->get_name(),
+                              current_path);
+            } else {
+                // No thumbnail - revert to benchy placeholder
+                lv_image_set_src(self->print_card_active_thumb_,
+                                 "A:assets/images/benchy_thumbnail_white.png");
+                spdlog::debug("[{}] Active print thumbnail cleared", self->get_name());
+            }
+        },
+        this);
 }
 
 void HomePanel::on_print_state_changed(PrintJobState state) {
@@ -1055,8 +1085,7 @@ void HomePanel::on_print_state_changed(PrintJobState state) {
     bool is_active = (state == PrintJobState::PRINTING || state == PrintJobState::PAUSED);
 
     if (is_active) {
-        spdlog::info("[{}] Print active - updating card with thumbnail and progress", get_name());
-        load_current_print_thumbnail();
+        spdlog::info("[{}] Print active - updating card progress display", get_name());
         on_print_progress_or_time_changed(); // Update label immediately
     } else {
         spdlog::info("[{}] Print not active - reverting card to idle state", get_name());
@@ -1100,97 +1129,13 @@ void HomePanel::update_print_card_label(int progress, int time_left_secs) {
 }
 
 void HomePanel::reset_print_card_to_idle() {
+    // Reset idle thumbnail to benchy (active thumb is handled by observer when path clears)
     if (print_card_thumb_) {
         lv_image_set_src(print_card_thumb_, "A:assets/images/benchy_thumbnail_white.png");
     }
     if (print_card_label_) {
         lv_label_set_text(print_card_label_, "Print Files");
     }
-    // Invalidate any in-flight thumbnail loads
-    ++thumbnail_load_generation_;
-}
-
-void HomePanel::load_current_print_thumbnail() {
-    if (!print_card_thumb_ || !api_) {
-        return;
-    }
-
-    const char* filename = lv_subject_get_string(printer_state_.get_print_filename_subject());
-    if (!filename || filename[0] == '\0') {
-        return;
-    }
-
-    // Throttle: Don't reload if we already tried this exact filename recently
-    static std::string last_attempted_filename;
-    static int last_attempted_gen = 0;
-    std::string current_filename(filename);
-
-    if (current_filename == last_attempted_filename &&
-        thumbnail_load_generation_ == last_attempted_gen) {
-        // Already attempted this filename - skip to avoid spam
-        return;
-    }
-
-    // Increment generation to invalidate any in-flight async operations
-    ++thumbnail_load_generation_;
-    int current_gen = thumbnail_load_generation_;
-    last_attempted_filename = current_filename;
-    last_attempted_gen = current_gen;
-
-    spdlog::debug("[{}] Loading print thumbnail for: {} (gen={})", get_name(), filename,
-                  current_gen);
-
-    // Resolve to original filename if this is a modified temp file
-    // (Moonraker only has metadata for original files, not modified copies)
-    std::string metadata_filename = resolve_gcode_filename(filename);
-
-    // Get file metadata to find thumbnail path
-    api_->get_file_metadata(
-        metadata_filename,
-        [this, current_gen](const FileMetadata& metadata) {
-            // Check if this callback is still relevant
-            if (current_gen != thumbnail_load_generation_) {
-                spdlog::trace("[{}] Stale metadata callback (gen {} != {}), ignoring", get_name(),
-                              current_gen, thumbnail_load_generation_);
-                return;
-            }
-
-            // Get the largest thumbnail available
-            std::string thumbnail_rel_path = metadata.get_largest_thumbnail();
-            if (thumbnail_rel_path.empty()) {
-                spdlog::debug("[{}] No thumbnail available in metadata", get_name());
-                return;
-            }
-
-            spdlog::debug("[{}] Found thumbnail: {}", get_name(), thumbnail_rel_path);
-
-            // Use ThumbnailCache to download/cache (handles LVGL path formatting correctly)
-            get_thumbnail_cache().fetch(
-                api_, thumbnail_rel_path,
-                [this, current_gen](const std::string& lvgl_path) {
-                    // Check if this callback is still relevant
-                    if (current_gen != thumbnail_load_generation_) {
-                        spdlog::trace("[{}] Stale thumbnail callback (gen {} != {}), ignoring",
-                                      get_name(), current_gen, thumbnail_load_generation_);
-                        return;
-                    }
-
-                    if (!print_card_thumb_) {
-                        return;
-                    }
-
-                    lv_image_set_src(print_card_thumb_, lvgl_path.c_str());
-                    spdlog::info("[{}] Print thumbnail loaded: {}", get_name(), lvgl_path);
-                },
-                [this](const std::string& error) {
-                    spdlog::warn("[{}] Failed to fetch thumbnail: {}", get_name(), error);
-                });
-        },
-        [this](const MoonrakerError& error) {
-            spdlog::debug("[{}] Failed to get file metadata: {}", get_name(), error.message);
-        },
-        true // silent - don't trigger RPC_ERROR event/toast
-    );
 }
 
 static std::unique_ptr<HomePanel> g_home_panel;

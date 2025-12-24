@@ -170,14 +170,12 @@ class HomePanel : public PanelBase {
     ObserverGuard print_state_observer_;
     ObserverGuard print_progress_observer_;
     ObserverGuard print_time_left_observer_;
-    ObserverGuard print_filename_observer_;
+    ObserverGuard print_thumbnail_path_observer_;  // Observes shared thumbnail from PrintStatusPanel
 
     // Print card widgets (looked up after XML creation)
-    lv_obj_t* print_card_thumb_ = nullptr;
+    lv_obj_t* print_card_thumb_ = nullptr;        // Idle state thumbnail
+    lv_obj_t* print_card_active_thumb_ = nullptr; // Active print thumbnail
     lv_obj_t* print_card_label_ = nullptr;
-
-    // Thumbnail loading generation counter (prevents stale async callbacks)
-    int thumbnail_load_generation_ = 0;
 
     // Heating icon animator (gradient color + pulse while heating)
     HeatingIconAnimator temp_icon_animator_;
@@ -189,14 +187,14 @@ class HomePanel : public PanelBase {
     // Print card update methods
     void on_print_state_changed(PrintJobState state);
     void on_print_progress_or_time_changed();
-    void load_current_print_thumbnail();
+    void on_print_thumbnail_path_changed(const char* path);
     void update_print_card_label(int progress, int time_left_secs);
     void reset_print_card_to_idle();
 
     static void print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
     static void print_progress_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
     static void print_time_left_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_filename_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
+    static void print_thumbnail_path_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
 };
 
 // Global instance accessor (needed by main.cpp)

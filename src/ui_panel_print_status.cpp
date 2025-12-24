@@ -366,6 +366,13 @@ void PrintStatusPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         }
     }
 
+    // Restore cached thumbnail if a print was already in progress before panel was displayed
+    // This handles the case where a print was started from Mainsail while on the Home panel
+    if (print_thumbnail_ && !cached_thumbnail_path_.empty()) {
+        lv_image_set_src(print_thumbnail_, cached_thumbnail_path_.c_str());
+        spdlog::info("[{}] Restored cached thumbnail: {}", get_name(), cached_thumbnail_path_);
+    }
+
     spdlog::info("[{}] Setup complete!", get_name());
 }
 
@@ -1158,8 +1165,12 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
                 spdlog::debug("[{}] Clearing thumbnail/gcode tracking (print ended)", get_name());
                 thumbnail_source_filename_.clear();
                 loaded_thumbnail_filename_.clear();
+                cached_thumbnail_path_.clear();
                 gcode_loaded_ = false;
                 cleanup_temp_gcode();
+
+                // Clear shared thumbnail path so HomePanel reverts to idle state
+                get_printer_state().set_print_thumbnail_path("");
             }
         }
 
@@ -1775,12 +1786,11 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
         return;
     }
 
-    // Skip if no widget to display to
-    if (!print_thumbnail_) {
-        spdlog::warn("[{}] print_thumbnail_ widget not found - skipping thumbnail load",
-                     get_name());
-        return;
-    }
+    // Note: We intentionally do NOT skip if print_thumbnail_ is null.
+    // The thumbnail must still be fetched and cached so that:
+    // 1. The shared print_thumbnail_path is set for HomePanel to use
+    // 2. The thumbnail is ready when PrintStatusPanel is later displayed
+    // The lv_image_set_src() call is guarded separately below.
 
     // Resolve to original filename if this is a modified temp file
     // (Moonraker only has metadata for original files, not modified copies)
@@ -1806,6 +1816,14 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
 
             spdlog::debug("[{}] Found thumbnail: {}", get_name(), thumbnail_rel_path);
 
+            // Invalidate cached thumbnail to ensure we get fresh content
+            // This handles re-uploaded files with the same name but different thumbnails
+            size_t invalidated = get_thumbnail_cache().invalidate(thumbnail_rel_path);
+            if (invalidated > 0) {
+                spdlog::info("[{}] Invalidated {} cached thumbnail files for fresh download",
+                             get_name(), invalidated);
+            }
+
             // Use centralized ThumbnailCache for download and LVGL path handling
             get_thumbnail_cache().fetch(
                 api_, thumbnail_rel_path,
@@ -1820,9 +1838,16 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
                     // Store the cached path (without "A:" prefix for internal use)
                     cached_thumbnail_path_ = lvgl_path;
 
+                    // Share the thumbnail path via PrinterState for other panels (e.g., HomePanel)
+                    get_printer_state().set_print_thumbnail_path(lvgl_path);
+
                     if (print_thumbnail_) {
                         lv_image_set_src(print_thumbnail_, lvgl_path.c_str());
-                        spdlog::info("[{}] Thumbnail loaded: {}", get_name(), lvgl_path);
+                        spdlog::info("[{}] Thumbnail loaded and displayed: {}", get_name(),
+                                     lvgl_path);
+                    } else {
+                        spdlog::info("[{}] Thumbnail cached (panel not yet displayed): {}",
+                                     get_name(), lvgl_path);
                     }
                 },
                 [this](const std::string& error) {
