@@ -1977,6 +1977,17 @@ void PrintStatusPanel::set_thumbnail_source(const std::string& filename) {
     thumbnail_source_filename_ = filename;
     spdlog::debug("[{}] Thumbnail source set to: {}", get_name(),
                   filename.empty() ? "(cleared)" : filename);
+
+    // If we already have a print filename, refresh everything now.
+    // This handles the race condition where Moonraker sends the filename
+    // before PrintPreparationManager calls set_thumbnail_source().
+    // set_filename() will re-compute the effective filename (now using the
+    // thumbnail source) and reload: display name, thumbnail, and G-code viewer.
+    if (!current_print_filename_.empty() && !filename.empty()) {
+        spdlog::info("[{}] Refreshing display/thumbnail/gcode with source override: {} -> {}",
+                     get_name(), current_print_filename_, filename);
+        set_filename(current_print_filename_.c_str());
+    }
 }
 
 void PrintStatusPanel::set_progress(int percent) {
