@@ -109,7 +109,7 @@
         <lv_obj name="print_card_preparing"
                 width="100%" height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="#space_sm"
                 flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
-                style_pad_gap="#space_sm" clickable="false">
+                style_pad_gap="#space_sm" hidden="true" clickable="false">
           <lv_obj-bind_flag_if_eq subject="print_start_phase" flag="hidden" ref_value="0"/>
           <!-- "Preparing Print" heading -->
           <text_body text="Preparing Print" style_text_color="#text_primary"/>
@@ -120,14 +120,14 @@
           <!-- Phase message -->
           <text_small bind_text="print_start_message" style_text_color="#text_secondary"/>
         </lv_obj>
-        <!-- PRINTING STATE: Actual print progress (hidden when print_active==0 OR print_start_phase!=0) -->
+        <!-- PRINTING STATE: Actual print progress (hidden when print_show_progress==0) -->
         <!-- Horizontal layout: thumbnail left, info right (mirrors idle state layout) -->
         <lv_obj name="print_card_printing"
                 width="100%" height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
                 style_flex_main_place="center" style_flex_cross_place="center" style_pad_gap="#space_sm"
-                scrollable="false" clickable="false">
-          <lv_obj-bind_flag_if_eq subject="print_active" flag="hidden" ref_value="0"/>
-          <lv_obj-bind_flag_if_not_eq subject="print_start_phase" flag="hidden" ref_value="0"/>
+                scrollable="false" hidden="true" clickable="false">
+          <!-- Single binding: show only when print_active==1 AND print_start_phase==IDLE -->
+          <lv_obj-bind_flag_if_eq subject="print_show_progress" flag="hidden" ref_value="0"/>
           <!-- Thumbnail (set programmatically via lv_image_set_src when print starts) -->
           <lv_image name="print_card_active_thumb"
                     width="50%" height="100%" src="A:assets/images/benchy_thumbnail_white.png" inner_align="contain"/>
@@ -137,7 +137,7 @@
                   style_flex_main_place="center" style_flex_cross_place="center" style_pad_gap="#space_xs"
                   scrollable="false">
             <!-- Filename -->
-            <text_body bind_text="print_filename" style_text_color="#text_primary"/>
+            <text_body bind_text="print_display_filename" style_text_color="#text_primary"/>
             <!-- Progress bar showing actual print progress -->
             <lv_bar name="print_progress_bar"
                     width="90%" height="8" bind_value="print_progress" range_min="0" range_max="100"

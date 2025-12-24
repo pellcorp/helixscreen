@@ -170,7 +170,7 @@ class HomePanel : public PanelBase {
     ObserverGuard print_state_observer_;
     ObserverGuard print_progress_observer_;
     ObserverGuard print_time_left_observer_;
-    ObserverGuard print_thumbnail_path_observer_;  // Observes shared thumbnail from PrintStatusPanel
+    ObserverGuard print_thumbnail_path_observer_; // Observes shared thumbnail from PrintStatusPanel
 
     // Print card widgets (looked up after XML creation)
     lv_obj_t* print_card_thumb_ = nullptr;        // Idle state thumbnail

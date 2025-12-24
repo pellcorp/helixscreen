@@ -297,6 +297,39 @@ class PrinterState {
     }
 
     /**
+     * @brief Get subject for showing print progress card on home panel
+     *
+     * Combined subject: 1 when print_active==1 AND print_start_phase==0.
+     * Simplifies XML bindings by avoiding conflicting multi-binding logic.
+     *
+     * @return Pointer to integer subject (0 or 1)
+     */
+    lv_subject_t* get_print_show_progress_subject() {
+        return &print_show_progress_;
+    }
+
+    /**
+     * @brief Get subject for display-ready print filename
+     *
+     * Clean filename without path or .helix_temp prefix, suitable for UI display.
+     * Set by PrintStatusPanel when processing raw print_filename.
+     *
+     * @return Pointer to string subject
+     */
+    lv_subject_t* get_print_display_filename_subject() {
+        return &print_display_filename_;
+    }
+
+    /**
+     * @brief Set display-ready print filename for UI binding
+     *
+     * Called by PrintStatusPanel after cleaning up the raw filename.
+     *
+     * @param name Clean display name (e.g., "Body1" not ".helix_temp/modified_123_Body1.gcode")
+     */
+    void set_print_display_filename(const std::string& name);
+
+    /**
      * @brief Get current print job state as enum
      *
      * Convenience method for direct enum access without subject lookup.
@@ -834,12 +867,14 @@ class PrinterState {
     lv_subject_t bed_target_;
 
     // Print progress subjects
-    lv_subject_t print_progress_;        // Integer 0-100
-    lv_subject_t print_filename_;        // String buffer
-    lv_subject_t print_state_;           // String buffer (for UI display binding)
-    lv_subject_t print_state_enum_;      // Integer: PrintJobState enum (for type-safe logic)
-    lv_subject_t print_active_;          // Integer: 1 when PRINTING/PAUSED, 0 otherwise
-    lv_subject_t print_thumbnail_path_;  // String: LVGL path to current print thumbnail
+    lv_subject_t print_progress_;       // Integer 0-100
+    lv_subject_t print_filename_;       // String buffer
+    lv_subject_t print_state_;          // String buffer (for UI display binding)
+    lv_subject_t print_state_enum_;     // Integer: PrintJobState enum (for type-safe logic)
+    lv_subject_t print_active_;         // Integer: 1 when PRINTING/PAUSED, 0 otherwise
+    lv_subject_t print_show_progress_;    // Integer: 1 when active AND not in start phase
+    lv_subject_t print_display_filename_; // String: clean filename for UI display
+    lv_subject_t print_thumbnail_path_;   // String: LVGL path to current print thumbnail
 
     // Layer tracking subjects (from Moonraker print_stats.info)
     lv_subject_t print_layer_current_; // Current layer (0-based)
@@ -936,7 +971,8 @@ class PrinterState {
 
     // String buffers for subject storage
     char print_filename_buf_[256];
-    char print_thumbnail_path_buf_[512];  // LVGL path to current print thumbnail
+    char print_display_filename_buf_[128]; // Clean filename for UI display
+    char print_thumbnail_path_buf_[512];   // LVGL path to current print thumbnail
     char print_state_buf_[32];
     char homed_axes_buf_[8];
     char printer_connection_message_buf_[128];
@@ -982,4 +1018,13 @@ class PrinterState {
      * Must be called from main thread (typically via async callbacks).
      */
     void update_gcode_modification_visibility();
+
+    /**
+     * @brief Update print_show_progress_ combined subject
+     *
+     * Sets print_show_progress_ to 1 only when print_active==1 AND print_start_phase==IDLE.
+     * Called whenever either component subject changes.
+     * Must be called from main thread.
+     */
+    void update_print_show_progress();
 };

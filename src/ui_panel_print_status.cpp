@@ -1169,8 +1169,9 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
                 gcode_loaded_ = false;
                 cleanup_temp_gcode();
 
-                // Clear shared thumbnail path so HomePanel reverts to idle state
+                // Clear shared paths so HomePanel reverts to idle state
                 get_printer_state().set_print_thumbnail_path("");
+                get_printer_state().set_print_display_filename("");
             }
         }
 
@@ -2006,6 +2007,9 @@ void PrintStatusPanel::set_filename(const char* filename) {
     std::string display_name = get_display_filename(effective_filename);
     std::snprintf(filename_buf_, sizeof(filename_buf_), "%s", display_name.c_str());
     lv_subject_copy_string(&filename_subject_, filename_buf_);
+
+    // Share display filename via PrinterState for other panels (e.g., HomePanel)
+    get_printer_state().set_print_display_filename(display_name);
 
     // Load thumbnail and G-code ONLY if effective filename changed (makes this function idempotent)
     // This prevents redundant loads when observer fires repeatedly with same filename

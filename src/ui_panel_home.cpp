@@ -59,12 +59,12 @@ HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
                                              print_progress_observer_cb, this);
     print_time_left_observer_ = ObserverGuard(printer_state_.get_print_time_left_subject(),
                                               print_time_left_observer_cb, this);
-    print_thumbnail_path_observer_ =
-        ObserverGuard(printer_state_.get_print_thumbnail_path_subject(),
-                      print_thumbnail_path_observer_cb, this);
+    print_thumbnail_path_observer_ = ObserverGuard(
+        printer_state_.get_print_thumbnail_path_subject(), print_thumbnail_path_observer_cb, this);
 
     spdlog::debug("[{}] Subscribed to PrinterState extruder temperature and target", get_name());
-    spdlog::debug("[{}] Subscribed to PrinterState print state/progress/time/thumbnail", get_name());
+    spdlog::debug("[{}] Subscribed to PrinterState print state/progress/time/thumbnail",
+                  get_name());
 
     // Load configured LED from wizard settings and tell PrinterState to track it
     Config* config = Config::get_instance();

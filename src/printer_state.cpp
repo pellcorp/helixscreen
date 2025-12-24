@@ -196,6 +196,9 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&print_state_);
     lv_subject_deinit(&print_state_enum_);
     lv_subject_deinit(&print_active_);
+    lv_subject_deinit(&print_show_progress_);
+    lv_subject_deinit(&print_display_filename_);
+    lv_subject_deinit(&print_thumbnail_path_);
     lv_subject_deinit(&print_layer_current_);
     lv_subject_deinit(&print_layer_total_);
     lv_subject_deinit(&print_start_phase_);
@@ -269,6 +272,9 @@ void PrinterState::init_subjects(bool register_xml) {
                            "standby");
     lv_subject_init_int(&print_state_enum_, static_cast<int>(PrintJobState::STANDBY));
     lv_subject_init_int(&print_active_, 0); // 0 when idle, 1 when PRINTING/PAUSED
+    lv_subject_init_int(&print_show_progress_, 0); // 1 when active AND not in start phase
+    lv_subject_init_string(&print_display_filename_, print_display_filename_buf_, nullptr,
+                           sizeof(print_display_filename_buf_), "");
     lv_subject_init_string(&print_thumbnail_path_, print_thumbnail_path_buf_, nullptr,
                            sizeof(print_thumbnail_path_buf_), "");
 
@@ -370,6 +376,8 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "print_state", &print_state_);
         lv_xml_register_subject(NULL, "print_state_enum", &print_state_enum_);
         lv_xml_register_subject(NULL, "print_active", &print_active_);
+        lv_xml_register_subject(NULL, "print_show_progress", &print_show_progress_);
+        lv_xml_register_subject(NULL, "print_display_filename", &print_display_filename_);
         lv_xml_register_subject(NULL, "print_layer_current", &print_layer_current_);
         lv_xml_register_subject(NULL, "print_layer_total", &print_layer_total_);
         lv_xml_register_subject(NULL, "print_duration", &print_duration_);
@@ -527,6 +535,9 @@ void PrinterState::update_from_status(const json& state) {
             if (lv_subject_get_int(&print_active_) != active_val) {
                 lv_subject_set_int(&print_active_, active_val);
             }
+
+            // Update combined subject for home panel progress card visibility
+            update_print_show_progress();
         }
 
         if (stats.contains("filename")) {
@@ -1093,6 +1104,20 @@ void PrinterState::update_gcode_modification_visibility() {
                   lv_subject_get_int(&can_show_nozzle_clean_), plugin);
 }
 
+void PrinterState::update_print_show_progress() {
+    // Combined subject for home panel progress card visibility
+    // Show progress card only when: print is active AND not in print start phase
+    bool is_active = lv_subject_get_int(&print_active_) != 0;
+    bool is_starting = lv_subject_get_int(&print_start_phase_) != static_cast<int>(PrintStartPhase::IDLE);
+    int new_value = (is_active && !is_starting) ? 1 : 0;
+
+    if (lv_subject_get_int(&print_show_progress_) != new_value) {
+        lv_subject_set_int(&print_show_progress_, new_value);
+        spdlog::debug("[PrinterState] print_show_progress updated: {} (active={}, starting={})",
+                      new_value, is_active, is_starting);
+    }
+}
+
 void PrinterState::set_excluded_objects(const std::unordered_set<std::string>& objects) {
     // Only update if the set actually changed
     if (excluded_objects_ != objects) {
@@ -1214,6 +1239,7 @@ void PrinterState::set_print_start_state(PrintStartPhase phase, const char* mess
                 lv_subject_copy_string(&c->ps->print_start_message_, c->message.c_str());
             }
             lv_subject_set_int(&c->ps->print_start_progress_, c->progress);
+            c->ps->update_print_show_progress();
             delete c;
         },
         ctx);
@@ -1231,6 +1257,7 @@ void PrinterState::reset_print_start_state() {
                                    static_cast<int>(PrintStartPhase::IDLE));
                 lv_subject_copy_string(&ps->print_start_message_, "");
                 lv_subject_set_int(&ps->print_start_progress_, 0);
+                ps->update_print_show_progress();
             }
         },
         this);
@@ -1245,4 +1272,10 @@ void PrinterState::set_print_thumbnail_path(const std::string& path) {
         spdlog::debug("[PrinterState] Setting print thumbnail path: {}", path);
     }
     lv_subject_copy_string(&print_thumbnail_path_, path.c_str());
+}
+
+void PrinterState::set_print_display_filename(const std::string& name) {
+    // Display filename is set from PrintStatusPanel's main-thread callback.
+    spdlog::debug("[PrinterState] Setting print display filename: {}", name);
+    lv_subject_copy_string(&print_display_filename_, name.c_str());
 }
