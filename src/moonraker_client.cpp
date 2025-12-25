@@ -1027,6 +1027,7 @@ void MoonrakerClient::continue_discovery(std::function<void()> on_complete) {
                     const json& result = printer_response["result"];
                     hostname_ = result.value("hostname", "unknown");
                     software_version_ = result.value("software_version", "unknown");
+                    std::string state = result.value("state", "");
                     std::string state_message = result.value("state_message", "");
 
                     spdlog::debug("[Moonraker Client] Printer hostname: {}", hostname_);
@@ -1034,6 +1035,21 @@ void MoonrakerClient::continue_discovery(std::function<void()> on_complete) {
                                   software_version_);
                     if (!state_message.empty()) {
                         spdlog::info("[Moonraker Client] Printer state: {}", state_message);
+                    }
+
+                    // Set klippy state based on printer.info response
+                    // This ensures we recognize shutdown/error states at startup
+                    if (state == "shutdown") {
+                        spdlog::warn("[Moonraker Client] Printer is in SHUTDOWN state at startup");
+                        get_printer_state().set_klippy_state(KlippyState::SHUTDOWN);
+                    } else if (state == "error") {
+                        spdlog::warn("[Moonraker Client] Printer is in ERROR state at startup");
+                        get_printer_state().set_klippy_state(KlippyState::ERROR);
+                    } else if (state == "startup") {
+                        spdlog::info("[Moonraker Client] Printer is starting up");
+                        get_printer_state().set_klippy_state(KlippyState::STARTUP);
+                    } else if (state == "ready") {
+                        get_printer_state().set_klippy_state(KlippyState::READY);
                     }
                 }
 
