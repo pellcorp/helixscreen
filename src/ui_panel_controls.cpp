@@ -13,6 +13,7 @@
 #include "ui_panel_motion.h"
 #include "ui_panel_temp_control.h"
 #include "ui_subject_registry.h"
+#include "ui_temperature_utils.h"
 #include "ui_theme.h"
 
 #include "app_globals.h"
@@ -33,6 +34,8 @@ class ExtrusionPanel;
 ExtrusionPanel& get_global_extrusion_panel();
 class FanPanel;
 FanPanel& get_global_fan_panel();
+
+using helix::ui::temperature::centi_to_degrees_f;
 
 // ============================================================================
 // CONSTRUCTOR
@@ -282,9 +285,8 @@ void ControlsPanel::register_observers() {
 // ============================================================================
 
 void ControlsPanel::update_nozzle_temp_display() {
-    // Temps stored in centidegrees (°C * 10)
-    float current = static_cast<float>(cached_extruder_temp_) / 10.0f;
-    float target = static_cast<float>(cached_extruder_target_) / 10.0f;
+    float current = centi_to_degrees_f(cached_extruder_temp_);
+    float target = centi_to_degrees_f(cached_extruder_target_);
 
     // HERO display: Large temperature value
     if (cached_extruder_target_ > 0) {
@@ -317,9 +319,8 @@ void ControlsPanel::update_nozzle_temp_display() {
 }
 
 void ControlsPanel::update_bed_temp_display() {
-    // Temps stored in centidegrees (°C * 10)
-    float current = static_cast<float>(cached_bed_temp_) / 10.0f;
-    float target = static_cast<float>(cached_bed_target_) / 10.0f;
+    float current = centi_to_degrees_f(cached_bed_temp_);
+    float target = centi_to_degrees_f(cached_bed_target_);
 
     // HERO display: Large temperature value
     if (cached_bed_target_ > 0) {
@@ -366,9 +367,8 @@ void ControlsPanel::update_fan_display() {
 }
 
 void ControlsPanel::update_preheat_status() {
-    // Format preheat status showing current nozzle and bed temps
-    float nozzle_c = static_cast<float>(cached_extruder_temp_) / 10.0f;
-    float bed_c = static_cast<float>(cached_bed_temp_) / 10.0f;
+    float nozzle_c = centi_to_degrees_f(cached_extruder_temp_);
+    float bed_c = centi_to_degrees_f(cached_bed_temp_);
 
     std::snprintf(preheat_status_buf_, sizeof(preheat_status_buf_), "Noz: %.0f°C  Bed: %.0f°C",
                   nozzle_c, bed_c);

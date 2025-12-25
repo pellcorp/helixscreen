@@ -3,6 +3,7 @@
 #include "ui_temp_display.h"
 
 #include "ui_fonts.h"
+#include "ui_temperature_utils.h"
 #include "ui_theme.h"
 
 #include "lvgl/lvgl.h"
@@ -18,6 +19,8 @@
 #include <cstdlib>
 #include <memory>
 #include <unordered_map>
+
+using helix::ui::temperature::centi_to_degrees;
 
 // ============================================================================
 // Constants
@@ -223,9 +226,7 @@ static void current_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subj
     if (!data)
         return;
 
-    // PrinterState stores temps in centidegrees (×10), convert to degrees for display
-    int temp_centi = lv_subject_get_int(subject);
-    int temp_deg = temp_centi / 10;
+    int temp_deg = centi_to_degrees(lv_subject_get_int(subject));
 
     if (data) {
         data->current_temp = temp_deg;
@@ -250,9 +251,7 @@ static void target_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subje
     if (!data)
         return;
 
-    // PrinterState stores temps in centidegrees (×10), convert to degrees for display
-    int temp_centi = lv_subject_get_int(subject);
-    int temp_deg = temp_centi / 10;
+    int temp_deg = centi_to_degrees(lv_subject_get_int(subject));
 
     data->target_temp = temp_deg;
 
@@ -376,9 +375,8 @@ static void ui_temp_display_apply_cb(lv_xml_parser_state_t* state, const char** 
             if (subject && data && data->current_label) {
                 lv_subject_add_observer_obj(subject, current_temp_observer_cb, data->current_label,
                                             nullptr);
-                // Set initial value (convert centidegrees to degrees)
-                int temp_centi = lv_subject_get_int(subject);
-                data->current_temp = temp_centi / 10;
+                // Set initial value
+                data->current_temp = centi_to_degrees(lv_subject_get_int(subject));
                 snprintf(data->current_text_buf, sizeof(data->current_text_buf), "%d",
                          data->current_temp);
                 lv_subject_copy_string(&data->current_text_subject, data->current_text_buf);
@@ -393,9 +391,8 @@ static void ui_temp_display_apply_cb(lv_xml_parser_state_t* state, const char** 
             if (subject && data && data->target_label) {
                 lv_subject_add_observer_obj(subject, target_temp_observer_cb, data->target_label,
                                             nullptr);
-                // Set initial value (convert centidegrees to degrees)
-                int temp_centi = lv_subject_get_int(subject);
-                data->target_temp = temp_centi / 10;
+                // Set initial value
+                data->target_temp = centi_to_degrees(lv_subject_get_int(subject));
                 // Set label text (shows "--" when heater off)
                 format_target_text(data);
                 // Apply initial heating color

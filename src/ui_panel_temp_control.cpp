@@ -24,6 +24,8 @@
 #include <ctime>
 #include <memory>
 
+using helix::ui::temperature::centi_to_degrees_f;
+
 TempControlPanel::TempControlPanel(PrinterState& printer_state, MoonrakerAPI* api)
     : printer_state_(printer_state), api_(api),
       nozzle_min_temp_(AppConstants::Temperature::DEFAULT_MIN_TEMP),
@@ -148,9 +150,7 @@ void TempControlPanel::on_nozzle_temp_changed(int temp_centi) {
     }
     nozzle_last_graph_update_ms_ = now_ms;
 
-    // Push to graph if it exists (convert centidegrees to degrees with 0.1°C precision)
-    // X-axis labels are rendered by the graph widget using the timestamp
-    float temp_deg = static_cast<float>(temp_centi) / 10.0f;
+    float temp_deg = centi_to_degrees_f(temp_centi);
 
     if (nozzle_graph_ && nozzle_series_id_ >= 0) {
         ui_temp_graph_update_series_with_time(nozzle_graph_, nozzle_series_id_, temp_deg, now_ms);
@@ -160,7 +160,7 @@ void TempControlPanel::on_nozzle_temp_changed(int temp_centi) {
     // Also update mini combined graph (filament panel)
     if (mini_graph_ && mini_nozzle_series_id_ >= 0) {
         // Dynamic Y-axis scaling using extracted helper
-        float bed_deg = static_cast<float>(bed_current_) / 10.0f;
+        float bed_deg = centi_to_degrees_f(bed_current_);
         float new_y_max = calculate_mini_graph_y_max(mini_graph_y_max_, temp_deg, bed_deg);
 
         if (new_y_max != mini_graph_y_max_) {
@@ -180,8 +180,7 @@ void TempControlPanel::on_nozzle_target_changed(int target_centi) {
     update_nozzle_display();
     update_nozzle_status(); // Update status text and heating icon state
 
-    // Update target line on graph (convert centidegrees to degrees)
-    float target_deg = static_cast<float>(target_centi) / 10.0f;
+    float target_deg = centi_to_degrees_f(target_centi);
     bool show_target = (target_centi > 0);
 
     if (nozzle_graph_ && nozzle_series_id_ >= 0) {
@@ -231,9 +230,7 @@ void TempControlPanel::on_bed_temp_changed(int temp_centi) {
     }
     bed_last_graph_update_ms_ = now_ms;
 
-    // Push to graph if it exists (convert centidegrees to degrees with 0.1°C precision)
-    // X-axis labels are rendered by the graph widget using the timestamp
-    float temp_deg = static_cast<float>(temp_centi) / 10.0f;
+    float temp_deg = centi_to_degrees_f(temp_centi);
 
     if (bed_graph_ && bed_series_id_ >= 0) {
         ui_temp_graph_update_series_with_time(bed_graph_, bed_series_id_, temp_deg, now_ms);
@@ -251,8 +248,7 @@ void TempControlPanel::on_bed_target_changed(int target_centi) {
     update_bed_display();
     update_bed_status(); // Update status text and heating icon state
 
-    // Update target line on graph (convert centidegrees to degrees)
-    float target_deg = static_cast<float>(target_centi) / 10.0f;
+    float target_deg = centi_to_degrees_f(target_centi);
     bool show_target = (target_centi > 0);
 
     if (bed_graph_ && bed_series_id_ >= 0) {
@@ -273,11 +269,9 @@ void TempControlPanel::update_nozzle_display() {
         return;
     }
 
-    // Convert from centidegrees to degrees for display
-    // nozzle_current_ and nozzle_target_ are stored as centidegrees (×10)
     // nozzle_pending_ is in degrees (user-facing value from keypad/presets)
-    int current_deg = nozzle_current_ / 10;
-    int target_deg = nozzle_target_ / 10;
+    int current_deg = centi_to_degrees_f(nozzle_current_);
+    int target_deg = centi_to_degrees_f(nozzle_target_);
 
     // Show pending value if user has selected but not confirmed yet
     // Otherwise show actual target from Moonraker
@@ -307,11 +301,9 @@ void TempControlPanel::update_bed_display() {
         return;
     }
 
-    // Convert from centidegrees to degrees for display
-    // bed_current_ and bed_target_ are stored as centidegrees (×10)
     // bed_pending_ is in degrees (user-facing value from keypad/presets)
-    int current_deg = bed_current_ / 10;
-    int target_deg = bed_target_ / 10;
+    int current_deg = centi_to_degrees_f(bed_current_);
+    int target_deg = centi_to_degrees_f(bed_target_);
 
     // Show pending value if user has selected but not confirmed yet
     // Otherwise show actual target from Moonraker
@@ -1019,7 +1011,7 @@ void TempControlPanel::replay_nozzle_history_to_graph() {
             continue; // Skip - too close to previous point
         }
 
-        float temp_deg = static_cast<float>(temp_centi) / 10.0f;
+        float temp_deg = centi_to_degrees_f(temp_centi);
         ui_temp_graph_update_series_with_time(nozzle_graph_, nozzle_series_id_, temp_deg,
                                               sample_time);
         last_graphed_time = sample_time;
@@ -1070,7 +1062,7 @@ void TempControlPanel::replay_bed_history_to_graph() {
             continue; // Skip - too close to previous point
         }
 
-        float temp_deg = static_cast<float>(temp_centi) / 10.0f;
+        float temp_deg = centi_to_degrees_f(temp_centi);
         ui_temp_graph_update_series_with_time(bed_graph_, bed_series_id_, temp_deg, sample_time);
         last_graphed_time = sample_time;
         replayed++;
@@ -1183,7 +1175,7 @@ void TempControlPanel::replay_history_to_mini_graph() {
                 continue;
             }
 
-            float temp_deg = static_cast<float>(temp_centi) / 10.0f;
+            float temp_deg = centi_to_degrees_f(temp_centi);
             ui_temp_graph_update_series_with_time(mini_graph_, mini_nozzle_series_id_, temp_deg,
                                                   sample_time);
             last_graphed_time = sample_time;
@@ -1219,7 +1211,7 @@ void TempControlPanel::replay_history_to_mini_graph() {
                 continue;
             }
 
-            float temp_deg = static_cast<float>(temp_centi) / 10.0f;
+            float temp_deg = centi_to_degrees_f(temp_centi);
             ui_temp_graph_update_series_with_time(mini_graph_, mini_bed_series_id_, temp_deg,
                                                   sample_time);
             last_graphed_time = sample_time;

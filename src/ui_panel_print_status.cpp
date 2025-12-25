@@ -12,6 +12,7 @@
 #include "ui_panel_common.h"
 #include "ui_panel_temp_control.h"
 #include "ui_subject_registry.h"
+#include "ui_temperature_utils.h"
 #include "ui_toast.h"
 #include "ui_utils.h"
 
@@ -36,6 +37,8 @@
 
 // Global instance for legacy API and resize callback
 static std::unique_ptr<PrintStatusPanel> g_print_status_panel;
+
+using helix::ui::temperature::centi_to_degrees;
 
 // Forward declarations for XML event callbacks (registered in init_subjects)
 static void on_tune_speed_changed_cb(lv_event_t* e);
@@ -557,21 +560,22 @@ void PrintStatusPanel::update_all_displays() {
     format_time(remaining_seconds_, remaining_buf_, sizeof(remaining_buf_));
     lv_subject_copy_string(&remaining_subject_, remaining_buf_);
 
-    // Temperatures (stored as centi-degrees ×10, divide for display)
     // Show "--" for target when heater is off (target=0) for better UX
     if (nozzle_target_ > 0) {
-        std::snprintf(nozzle_temp_buf_, sizeof(nozzle_temp_buf_), "%d / %d°C", nozzle_current_ / 10,
-                      nozzle_target_ / 10);
+        std::snprintf(nozzle_temp_buf_, sizeof(nozzle_temp_buf_), "%d / %d°C",
+                      centi_to_degrees(nozzle_current_), centi_to_degrees(nozzle_target_));
     } else {
-        std::snprintf(nozzle_temp_buf_, sizeof(nozzle_temp_buf_), "%d / --", nozzle_current_ / 10);
+        std::snprintf(nozzle_temp_buf_, sizeof(nozzle_temp_buf_), "%d / --",
+                      centi_to_degrees(nozzle_current_));
     }
     lv_subject_copy_string(&nozzle_temp_subject_, nozzle_temp_buf_);
 
     if (bed_target_ > 0) {
-        std::snprintf(bed_temp_buf_, sizeof(bed_temp_buf_), "%d / %d°C", bed_current_ / 10,
-                      bed_target_ / 10);
+        std::snprintf(bed_temp_buf_, sizeof(bed_temp_buf_), "%d / %d°C",
+                      centi_to_degrees(bed_current_), centi_to_degrees(bed_target_));
     } else {
-        std::snprintf(bed_temp_buf_, sizeof(bed_temp_buf_), "%d / --", bed_current_ / 10);
+        std::snprintf(bed_temp_buf_, sizeof(bed_temp_buf_), "%d / --",
+                      centi_to_degrees(bed_current_));
     }
     lv_subject_copy_string(&bed_temp_subject_, bed_temp_buf_);
 

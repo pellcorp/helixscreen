@@ -13,6 +13,7 @@
 #include "ui_panel_print_status.h"
 #include "ui_panel_temp_control.h"
 #include "ui_subject_registry.h"
+#include "ui_temperature_utils.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -37,6 +38,8 @@
 
 // Signal polling interval (5 seconds)
 static constexpr uint32_t SIGNAL_POLL_INTERVAL_MS = 5000;
+
+using helix::ui::temperature::centi_to_degrees;
 
 HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
     : PanelBase(printer_state, api) {
@@ -626,9 +629,7 @@ void HomePanel::on_led_state_changed(int state) {
 }
 
 void HomePanel::on_extruder_temp_changed(int temp_centi) {
-    // Convert centidegrees to degrees for display
-    // PrinterState stores temps as centidegrees (×10) for 0.1°C resolution
-    int temp_deg = temp_centi / 10;
+    int temp_deg = centi_to_degrees(temp_centi);
 
     // Format temperature for display and update the string subject
     std::snprintf(temp_buffer_, sizeof(temp_buffer_), "%d °C", temp_deg);
@@ -645,7 +646,7 @@ void HomePanel::on_extruder_target_changed(int target_centi) {
     // Animator expects centidegrees
     cached_extruder_target_ = target_centi;
     update_temp_icon_animation();
-    spdlog::trace("[{}] Extruder target updated: {}°C", get_name(), target_centi / 10);
+    spdlog::trace("[{}] Extruder target updated: {}°C", get_name(), centi_to_degrees(target_centi));
 }
 
 void HomePanel::update_temp_icon_animation() {

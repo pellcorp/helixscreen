@@ -111,7 +111,7 @@ void UsbBackendLinux::stop() {
         running_ = false;
         cached_drives_.clear();
         use_polling_ = false;
-        last_mounts_mtime_ = 0;
+        last_mounts_content_.clear();
     }
 
     spdlog::info("[UsbBackendLinux] Stopped");

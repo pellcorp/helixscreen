@@ -138,8 +138,9 @@ class FilamentPanel : public PanelBase {
      *
      * @param min_temp Minimum allowed temperature
      * @param max_temp Maximum allowed temperature
+     * @param min_extrude_temp Minimum extrusion temperature (default: 170°C)
      */
-    void set_limits(int min_temp, int max_temp);
+    void set_limits(int min_temp, int max_temp, int min_extrude_temp = 170);
 
     /**
      * @brief Set TempControlPanel for combined temperature graph
@@ -161,6 +162,7 @@ class FilamentPanel : public PanelBase {
     lv_subject_t extrusion_allowed_subject_;
     lv_subject_t safety_warning_visible_subject_;
     lv_subject_t warning_temps_subject_;
+    lv_subject_t safety_warning_text_subject_; ///< "Heat to X°C to load/unload" with dynamic temp
     lv_subject_t material_nozzle_temp_subject_;
     lv_subject_t material_bed_temp_subject_;
 
@@ -181,6 +183,7 @@ class FilamentPanel : public PanelBase {
     char temp_display_buf_[32];
     char status_buf_[64];
     char warning_temps_buf_[64];
+    char safety_warning_text_buf_[48]; ///< "Heat to X°C to load/unload"
     char material_nozzle_buf_[16];
     char material_bed_buf_[16];
     char nozzle_current_buf_[16];
@@ -200,6 +203,7 @@ class FilamentPanel : public PanelBase {
     int nozzle_min_temp_ = 0;
     int nozzle_max_temp_ = 500;
     int bed_max_temp_ = 150;
+    int min_extrude_temp_ = 170; ///< Klipper's min_extrude_temp (default 170°C)
 
     // Child widgets (for imperative state management)
     lv_obj_t* btn_load_ = nullptr;

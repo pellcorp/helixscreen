@@ -33,6 +33,8 @@ static const int MATERIAL_NOZZLE_TEMPS[] = {210, 240, 250, 230};
 static const int MATERIAL_BED_TEMPS[] = {60, 80, 100, 50};
 static const char* MATERIAL_NAMES[] = {"PLA", "PETG", "ABS", "TPU"};
 
+using helix::ui::temperature::centi_to_degrees;
+
 // ============================================================================
 // CONSTRUCTOR
 // ============================================================================
@@ -45,6 +47,8 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, MoonrakerAPI* api)
     std::snprintf(status_buf_, sizeof(status_buf_), "%s", "Select material to begin");
     std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_), "Current: %d°C | Target: %d°C",
                   nozzle_current_, nozzle_target_);
+    std::snprintf(safety_warning_text_buf_, sizeof(safety_warning_text_buf_),
+                  "Heat to %d°C to load/unload", min_extrude_temp_);
     std::snprintf(material_nozzle_buf_, sizeof(material_nozzle_buf_), "--");
     std::snprintf(material_bed_buf_, sizeof(material_bed_buf_), "--");
     std::snprintf(nozzle_current_buf_, sizeof(nozzle_current_buf_), "%d°C", nozzle_current_);
@@ -82,8 +86,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, MoonrakerAPI* api)
         [](lv_observer_t* observer, lv_subject_t* subject) {
             auto* self = static_cast<FilamentPanel*>(lv_observer_get_user_data(observer));
             if (self) {
-                int temp = lv_subject_get_int(subject);
-                self->nozzle_current_ = temp;
+                self->nozzle_current_ = centi_to_degrees(lv_subject_get_int(subject));
                 self->update_left_card_temps();
                 self->update_temp_display();
                 self->update_warning_text();
@@ -97,9 +100,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, MoonrakerAPI* api)
         [](lv_observer_t* observer, lv_subject_t* subject) {
             auto* self = static_cast<FilamentPanel*>(lv_observer_get_user_data(observer));
             if (self) {
-                int target = lv_subject_get_int(subject);
-                // Update internal state and refresh display
-                self->nozzle_target_ = target;
+                self->nozzle_target_ = centi_to_degrees(lv_subject_get_int(subject));
                 self->update_left_card_temps();
                 self->update_material_temp_display();
                 self->update_warning_text();
@@ -112,8 +113,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, MoonrakerAPI* api)
         [](lv_observer_t* observer, lv_subject_t* subject) {
             auto* self = static_cast<FilamentPanel*>(lv_observer_get_user_data(observer));
             if (self) {
-                int temp = lv_subject_get_int(subject);
-                self->bed_current_ = temp;
+                self->bed_current_ = centi_to_degrees(lv_subject_get_int(subject));
                 self->update_left_card_temps();
             }
         },
@@ -124,9 +124,7 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, MoonrakerAPI* api)
         [](lv_observer_t* observer, lv_subject_t* subject) {
             auto* self = static_cast<FilamentPanel*>(lv_observer_get_user_data(observer));
             if (self) {
-                int target = lv_subject_get_int(subject);
-                // Update internal state and refresh display
-                self->bed_target_ = target;
+                self->bed_target_ = centi_to_degrees(lv_subject_get_int(subject));
                 self->update_left_card_temps();
                 self->update_material_temp_display();
             }
@@ -170,6 +168,8 @@ void FilamentPanel::init_subjects() {
                                      "filament_safety_warning_visible"); // true (cold at start)
     UI_SUBJECT_INIT_AND_REGISTER_STRING(warning_temps_subject_, warning_temps_buf_,
                                         warning_temps_buf_, "filament_warning_temps");
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(safety_warning_text_subject_, safety_warning_text_buf_,
+                                        safety_warning_text_buf_, "filament_safety_warning_text");
 
     // Material temperature display subjects (for right side preset displays)
     UI_SUBJECT_INIT_AND_REGISTER_STRING(material_nozzle_temp_subject_, material_nozzle_buf_,
@@ -276,12 +276,11 @@ void FilamentPanel::update_status_icon(const char* icon_name, const char* varian
 void FilamentPanel::update_status() {
     const char* status_msg;
 
-    if (helix::ui::temperature::is_extrusion_safe(nozzle_current_,
-                                                  AppConstants::Temperature::MIN_EXTRUSION_TEMP)) {
+    if (helix::ui::temperature::is_extrusion_safe(nozzle_current_, min_extrude_temp_)) {
         // Hot enough - ready to load
         status_msg = "Ready to load";
         update_status_icon("check", "success");
-    } else if (nozzle_target_ >= AppConstants::Temperature::MIN_EXTRUSION_TEMP) {
+    } else if (nozzle_target_ >= min_extrude_temp_) {
         // Heating in progress
         std::snprintf(status_buf_, sizeof(status_buf_), "Heating to %d°C...", nozzle_target_);
         lv_subject_copy_string(&status_subject_, status_buf_);
@@ -303,8 +302,7 @@ void FilamentPanel::update_warning_text() {
 }
 
 void FilamentPanel::update_safety_state() {
-    bool allowed = helix::ui::temperature::is_extrusion_safe(
-        nozzle_current_, AppConstants::Temperature::MIN_EXTRUSION_TEMP);
+    bool allowed = helix::ui::temperature::is_extrusion_safe(nozzle_current_, min_extrude_temp_);
 
     // Update reactive subjects
     lv_subject_set_int(&extrusion_allowed_subject_, allowed ? 1 : 0);
@@ -559,7 +557,7 @@ void FilamentPanel::handle_purge_amount_select(int amount) {
 void FilamentPanel::handle_load_button() {
     if (!is_extrusion_allowed()) {
         NOTIFY_WARNING("Nozzle too cold for filament load ({}°C, min: {}°C)", nozzle_current_,
-                       AppConstants::Temperature::MIN_EXTRUSION_TEMP);
+                       min_extrude_temp_);
         return;
     }
 
@@ -582,7 +580,7 @@ void FilamentPanel::handle_load_button() {
 void FilamentPanel::handle_unload_button() {
     if (!is_extrusion_allowed()) {
         NOTIFY_WARNING("Nozzle too cold for filament unload ({}°C, min: {}°C)", nozzle_current_,
-                       AppConstants::Temperature::MIN_EXTRUSION_TEMP);
+                       min_extrude_temp_);
         return;
     }
 
@@ -604,7 +602,7 @@ void FilamentPanel::handle_unload_button() {
 void FilamentPanel::handle_purge_button() {
     if (!is_extrusion_allowed()) {
         NOTIFY_WARNING("Nozzle too cold for purge ({}°C, min: {}°C)", nozzle_current_,
-                       AppConstants::Temperature::MIN_EXTRUSION_TEMP);
+                       min_extrude_temp_);
         return;
     }
 
@@ -821,13 +819,22 @@ void FilamentPanel::set_material(int material_id) {
 }
 
 bool FilamentPanel::is_extrusion_allowed() const {
-    return helix::ui::temperature::is_extrusion_safe(nozzle_current_,
-                                                     AppConstants::Temperature::MIN_EXTRUSION_TEMP);
+    return helix::ui::temperature::is_extrusion_safe(nozzle_current_, min_extrude_temp_);
 }
 
-void FilamentPanel::set_limits(int min_temp, int max_temp) {
+void FilamentPanel::set_limits(int min_temp, int max_temp, int min_extrude_temp) {
     nozzle_min_temp_ = min_temp;
     nozzle_max_temp_ = max_temp;
+
+    // Update min_extrude_temp and safety warning text if changed
+    if (min_extrude_temp_ != min_extrude_temp) {
+        min_extrude_temp_ = min_extrude_temp;
+        std::snprintf(safety_warning_text_buf_, sizeof(safety_warning_text_buf_),
+                      "Heat to %d°C to load/unload", min_extrude_temp_);
+        lv_subject_set_pointer(&safety_warning_text_subject_, safety_warning_text_buf_);
+        spdlog::info("[{}] Min extrusion temp updated: {}°C", get_name(), min_extrude_temp_);
+    }
+
     spdlog::info("[{}] Nozzle temperature limits updated: {}-{}°C", get_name(), min_temp, max_temp);
 }
 

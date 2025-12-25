@@ -15,6 +15,51 @@ namespace helix {
 namespace ui {
 namespace temperature {
 
+// ============================================================================
+// Unit Conversion Functions
+// ============================================================================
+
+/**
+ * @brief Converts centidegrees to degrees (integer)
+ *
+ * PrinterState stores temperatures as centidegrees (×10) for 0.1°C resolution.
+ * Use this function for integer display (e.g., "210°C").
+ *
+ * @param centi Temperature in centidegrees (e.g., 2100 for 210°C)
+ * @return Temperature in degrees (e.g., 210)
+ */
+inline int centi_to_degrees(int centi) {
+    return centi / 10;
+}
+
+/**
+ * @brief Converts centidegrees to degrees (float for precision display)
+ *
+ * Use this function when 0.1°C precision is needed (e.g., graph data points).
+ *
+ * @param centi Temperature in centidegrees (e.g., 2105 for 210.5°C)
+ * @return Temperature in degrees (e.g., 210.5f)
+ */
+inline float centi_to_degrees_f(int centi) {
+    return static_cast<float>(centi) / 10.0f;
+}
+
+/**
+ * @brief Converts degrees to centidegrees
+ *
+ * Use when setting temperatures from user input (e.g., keyboard entry).
+ *
+ * @param degrees Temperature in degrees (e.g., 210)
+ * @return Temperature in centidegrees (e.g., 2100)
+ */
+inline int degrees_to_centi(int degrees) {
+    return degrees * 10;
+}
+
+// ============================================================================
+// Validation Functions
+// ============================================================================
+
 /**
  * @brief Validates and clamps a temperature value to safe limits
  *
