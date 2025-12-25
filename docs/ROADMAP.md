@@ -55,10 +55,6 @@ See `docs/AMS_IMPLEMENTATION_PLAN.md` for detailed specification.
 - [ ] **Structured logging** - Log levels, rotation, remote debugging
 - [ ] **Edge case testing** - Print failures, filesystem errors
 
-### 3. Known Bugs (To Fix)
-- [ ] **Print file delete navigation** - After deleting a file from print select detail view, should return to file listing (cards/list) instead of staying on empty detail
-- [x] **Thumbnail cache race condition** - ~~Print Status panel invalidates thumbnails for "fresh download", deleting thumbnails Print Select just cached~~ Fixed: removed aggressive invalidation from Print Status; Print Select already handles file modification detection.
-
 ---
 
 ## Feature Parity Status (TIER 1 - Critical)

@@ -1745,19 +1745,29 @@ void PrintSelectPanel::delete_file() {
 
         api_->delete_file(
             filename_to_delete,
-            // Success callback
+            // Success callback - dispatch to main thread for LVGL safety
             [self]() {
                 spdlog::info("[{}] File deleted successfully", self->get_name());
-                self->hide_delete_confirmation();
-                self->hide_detail_view();
-                self->refresh_files();
+                ui_async_call(
+                    [](void* user_data) {
+                        auto* panel = static_cast<PrintSelectPanel*>(user_data);
+                        panel->hide_delete_confirmation();
+                        panel->hide_detail_view();
+                        panel->refresh_files();
+                    },
+                    self);
             },
-            // Error callback
+            // Error callback - dispatch to main thread for LVGL safety
             [self](const MoonrakerError& error) {
-                NOTIFY_ERROR("Failed to delete file");
                 LOG_ERROR_INTERNAL("[{}] File delete error: {} ({})", self->get_name(),
                                    error.message, error.get_type_string());
-                self->hide_delete_confirmation();
+                ui_async_call(
+                    [](void* user_data) {
+                        auto* panel = static_cast<PrintSelectPanel*>(user_data);
+                        NOTIFY_ERROR("Failed to delete file");
+                        panel->hide_delete_confirmation();
+                    },
+                    self);
             });
     } else {
         NOTIFY_WARNING("Cannot delete file: printer not connected");
