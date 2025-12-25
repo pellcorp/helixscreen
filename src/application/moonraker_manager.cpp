@@ -11,6 +11,7 @@
 #include "config.h"
 #include "macro_analysis_manager.h"
 #include "moonraker_api.h"
+#include "print_completion.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client.h"
 #include "moonraker_client_mock.h"
@@ -112,15 +113,20 @@ int MoonrakerManager::connect(const std::string& websocket_url, const std::strin
     // CRITICAL: Without discover_printer(), we never call printer.objects.subscribe,
     // so we never receive notify_status_update messages (print_stats, temperatures, etc.)
     MoonrakerClient* client = m_client.get();
+    MoonrakerAPI* api = m_api.get();
     helix::MacroAnalysisManager* macro_mgr = m_macro_analysis.get();
     return m_client->connect(
         websocket_url.c_str(),
-        [client, macro_mgr]() {
+        [client, api, macro_mgr]() {
             // Connection established - start printer discovery
             // This queries printer capabilities and subscribes to status updates
             spdlog::info("[MoonrakerManager] Connected, starting printer discovery...");
-            client->discover_printer([macro_mgr]() {
+            client->discover_printer([api, macro_mgr]() {
                 spdlog::info("[MoonrakerManager] Printer discovery complete");
+
+                // Clean up any stale .helix_temp files from previous sessions
+                // (These are temp files created when modifying G-code for prints)
+                helix::cleanup_stale_helix_temp_files(api);
 
                 // Trigger macro analysis after discovery
                 if (macro_mgr) {

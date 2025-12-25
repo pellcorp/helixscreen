@@ -10,6 +10,8 @@
 #include "ui_utils.h"
 
 #include "app_globals.h"
+#include "moonraker_api.h"
+#include "moonraker_manager.h"
 #include "printer_state.h"
 #include "settings_manager.h"
 
@@ -21,6 +23,41 @@ namespace helix {
 
 // Track previous state to detect transitions to terminal states
 static PrintJobState prev_print_state = PrintJobState::STANDBY;
+
+// Helper to cleanup .helix_temp modified G-code files after print ends
+static void cleanup_helix_temp_file(const std::string& filename) {
+    // Check if this is a .helix_temp modified file
+    if (filename.find(".helix_temp/modified_") == std::string::npos) {
+        return; // Not a temp file
+    }
+
+    auto* mgr = get_moonraker_manager();
+    if (!mgr) {
+        spdlog::warn("[PrintComplete] Cannot cleanup temp file - MoonrakerManager not available");
+        return;
+    }
+
+    auto* api = mgr->api();
+    if (!api) {
+        spdlog::warn("[PrintComplete] Cannot cleanup temp file - API not available");
+        return;
+    }
+
+    // Moonraker's delete_file requires full path including root
+    std::string full_path = "gcodes/" + filename;
+    spdlog::info("[PrintComplete] Cleaning up temp file: {}", full_path);
+
+    api->delete_file(
+        full_path,
+        [filename]() {
+            spdlog::info("[PrintComplete] Deleted temp file: {}", filename);
+        },
+        [filename](const MoonrakerError& err) {
+            // Log but don't show error to user - cleanup is best-effort
+            spdlog::warn("[PrintComplete] Failed to delete temp file {}: {}", filename,
+                         err.message);
+        });
+}
 
 // Helper to format duration as "Xh YYm" or "Ym"
 static void format_duration(int seconds, char* buf, size_t buf_size) {
@@ -150,6 +187,12 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
         std::string display_name =
             !resolved_filename.empty() ? get_display_filename(resolved_filename) : "Unknown";
 
+        // Cleanup temp files - delete .helix_temp/modified_* files after print ends
+        // Do this before anything else so it happens regardless of notification settings
+        if (raw_filename && raw_filename[0]) {
+            cleanup_helix_temp_file(raw_filename);
+        }
+
         // Check if user is on print status panel
         lv_obj_t* print_status_panel = get_global_print_status_panel().get_panel();
         bool on_print_status = NavigationManager::instance().is_panel_in_stack(print_status_panel);
@@ -213,6 +256,49 @@ ObserverGuard init_print_completion_observer() {
                   static_cast<int>(prev_print_state));
     return ObserverGuard(get_printer_state().get_print_state_enum_subject(),
                          on_print_state_changed_for_notification, nullptr);
+}
+
+void cleanup_stale_helix_temp_files(MoonrakerAPI* api) {
+    if (!api) {
+        spdlog::warn("[PrintComplete] Cannot cleanup stale temp files - API not available");
+        return;
+    }
+
+    // List files in .helix_temp directory
+    api->list_files(
+        "gcodes", ".helix_temp", false,
+        [api](const std::vector<FileInfo>& files) {
+            if (files.empty()) {
+                spdlog::debug("[PrintComplete] No stale temp files to clean up");
+                return;
+            }
+
+            spdlog::info("[PrintComplete] Cleaning up {} stale temp files from .helix_temp",
+                         files.size());
+
+            // Delete each file
+            for (const auto& file : files) {
+                if (file.is_dir) {
+                    continue; // Skip directories
+                }
+
+                // Moonraker's delete_file requires full path including root
+                std::string filepath = "gcodes/.helix_temp/" + file.filename;
+                api->delete_file(
+                    filepath,
+                    [filepath]() {
+                        spdlog::debug("[PrintComplete] Deleted stale temp file: {}", filepath);
+                    },
+                    [filepath](const MoonrakerError& err) {
+                        spdlog::warn("[PrintComplete] Failed to delete stale temp file {}: {}",
+                                     filepath, err.message);
+                    });
+            }
+        },
+        [](const MoonrakerError& err) {
+            // Directory doesn't exist or can't be listed - that's fine
+            spdlog::debug("[PrintComplete] No .helix_temp directory to clean: {}", err.message);
+        });
 }
 
 } // namespace helix

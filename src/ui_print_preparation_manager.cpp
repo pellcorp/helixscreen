@@ -1059,8 +1059,10 @@ void PrintPreparationManager::modify_and_print_streaming(
                             }
 
                             // Clean up remote temp file on failure
+                            // Moonraker's delete_file requires full path including root
+                            std::string full_path = "gcodes/" + remote_temp_path;
                             self->api_->delete_file(
-                                remote_temp_path,
+                                full_path,
                                 []() {
                                     spdlog::debug("[PrintPreparationManager] Cleaned up "
                                                   "remote temp file after print failure");
