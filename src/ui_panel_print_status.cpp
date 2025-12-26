@@ -502,35 +502,11 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
             // Set print progress to layer 0 (entire model in ghost mode initially)
             ui_gcode_viewer_set_print_progress(viewer, 0);
 
-            // Extract filename from path for display
-            const char* filename = ui_gcode_viewer_get_filename(viewer);
-            if (!filename) {
-                filename = "print.gcode";
-            }
-
-            // Start print via MoonrakerAPI if not already printing
-            // In test mode with auto-start, a print may already be running
-            // Skip if the file is a temp file (viewing an existing print's G-code, not starting
-            // new)
-            bool is_temp_file = filename && (strncmp(filename, "/tmp/", 5) == 0 ||
-                                             strstr(filename, "helix_print_view"));
-            if (is_temp_file) {
-                spdlog::debug("[{}] Loaded temp file for viewing - not starting print",
-                              self->get_name());
-            } else if (self->api_ && self->current_state_ == PrintState::Idle) {
-                self->api_->start_print(
-                    filename,
-                    []() { spdlog::info("[PrintStatusPanel] Print started via Moonraker"); },
-                    [](const MoonrakerError& err) {
-                        spdlog::error("[PrintStatusPanel] Failed to start print: {}", err.message);
-                    });
-            } else if (self->current_state_ != PrintState::Idle) {
-                spdlog::debug("[{}] Print already running - skipping duplicate start_print",
-                              self->get_name());
-            } else {
-                spdlog::warn("[{}] No API available - G-code loaded but print not started",
-                             self->get_name());
-            }
+            // NOTE: PrintStatusPanel does NOT start prints - it only VIEWS them.
+            // Prints are started from PrintSelectPanel via the Print button.
+            // This callback is for loading G-code into the viewer for visualization only.
+            spdlog::debug("[{}] G-code loaded for viewing: {}", self->get_name(),
+                          ui_gcode_viewer_get_filename(viewer));
         },
         this);
 
