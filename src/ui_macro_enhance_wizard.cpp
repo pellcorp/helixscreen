@@ -45,6 +45,14 @@ void MacroEnhanceWizard::init_subjects() {
     lv_subject_init_pointer(&summary_subject_, summary_buf_);
     lv_subject_init_int(&state_subject_, static_cast<int>(MacroEnhanceState::OPERATION));
 
+    // Boolean visibility subjects - initial state is OPERATION (0)
+    // Using bind_flag_if_eq pattern: 1 = visible, 0 = hidden
+    lv_subject_init_int(&show_operation_subject_, 1); // Start visible
+    lv_subject_init_int(&show_summary_subject_, 0);
+    lv_subject_init_int(&show_applying_subject_, 0);
+    lv_subject_init_int(&show_success_subject_, 0);
+    lv_subject_init_int(&show_error_subject_, 0);
+
     // Register subjects for XML binding [CRITICAL: Without this, XML bindings silently fail]
     lv_xml_register_subject(nullptr, "macro_enhance_step_title", &step_title_subject_);
     lv_xml_register_subject(nullptr, "macro_enhance_step_progress", &step_progress_subject_);
@@ -52,6 +60,13 @@ void MacroEnhanceWizard::init_subjects() {
     lv_xml_register_subject(nullptr, "macro_enhance_diff_preview", &diff_preview_subject_);
     lv_xml_register_subject(nullptr, "macro_enhance_summary", &summary_subject_);
     lv_xml_register_subject(nullptr, "macro_enhance_state", &state_subject_);
+
+    // Register boolean visibility subjects
+    lv_xml_register_subject(nullptr, "macro_enhance_show_operation", &show_operation_subject_);
+    lv_xml_register_subject(nullptr, "macro_enhance_show_summary", &show_summary_subject_);
+    lv_xml_register_subject(nullptr, "macro_enhance_show_applying", &show_applying_subject_);
+    lv_xml_register_subject(nullptr, "macro_enhance_show_success", &show_success_subject_);
+    lv_xml_register_subject(nullptr, "macro_enhance_show_error", &show_error_subject_);
 
     subjects_initialized_ = true;
 }
@@ -134,11 +149,15 @@ bool MacroEnhanceWizard::show(lv_obj_t* parent) {
     // XML bindings like bind_text="macro_enhance_step_title" require subjects to exist
     init_subjects();
 
-    // CRITICAL: Set state subject BEFORE Modal::show() creates XML
-    // The bind_flag_if_neq bindings evaluate during XML creation, so the subject
-    // must have the correct value. Otherwise, stale state from previous show()
-    // causes multiple containers to be visible simultaneously.
+    // CRITICAL: Set visibility subjects BEFORE Modal::show() creates XML
+    // XML bindings evaluate during creation, so subjects must have correct values.
+    // Using bind_flag_if_eq pattern: 1 = visible, 0 = hidden
     lv_subject_set_int(&state_subject_, static_cast<int>(state_));
+    lv_subject_set_int(&show_operation_subject_, 1);
+    lv_subject_set_int(&show_summary_subject_, 0);
+    lv_subject_set_int(&show_applying_subject_, 0);
+    lv_subject_set_int(&show_success_subject_, 0);
+    lv_subject_set_int(&show_error_subject_, 0);
 
     // Use Modal base class to show
     if (!Modal::show(parent)) {
@@ -267,8 +286,17 @@ void MacroEnhanceWizard::update_ui() {
         return;
     }
 
-    // Update state subject to trigger visibility bindings
+    // Update state subject (kept for any direct bindings)
     lv_subject_set_int(&state_subject_, static_cast<int>(state_));
+
+    // Update boolean visibility subjects based on current state
+    // Using bind_flag_if_eq pattern: 1 = visible, 0 = hidden
+    int s = static_cast<int>(state_);
+    lv_subject_set_int(&show_operation_subject_, s == 0 ? 1 : 0);
+    lv_subject_set_int(&show_summary_subject_, s == 1 ? 1 : 0);
+    lv_subject_set_int(&show_applying_subject_, s == 2 ? 1 : 0);
+    lv_subject_set_int(&show_success_subject_, s == 3 ? 1 : 0);
+    lv_subject_set_int(&show_error_subject_, s == 4 ? 1 : 0);
 
     // Update close button visibility for terminal states
     update_close_button_visibility();

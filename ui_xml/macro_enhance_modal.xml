@@ -42,8 +42,8 @@
             width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_left="#space_lg"
             style_pad_right="#space_lg" style_pad_top="#space_sm" style_pad_bottom="#space_lg" flex_flow="column"
             style_pad_gap="#space_md">
-      <!-- Only visible when state == 0 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="0"/>
+      <!-- Only visible when show_operation == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_operation" flag="hidden" ref_value="0"/>
       <!-- Description of what this operation does -->
       <text_body name="operation_description"
                  width="100%" bind_text="macro_enhance_description" long_mode="wrap" style_text_color="#text_secondary"/>
@@ -72,8 +72,8 @@
             width="100%" height="content" hidden="true" style_bg_opa="0" style_border_width="0"
             style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
             style_pad_bottom="#space_lg" flex_flow="column" style_pad_gap="#space_md">
-      <!-- Only visible when state == 1 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="1"/>
+      <!-- Only visible when show_summary == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_summary" flag="hidden" ref_value="0"/>
       <!-- Summary icon and heading -->
       <lv_obj width="100%"
               height="content" flex_flow="column" style_flex_cross_place="center" style_pad_gap="#space_sm"
@@ -110,8 +110,8 @@
             width="100%" height="content" hidden="true" style_bg_opa="0" style_border_width="0"
             style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_xl"
             style_pad_bottom="#space_xl" flex_flow="column" style_flex_cross_place="center" style_pad_gap="#space_lg">
-      <!-- Only visible when state == 2 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="2"/>
+      <!-- Only visible when show_applying == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_applying" flag="hidden" ref_value="0"/>
       <spinner size="lg"/>
       <text_body name="applying_status" bind_text="macro_enhance_description" style_text_align="center"/>
     </lv_obj>
@@ -122,8 +122,8 @@
             width="100%" height="content" hidden="true" style_bg_opa="0" style_border_width="0"
             style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_xl"
             style_pad_bottom="#space_xl" flex_flow="column" style_flex_cross_place="center" style_pad_gap="#space_md">
-      <!-- Only visible when state == 3 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="3"/>
+      <!-- Only visible when show_success == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_success" flag="hidden" ref_value="0"/>
       <icon src="check_circle" size="xl" color="#success_color"/>
       <text_heading text="Enhancement Complete!" style_text_align="center"/>
       <text_body name="success_message"
@@ -137,8 +137,8 @@
             width="100%" height="content" hidden="true" style_bg_opa="0" style_border_width="0"
             style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_xl"
             style_pad_bottom="#space_xl" flex_flow="column" style_flex_cross_place="center" style_pad_gap="#space_md">
-      <!-- Only visible when state == 4 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="4"/>
+      <!-- Only visible when show_error == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_error" flag="hidden" ref_value="0"/>
       <icon src="alert_circle" size="xl" color="#error_color"/>
       <text_heading text="Enhancement Failed" style_text_align="center"/>
       <text_body name="error_message"
@@ -156,8 +156,8 @@
     <lv_obj name="operation_buttons"
             width="100%" height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0"
             style_pad_gap="0" flex_flow="row">
-      <!-- Only visible when state == 0 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="0"/>
+      <!-- Only visible when show_operation == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_operation" flag="hidden" ref_value="0"/>
       <!-- Skip button -->
       <lv_button name="btn_skip"
                  height="100%" flex_grow="1" style_radius="0" style_border_width="0" style_shadow_width="0">
@@ -181,8 +181,8 @@
     <lv_obj name="summary_buttons"
             width="100%" height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0"
             style_pad_gap="0" flex_flow="row" hidden="true">
-      <!-- Only visible when state == 1 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="1"/>
+      <!-- Only visible when show_summary == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_summary" flag="hidden" ref_value="0"/>
       <!-- Cancel button -->
       <lv_button name="btn_cancel"
                  height="100%" flex_grow="1" style_radius="0" style_border_width="0" style_shadow_width="0">
@@ -206,8 +206,8 @@
     <lv_obj name="applying_buttons"
             width="100%" height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0"
             style_pad_gap="0" flex_flow="row" hidden="true">
-      <!-- Only visible when state == 2 -->
-      <lv_obj-bind_flag_if_neq subject="macro_enhance_state" flag="hidden" ref_value="2"/>
+      <!-- Only visible when show_applying == 1 (hide when 0) -->
+      <lv_obj-bind_flag_if_eq subject="macro_enhance_show_applying" flag="hidden" ref_value="0"/>
       <!-- Placeholder - buttons disabled during apply -->
       <lv_button height="100%"
                  flex_grow="1" clickable="false" style_radius="0" style_border_width="0" style_shadow_width="0"
