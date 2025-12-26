@@ -200,7 +200,7 @@ class PrintStartEnhancer {
      * @brief Apply approved enhancements to the printer
      *
      * This is the main workflow method that:
-     * 1. Creates a timestamped backup of printer.cfg
+     * 1. Creates a timestamped backup of the config file
      * 2. Downloads the current config
      * 3. Modifies the macro with approved enhancements
      * 4. Uploads the modified config
@@ -208,12 +208,14 @@ class PrintStartEnhancer {
      *
      * @param api MoonrakerAPI instance (must be connected)
      * @param macro_name Name of macro to enhance (e.g., "PRINT_START")
+     * @param source_file Config file containing the macro (e.g., "macros.cfg")
      * @param enhancements List of approved enhancements
      * @param on_progress Progress callback (optional)
      * @param on_complete Completion callback
      * @param on_error Error callback
      */
     void apply_enhancements(MoonrakerAPI* api, const std::string& macro_name,
+                            const std::string& source_file,
                             const std::vector<MacroEnhancement>& enhancements,
                             EnhancementProgressCallback on_progress,
                             EnhancementCompleteCallback on_complete,
@@ -248,9 +250,10 @@ class PrintStartEnhancer {
     /**
      * @brief Generate a timestamped backup filename
      *
-     * @return Filename like "printer.cfg.backup.20251222_170530"
+     * @param source_file The config file being backed up (e.g., "macros.cfg")
+     * @return Filename like "macros.cfg.backup.20251222_170530"
      */
-    [[nodiscard]] static std::string generate_backup_filename();
+    [[nodiscard]] static std::string generate_backup_filename(const std::string& source_file);
 
     /**
      * @brief Get the standard skip parameter name for an operation category
@@ -264,15 +267,17 @@ class PrintStartEnhancer {
     // === Workflow Step Helpers ===
 
     /**
-     * @brief Create a backup of printer.cfg
+     * @brief Create a backup of a config file
      */
-    void create_backup(MoonrakerAPI* api, const std::string& backup_filename,
-                       std::function<void()> on_success, EnhancementErrorCallback on_error);
+    void create_backup(MoonrakerAPI* api, const std::string& source_file,
+                       const std::string& backup_filename, std::function<void()> on_success,
+                       EnhancementErrorCallback on_error);
 
     /**
-     * @brief Download, modify, and upload printer.cfg
+     * @brief Download, modify, and upload a config file
      */
     void modify_and_upload_config(MoonrakerAPI* api, const std::string& macro_name,
+                                  const std::string& source_file,
                                   const std::vector<MacroEnhancement>& enhancements,
                                   std::function<void(size_t ops, size_t lines)> on_success,
                                   EnhancementErrorCallback on_error);

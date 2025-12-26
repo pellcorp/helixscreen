@@ -47,23 +47,6 @@
       <!-- Description of what this operation does -->
       <text_body name="operation_description"
                  width="100%" bind_text="macro_enhance_description" long_mode="wrap" style_text_color="#text_secondary"/>
-      <!-- Code preview label -->
-      <text_small text="Changes to add:" style_text_color="#text_secondary" style_pad_top="#space_sm"/>
-      <!-- Diff preview container with scroll support -->
-      <lv_obj width="100%"
-              height="content" style_max_height="200" style_bg_color="#surface_variant" style_bg_opa="255"
-              style_border_width="1" style_border_color="#text_secondary" style_border_opa="64"
-              style_radius="#border_radius" style_pad_all="#space_sm" scrollable="true" scroll_snap_y="none">
-        <lv_label name="diff_preview"
-                  width="100%" bind_text="macro_enhance_diff_preview" long_mode="wrap" style_text_font="#font_small"/>
-      </lv_obj>
-      <!-- Info note -->
-      <lv_obj width="100%"
-              height="content" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm"
-              style_bg_opa="0" style_border_width="0" style_pad_all="0">
-        <icon src="information" size="sm" color="#text_secondary"/>
-        <text_small width="content" text="This adds a skip parameter to your macro" style_text_color="#text_secondary"/>
-      </lv_obj>
     </lv_obj>
     <!-- ============================================================ -->
     <!-- STATE 1: Summary of approved changes -->
@@ -89,11 +72,12 @@
         <lv_label name="summary_list"
                   width="100%" bind_text="macro_enhance_summary" long_mode="wrap" style_text_font="#font_small"/>
       </lv_obj>
-      <!-- Backup checkbox -->
+      <!-- Backup checkbox - uses separate label for dynamic text binding -->
       <lv_obj width="100%"
               height="content" flex_flow="row" style_flex_main_place="start" style_flex_cross_place="center"
-              style_bg_opa="0" style_border_width="0" style_pad_all="0">
-        <lv_checkbox name="backup_checkbox" checked="true" text="Create backup of printer.cfg before applying"/>
+              style_bg_opa="0" style_border_width="0" style_pad_all="0" style_pad_gap="#space_xs">
+        <lv_checkbox name="backup_checkbox" checked="true" text=""/>
+        <text_body name="backup_label" bind_text="macro_enhance_backup_text"/>
       </lv_obj>
       <!-- Warning note -->
       <lv_obj width="100%"
@@ -162,7 +146,7 @@
       <lv_button name="btn_skip"
                  height="100%" flex_grow="1" style_radius="0" style_border_width="0" style_shadow_width="0">
         <event_cb trigger="clicked" callback="on_macro_enhance_skip"/>
-        <text_body text="Skip" align="center"/>
+        <text_body text="Keep Required" align="center"/>
       </lv_button>
       <!-- Vertical divider -->
       <lv_obj width="1"

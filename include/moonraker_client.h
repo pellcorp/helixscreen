@@ -13,6 +13,7 @@
 #include "spdlog/spdlog.h"
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -577,6 +578,24 @@ class MoonrakerClient : public hv::WebSocketClient {
     void register_event_handler(MoonrakerEventCallback cb);
 
     /**
+     * @brief Temporarily suppress disconnect modal notifications
+     *
+     * Call this before intentionally triggering a Klipper restart to prevent
+     * the "Printer Firmware Disconnected" error modal from appearing.
+     * The suppression automatically expires after the specified duration.
+     *
+     * @param duration_ms How long to suppress disconnect modals (default 10000ms)
+     */
+    void suppress_disconnect_modal(uint32_t duration_ms = 10000);
+
+    /**
+     * @brief Check if disconnect modal is currently suppressed
+     *
+     * @return true if suppress_disconnect_modal() was called recently
+     */
+    [[nodiscard]] bool is_disconnect_modal_suppressed() const;
+
+    /**
      * @brief Set connection timeout in milliseconds
      *
      * @param timeout_ms Connection timeout (default 10000ms)
@@ -767,4 +786,8 @@ class MoonrakerClient : public hv::WebSocketClient {
     // Event handler for transport events (decouples from UI layer)
     MoonrakerEventCallback event_handler_;
     mutable std::mutex event_handler_mutex_;
+
+    // Disconnect modal suppression (for intentional restarts)
+    std::chrono::steady_clock::time_point suppress_disconnect_modal_until_{};
+    mutable std::mutex suppress_mutex_;
 };

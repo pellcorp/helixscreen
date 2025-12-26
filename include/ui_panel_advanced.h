@@ -127,6 +127,7 @@ class AdvancedPanel : public PanelBase {
     //
 
     lv_obj_t* spoolman_panel_ = nullptr;
+    lv_obj_t* macros_panel_ = nullptr;
 };
 
 /**

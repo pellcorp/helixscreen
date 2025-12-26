@@ -269,11 +269,16 @@ void MoonrakerManager::register_callbacks() {
     }
 
     // Register event handler for UI notifications
-    m_client->register_event_handler([](const MoonrakerEvent& evt) {
+    m_client->register_event_handler([this](const MoonrakerEvent& evt) {
         const char* title = "Printer Error"; // Default title (never nullptr!)
         if (evt.type == MoonrakerEventType::CONNECTION_FAILED) {
             title = "Connection Failed";
         } else if (evt.type == MoonrakerEventType::KLIPPY_DISCONNECTED) {
+            // Check if disconnect modal is suppressed (intentional restart)
+            if (m_client && m_client->is_disconnect_modal_suppressed()) {
+                spdlog::info("[MoonrakerManager] Suppressing disconnect modal (expected restart)");
+                return;
+            }
             title = "Printer Firmware Disconnected";
         } else if (evt.type == MoonrakerEventType::RPC_ERROR) {
             title = "Request Failed";

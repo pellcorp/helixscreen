@@ -288,7 +288,7 @@ bool PrintStartEnhancer::validate_jinja2_syntax(const std::string& code) {
 // Utility Methods
 // ============================================================================
 
-std::string PrintStartEnhancer::generate_backup_filename() {
+std::string PrintStartEnhancer::generate_backup_filename(const std::string& source_file) {
     auto now = std::chrono::system_clock::now();
     auto time_t_now = std::chrono::system_clock::to_time_t(now);
     std::tm tm_now{};
@@ -299,7 +299,7 @@ std::string PrintStartEnhancer::generate_backup_filename() {
 #endif
 
     std::ostringstream ss;
-    ss << "printer.cfg.backup." << std::put_time(&tm_now, "%Y%m%d_%H%M%S");
+    ss << source_file << ".backup." << std::put_time(&tm_now, "%Y%m%d_%H%M%S");
     return ss.str();
 }
 
@@ -328,6 +328,7 @@ std::string PrintStartEnhancer::get_skip_param_for_category(PrintStartOpCategory
 // ============================================================================
 
 void PrintStartEnhancer::apply_enhancements(MoonrakerAPI* api, const std::string& macro_name,
+                                            const std::string& source_file,
                                             const std::vector<MacroEnhancement>& enhancements,
                                             EnhancementProgressCallback on_progress,
                                             EnhancementCompleteCallback on_complete,
@@ -359,6 +360,9 @@ void PrintStartEnhancer::apply_enhancements(MoonrakerAPI* api, const std::string
         return;
     }
 
+    // Default to printer.cfg if no source file specified
+    std::string config_file = source_file.empty() ? "printer.cfg" : source_file;
+
     // Filter to only approved enhancements
     std::vector<MacroEnhancement> approved;
     for (const auto& e : enhancements) {
@@ -378,15 +382,15 @@ void PrintStartEnhancer::apply_enhancements(MoonrakerAPI* api, const std::string
         return;
     }
 
-    spdlog::info("[PrintStartEnhancer] Applying {} enhancements to {}", approved.size(),
-                 macro_name);
+    spdlog::info("[PrintStartEnhancer] Applying {} enhancements to {} in {}", approved.size(),
+                 macro_name, config_file);
 
     // Capture lifetime guard and operation flag pointer for async callbacks
     auto alive = alive_guard_;
     auto* op_flag = &operation_in_progress_;
 
     // Step 1: Create backup
-    std::string backup_filename = generate_backup_filename();
+    std::string backup_filename = generate_backup_filename(config_file);
     if (on_progress) {
         on_progress("Creating backup", 1, 4);
     }
@@ -402,9 +406,9 @@ void PrintStartEnhancer::apply_enhancements(MoonrakerAPI* api, const std::string
     };
 
     create_backup(
-        api, backup_filename,
-        [this, api, macro_name, approved, backup_filename, on_progress, on_complete, safe_error,
-         alive, op_flag]() {
+        api, config_file, backup_filename,
+        [this, api, macro_name, config_file, approved, backup_filename, on_progress, on_complete,
+         safe_error, alive, op_flag]() {
             if (!alive || !*alive) {
                 if (op_flag)
                     op_flag->store(false);
@@ -420,7 +424,7 @@ void PrintStartEnhancer::apply_enhancements(MoonrakerAPI* api, const std::string
             }
 
             modify_and_upload_config(
-                api, macro_name, approved,
+                api, macro_name, config_file, approved,
                 [this, api, backup_filename, on_progress, on_complete, safe_error, alive,
                  op_flag](size_t ops, size_t lines) {
                     if (!alive || !*alive) {
@@ -567,25 +571,27 @@ void PrintStartEnhancer::list_backups(
 // Private Workflow Helpers
 // ============================================================================
 
-void PrintStartEnhancer::create_backup(MoonrakerAPI* api, const std::string& backup_filename,
+void PrintStartEnhancer::create_backup(MoonrakerAPI* api, const std::string& source_file,
+                                       const std::string& backup_filename,
                                        std::function<void()> on_success,
                                        EnhancementErrorCallback on_error) {
-    // Copy printer.cfg to backup file
-    // Note: copy_file uses full paths like "config/printer.cfg"
-    api->copy_file("config/printer.cfg", "config/" + backup_filename, on_success, on_error);
+    // Copy source config file to backup
+    // Note: copy_file uses full paths like "config/macros.cfg"
+    api->copy_file("config/" + source_file, "config/" + backup_filename, on_success, on_error);
 }
 
 void PrintStartEnhancer::modify_and_upload_config(
-    MoonrakerAPI* api, const std::string& macro_name,
+    MoonrakerAPI* api, const std::string& macro_name, const std::string& source_file,
     const std::vector<MacroEnhancement>& enhancements,
     std::function<void(size_t ops, size_t lines)> on_success, EnhancementErrorCallback on_error) {
     auto alive = alive_guard_;
 
-    // Download current printer.cfg
+    // Download current config file
     // Note: download_file takes (root, path, on_success, on_error)
     api->download_file(
-        "config", "printer.cfg",
-        [api, macro_name, enhancements, on_success, on_error, alive](const std::string& content) {
+        "config", source_file,
+        [api, macro_name, source_file, enhancements, on_success, on_error,
+         alive](const std::string& content) {
             if (!alive || !*alive) {
                 return;
             }
@@ -606,7 +612,7 @@ void PrintStartEnhancer::modify_and_upload_config(
                 if (on_error) {
                     MoonrakerError err;
                     err.type = MoonrakerErrorType::VALIDATION_ERROR;
-                    err.message = "Macro " + macro_name + " not found in printer.cfg";
+                    err.message = "Macro " + macro_name + " not found in " + source_file;
                     on_error(err);
                 }
                 return;
@@ -674,7 +680,7 @@ void PrintStartEnhancer::modify_and_upload_config(
             // Upload modified config
             // Note: upload_file takes (root, path, content, on_success, on_error)
             api->upload_file(
-                "config", "printer.cfg", modified_content,
+                "config", source_file, modified_content,
                 [enhancements, lines_added, on_success]() {
                     size_t ops_count = 0;
                     for (const auto& e : enhancements) {
@@ -693,6 +699,11 @@ void PrintStartEnhancer::modify_and_upload_config(
 
 void PrintStartEnhancer::restart_klipper(MoonrakerAPI* api, std::function<void()> on_success,
                                          EnhancementErrorCallback on_error) {
+    // Suppress the disconnect modal since we're intentionally restarting Klipper.
+    // Without this, users see a scary "Printer Firmware Disconnected" error modal
+    // even though we just told Klipper to restart.
+    api->get_client().suppress_disconnect_modal(10000); // 10 seconds
+
     api->restart_klipper(on_success, on_error);
 }
 

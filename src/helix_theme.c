@@ -39,6 +39,7 @@ typedef struct {
     lv_style_t pressed_style;            // Global pressed state style (preserve radius)
     lv_style_t button_style;             // Default button style (grey background)
     lv_style_t dropdown_indicator_style; // Dropdown indicator font (MDI icons)
+    lv_style_t checkbox_indicator_style; // Checkbox checkmark font (MDI icons)
     bool is_dark_mode;                   // Track theme mode for context
 } helix_theme_t;
 
@@ -140,6 +141,15 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
         lv_obj_add_style(obj, &helix->input_bg_style, LV_PART_MAIN);
     }
 #endif
+
+#if LV_USE_CHECKBOX
+    // Apply MDI font to checkbox indicator (checkmark symbol)
+    // LV_SYMBOL_OK isn't in our fonts, so we use MDI check icon via font override
+    if (lv_obj_check_type(obj, &lv_checkbox_class)) {
+        lv_obj_add_style(obj, &helix->checkbox_indicator_style,
+                         LV_PART_INDICATOR | LV_STATE_CHECKED);
+    }
+#endif
 }
 
 lv_theme_t* helix_theme_init(lv_display_t* display, lv_color_t primary_color,
@@ -153,6 +163,7 @@ lv_theme_t* helix_theme_init(lv_display_t* display, lv_color_t primary_color,
         lv_style_reset(&helix_theme_instance->pressed_style);
         lv_style_reset(&helix_theme_instance->button_style);
         lv_style_reset(&helix_theme_instance->dropdown_indicator_style);
+        lv_style_reset(&helix_theme_instance->checkbox_indicator_style);
         free(helix_theme_instance);
         helix_theme_instance = NULL;
     }
@@ -230,6 +241,12 @@ lv_theme_t* helix_theme_init(lv_display_t* display, lv_color_t primary_color,
     // This ensures LV_SYMBOL_DOWN (overridden to MDI chevron-down in lv_conf.h) renders correctly
     lv_style_init(&helix_theme_instance->dropdown_indicator_style);
     lv_style_set_text_font(&helix_theme_instance->dropdown_indicator_style, &mdi_icons_24);
+
+    // Initialize checkbox indicator style with MDI icon font
+    // Checkbox uses LV_SYMBOL_OK for checkmark, but our fonts don't include it.
+    // Override to use MDI check icon (same fix used in ui_step_progress.cpp)
+    lv_style_init(&helix_theme_instance->checkbox_indicator_style);
+    lv_style_set_text_font(&helix_theme_instance->checkbox_indicator_style, &mdi_icons_16);
 
     // CRITICAL: Now we need to patch the default theme's color fields
     // This is necessary because LVGL's default theme bakes colors into pre-computed

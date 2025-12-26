@@ -4,6 +4,7 @@
 #include "ui_panel_advanced.h"
 
 #include "ui_nav.h"
+#include "ui_panel_macros.h"
 #include "ui_panel_spoolman.h"
 #include "ui_timelapse_settings.h"
 #include "ui_toast.h"
@@ -129,13 +130,35 @@ void AdvancedPanel::handle_spoolman_clicked() {
 }
 
 void AdvancedPanel::handle_macros_clicked() {
-    spdlog::debug("[{}] Macros clicked", get_name());
+    spdlog::debug("[{}] Macros clicked - opening panel", get_name());
 
-    MoonrakerClient* client = get_moonraker_client();
-    if (client) {
-        size_t macro_count = client->capabilities().macro_count();
-        std::string msg = "Macros: " + std::to_string(macro_count) + " available";
-        ui_toast_show(ToastSeverity::INFO, msg.c_str(), 2000);
+    // Create Macros panel on first access (lazy initialization)
+    if (!macros_panel_ && parent_screen_) {
+        spdlog::debug("[{}] Creating Macros panel...", get_name());
+
+        // Initialize subjects before creating XML (per project patterns)
+        get_global_macros_panel().init_subjects();
+
+        // Create from XML
+        macros_panel_ =
+            static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "macro_panel", nullptr));
+        if (macros_panel_) {
+            // Setup event handlers and populate macro list
+            get_global_macros_panel().setup(macros_panel_, parent_screen_);
+
+            // Initially hidden
+            lv_obj_add_flag(macros_panel_, LV_OBJ_FLAG_HIDDEN);
+            spdlog::info("[{}] Macros panel created", get_name());
+        } else {
+            spdlog::error("[{}] Failed to create Macros panel from XML", get_name());
+            ui_toast_show(ToastSeverity::ERROR, "Failed to open Macros", 2000);
+            return;
+        }
+    }
+
+    // Push Macros panel onto navigation history and show it
+    if (macros_panel_) {
+        ui_nav_push_overlay(macros_panel_);
     }
 }
 

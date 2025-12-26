@@ -43,6 +43,7 @@ void MacroEnhanceWizard::init_subjects() {
     lv_subject_init_pointer(&description_subject_, description_buf_);
     lv_subject_init_pointer(&diff_preview_subject_, diff_preview_buf_);
     lv_subject_init_pointer(&summary_subject_, summary_buf_);
+    lv_subject_init_pointer(&backup_text_subject_, backup_text_buf_);
     lv_subject_init_int(&state_subject_, static_cast<int>(MacroEnhanceState::OPERATION));
 
     // Boolean visibility subjects - initial state is OPERATION (0)
@@ -59,6 +60,7 @@ void MacroEnhanceWizard::init_subjects() {
     lv_xml_register_subject(nullptr, "macro_enhance_description", &description_subject_);
     lv_xml_register_subject(nullptr, "macro_enhance_diff_preview", &diff_preview_subject_);
     lv_xml_register_subject(nullptr, "macro_enhance_summary", &summary_subject_);
+    lv_xml_register_subject(nullptr, "macro_enhance_backup_text", &backup_text_subject_);
     lv_xml_register_subject(nullptr, "macro_enhance_state", &state_subject_);
 
     // Register boolean visibility subjects
@@ -159,6 +161,11 @@ bool MacroEnhanceWizard::show(lv_obj_t* parent) {
     lv_subject_set_int(&show_success_subject_, 0);
     lv_subject_set_int(&show_error_subject_, 0);
 
+    // Set dynamic backup checkbox text using source file from analysis
+    snprintf(backup_text_buf_, sizeof(backup_text_buf_), "Create backup of %s before applying",
+             analysis_.source_file.empty() ? "printer.cfg" : analysis_.source_file.c_str());
+    lv_subject_set_pointer(&backup_text_subject_, backup_text_buf_);
+
     // Use Modal base class to show
     if (!Modal::show(parent)) {
         spdlog::error("[MacroEnhanceWizard] Failed to show modal");
@@ -226,6 +233,10 @@ void MacroEnhanceWizard::on_hide() {
         lv_observer_remove(error_message_observer_);
         error_message_observer_ = nullptr;
     }
+    if (backup_label_observer_) {
+        lv_observer_remove(backup_label_observer_);
+        backup_label_observer_ = nullptr;
+    }
 }
 
 void MacroEnhanceWizard::bind_subjects_to_widgets() {
@@ -273,6 +284,12 @@ void MacroEnhanceWizard::bind_subjects_to_widgets() {
         error_message_observer_ = lv_label_bind_text(error_message, &description_subject_, "%s");
     }
 
+    // Bind backup label for dynamic source_file text
+    lv_obj_t* backup_label = find_widget("backup_label");
+    if (backup_label != nullptr) {
+        backup_label_observer_ = lv_label_bind_text(backup_label, &backup_text_subject_, "%s");
+    }
+
     // Set initial state
     lv_subject_set_int(&state_subject_, static_cast<int>(state_));
 }
@@ -312,8 +329,28 @@ void MacroEnhanceWizard::show_current_operation() {
     state_ = MacroEnhanceState::OPERATION;
     const auto* op = operations_[current_op_index_];
 
+    // Get friendly name for category
+    std::string friendly_name;
+    switch (op->category) {
+    case helix::PrintStartOpCategory::BED_LEVELING:
+        friendly_name = "Bed Leveling";
+        break;
+    case helix::PrintStartOpCategory::QGL:
+        friendly_name = "Quad Gantry Leveling";
+        break;
+    case helix::PrintStartOpCategory::Z_TILT:
+        friendly_name = "Z-Tilt Adjustment";
+        break;
+    case helix::PrintStartOpCategory::NOZZLE_CLEAN:
+        friendly_name = "Nozzle Cleaning";
+        break;
+    default:
+        friendly_name = op->name;
+        break;
+    }
+
     // Update title
-    snprintf(step_title_buf_, sizeof(step_title_buf_), "Make %s Optional?", op->name.c_str());
+    snprintf(step_title_buf_, sizeof(step_title_buf_), "Make %s Optional?", friendly_name.c_str());
     lv_subject_set_pointer(&step_title_subject_, step_title_buf_);
 
     // Update progress
@@ -321,42 +358,13 @@ void MacroEnhanceWizard::show_current_operation() {
              operations_.size());
     lv_subject_set_pointer(&step_progress_subject_, step_progress_buf_);
 
-    // Update description
-    std::string category_desc;
-    switch (op->category) {
-    case helix::PrintStartOpCategory::BED_LEVELING:
-        category_desc = "bed leveling operation";
-        break;
-    case helix::PrintStartOpCategory::QGL:
-        category_desc = "quad gantry leveling";
-        break;
-    case helix::PrintStartOpCategory::Z_TILT:
-        category_desc = "Z-tilt adjustment";
-        break;
-    case helix::PrintStartOpCategory::NOZZLE_CLEAN:
-        category_desc = "nozzle cleaning routine";
-        break;
-    default:
-        category_desc = "operation";
-        break;
-    }
-
+    // Update description with user-friendly text
     snprintf(description_buf_, sizeof(description_buf_),
-             "Your PRINT_START macro runs %s (%s). Would you like to make it "
-             "skippable so you can control it from the print settings?",
-             op->name.c_str(), category_desc.c_str());
+             "When starting a print, you'll be able to choose whether to run %s. "
+             "This saves time when you've already done it recently or want more "
+             "control over your print preparation.",
+             friendly_name.c_str());
     lv_subject_set_pointer(&description_subject_, description_buf_);
-
-    // Generate and show the wrapper code
-    std::string skip_param = helix::PrintStartEnhancer::get_skip_param_for_category(op->category);
-    if (skip_param.empty()) {
-        skip_param = "SKIP_" + op->name;
-    }
-
-    std::string wrapper =
-        helix::PrintStartEnhancer::generate_conditional_block(op->name, skip_param, true);
-    snprintf(diff_preview_buf_, sizeof(diff_preview_buf_), "%s", wrapper.c_str());
-    lv_subject_set_pointer(&diff_preview_subject_, diff_preview_buf_);
 
     update_ui();
 }
@@ -374,17 +382,29 @@ void MacroEnhanceWizard::show_summary() {
     snprintf(step_progress_buf_, sizeof(step_progress_buf_), "%zu changes", approved_count);
     lv_subject_set_pointer(&step_progress_subject_, step_progress_buf_);
 
-    // Build summary list
+    // Build summary list with friendly copy
     std::string summary;
     if (approved_count == 0) {
         summary = "No changes selected.\n\nClick Cancel to close.";
     } else {
-        summary = "The following operations will be made skippable:\n\n";
+        summary = "Your PRINT_START macro will be updated to give you control over:\n\n";
         for (const auto& e : enhancements_) {
             if (e.user_approved) {
-                summary += "  " + e.operation_name + " -> " + e.skip_param_name + "\n";
+                // Use friendly names in the summary too
+                std::string friendly = e.operation_name;
+                if (e.category == helix::PrintStartOpCategory::BED_LEVELING) {
+                    friendly = "Bed Leveling";
+                } else if (e.category == helix::PrintStartOpCategory::QGL) {
+                    friendly = "Quad Gantry Leveling";
+                } else if (e.category == helix::PrintStartOpCategory::Z_TILT) {
+                    friendly = "Z-Tilt Adjustment";
+                } else if (e.category == helix::PrintStartOpCategory::NOZZLE_CLEAN) {
+                    friendly = "Nozzle Cleaning";
+                }
+                summary += "  \xE2\x80\xA2 " + friendly + "\n"; // UTF-8 bullet
             }
         }
+        summary += "\nChanges can be reversed anytime using the Macro Viewer.";
     }
 
     snprintf(summary_buf_, sizeof(summary_buf_), "%s", summary.c_str());
@@ -408,16 +428,20 @@ void MacroEnhanceWizard::show_applying(const std::string& status) {
     update_ui();
 }
 
-void MacroEnhanceWizard::show_success(const std::string& message) {
+void MacroEnhanceWizard::show_success(const std::string& /* message */) {
     state_ = MacroEnhanceState::SUCCESS;
 
-    snprintf(step_title_buf_, sizeof(step_title_buf_), "Complete");
+    snprintf(step_title_buf_, sizeof(step_title_buf_), "Setup Complete!");
     lv_subject_set_pointer(&step_title_subject_, step_title_buf_);
 
     snprintf(step_progress_buf_, sizeof(step_progress_buf_), "");
     lv_subject_set_pointer(&step_progress_subject_, step_progress_buf_);
 
-    snprintf(description_buf_, sizeof(description_buf_), "%s", message.c_str());
+    // Use friendly success message instead of technical details
+    snprintf(description_buf_, sizeof(description_buf_),
+             "You can now skip these operations when starting prints.\n\n"
+             "Look for the new options in the print details before starting each print.\n\n"
+             "A backup of your config was saved automatically.");
     lv_subject_set_pointer(&description_subject_, description_buf_);
 
     update_ui();
@@ -520,7 +544,7 @@ void MacroEnhanceWizard::apply_enhancements() {
 
     // Apply enhancements using PrintStartEnhancer
     enhancer_.apply_enhancements(
-        api_, analysis_.macro_name, approved,
+        api_, analysis_.macro_name, analysis_.source_file, approved,
         // Progress callback
         [this, guard](const std::string& step, int /*current*/, int /*total*/) {
             if (!*guard) {

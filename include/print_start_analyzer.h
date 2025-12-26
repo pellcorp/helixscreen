@@ -68,9 +68,10 @@ struct PrintStartOperation {
  */
 struct PrintStartAnalysis {
     // === Macro Discovery ===
-    bool found = false;     ///< A print start macro was found
-    std::string macro_name; ///< Actual name found (e.g., "PRINT_START", "START_PRINT")
-    std::string raw_gcode;  ///< Full macro gcode content
+    bool found = false;      ///< A print start macro was found
+    std::string macro_name;  ///< Actual name found (e.g., "PRINT_START", "START_PRINT")
+    std::string source_file; ///< Config file containing the macro (e.g., "macros.cfg")
+    std::string raw_gcode;   ///< Full macro gcode content
 
     // === Detected Operations ===
     std::vector<PrintStartOperation> operations;
@@ -184,6 +185,11 @@ class PrintStartAnalyzer {
      */
     [[nodiscard]] static PrintStartOpCategory categorize_operation(const std::string& command);
 
+    // === Macro Name Candidates (public for helper functions) ===
+    static constexpr const char* MACRO_NAMES[] = {"PRINT_START", "START_PRINT", "_PRINT_START",
+                                                  "_START_PRINT"};
+    static constexpr size_t MACRO_NAMES_COUNT = 4;
+
   private:
     // === Parsing Helpers ===
 
@@ -217,11 +223,6 @@ class PrintStartAnalyzer {
      *   params.EXTRUDER
      */
     [[nodiscard]] static std::vector<std::string> extract_parameters(const std::string& gcode);
-
-    // === Macro Name Candidates ===
-    static constexpr const char* MACRO_NAMES[] = {"PRINT_START", "START_PRINT", "_PRINT_START",
-                                                  "_START_PRINT"};
-    static constexpr size_t MACRO_NAMES_COUNT = 4;
 };
 
 } // namespace helix

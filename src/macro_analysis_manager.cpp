@@ -178,17 +178,18 @@ void MacroAnalysisManager::analyze_and_launch_wizard() {
                 return;
             }
 
-            // Count uncontrollable operations
+            // Count uncontrollable operations (excluding HOMING which shouldn't be skippable)
+            // Must match the filtering in MacroEnhanceWizard::set_analysis()
             size_t uncontrollable = 0;
-            for (const auto& op : analysis.operations) {
-                if (!op.has_skip_param) {
+            for (const auto* op : analysis.get_uncontrollable_operations()) {
+                if (op->category != PrintStartOpCategory::HOMING) {
                     uncontrollable++;
                 }
             }
 
             if (uncontrollable == 0) {
-                ui_toast_show(ToastSeverity::SUCCESS, "PRINT_START is already fully controllable!",
-                              3000);
+                ui_toast_show(ToastSeverity::SUCCESS,
+                              "Your print start is already fully configured!", 3000);
 
                 // Mark as configured since it's already good
                 auto cfg = load_config();

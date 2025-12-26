@@ -609,6 +609,18 @@ void MoonrakerClient::register_event_handler(MoonrakerEventCallback cb) {
                   event_handler_ ? "registered" : "unregistered");
 }
 
+void MoonrakerClient::suppress_disconnect_modal(uint32_t duration_ms) {
+    std::lock_guard<std::mutex> lock(suppress_mutex_);
+    suppress_disconnect_modal_until_ =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(duration_ms);
+    spdlog::info("[Moonraker Client] Suppressing disconnect modal for {}ms", duration_ms);
+}
+
+bool MoonrakerClient::is_disconnect_modal_suppressed() const {
+    std::lock_guard<std::mutex> lock(suppress_mutex_);
+    return std::chrono::steady_clock::now() < suppress_disconnect_modal_until_;
+}
+
 void MoonrakerClient::emit_event(MoonrakerEventType type, const std::string& message, bool is_error,
                                  const std::string& details) {
     MoonrakerEventCallback handler;

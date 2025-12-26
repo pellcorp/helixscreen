@@ -4,11 +4,13 @@
 #include "print_start_analyzer.h"
 
 #include "moonraker_api.h"
+#include "moonraker_types.h"
 #include "operation_patterns.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <memory>
 #include <regex>
 #include <sstream>
 
@@ -159,6 +161,138 @@ std::string PrintStartAnalysis::summary() const {
 // PrintStartAnalyzer Implementation
 // ============================================================================
 
+namespace {
+
+/**
+ * @brief Helper struct to hold async search state across callbacks
+ */
+struct ConfigFileSearchState {
+    MoonrakerAPI* api;
+    std::vector<std::string> cfg_files;
+    size_t current_index = 0;
+    PrintStartAnalyzer::AnalysisCallback on_complete;
+    PrintStartAnalyzer::ErrorCallback on_error;
+};
+
+/**
+ * @brief Case-insensitive string search
+ */
+bool contains_ci(const std::string& haystack, const std::string& needle) {
+    std::string hay_lower = haystack;
+    std::string needle_lower = needle;
+    std::transform(hay_lower.begin(), hay_lower.end(), hay_lower.begin(), ::tolower);
+    std::transform(needle_lower.begin(), needle_lower.end(), needle_lower.begin(), ::tolower);
+    return hay_lower.find(needle_lower) != std::string::npos;
+}
+
+/**
+ * @brief Extract gcode content from a macro section in config file text
+ */
+std::string extract_gcode_from_section(const std::string& content, const std::string& section_start,
+                                       size_t section_pos) {
+    // Find the gcode: line
+    std::string content_lower = content;
+    std::transform(content_lower.begin(), content_lower.end(), content_lower.begin(), ::tolower);
+
+    size_t gcode_pos = content_lower.find("gcode:", section_pos);
+    if (gcode_pos == std::string::npos) {
+        return "";
+    }
+
+    // Find end of this section (next [section] or EOF)
+    size_t section_end = content.find("\n[", section_pos + section_start.size());
+    if (section_end == std::string::npos) {
+        section_end = content.size();
+    }
+
+    // Make sure gcode: is within this section
+    if (gcode_pos >= section_end) {
+        return "";
+    }
+
+    // Find start of gcode content (after "gcode:" and newline)
+    size_t gcode_content_start = content.find('\n', gcode_pos);
+    if (gcode_content_start == std::string::npos || gcode_content_start >= section_end) {
+        return "";
+    }
+    gcode_content_start++; // Skip the newline
+
+    return content.substr(gcode_content_start, section_end - gcode_content_start);
+}
+
+/**
+ * @brief Recursively search config files for macro definition
+ */
+void search_next_file(std::shared_ptr<ConfigFileSearchState> state);
+
+void search_next_file(std::shared_ptr<ConfigFileSearchState> state) {
+    if (state->current_index >= state->cfg_files.size()) {
+        // Searched all files, macro not found
+        spdlog::info("[PrintStartAnalyzer] No PRINT_START macro found in any config file");
+        PrintStartAnalysis result;
+        result.found = false;
+        if (state->on_complete) {
+            state->on_complete(result);
+        }
+        return;
+    }
+
+    const std::string& filename = state->cfg_files[state->current_index];
+    spdlog::debug("[PrintStartAnalyzer] Searching {} for macro...", filename);
+
+    state->api->download_file(
+        "config", filename,
+        [state, filename](const std::string& content) {
+            // Search for each macro name variant
+            for (size_t i = 0; i < PrintStartAnalyzer::MACRO_NAMES_COUNT; ++i) {
+                std::string section =
+                    "[gcode_macro " + std::string(PrintStartAnalyzer::MACRO_NAMES[i]) + "]";
+
+                if (contains_ci(content, section)) {
+                    // Found the macro in this file!
+                    std::string content_lower = content;
+                    std::transform(content_lower.begin(), content_lower.end(),
+                                   content_lower.begin(), ::tolower);
+                    std::string section_lower = section;
+                    std::transform(section_lower.begin(), section_lower.end(),
+                                   section_lower.begin(), ::tolower);
+
+                    size_t section_pos = content_lower.find(section_lower);
+                    std::string gcode = extract_gcode_from_section(content, section, section_pos);
+
+                    if (!gcode.empty()) {
+                        spdlog::info("[PrintStartAnalyzer] Found macro '{}' in {} ({} chars)",
+                                     PrintStartAnalyzer::MACRO_NAMES[i], filename, gcode.size());
+
+                        PrintStartAnalysis result = PrintStartAnalyzer::parse_macro(
+                            PrintStartAnalyzer::MACRO_NAMES[i], gcode);
+                        result.found = true;
+                        result.macro_name = PrintStartAnalyzer::MACRO_NAMES[i];
+                        result.source_file = filename;
+
+                        if (state->on_complete) {
+                            state->on_complete(result);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // Not in this file, try next
+            state->current_index++;
+            search_next_file(state);
+        },
+        [state](const MoonrakerError& /* err */) {
+            // Skip this file on download error, try next
+            spdlog::debug("[PrintStartAnalyzer] Failed to download {}, skipping",
+                          state->cfg_files[state->current_index]);
+            state->current_index++;
+            search_next_file(state);
+        });
+}
+
+} // anonymous namespace
+
 void PrintStartAnalyzer::analyze(MoonrakerAPI* api, AnalysisCallback on_complete,
                                  ErrorCallback on_error) {
     if (!api) {
@@ -171,53 +305,42 @@ void PrintStartAnalyzer::analyze(MoonrakerAPI* api, AnalysisCallback on_complete
         return;
     }
 
-    spdlog::debug("[PrintStartAnalyzer] Fetching printer configuration...");
+    spdlog::debug("[PrintStartAnalyzer] Listing config files to find macro location...");
 
-    // Query the configfile object to get all macro definitions
-    // We need "config" (raw strings) not "settings" (parsed values)
-    api->query_configfile(
-        [on_complete](const json& config) {
-            PrintStartAnalysis result;
-
-            // Search for print start macros in priority order
-            for (size_t i = 0; i < MACRO_NAMES_COUNT; ++i) {
-                std::string section_name = std::string("gcode_macro ") + MACRO_NAMES[i];
-
-                // Convert to lowercase for case-insensitive matching
-                // (Klipper config sections are case-insensitive)
-                std::string section_lower = section_name;
-                std::transform(section_lower.begin(), section_lower.end(), section_lower.begin(),
-                               ::tolower);
-
-                // Search through config keys
-                for (auto& [key, value] : config.items()) {
-                    std::string key_lower = key;
-                    std::transform(key_lower.begin(), key_lower.end(), key_lower.begin(),
-                                   ::tolower);
-
-                    if (key_lower == section_lower && value.contains("gcode")) {
-                        std::string gcode = value["gcode"].get<std::string>();
-                        spdlog::info("[PrintStartAnalyzer] Found macro '{}' ({} chars)",
-                                     MACRO_NAMES[i], gcode.size());
-
-                        result = parse_macro(MACRO_NAMES[i], gcode);
-                        result.found = true;
-                        result.macro_name = MACRO_NAMES[i];
-
-                        if (on_complete) {
-                            on_complete(result);
-                        }
-                        return;
-                    }
+    // List all files in config directory to find which one contains the macro
+    api->list_files(
+        "config", "", false,
+        [api, on_complete, on_error](const std::vector<FileInfo>& files) {
+            // Filter to .cfg files only
+            std::vector<std::string> cfg_files;
+            for (const auto& f : files) {
+                if (!f.is_dir && f.filename.size() > 4 &&
+                    f.filename.substr(f.filename.size() - 4) == ".cfg") {
+                    cfg_files.push_back(f.filename);
                 }
             }
 
-            // No print start macro found
-            spdlog::info("[PrintStartAnalyzer] No PRINT_START macro found in config");
-            result.found = false;
-            if (on_complete) {
-                on_complete(result);
+            if (cfg_files.empty()) {
+                spdlog::warn("[PrintStartAnalyzer] No .cfg files found in config directory");
+                PrintStartAnalysis result;
+                result.found = false;
+                if (on_complete) {
+                    on_complete(result);
+                }
+                return;
             }
+
+            spdlog::debug("[PrintStartAnalyzer] Found {} config files to search", cfg_files.size());
+
+            // Create shared state for async search
+            auto state = std::make_shared<ConfigFileSearchState>();
+            state->api = api;
+            state->cfg_files = std::move(cfg_files);
+            state->on_complete = on_complete;
+            state->on_error = on_error;
+
+            // Start searching files
+            search_next_file(state);
         },
         on_error);
 }
