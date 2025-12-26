@@ -23,8 +23,8 @@
 namespace helix {
 namespace mesh {
 
-/// Default opacity for mesh triangle surfaces (90%)
-constexpr lv_opa_t MESH_TRIANGLE_OPACITY = LV_OPA_90;
+/// Default opacity for mesh triangle surfaces (100% - fully opaque)
+constexpr lv_opa_t MESH_TRIANGLE_OPACITY = LV_OPA_COVER;
 
 /// Minimum line width for gradient rasterization (use solid color below this)
 constexpr int GRADIENT_MIN_LINE_WIDTH = 3;

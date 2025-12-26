@@ -36,7 +36,7 @@ namespace {
 // This ensures consistency between the renderer and any code that reads those constants
 
 // Canvas rendering
-constexpr double CANVAS_PADDING_FACTOR = 0.95; // Small margin for anti-aliasing at edges
+constexpr double CANVAS_PADDING_FACTOR = 0.85; // Margin for axis labels and tick marks at edges
 constexpr double INITIAL_FOV_SCALE = 150.0;    // Starting point for auto-scale (gets adjusted)
 const lv_color_t CANVAS_BG_COLOR = lv_color_make(40, 40, 40); // Dark gray background
 
@@ -517,11 +517,16 @@ bool bed_mesh_renderer_render(bed_mesh_renderer_t* renderer, lv_layer_t* layer, 
         prepare_render_frame(renderer, canvas_width, canvas_height, layer_offset_x, layer_offset_y);
         auto t_prepare = std::chrono::high_resolution_clock::now();
 
-        // Phase 2: Render mesh surface (quads with gradient/solid colors)
+        // Phase 2: Render reference grids FIRST (behind mesh)
+        // These are the axis plane lines that should be obscured by the mesh
+        helix::mesh::render_reference_grids(layer, renderer, canvas_width, canvas_height);
+
+        // Phase 3: Render mesh surface (quads with gradient/solid colors)
+        // Drawn after reference grids so mesh obscures them
         render_mesh_surface(layer, renderer);
         auto t_surface = std::chrono::high_resolution_clock::now();
 
-        // Phase 3: Render decorations (grids, labels, ticks)
+        // Phase 4: Render overlay decorations (on top of mesh)
         render_decorations(layer, renderer, canvas_width, canvas_height);
         auto t_decorations = std::chrono::high_resolution_clock::now();
 
@@ -1082,8 +1087,8 @@ static void render_decorations(lv_layer_t* layer, bed_mesh_renderer_t* renderer,
                                int canvas_height) {
     auto t_start = std::chrono::high_resolution_clock::now();
 
-    // Render reference grids (bottom, back, side walls)
-    helix::mesh::render_reference_grids(layer, renderer, canvas_width, canvas_height);
+    // Note: Reference grids are now rendered BEFORE mesh surface (in main render loop)
+    // to ensure mesh properly obscures them
 
     // Render wireframe grid on top of mesh surface
     helix::mesh::render_grid_lines(layer, renderer, canvas_width, canvas_height);

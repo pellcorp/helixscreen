@@ -12,7 +12,6 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <climits>
 #include <cmath>
 #include <cstring>
 
@@ -53,7 +52,6 @@ constexpr double Z_AXIS_HEIGHT_FACTOR = 1.1; // 10% above mesh max
 constexpr int TICK_LABEL_WIDTH_DECIMAL = 40; // Wider for decimal values (e.g., "-0.25")
 constexpr int TICK_LABEL_WIDTH_INTEGER = 30; // Narrower for integers (e.g., "100")
 constexpr int TICK_LABEL_HEIGHT = 12;
-constexpr int TICK_LABEL_CLIP_MARGIN = 20; // Margin for partial clipping at edges
 
 // Axis label dimensions
 constexpr int AXIS_LABEL_HALF_SIZE = 7; // 7px half-size = 14px label area
@@ -82,80 +80,10 @@ static inline bool is_line_visible(int x1, int y1, int x2, int y2, int canvas_wi
            is_point_visible(x2, y2, canvas_width, canvas_height, margin);
 }
 
-// Cohen-Sutherland line clipping outcode bits
-constexpr int CS_INSIDE = 0; // 0000
-constexpr int CS_LEFT = 1;   // 0001
-constexpr int CS_RIGHT = 2;  // 0010
-constexpr int CS_BOTTOM = 4; // 0100
-constexpr int CS_TOP = 8;    // 1000
-
-static int compute_outcode(double x, double y, double x_min, double y_min, double x_max,
-                           double y_max) {
-    int code = CS_INSIDE;
-    if (x < x_min)
-        code |= CS_LEFT;
-    else if (x > x_max)
-        code |= CS_RIGHT;
-    if (y < y_min)
-        code |= CS_TOP; // Note: y increases downward in screen coords
-    else if (y > y_max)
-        code |= CS_BOTTOM;
-    return code;
-}
-
-// Cohen-Sutherland line clipping: clips line to rectangle, returns false if fully outside
-static bool clip_line_to_rect(double& x0, double& y0, double& x1, double& y1, double x_min,
-                              double y_min, double x_max, double y_max) {
-    int outcode0 = compute_outcode(x0, y0, x_min, y_min, x_max, y_max);
-    int outcode1 = compute_outcode(x1, y1, x_min, y_min, x_max, y_max);
-    bool accept = false;
-
-    while (true) {
-        if (!(outcode0 | outcode1)) {
-            // Both endpoints inside - accept
-            accept = true;
-            break;
-        } else if (outcode0 & outcode1) {
-            // Both endpoints share an outside zone - reject
-            break;
-        } else {
-            // Line crosses boundary - clip
-            double x = 0, y = 0;
-            int outcodeOut = outcode0 ? outcode0 : outcode1;
-
-            // Find intersection with clipping boundary
-            if (outcodeOut & CS_BOTTOM) {
-                x = x0 + (x1 - x0) * (y_max - y0) / (y1 - y0);
-                y = y_max;
-            } else if (outcodeOut & CS_TOP) {
-                x = x0 + (x1 - x0) * (y_min - y0) / (y1 - y0);
-                y = y_min;
-            } else if (outcodeOut & CS_RIGHT) {
-                y = y0 + (y1 - y0) * (x_max - x0) / (x1 - x0);
-                x = x_max;
-            } else if (outcodeOut & CS_LEFT) {
-                y = y0 + (y1 - y0) * (x_min - x0) / (x1 - x0);
-                x = x_min;
-            }
-
-            // Update endpoint and recompute outcode
-            if (outcodeOut == outcode0) {
-                x0 = x;
-                y0 = y;
-                outcode0 = compute_outcode(x0, y0, x_min, y_min, x_max, y_max);
-            } else {
-                x1 = x;
-                y1 = y;
-                outcode1 = compute_outcode(x1, y1, x_min, y_min, x_max, y_max);
-            }
-        }
-    }
-    return accept;
-}
-
 /**
  * Draw a single axis line from 3D start to 3D end point
- * Projects coordinates to 2D screen space and renders the line
+ * Projects coordinates to 2D screen space and renders the line.
+ * LVGL's layer system handles clipping automatically - no manual clipping needed.
  */
 static void draw_axis_line(lv_layer_t* layer, lv_draw_line_dsc_t* line_dsc, double start_x,
                            double start_y, double start_z, double end_x, double end_y, double end_z,
@@ -166,23 +94,12 @@ static void draw_axis_line(lv_layer_t* layer, lv_draw_line_dsc_t* line_dsc, doub
     bed_mesh_point_3d_t end = bed_mesh_projection_project_3d_to_2d(
         end_x, end_y, end_z, canvas_width, canvas_height, view_state);
 
-    // Use proper line clipping (Cohen-Sutherland) instead of naive endpoint clamping
-    // This preserves line slope when clipping to canvas bounds
-    double x1 = static_cast<double>(start.screen_x);
-    double y1 = static_cast<double>(start.screen_y);
-    double x2 = static_cast<double>(end.screen_x);
-    double y2 = static_cast<double>(end.screen_y);
-
-    // Clip line to canvas bounds - skip if fully outside
-    if (!clip_line_to_rect(x1, y1, x2, y2, 0.0, 0.0, static_cast<double>(canvas_width - 1),
-                           static_cast<double>(canvas_height - 1))) {
-        return; // Line fully outside canvas
-    }
-
-    line_dsc->p1.x = static_cast<lv_value_precise_t>(x1);
-    line_dsc->p1.y = static_cast<lv_value_precise_t>(y1);
-    line_dsc->p2.x = static_cast<lv_value_precise_t>(x2);
-    line_dsc->p2.y = static_cast<lv_value_precise_t>(y2);
+    // Let LVGL handle clipping via the layer's clip area (same as mesh wireframe)
+    // The projected coordinates include layer_offset_x/y for screen positioning
+    line_dsc->p1.x = static_cast<lv_value_precise_t>(start.screen_x);
+    line_dsc->p1.y = static_cast<lv_value_precise_t>(start.screen_y);
+    line_dsc->p2.x = static_cast<lv_value_precise_t>(end.screen_x);
+    line_dsc->p2.y = static_cast<lv_value_precise_t>(end.screen_y);
     lv_draw_line(layer, line_dsc);
 }
 
@@ -213,11 +130,6 @@ void render_grid_lines(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, i
     const auto& screen_x = renderer->projected_screen_x;
     const auto& screen_y = renderer->projected_screen_y;
 
-    // DEBUG: Track grid line bounds
-    int grid_min_x = INT_MAX, grid_max_x = INT_MIN;
-    int grid_min_y = INT_MAX, grid_max_y = INT_MIN;
-    int grid_lines_drawn = 0;
-
     // Draw horizontal grid lines (connect points in same row)
     for (int row = 0; row < renderer->rows; row++) {
         for (int col = 0; col < renderer->cols - 1; col++) {
@@ -233,14 +145,6 @@ void render_grid_lines(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, i
                 line_dsc.p1.y = static_cast<lv_value_precise_t>(p1_y);
                 line_dsc.p2.x = static_cast<lv_value_precise_t>(p2_x);
                 line_dsc.p2.y = static_cast<lv_value_precise_t>(p2_y);
-
-                // DEBUG: Track bounds
-                grid_min_x = std::min({grid_min_x, p1_x, p2_x});
-                grid_max_x = std::max({grid_max_x, p1_x, p2_x});
-                grid_min_y = std::min({grid_min_y, p1_y, p2_y});
-                grid_max_y = std::max({grid_max_y, p1_y, p2_y});
-                grid_lines_drawn++;
-
                 lv_draw_line(layer, &line_dsc);
             }
         }
@@ -256,29 +160,13 @@ void render_grid_lines(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, i
 
             // Bounds check
             if (is_line_visible(p1_x, p1_y, p2_x, p2_y, canvas_width, canvas_height)) {
-                // Set line endpoints in descriptor
                 line_dsc.p1.x = static_cast<lv_value_precise_t>(p1_x);
                 line_dsc.p1.y = static_cast<lv_value_precise_t>(p1_y);
                 line_dsc.p2.x = static_cast<lv_value_precise_t>(p2_x);
                 line_dsc.p2.y = static_cast<lv_value_precise_t>(p2_y);
-
-                // DEBUG: Track bounds
-                grid_min_x = std::min({grid_min_x, p1_x, p2_x});
-                grid_max_x = std::max({grid_max_x, p1_x, p2_x});
-                grid_min_y = std::min({grid_min_y, p1_y, p2_y});
-                grid_max_y = std::max({grid_max_y, p1_y, p2_y});
-                grid_lines_drawn++;
-
                 lv_draw_line(layer, &line_dsc);
             }
         }
-    }
-
-    // DEBUG: Log grid line bounds summary
-    if (grid_lines_drawn > 0) {
-        spdlog::trace("[GRID_LINES] Total bounds: x=[{},{}] y=[{},{}] lines_drawn={} canvas={}x{}",
-                      grid_min_x, grid_max_x, grid_min_y, grid_max_y, grid_lines_drawn,
-                      canvas_width, canvas_height);
     }
 }
 
@@ -303,9 +191,10 @@ void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t* render
     double x_max = mesh_half_width + GRID_MARGIN_WORLD;
     double y_min = -mesh_half_height - GRID_MARGIN_WORLD;
     double y_max = mesh_half_height + GRID_MARGIN_WORLD;
-    double z_min = z_min_world;
-    // Mainsail-style: wall extends to WALL_HEIGHT_FACTOR * mesh Z range above z_min
-    // This gives visual headroom above the mesh surface
+    // Floor and walls extend from min(z_min_world, 0) to provide consistent reference
+    // This ensures the floor is at or below Z=0 even if all mesh points are positive
+    double z_min = std::min(z_min_world, 0.0);
+    // Mainsail-style: wall extends to WALL_HEIGHT_FACTOR * mesh Z range above mesh minimum
     double mesh_z_range = z_max_world - z_min_world;
     double z_max = z_min_world + WALL_HEIGHT_FACTOR * mesh_z_range;
 
@@ -360,10 +249,6 @@ void render_reference_grids(lv_layer_t* layer, const bed_mesh_renderer_t* render
         draw_axis_line(layer, &grid_line_dsc, x_min, y_min, z, x_min, y_max, z, canvas_width,
                        canvas_height, &renderer->view_state);
     }
-
-    spdlog::trace("[REFERENCE_GRIDS] Rendered bottom/back/side grids: X=[{:.1f},{:.1f}] "
-                  "Y=[{:.1f},{:.1f}] Z=[{:.3f},{:.3f}]",
-                  x_min, x_max, y_min, y_max, z_min, z_max);
 }
 
 void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, int canvas_width,
@@ -403,19 +288,15 @@ void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, 
     bed_mesh_point_3d_t x_pos = bed_mesh_projection_project_3d_to_2d(
         x_label_x, x_label_y, x_label_z, canvas_width, canvas_height, &renderer->view_state);
 
-    if (x_pos.screen_x >= 0 && x_pos.screen_x < canvas_width && x_pos.screen_y >= 0 &&
-        x_pos.screen_y < canvas_height) {
+    // X label - let LVGL handle clipping
+    {
         label_dsc.text = "X";
         lv_area_t x_area;
         x_area.x1 = x_pos.screen_x - AXIS_LABEL_HALF_SIZE;
         x_area.y1 = x_pos.screen_y - AXIS_LABEL_HALF_SIZE;
         x_area.x2 = x_area.x1 + 2 * AXIS_LABEL_HALF_SIZE;
         x_area.y2 = x_area.y1 + 2 * AXIS_LABEL_HALF_SIZE;
-
-        if (x_area.x1 >= 0 && x_area.x2 < canvas_width && x_area.y1 >= 0 &&
-            x_area.y2 < canvas_height) {
-            lv_draw_label(layer, &label_dsc, &x_area);
-        }
+        lv_draw_label(layer, &label_dsc, &x_area);
     }
 
     // Y label: Centered on the RIGHT edge (analogous to X on front edge)
@@ -425,19 +306,15 @@ void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, 
     bed_mesh_point_3d_t y_pos = bed_mesh_projection_project_3d_to_2d(
         y_label_x, y_label_y, y_label_z, canvas_width, canvas_height, &renderer->view_state);
 
-    if (y_pos.screen_x >= 0 && y_pos.screen_x < canvas_width && y_pos.screen_y >= 0 &&
-        y_pos.screen_y < canvas_height) {
+    // Y label - let LVGL handle clipping
+    {
         label_dsc.text = "Y";
         lv_area_t y_area;
         y_area.x1 = y_pos.screen_x - AXIS_LABEL_HALF_SIZE;
         y_area.y1 = y_pos.screen_y - AXIS_LABEL_HALF_SIZE;
         y_area.x2 = y_area.x1 + 2 * AXIS_LABEL_HALF_SIZE;
         y_area.y2 = y_area.y1 + 2 * AXIS_LABEL_HALF_SIZE;
-
-        if (y_area.x1 >= 0 && y_area.x2 < canvas_width && y_area.y1 >= 0 &&
-            y_area.y2 < canvas_height) {
-            lv_draw_label(layer, &label_dsc, &y_area);
-        }
+        lv_draw_label(layer, &label_dsc, &y_area);
     }
 
     // Z label: At the top of Z axis, at the back-right corner (x_max, y_min)
@@ -446,32 +323,24 @@ void render_axis_labels(lv_layer_t* layer, const bed_mesh_renderer_t* renderer, 
     bed_mesh_point_3d_t z_pos = bed_mesh_projection_project_3d_to_2d(
         x_max, y_min, z_axis_top, canvas_width, canvas_height, &renderer->view_state);
 
-    if (z_pos.screen_x >= 0 && z_pos.screen_x < canvas_width && z_pos.screen_y >= 0 &&
-        z_pos.screen_y < canvas_height) {
+    // Z label - let LVGL handle clipping
+    {
         label_dsc.text = "Z";
         lv_area_t z_area;
         z_area.x1 = z_pos.screen_x + 5; // Offset right of the axis
         z_area.y1 = z_pos.screen_y - AXIS_LABEL_HALF_SIZE;
         z_area.x2 = z_area.x1 + 2 * AXIS_LABEL_HALF_SIZE;
         z_area.y2 = z_area.y1 + 2 * AXIS_LABEL_HALF_SIZE;
-
-        if (z_area.x1 >= 0 && z_area.x2 < canvas_width && z_area.y1 >= 0 &&
-            z_area.y2 < canvas_height) {
-            lv_draw_label(layer, &label_dsc, &z_area);
-        }
+        lv_draw_label(layer, &label_dsc, &z_area);
     }
-
-    spdlog::debug("[AXIS_LABELS] X at ({:.1f},{:.1f}), Y at ({:.1f},{:.1f}), Z at ({:.1f},{:.1f})",
-                  x_label_x, x_label_y, y_label_x, y_label_y, x_max, y_min);
 }
 
 void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_dsc, int screen_x,
-                          int screen_y, int offset_x, int offset_y, double value, int canvas_width,
-                          int canvas_height, bool use_decimals) {
-    // Check screen bounds for tick position
-    if (screen_x < 0 || screen_x >= canvas_width || screen_y < 0 || screen_y >= canvas_height) {
-        return;
-    }
+                          int screen_y, int offset_x, int offset_y, double value,
+                          [[maybe_unused]] int canvas_width, [[maybe_unused]] int canvas_height,
+                          bool use_decimals) {
+    // Let LVGL handle clipping via the layer's clip area
+    // (screen coordinates include layer_offset so manual bounds check would be wrong)
 
     // Format label text (use decimal format for Z-axis heights)
     char label_text[12];
@@ -491,11 +360,8 @@ void draw_axis_tick_label(lv_layer_t* layer, lv_draw_label_dsc_t* label_dsc, int
         label_area.x1 + (use_decimals ? TICK_LABEL_WIDTH_DECIMAL : TICK_LABEL_WIDTH_INTEGER);
     label_area.y2 = label_area.y1 + TICK_LABEL_HEIGHT;
 
-    // Draw if label origin is within canvas (allow partial clipping at edges)
-    if (label_area.x1 >= -TICK_LABEL_CLIP_MARGIN && label_area.x1 < canvas_width &&
-        label_area.y1 >= -TICK_LABEL_HEIGHT && label_area.y1 < canvas_height) {
-        lv_draw_label(layer, label_dsc, &label_area);
-    }
+    // Let LVGL handle clipping via the layer's clip area
+    lv_draw_label(layer, label_dsc, &label_area);
 }
 
 void render_numeric_axis_ticks(lv_layer_t* layer, const bed_mesh_renderer_t* renderer,
