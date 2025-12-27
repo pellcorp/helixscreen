@@ -113,12 +113,14 @@ class UpdateQueue {
 
     /**
      * @brief Shutdown and cleanup
+     *
+     * Note: We do NOT explicitly delete the timer here because:
+     * 1. lv_deinit() will clean up all timers as part of its shutdown
+     * 2. Manually deleting can cause double-free if LVGL state is corrupted
+     * 3. This mirrors how DisplayManager handles display/input cleanup
      */
     void shutdown() {
-        if (timer_) {
-            lv_timer_delete(timer_);
-            timer_ = nullptr;
-        }
+        timer_ = nullptr;
         initialized_ = false;
     }
 
