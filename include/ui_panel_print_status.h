@@ -391,7 +391,7 @@ class PrintStatusPanel : public PanelBase {
     char speed_buf_[32] = "100%";
     char flow_buf_[32] = "100%";
     char pause_button_buf_[32] = "\xF3\xB0\x8F\xA4"; // MDI pause icon (F03E4)
-    char pause_label_buf_[16] = "Pause";            ///< Pause button label
+    char pause_label_buf_[16] = "Pause";             ///< Pause button label
     char timelapse_button_buf_[8] = "";              ///< MDI icon codepoint for timelapse state
     char timelapse_label_buf_[16] = "Off";           ///< Timelapse button label
 

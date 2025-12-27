@@ -525,8 +525,31 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
             // This prevents the model from being obscured by the progress bar and filename
             ui_gcode_viewer_set_content_offset_y(viewer, -0.10f);
 
-            // Set print progress to layer 0 (entire model in ghost mode initially)
-            ui_gcode_viewer_set_print_progress(viewer, 0);
+            // Set print progress to current layer (not 0!) when joining a print in progress.
+            // Read directly from PrinterState subjects to get the latest values.
+            int viewer_max_layer = ui_gcode_viewer_get_max_layer(viewer);
+            int current_layer = lv_subject_get_int(
+                self->printer_state_.get_print_layer_current_subject());
+            int total_layers = lv_subject_get_int(
+                self->printer_state_.get_print_layer_total_subject());
+
+            // Update local state while we're at it
+            self->current_layer_ = current_layer;
+            self->total_layers_ = total_layers;
+
+            // Map from Moonraker layer count to viewer layer count
+            int viewer_layer = 0;
+            if (total_layers > 0 && viewer_max_layer > 0) {
+                viewer_layer = (current_layer * viewer_max_layer) / total_layers;
+            } else if (current_layer > 0 && viewer_max_layer > 0) {
+                // Fallback: use current layer directly if no mapping available
+                viewer_layer = std::min(current_layer, viewer_max_layer);
+            }
+            ui_gcode_viewer_set_print_progress(viewer, viewer_layer);
+            spdlog::debug("[{}] G-code loaded: initial layer progress set to {} "
+                          "(current={}/{}, viewer_max={})",
+                          self->get_name(), viewer_layer, current_layer, total_layers,
+                          viewer_max_layer);
 
             // NOTE: PrintStatusPanel does NOT start prints - it only VIEWS them.
             // Prints are started from PrintSelectPanel via the Print button.
@@ -588,16 +611,17 @@ void PrintStatusPanel::update_all_displays() {
     std::snprintf(flow_buf_, sizeof(flow_buf_), "%d%%", flow_percent_);
     lv_subject_copy_string(&flow_subject_, flow_buf_);
 
-    // Update pause button icon based on state - MDI icons (play=F040A, pause=F03E4)
-    // UTF-8: play=F3 B0 90 8A, pause=F3 B0 8F A4
+    // Update pause button icon and label based on state
+    // MDI icons: play=F040A, pause=F03E4 (UTF-8: play=F3 B0 90 8A, pause=F3 B0 8F A4)
     if (current_state_ == PrintState::Paused) {
-        std::snprintf(pause_button_buf_, sizeof(pause_button_buf_),
-                      "\xF3\xB0\x90\x8A"); // play icon
+        std::snprintf(pause_button_buf_, sizeof(pause_button_buf_), "\xF3\xB0\x90\x8A"); // play
+        std::snprintf(pause_label_buf_, sizeof(pause_label_buf_), "Resume");
     } else {
-        std::snprintf(pause_button_buf_, sizeof(pause_button_buf_),
-                      "\xF3\xB0\x8F\xA4"); // pause icon
+        std::snprintf(pause_button_buf_, sizeof(pause_button_buf_), "\xF3\xB0\x8F\xA4"); // pause
+        std::snprintf(pause_label_buf_, sizeof(pause_label_buf_), "Pause");
     }
     lv_subject_copy_string(&pause_button_subject_, pause_button_buf_);
+    lv_subject_copy_string(&pause_label_subject_, pause_label_buf_);
 }
 
 // ============================================================================
@@ -724,16 +748,19 @@ void PrintStatusPanel::handle_timelapse_button() {
                 // Update local state
                 timelapse_enabled_ = new_state;
 
-                // Update icon: U+F0567 = video (enabled), U+F0568 = video-off (disabled)
+                // Update icon and label: U+F0567 = video (enabled), U+F0568 = video-off (disabled)
                 // MDI Plane 15 icons use 4-byte UTF-8 encoding
                 if (timelapse_enabled_) {
                     std::snprintf(timelapse_button_buf_, sizeof(timelapse_button_buf_),
                                   "\xF3\xB0\x95\xA7"); // video
+                    std::snprintf(timelapse_label_buf_, sizeof(timelapse_label_buf_), "On");
                 } else {
                     std::snprintf(timelapse_button_buf_, sizeof(timelapse_button_buf_),
                                   "\xF3\xB0\x95\xA8"); // video-off
+                    std::snprintf(timelapse_label_buf_, sizeof(timelapse_label_buf_), "Off");
                 }
                 lv_subject_copy_string(&timelapse_button_subject_, timelapse_button_buf_);
+                lv_subject_copy_string(&timelapse_label_subject_, timelapse_label_buf_);
             },
             [this](const MoonrakerError& err) {
                 spdlog::error("[{}] Failed to toggle timelapse: {}", get_name(), err.message);
