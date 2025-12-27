@@ -14,6 +14,7 @@
 #include "ui_subject_registry.h"
 #include "ui_temperature_utils.h"
 #include "ui_toast.h"
+#include "ui_update_queue.h"
 #include "ui_utils.h"
 
 #include "app_globals.h"
@@ -559,7 +560,24 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
                 // The 2D renderer will use this value when it initializes on first render
                 viewer_layer = current_layer;
             }
-            ui_gcode_viewer_set_print_progress(viewer, viewer_layer);
+
+            // CRITICAL: Defer to avoid lv_obj_invalidate() during render phase
+            // This callback runs during lv_timer_handler() which may be mid-render
+            struct ViewerProgressCtx {
+                lv_obj_t* viewer;
+                int layer;
+            };
+            auto* ctx = new ViewerProgressCtx{viewer, viewer_layer};
+            ui_async_call(
+                [](void* user_data) {
+                    auto* c = static_cast<ViewerProgressCtx*>(user_data);
+                    if (c->viewer && lv_obj_is_valid(c->viewer)) {
+                        ui_gcode_viewer_set_print_progress(c->viewer, c->layer);
+                    }
+                    delete c;
+                },
+                ctx);
+
             spdlog::debug("[{}] G-code loaded: initial layer progress set to {} "
                           "(current={}/{}, viewer_max={})",
                           self->get_name(), viewer_layer, current_layer, total_layers,
@@ -1219,11 +1237,15 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
     if (new_state != current_state_) {
         PrintState old_state = current_state_;
 
-        // When transitioning to Printing from Complete (new print started),
-        // reset the complete overlay
-        if (old_state == PrintState::Complete && new_state == PrintState::Printing) {
-            lv_subject_set_int(&print_complete_visible_subject_, 0);
-            spdlog::debug("[{}] New print started - clearing complete overlay", get_name());
+        // Clear complete overlay when entering any active print state
+        // This handles all transition paths: Complete→Standby→Preparing→Printing
+        // (not just the rare direct Complete→Printing transition)
+        if (new_state == PrintState::Preparing || new_state == PrintState::Printing) {
+            if (lv_subject_get_int(&print_complete_visible_subject_) != 0) {
+                lv_subject_set_int(&print_complete_visible_subject_, 0);
+                spdlog::debug("[{}] Clearing complete overlay (entering active print state)",
+                              get_name());
+            }
         }
 
         // Clear thumbnail and G-code tracking when print ends (Complete/Cancelled/Error/Idle)
@@ -1399,7 +1421,24 @@ void PrintStatusPanel::on_print_layer_changed(int current_layer) {
         if (total_layers_ > 0 && viewer_max_layer > 0) {
             viewer_layer = (current_layer * viewer_max_layer) / total_layers_;
         }
-        ui_gcode_viewer_set_print_progress(gcode_viewer_, viewer_layer);
+
+        // CRITICAL: Defer to avoid lv_obj_invalidate() during render phase
+        // Observer callbacks can fire during lv_timer_handler() which may be mid-render
+        struct ViewerProgressCtx {
+            lv_obj_t* viewer;
+            int layer;
+        };
+        auto* ctx = new ViewerProgressCtx{gcode_viewer_, viewer_layer};
+        ui_async_call(
+            [](void* user_data) {
+                auto* c = static_cast<ViewerProgressCtx*>(user_data);
+                if (c->viewer && lv_obj_is_valid(c->viewer)) {
+                    ui_gcode_viewer_set_print_progress(c->viewer, c->layer);
+                }
+                delete c;
+            },
+            ctx);
+
         spdlog::trace("[{}] G-code viewer ghost layer updated to {} (Moonraker: {}/{})", get_name(),
                       viewer_layer, current_layer, total_layers_);
     }
