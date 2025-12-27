@@ -1324,8 +1324,8 @@ void PrintStatusPanel::on_print_filename_changed(const char* filename) {
         // Common when Helix plugin is not installed or during direct Moonraker prints.
         std::string resolved = resolve_gcode_filename(raw_filename);
         if (resolved != raw_filename && thumbnail_source_filename_.empty()) {
-            spdlog::info("[{}] Auto-resolved temp filename: {} -> {}", get_name(), raw_filename,
-                         resolved);
+            spdlog::debug("[{}] Auto-resolved temp filename: {} -> {}", get_name(), raw_filename,
+                          resolved);
             set_thumbnail_source(resolved);
         }
 
@@ -1902,8 +1902,6 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
     ++thumbnail_load_generation_;
     uint32_t current_gen = thumbnail_load_generation_;
 
-    spdlog::debug("[{}] Loading thumbnail for: {} (gen={})", get_name(), filename, current_gen);
-
     // Skip if no API available (e.g., in mock mode)
     if (!api_) {
         spdlog::debug("[{}] No API available - skipping thumbnail load", get_name());
@@ -2146,8 +2144,7 @@ void PrintStatusPanel::set_filename(const char* filename) {
     // Load thumbnail and G-code ONLY if effective filename changed (makes this function idempotent)
     // This prevents redundant loads when observer fires repeatedly with same filename
     if (!effective_filename.empty() && effective_filename != loaded_thumbnail_filename_) {
-        spdlog::debug("[{}] Thumbnail filename changed: '{}' -> '{}'", get_name(),
-                      loaded_thumbnail_filename_, effective_filename);
+        spdlog::debug("[{}] Loading thumbnail for: {}", get_name(), effective_filename);
         load_thumbnail_for_file(effective_filename);
         load_gcode_for_viewing(effective_filename);
         loaded_thumbnail_filename_ = effective_filename;

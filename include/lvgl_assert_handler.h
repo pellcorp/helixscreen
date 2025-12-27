@@ -37,6 +37,9 @@ extern "C" {
  * Called after the C handler logs to stderr/file.
  */
 typedef void (*helix_assert_callback_t)(const char* file, int line, const char* func);
+
+// Global callback pointer - defined in logging_init.cpp for main app,
+// or in helix_splash.cpp (as NULL) for splash binary which doesn't link logging.
 extern helix_assert_callback_t g_helix_assert_cpp_callback;
 
 /**

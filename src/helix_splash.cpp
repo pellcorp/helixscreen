@@ -37,6 +37,11 @@
 // SIGUSR1: main app is ready, hand off display immediately
 static volatile sig_atomic_t g_quit = 0;
 
+// Define the LVGL assert callback pointer for splash binary
+// (normally defined in logging_init.cpp, but splash doesn't link that)
+#include "lvgl_assert_handler.h"
+helix_assert_callback_t g_helix_assert_cpp_callback = nullptr;
+
 static void signal_handler(int sig) {
     (void)sig;
     g_quit = 1;
