@@ -384,9 +384,18 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
                         }
                     }
 
+                    // Log file list change notifications for debugging
+                    if (method == "notify_filelist_changed") {
+                        spdlog::info("[Moonraker Client] Received notify_filelist_changed");
+                    }
+
                     // Method-specific persistent callbacks
                     auto method_it = method_callbacks_.find(method);
                     if (method_it != method_callbacks_.end()) {
+                        if (method == "notify_filelist_changed") {
+                            spdlog::debug("[Moonraker Client] Found {} handler(s) for {}",
+                                          method_it->second.size(), method);
+                        }
                         for (auto& [handler_name, cb] : method_it->second) {
                             callbacks_to_invoke.push_back(cb);
                         }

@@ -1019,38 +1019,21 @@ void PrintSelectPanel::check_moonraker_usb_symlink() {
 }
 
 void PrintSelectPanel::on_activate() {
-    // On first activation: skip refresh if files already loaded (connection observer did it)
-    // On subsequent activations: refresh to pick up external changes
+    // Always refresh on activation to catch any external changes (uploads via OrcaSlicer, etc.)
+    // The slight overhead of an extra API call is worth the reliability of showing current data
     bool is_usb_active = usb_source_ && usb_source_->is_usb_active();
 
-    spdlog::debug(
-        "[{}] on_activate called (first_activation={}, file_count={}, usb_active={}, api={})",
-        get_name(), first_activation_, file_list_.size(), is_usb_active, (api_ != nullptr));
+    spdlog::debug("[{}] on_activate called (file_count={}, usb_active={}, api={})", get_name(),
+                  file_list_.size(), is_usb_active, (api_ != nullptr));
 
     if (!is_usb_active && api_) {
-        // Printer (Moonraker) source
-        if (first_activation_ && !file_list_.empty()) {
-            first_activation_ = false;
-            spdlog::debug("[{}] First activation, files already loaded ({}) - skipping refresh",
-                          get_name(), file_list_.size());
-            return;
-        }
-        first_activation_ = false;
+        // Printer (Moonraker) source - always refresh
         spdlog::info("[{}] Panel activated, refreshing file list", get_name());
         refresh_files();
-    } else if (is_usb_active) {
-        // USB source
-        if (first_activation_ && !file_list_.empty()) {
-            first_activation_ = false;
-            spdlog::debug("[{}] First activation, files already loaded - skipping refresh",
-                          get_name());
-            return;
-        }
-        first_activation_ = false;
+    } else if (is_usb_active && usb_source_) {
+        // USB source - always refresh
         spdlog::info("[{}] Panel activated, refreshing USB file list", get_name());
-        if (usb_source_) {
-            usb_source_->refresh_files();
-        }
+        usb_source_->refresh_files();
     }
 }
 

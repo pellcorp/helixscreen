@@ -447,7 +447,6 @@ class PrintSelectPanel : public PanelBase {
     PrintSelectSortColumn current_sort_column_ = PrintSelectSortColumn::MODIFIED;
     PrintSelectSortDirection current_sort_direction_ = PrintSelectSortDirection::DESCENDING;
     bool panel_initialized_ = false; ///< Guard flag for resize callback
-    bool first_activation_ = true;   ///< Skip redundant refresh on first activation
 
     // Debounce timer for view refresh (prevents rebuilding views for each metadata callback)
     lv_timer_t* refresh_timer_ = nullptr;
