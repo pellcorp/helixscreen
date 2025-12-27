@@ -444,8 +444,8 @@ class PrintSelectPanel : public PanelBase {
     std::string
         pending_file_selection_; ///< File to auto-select when list is populated (--select-file)
     PrintSelectViewMode current_view_mode_ = PrintSelectViewMode::CARD;
-    PrintSelectSortColumn current_sort_column_ = PrintSelectSortColumn::FILENAME;
-    PrintSelectSortDirection current_sort_direction_ = PrintSelectSortDirection::ASCENDING;
+    PrintSelectSortColumn current_sort_column_ = PrintSelectSortColumn::MODIFIED;
+    PrintSelectSortDirection current_sort_direction_ = PrintSelectSortDirection::DESCENDING;
     bool panel_initialized_ = false; ///< Guard flag for resize callback
     bool first_activation_ = true;   ///< Skip redundant refresh on first activation
 
