@@ -461,8 +461,8 @@ MoonrakerManager* get_moonraker_manager() {
 // Stub for MoonrakerManager::macro_analysis (never called since get_moonraker_manager returns null)
 #include "moonraker_manager.h"
 namespace helix {
-class MacroAnalysisManager;
+class MacroModificationManager;
 }
-helix::MacroAnalysisManager* MoonrakerManager::macro_analysis() const {
+helix::MacroModificationManager* MoonrakerManager::macro_analysis() const {
     return nullptr;
 }

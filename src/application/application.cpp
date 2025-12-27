@@ -375,8 +375,7 @@ bool Application::init_display() {
             // by watchdog, so we just need to know it's done (zombie = exited).
             int wait_attempts = 50;
             char proc_path[64];
-            snprintf(proc_path, sizeof(proc_path), "/proc/%d/status",
-                     runtime_config->splash_pid);
+            snprintf(proc_path, sizeof(proc_path), "/proc/%d/status", runtime_config->splash_pid);
 
             while (wait_attempts-- > 0) {
                 // First check if process exists at all
@@ -397,7 +396,8 @@ bool Application::init_display() {
                     }
                     fclose(f);
                     if (is_zombie) {
-                        spdlog::debug("[Application] Splash process exited (zombie, waiting for reap)");
+                        spdlog::debug(
+                            "[Application] Splash process exited (zombie, waiting for reap)");
                         break;
                     }
                 }
@@ -632,10 +632,10 @@ bool Application::init_moonraker() {
     // Inject API into panels
     m_subjects->inject_api(m_moonraker->api());
 
-    // Register MoonrakerManager globally (for Advanced panel access to MacroAnalysisManager)
+    // Register MoonrakerManager globally (for Advanced panel access to MacroModificationManager)
     set_moonraker_manager(m_moonraker.get());
 
-    // Initialize macro analysis manager (for PRINT_START wizard)
+    // Initialize macro modification manager (for PRINT_START wizard)
     m_moonraker->init_macro_analysis(m_config);
 
     // Initialize global keyboard

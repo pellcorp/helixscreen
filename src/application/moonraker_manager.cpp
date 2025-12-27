@@ -11,7 +11,7 @@
 #include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
-#include "macro_analysis_manager.h"
+#include "macro_modification_manager.h"
 #include "moonraker_api.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client.h"
@@ -116,7 +116,7 @@ int MoonrakerManager::connect(const std::string& websocket_url, const std::strin
     // so we never receive notify_status_update messages (print_stats, temperatures, etc.)
     MoonrakerClient* client = m_client.get();
     MoonrakerAPI* api = m_api.get();
-    helix::MacroAnalysisManager* macro_mgr = m_macro_analysis.get();
+    helix::MacroModificationManager* macro_mgr = m_macro_analysis.get();
     return m_client->connect(
         websocket_url.c_str(),
         [client, api, macro_mgr]() {
@@ -470,10 +470,10 @@ void MoonrakerManager::init_macro_analysis(Config* config) {
         return;
     }
 
-    m_macro_analysis = std::make_unique<helix::MacroAnalysisManager>(config, m_api.get());
-    spdlog::debug("[MoonrakerManager] Macro analysis manager initialized");
+    m_macro_analysis = std::make_unique<helix::MacroModificationManager>(config, m_api.get());
+    spdlog::debug("[MoonrakerManager] Macro modification manager initialized");
 }
 
-helix::MacroAnalysisManager* MoonrakerManager::macro_analysis() const {
+helix::MacroModificationManager* MoonrakerManager::macro_analysis() const {
     return m_macro_analysis.get();
 }

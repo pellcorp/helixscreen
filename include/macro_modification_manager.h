@@ -4,20 +4,25 @@
 #pragma once
 
 /**
- * @file macro_analysis_manager.h
- * @brief Manages PRINT_START macro analysis and wizard launch
+ * @file macro_modification_manager.h
+ * @brief Manages PRINT_START macro modification capabilities
  *
  * This class handles:
  * - Automatic analysis after printer discovery
  * - Smart notification when uncontrollable ops are found
  * - Persistence of dismissed/configured state
  * - On-demand wizard launch from Advanced panel
+ * - Integration with printer capability database for native params
  *
  * ## Flow:
  * 1. After discovery, check_and_notify() is called
  * 2. If macro has uncontrollable ops and not dismissed → show toast
  * 3. User can configure (launches wizard) or dismiss
  * 4. State is persisted via Config (hash, dismissed, configured)
+ *
+ * For printers in the capability database (like AD5M), native PRINT_START
+ * params are used instead of macro modification, and the wizard toast
+ * is suppressed.
  */
 
 #include "print_start_analyzer.h"
@@ -45,21 +50,21 @@ struct PrintStartWizardConfig {
 };
 
 /**
- * @brief Manages PRINT_START macro analysis and enhancement wizard
+ * @brief Manages PRINT_START macro modification and enhancement wizard
  */
-class MacroAnalysisManager {
+class MacroModificationManager {
   public:
     /**
      * @brief Construct manager
      * @param config Config instance for persistence
      * @param api MoonrakerAPI for macro operations
      */
-    MacroAnalysisManager(Config* config, MoonrakerAPI* api);
-    ~MacroAnalysisManager();
+    MacroModificationManager(Config* config, MoonrakerAPI* api);
+    ~MacroModificationManager();
 
     // Non-copyable
-    MacroAnalysisManager(const MacroAnalysisManager&) = delete;
-    MacroAnalysisManager& operator=(const MacroAnalysisManager&) = delete;
+    MacroModificationManager(const MacroModificationManager&) = delete;
+    MacroModificationManager& operator=(const MacroModificationManager&) = delete;
 
     // =========================================================================
     // Primary API

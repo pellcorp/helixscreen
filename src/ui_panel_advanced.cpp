@@ -11,7 +11,7 @@
 #include "ui_update_queue.h"
 
 #include "app_globals.h"
-#include "macro_analysis_manager.h"
+#include "macro_modification_manager.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
 #include "moonraker_manager.h"
@@ -172,9 +172,9 @@ void AdvancedPanel::handle_configure_print_start_clicked() {
         return;
     }
 
-    helix::MacroAnalysisManager* macro_mgr = mgr->macro_analysis();
+    helix::MacroModificationManager* macro_mgr = mgr->macro_analysis();
     if (!macro_mgr) {
-        spdlog::error("[{}] No MacroAnalysisManager available", get_name());
+        spdlog::error("[{}] No MacroModificationManager available", get_name());
         ui_toast_show(ToastSeverity::ERROR, "Macro analysis not initialized", 2000);
         return;
     }

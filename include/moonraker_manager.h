@@ -22,7 +22,7 @@ class PrintStartCollector;
 #include "printer_state.h"
 
 namespace helix {
-class MacroAnalysisManager;
+class MacroModificationManager;
 }
 
 using json = nlohmann::json;
@@ -169,10 +169,10 @@ class MoonrakerManager {
     void init_macro_analysis(Config* config);
 
     /**
-     * @brief Get macro analysis manager
+     * @brief Get macro modification manager
      * @return Pointer to manager, or nullptr if not initialized
      */
-    helix::MacroAnalysisManager* macro_analysis() const;
+    helix::MacroModificationManager* macro_analysis() const;
 
   private:
     // Initialization helpers
@@ -196,8 +196,8 @@ class MoonrakerManager {
     ObserverGuard m_print_layer_fallback_observer;
     ObserverGuard m_print_progress_fallback_observer;
 
-    // Macro analysis manager (PRINT_START wizard integration)
-    std::unique_ptr<helix::MacroAnalysisManager> m_macro_analysis;
+    // Macro modification manager (PRINT_START wizard integration)
+    std::unique_ptr<helix::MacroModificationManager> m_macro_analysis;
 
     bool m_initialized = false;
 };

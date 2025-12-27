@@ -1,7 +1,7 @@
 // Copyright 2025 HelixScreen
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "macro_analysis_manager.h"
+#include "macro_modification_manager.h"
 
 #include "ui_macro_enhance_wizard.h"
 #include "ui_toast_manager.h"
@@ -62,7 +62,7 @@ static std::string category_to_capability_key(PrintStartOpCategory category) {
 // Hash Implementation (simple djb2)
 // ============================================================================
 
-std::string MacroAnalysisManager::compute_hash(const std::string& content) {
+std::string MacroModificationManager::compute_hash(const std::string& content) {
     if (content.empty()) {
         return "";
     }
@@ -83,12 +83,12 @@ std::string MacroAnalysisManager::compute_hash(const std::string& content) {
 // Construction / Destruction
 // ============================================================================
 
-MacroAnalysisManager::MacroAnalysisManager(Config* config, MoonrakerAPI* api)
+MacroModificationManager::MacroModificationManager(Config* config, MoonrakerAPI* api)
     : config_(config), api_(api), callback_guard_(std::make_shared<bool>(true)) {
-    spdlog::debug("[MacroAnalysisManager] Created");
+    spdlog::debug("[MacroModificationManager] Created");
 }
 
-MacroAnalysisManager::~MacroAnalysisManager() {
+MacroModificationManager::~MacroModificationManager() {
     // Invalidate callback guard [L012]
     if (callback_guard_) {
         *callback_guard_ = false;
@@ -102,7 +102,7 @@ MacroAnalysisManager::~MacroAnalysisManager() {
 // Config Load/Save
 // ============================================================================
 
-PrintStartWizardConfig MacroAnalysisManager::load_config() const {
+PrintStartWizardConfig MacroModificationManager::load_config() const {
     PrintStartWizardConfig cfg;
     if (!config_) {
         return cfg;
@@ -115,7 +115,7 @@ PrintStartWizardConfig MacroAnalysisManager::load_config() const {
     return cfg;
 }
 
-void MacroAnalysisManager::save_config(const PrintStartWizardConfig& wizard_config) {
+void MacroModificationManager::save_config(const PrintStartWizardConfig& wizard_config) {
     if (!config_) {
         return;
     }
@@ -125,7 +125,7 @@ void MacroAnalysisManager::save_config(const PrintStartWizardConfig& wizard_conf
     config_->set<std::string>(CONFIG_PATH_MACRO_HASH, wizard_config.macro_hash);
     config_->save();
 
-    spdlog::debug("[MacroAnalysisManager] Config saved: dismissed={}, configured={}, hash={}",
+    spdlog::debug("[MacroModificationManager] Config saved: dismissed={}, configured={}, hash={}",
                   wizard_config.dismissed, wizard_config.configured,
                   wizard_config.macro_hash.substr(0, 8));
 }
@@ -134,15 +134,15 @@ void MacroAnalysisManager::save_config(const PrintStartWizardConfig& wizard_conf
 // Primary API
 // ============================================================================
 
-void MacroAnalysisManager::check_and_notify() {
+void MacroModificationManager::check_and_notify() {
     if (!api_) {
-        spdlog::warn("[MacroAnalysisManager] No API, skipping check");
+        spdlog::warn("[MacroModificationManager] No API, skipping check");
         return;
     }
 
     auto wizard_config = load_config();
     if (wizard_config.dismissed) {
-        spdlog::debug("[MacroAnalysisManager] User dismissed, skipping check");
+        spdlog::debug("[MacroModificationManager] User dismissed, skipping check");
         return;
     }
 
@@ -164,14 +164,14 @@ void MacroAnalysisManager::check_and_notify() {
             cached_analysis_ = analysis;
 
             if (!analysis.found) {
-                spdlog::debug("[MacroAnalysisManager] No PRINT_START macro found");
+                spdlog::debug("[MacroModificationManager] No PRINT_START macro found");
                 return;
             }
 
             if (should_show_notification(analysis, wizard_config)) {
                 show_configure_toast();
             } else {
-                spdlog::debug("[MacroAnalysisManager] No notification needed (already configured "
+                spdlog::debug("[MacroModificationManager] No notification needed (already configured "
                               "or no uncontrollable ops)");
             }
         },
@@ -182,13 +182,13 @@ void MacroAnalysisManager::check_and_notify() {
             }
 
             analyzing_ = false;
-            spdlog::warn("[MacroAnalysisManager] Analysis failed: {}", error.message);
+            spdlog::warn("[MacroModificationManager] Analysis failed: {}", error.message);
         });
 }
 
-void MacroAnalysisManager::analyze_and_launch_wizard() {
+void MacroModificationManager::analyze_and_launch_wizard() {
     if (!api_) {
-        spdlog::warn("[MacroAnalysisManager] No API, cannot launch wizard");
+        spdlog::warn("[MacroModificationManager] No API, cannot launch wizard");
         ui_toast_show(ToastSeverity::ERROR, "Not connected to printer", 3000);
         return;
     }
@@ -243,30 +243,30 @@ void MacroAnalysisManager::analyze_and_launch_wizard() {
             }
 
             analyzing_ = false;
-            spdlog::warn("[MacroAnalysisManager] Analysis failed: {}", error.message);
+            spdlog::warn("[MacroModificationManager] Analysis failed: {}", error.message);
             ui_toast_show(ToastSeverity::ERROR, "Failed to analyze PRINT_START macro", 3000);
         });
 }
 
-void MacroAnalysisManager::mark_dismissed() {
+void MacroModificationManager::mark_dismissed() {
     auto cfg = load_config();
     cfg.dismissed = true;
     save_config(cfg);
-    spdlog::info("[MacroAnalysisManager] User dismissed wizard permanently");
+    spdlog::info("[MacroModificationManager] User dismissed wizard permanently");
 }
 
-void MacroAnalysisManager::reset_dismissed() {
+void MacroModificationManager::reset_dismissed() {
     auto cfg = load_config();
     cfg.dismissed = false;
     save_config(cfg);
-    spdlog::info("[MacroAnalysisManager] Reset dismissed state");
+    spdlog::info("[MacroModificationManager] Reset dismissed state");
 }
 
 // ============================================================================
 // State Access
 // ============================================================================
 
-bool MacroAnalysisManager::is_wizard_visible() const {
+bool MacroModificationManager::is_wizard_visible() const {
     return wizard_ && wizard_->is_visible();
 }
 
@@ -274,7 +274,7 @@ bool MacroAnalysisManager::is_wizard_visible() const {
 // Internal Methods
 // ============================================================================
 
-bool MacroAnalysisManager::should_show_notification(
+bool MacroModificationManager::should_show_notification(
     const PrintStartAnalysis& analysis, const PrintStartWizardConfig& wizard_config) const {
     // Use get_uncontrollable_operations() which excludes HOMING (same as wizard)
     auto uncontrollable_ops = analysis.get_uncontrollable_operations();
@@ -305,12 +305,12 @@ bool MacroAnalysisManager::should_show_notification(
 
                 if (covered_by_native == uncontrollable) {
                     // All uncontrollable operations have native params - no wizard needed!
-                    spdlog::info("[MacroAnalysisManager] Suppressing wizard toast: {} ops covered "
+                    spdlog::info("[MacroModificationManager] Suppressing wizard toast: {} ops covered "
                                  "by native {} capabilities for '{}'",
                                  uncontrollable, caps.macro_name, printer_type);
                     return false;
                 } else if (covered_by_native > 0) {
-                    spdlog::debug("[MacroAnalysisManager] {}/{} ops covered by native capabilities",
+                    spdlog::debug("[MacroModificationManager] {}/{} ops covered by native capabilities",
                                   covered_by_native, uncontrollable);
                 }
             }
@@ -327,13 +327,13 @@ bool MacroAnalysisManager::should_show_notification(
 
     // If hash changed, notify even if previously configured
     if (wizard_config.configured && wizard_config.macro_hash != current_hash) {
-        spdlog::info("[MacroAnalysisManager] Macro changed since last configuration");
+        spdlog::info("[MacroModificationManager] Macro changed since last configuration");
     }
 
     return true;
 }
 
-void MacroAnalysisManager::show_configure_toast() {
+void MacroModificationManager::show_configure_toast() {
     // Use get_uncontrollable_operations() which excludes HOMING (same as wizard)
     size_t uncontrollable = cached_analysis_.get_uncontrollable_operations().size();
 
@@ -346,7 +346,7 @@ void MacroAnalysisManager::show_configure_toast() {
     ui_toast_show_with_action(
         ToastSeverity::INFO, message, "Configure",
         [](void* user_data) {
-            auto* manager = static_cast<MacroAnalysisManager*>(user_data);
+            auto* manager = static_cast<MacroModificationManager*>(user_data);
             if (manager) {
                 manager->launch_wizard();
             }
@@ -354,21 +354,21 @@ void MacroAnalysisManager::show_configure_toast() {
         this, 8000); // Longer duration for important notification
 }
 
-void MacroAnalysisManager::launch_wizard() {
-    spdlog::debug("[MacroAnalysisManager] launch_wizard() called");
+void MacroModificationManager::launch_wizard() {
+    spdlog::debug("[MacroModificationManager] launch_wizard() called");
 
     if (is_wizard_visible()) {
-        spdlog::debug("[MacroAnalysisManager] Wizard already visible");
+        spdlog::debug("[MacroModificationManager] Wizard already visible");
         return;
     }
 
     // Log cached analysis state
-    spdlog::debug("[MacroAnalysisManager] Cached analysis: found={}, macro={}, ops={}, "
+    spdlog::debug("[MacroModificationManager] Cached analysis: found={}, macro={}, ops={}, "
                   "uncontrollable={}",
                   cached_analysis_.found, cached_analysis_.macro_name,
                   cached_analysis_.operations.size(),
                   cached_analysis_.get_uncontrollable_operations().size());
-    spdlog::debug("[MacroAnalysisManager] Analysis summary: {}", cached_analysis_.summary());
+    spdlog::debug("[MacroModificationManager] Analysis summary: {}", cached_analysis_.summary());
 
     // Create wizard
     wizard_ = std::make_unique<ui::MacroEnhanceWizard>();
@@ -388,14 +388,14 @@ void MacroAnalysisManager::launch_wizard() {
 
     // Show wizard
     if (!wizard_->show(lv_screen_active())) {
-        spdlog::warn("[MacroAnalysisManager] Failed to show wizard");
+        spdlog::warn("[MacroModificationManager] Failed to show wizard");
         wizard_.reset();
         ui_toast_show(ToastSeverity::ERROR, "Failed to open wizard", 3000);
     }
 }
 
-void MacroAnalysisManager::on_wizard_complete(bool applied, size_t operations_enhanced) {
-    spdlog::info("[MacroAnalysisManager] Wizard complete: applied={}, ops={}", applied,
+void MacroModificationManager::on_wizard_complete(bool applied, size_t operations_enhanced) {
+    spdlog::info("[MacroModificationManager] Wizard complete: applied={}, ops={}", applied,
                  operations_enhanced);
 
     if (applied && operations_enhanced > 0) {
