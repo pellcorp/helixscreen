@@ -42,7 +42,7 @@
 > After adding icon to codepoints.h: add to regen_mdi_fonts.sh, run make regen-fonts, then rebuild. Forgetting any step = missing icon
 
 ### [L010] [*****/*****] No spdlog in destructors
-- **Uses**: 39 | **Learned**: 2025-12-14 | **Last**: 2025-12-27 | **Category**: gotcha
+- **Uses**: 41 | **Learned**: 2025-12-14 | **Last**: 2025-12-27 | **Category**: gotcha
 > Never call spdlog::info/warn/error in destructors. Logger may be destroyed before your object during static destruction, causing crash on exit
 
 ### [L011] [*****/-----] No mutex in destructors
@@ -50,7 +50,7 @@
 > Avoid mutex locks in destructors during static destruction phase. Other objects may already be destroyed, causing deadlock or crash on exit
 
 ### [L012] [*****/*****] Guard async callbacks
-- **Uses**: 22 | **Learned**: 2025-12-14 | **Last**: 2025-12-27 | **Category**: gotcha
+- **Uses**: 23 | **Learned**: 2025-12-14 | **Last**: 2025-12-27 | **Category**: gotcha
 > Async WebSocket callbacks can fire after object destruction. Use weak_ptr or flag checks to guard against stale this pointers in async handlers
 
 ### [L013] [****-/-----] Callbacks before XML creation
@@ -127,4 +127,9 @@
 - **Uses**: 2 | **Learned**: 2025-12-27 | **Last**: 2025-12-27 | **Category**: gotcha
 > XML layout changes (ui_xml/*.xml) don't require recompilation - just restart the app. Only C++ changes need make.
 
+
+
+### [L032] [*----/-----] Re-stage after pre-commit format
+- **Uses**: 2 | **Learned**: 2025-12-27 | **Last**: 2025-12-27 | **Category**: correction
+> When pre-commit hook auto-formats files, they are NOT automatically re-staged. Always check git status after a commit and amend if the hook formatted files. Look for 'Auto-formatted: <file>' messages and run 'git add -u && git commit --amend --no-edit'.
 
