@@ -109,6 +109,7 @@ class HelixPrint:
         # State tracking
         self.active_prints: Dict[str, PrintInfo] = {}
         self.gc_path: Optional[Path] = None
+        self._use_sqlite = False  # Set True if execute_db_command is available
 
         # Register API endpoints
         self.server.register_endpoint(
@@ -254,23 +255,39 @@ class HelixPrint:
             )
             return
 
-        # Create table if it doesn't exist
-        await self.database.execute_db_command(
-            f"""
-            CREATE TABLE IF NOT EXISTS {HELIX_TEMP_TABLE} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                original_filename TEXT NOT NULL,
-                temp_filename TEXT NOT NULL,
-                symlink_filename TEXT NOT NULL,
-                modifications TEXT,
-                job_id TEXT,
-                created_at REAL NOT NULL,
-                cleanup_scheduled_at REAL,
-                status TEXT DEFAULT 'active'
+        # Check if execute_db_command is available (Moonraker 0.9+)
+        if not hasattr(self.database, "execute_db_command"):
+            logging.warning(
+                "HelixPrint: Moonraker version does not support SQLite API "
+                "(execute_db_command). Persistence disabled. "
+                "Plugin will function without cleanup tracking."
             )
-            """
-        )
-        logging.debug("HelixPrint: Database table initialized")
+            return
+
+        try:
+            # Create table if it doesn't exist
+            await self.database.execute_db_command(
+                f"""
+                CREATE TABLE IF NOT EXISTS {HELIX_TEMP_TABLE} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_filename TEXT NOT NULL,
+                    temp_filename TEXT NOT NULL,
+                    symlink_filename TEXT NOT NULL,
+                    modifications TEXT,
+                    job_id TEXT,
+                    created_at REAL NOT NULL,
+                    cleanup_scheduled_at REAL,
+                    status TEXT DEFAULT 'active'
+                )
+                """
+            )
+            self._use_sqlite = True
+            logging.debug("HelixPrint: Database table initialized")
+        except Exception as e:
+            logging.warning(
+                f"HelixPrint: Failed to initialize database: {e}. "
+                "Persistence disabled."
+            )
 
     # =========================================================================
     # API Handlers
@@ -470,7 +487,7 @@ class HelixPrint:
 
     async def _persist_print_info(self, print_info: PrintInfo) -> None:
         """Save print info to database for crash recovery."""
-        if self.database is None:
+        if not self._use_sqlite:
             return
 
         try:
@@ -615,7 +632,7 @@ class HelixPrint:
         await self._cleanup_thumbnail_symlinks(print_info.temp_filename)
 
         # Update database status
-        if self.database is not None:
+        if self._use_sqlite:
             cleanup_time = time.time() + self.cleanup_delay
             try:
                 await self.database.execute_db_command(
@@ -673,7 +690,7 @@ class HelixPrint:
             logging.info(f"HelixPrint: Cleaned up {temp_filename}")
 
         # Update database
-        if self.database is not None:
+        if self._use_sqlite:
             try:
                 await self.database.execute_db_command(
                     f"""
@@ -690,7 +707,7 @@ class HelixPrint:
 
     async def _startup_cleanup(self) -> None:
         """Clean up stale temp files on startup."""
-        if self.gc_path is None or self.database is None:
+        if self.gc_path is None or not self._use_sqlite:
             return
 
         now = time.time()
