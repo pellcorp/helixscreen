@@ -294,22 +294,6 @@ void ControlsPanel::register_observers() {
             ObserverGuard(pending_delta, on_pending_z_offset_changed, this);
     }
 
-    // Subscribe to active panel changes to trigger on_activate() when panel becomes visible
-    // This is needed because ui_nav doesn't automatically call lifecycle hooks on C++ panel classes
-    lv_subject_t* active_panel_subject = lv_xml_get_subject(NULL, "active_panel");
-    if (active_panel_subject) {
-        active_panel_observer_ = ObserverGuard(
-            active_panel_subject,
-            [](lv_observer_t* obs, lv_subject_t* subject) {
-                auto* self = static_cast<ControlsPanel*>(lv_observer_get_user_data(obs));
-                int32_t panel_id = lv_subject_get_int(subject);
-                if (panel_id == UI_PANEL_CONTROLS && self) {
-                    self->on_activate();
-                }
-            },
-            this);
-    }
-
     spdlog::debug("[{}] Observers registered for dashboard live data", get_name());
 }
 

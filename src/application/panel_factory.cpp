@@ -5,6 +5,7 @@
 
 #include "ui_component_keypad.h"
 #include "ui_nav.h"
+#include "ui_nav_manager.h"
 #include "ui_panel_advanced.h"
 #include "ui_panel_controls.h"
 #include "ui_panel_filament.h"
@@ -54,6 +55,16 @@ void PanelFactory::setup_panels(lv_obj_t* screen) {
 
     // Setup advanced panel
     get_global_advanced_panel().setup(m_panels[UI_PANEL_ADVANCED], screen);
+
+    // Register C++ panel instances for lifecycle dispatch (on_activate/on_deactivate)
+    auto& nav = NavigationManager::instance();
+    nav.register_panel_instance(UI_PANEL_HOME, &get_global_home_panel());
+    nav.register_panel_instance(UI_PANEL_PRINT_SELECT,
+                                get_print_select_panel(get_printer_state(), nullptr));
+    nav.register_panel_instance(UI_PANEL_CONTROLS, &get_global_controls_panel());
+    nav.register_panel_instance(UI_PANEL_FILAMENT, &get_global_filament_panel());
+    nav.register_panel_instance(UI_PANEL_SETTINGS, &get_global_settings_panel());
+    nav.register_panel_instance(UI_PANEL_ADVANCED, &get_global_advanced_panel());
 
     spdlog::debug("[PanelFactory] All panels set up");
 }

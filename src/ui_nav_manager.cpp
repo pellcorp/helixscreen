@@ -5,6 +5,7 @@
 #include "ui_emergency_stop.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
+#include "ui_panel_base.h"
 #include "ui_status_bar.h"
 #include "ui_theme.h"
 #include "ui_update_queue.h"
@@ -601,6 +602,8 @@ void NavigationManager::set_active(ui_panel_id_t panel_id) {
         return;
     }
 
+    ui_panel_id_t old_panel = active_panel_;
+
     // Update panel stack
     if (panel_widgets_[panel_id]) {
         panel_stack_.clear();
@@ -609,8 +612,23 @@ void NavigationManager::set_active(ui_panel_id_t panel_id) {
                       static_cast<int>(panel_id));
     }
 
+    // Call on_deactivate() BEFORE state update
+    if (panel_instances_[old_panel]) {
+        spdlog::trace("[NavigationManager] Calling on_deactivate() for panel {}",
+                      static_cast<int>(old_panel));
+        panel_instances_[old_panel]->on_deactivate();
+    }
+
+    // Update state
     lv_subject_set_int(&active_panel_subject_, panel_id);
     active_panel_ = panel_id;
+
+    // Call on_activate() AFTER state update
+    if (panel_instances_[panel_id]) {
+        spdlog::trace("[NavigationManager] Calling on_activate() for panel {}",
+                      static_cast<int>(panel_id));
+        panel_instances_[panel_id]->on_activate();
+    }
 }
 
 ui_panel_id_t NavigationManager::get_active() const {
@@ -647,6 +665,16 @@ void NavigationManager::set_panels(lv_obj_t** panels) {
     }
 
     spdlog::debug("[NavigationManager] Panel widgets registered for show/hide management");
+}
+
+void NavigationManager::register_panel_instance(ui_panel_id_t id, PanelBase* panel) {
+    if (id >= UI_PANEL_COUNT) {
+        spdlog::error("[NavigationManager] Invalid panel ID for registration: {}",
+                      static_cast<int>(id));
+        return;
+    }
+    panel_instances_[id] = panel;
+    spdlog::debug("[NavigationManager] Registered panel instance for ID {}", static_cast<int>(id));
 }
 
 void NavigationManager::push_overlay(lv_obj_t* overlay_panel, bool hide_previous) {

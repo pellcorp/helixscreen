@@ -457,7 +457,6 @@ class PrintSelectPanel : public PanelBase {
     std::unique_ptr<helix::ui::PrintSelectFileProvider> file_provider_;
 
     // Observers for reactive updates (ObserverGuard handles cleanup)
-    ObserverGuard active_panel_observer_;
     ObserverGuard connection_observer_;
     ObserverGuard print_state_observer_; ///< Observes print state to enable/disable print button
     ObserverGuard

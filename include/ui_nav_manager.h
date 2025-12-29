@@ -6,9 +6,13 @@
 
 #include "lvgl/lvgl.h"
 
+#include <array>
 #include <functional>
 #include <unordered_map>
 #include <vector>
+
+// Forward declaration for lifecycle dispatch
+class PanelBase;
 
 /// Callback type for overlay close notifications
 using OverlayCloseCallback = std::function<void()>;
@@ -111,10 +115,24 @@ class NavigationManager {
      * @brief Set active panel
      *
      * Updates active panel state and triggers reactive icon color updates.
+     * Also calls on_deactivate() on old panel and on_activate() on new panel
+     * if C++ panel instances have been registered.
      *
      * @param panel_id Panel identifier to activate
      */
     void set_active(ui_panel_id_t panel_id);
+
+    /**
+     * @brief Register C++ panel instance for lifecycle callbacks
+     *
+     * Associates a PanelBase-derived instance with a panel ID. When panels
+     * are switched via set_active(), the corresponding on_activate() and
+     * on_deactivate() methods will be called automatically.
+     *
+     * @param id Panel identifier
+     * @param panel Pointer to PanelBase-derived instance (may be nullptr)
+     */
+    void register_panel_instance(ui_panel_id_t id, PanelBase* panel);
 
     /**
      * @brief Get current active panel
@@ -218,6 +236,9 @@ class NavigationManager {
 
     // Panel widget tracking for show/hide
     lv_obj_t* panel_widgets_[UI_PANEL_COUNT] = {nullptr};
+
+    // C++ panel instances for lifecycle dispatch (on_activate/on_deactivate)
+    std::array<PanelBase*, UI_PANEL_COUNT> panel_instances_ = {};
 
     // App layout widget reference
     lv_obj_t* app_layout_widget_ = nullptr;

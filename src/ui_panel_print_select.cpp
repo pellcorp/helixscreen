@@ -551,25 +551,6 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         update_empty_state();
     }
 
-    // Register observer on active_panel subject to trigger on_activate() when panel becomes visible
-    // This is needed because ui_nav doesn't call lifecycle hooks on C++ panel classes
-    // ObserverGuard handles cleanup automatically in destructor
-    lv_subject_t* active_panel_subject = lv_xml_get_subject(NULL, "active_panel");
-    if (active_panel_subject) {
-        active_panel_observer_ = ObserverGuard(
-            active_panel_subject,
-            [](lv_observer_t* observer, lv_subject_t* subject) {
-                auto* self = static_cast<PrintSelectPanel*>(lv_observer_get_user_data(observer));
-                int32_t panel_id = lv_subject_get_int(subject);
-                if (panel_id == UI_PANEL_PRINT_SELECT && self) {
-                    self->on_activate();
-                }
-            },
-            this);
-        spdlog::debug("[{}] Registered observer on active_panel subject for lazy file loading",
-                      get_name());
-    }
-
     // Register observer on connection state to refresh files when printer connects
     // This handles the race condition where panel activates before WebSocket connection
     // ObserverGuard handles cleanup automatically in destructor
