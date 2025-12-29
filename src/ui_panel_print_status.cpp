@@ -125,6 +125,9 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, MoonrakerAPI* ap
 }
 
 PrintStatusPanel::~PrintStatusPanel() {
+    // Signal async callbacks to abort - must be first! [L012]
+    m_alive->store(false);
+
     // ObserverGuard handles observer cleanup automatically
     resize_registered_ = false;
 
@@ -1949,10 +1952,17 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
     // (Moonraker only has metadata for original files, not modified copies)
     std::string metadata_filename = resolve_gcode_filename(filename);
 
+    // Capture alive flag for shutdown safety [L012]
+    auto alive = m_alive;
+
     // First, get file metadata to find thumbnail path
     api_->get_file_metadata(
         metadata_filename,
-        [this, current_gen](const FileMetadata& metadata) {
+        [this, alive, current_gen](const FileMetadata& metadata) {
+            // Abort if panel was destroyed during async operation
+            if (!alive->load()) {
+                return;
+            }
             // Check if this callback is still relevant
             if (current_gen != thumbnail_load_generation_) {
                 spdlog::trace("[{}] Stale metadata callback (gen {} != {}), ignoring", get_name(),
@@ -1982,7 +1992,11 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
             helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
             get_thumbnail_cache().fetch_optimized(
                 api_, thumbnail_rel_path, target,
-                [this, current_gen](const std::string& lvgl_path) {
+                [this, alive, current_gen](const std::string& lvgl_path) {
+                    // Abort if panel was destroyed during async operation [L012]
+                    if (!alive->load()) {
+                        return;
+                    }
                     // Check if this callback is still relevant
                     if (current_gen != thumbnail_load_generation_) {
                         spdlog::trace("[{}] Stale thumbnail callback (gen {} != {}), ignoring",
@@ -2005,11 +2019,17 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
                                      get_name(), lvgl_path);
                     }
                 },
-                [this](const std::string& error) {
+                [this, alive](const std::string& error) {
+                    if (!alive->load()) {
+                        return;
+                    }
                     spdlog::warn("[{}] Failed to fetch thumbnail: {}", get_name(), error);
                 });
         },
-        [this](const MoonrakerError& err) {
+        [this, alive](const MoonrakerError& err) {
+            if (!alive->load()) {
+                return;
+            }
             spdlog::debug("[{}] Failed to get file metadata: {}", get_name(), err.message);
         },
         true // silent - don't trigger RPC_ERROR event/toast
@@ -2078,9 +2098,17 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
     // Get file metadata to check size before downloading
     // This prevents OOM on memory-constrained devices like AD5M
     std::string metadata_filename = resolve_gcode_filename(filename);
+
+    // Capture alive flag for shutdown safety [L012]
+    auto alive = m_alive;
+
     api_->get_file_metadata(
         metadata_filename,
-        [this, filename, temp_path](const FileMetadata& metadata) {
+        [this, alive, filename, temp_path](const FileMetadata& metadata) {
+            // Abort if panel was destroyed during async operation
+            if (!alive->load()) {
+                return;
+            }
             // Check if 2D streaming rendering is safe for this file size + available RAM
             // 2D streaming has much lower memory requirements than 3D:
             // - Layer index: ~24 bytes per layer
@@ -2112,7 +2140,11 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
             // For real mode, this streams from Moonraker using libhv's chunked download
             api_->download_file_to_path(
                 "gcodes", filename, temp_path,
-                [this, temp_path](const std::string& path) {
+                [this, alive, temp_path](const std::string& path) {
+                    // Abort if panel was destroyed during download [L012]
+                    if (!alive->load()) {
+                        return;
+                    }
                     // Track the temp file for cleanup
                     temp_gcode_path_ = path;
 
@@ -2122,14 +2154,22 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
                     // Load into the viewer widget
                     load_gcode_file(path.c_str());
                 },
-                [this, filename](const MoonrakerError& err) {
+                [this, alive, filename](const MoonrakerError& err) {
+                    // Abort if panel was destroyed during download [L012]
+                    if (!alive->load()) {
+                        return;
+                    }
                     spdlog::warn("[{}] Failed to stream G-code for viewing '{}': {}", get_name(),
                                  filename, err.message);
                     // Revert to thumbnail mode on download failure
                     show_gcode_viewer(false);
                 });
         },
-        [this, filename](const MoonrakerError& err) {
+        [this, alive, filename](const MoonrakerError& err) {
+            // Abort if panel was destroyed during async operation [L012]
+            if (!alive->load()) {
+                return;
+            }
             spdlog::debug("[{}] Failed to get G-code metadata for '{}': {} - skipping 3D render",
                           get_name(), filename, err.message);
             // Revert to thumbnail mode on metadata fetch failure

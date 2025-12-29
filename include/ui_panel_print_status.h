@@ -9,7 +9,9 @@
 
 #include "printer_state.h"
 
+#include <atomic>
 #include <functional>
+#include <memory>
 #include <string>
 #include <unordered_set>
 
@@ -395,6 +397,10 @@ class PrintStatusPanel : public PanelBase {
     //
     // === Instance State ===
     //
+
+    /// Shutdown guard for async callbacks - set false in destructor
+    /// Captured by lambdas to prevent use-after-free on shutdown [L012]
+    std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
 
     bool timelapse_enabled_ = false; ///< Current timelapse recording state
     PrintState current_state_ = PrintState::Idle;
