@@ -123,7 +123,6 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&print_state_);
     lv_subject_deinit(&print_state_enum_);
     lv_subject_deinit(&print_active_);
-    lv_subject_deinit(&print_complete_);
     lv_subject_deinit(&print_show_progress_);
     lv_subject_deinit(&print_display_filename_);
     lv_subject_deinit(&print_thumbnail_path_);
@@ -202,7 +201,6 @@ void PrinterState::init_subjects(bool register_xml) {
                            "standby");
     lv_subject_init_int(&print_state_enum_, static_cast<int>(PrintJobState::STANDBY));
     lv_subject_init_int(&print_active_, 0);        // 0 when idle, 1 when PRINTING/PAUSED
-    lv_subject_init_int(&print_complete_, 0);      // 1 when COMPLETE, 0 on new print
     lv_subject_init_int(&print_show_progress_, 0); // 1 when active AND not in start phase
     lv_subject_init_string(&print_display_filename_, print_display_filename_buf_, nullptr,
                            sizeof(print_display_filename_buf_), "");
@@ -311,7 +309,6 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "print_state", &print_state_);
         lv_xml_register_subject(NULL, "print_state_enum", &print_state_enum_);
         lv_xml_register_subject(NULL, "print_active", &print_active_);
-        lv_xml_register_subject(NULL, "print_complete", &print_complete_);
         lv_xml_register_subject(NULL, "print_show_progress", &print_show_progress_);
         lv_xml_register_subject(NULL, "print_display_filename", &print_display_filename_);
         lv_xml_register_subject(NULL, "print_layer_current", &print_layer_current_);
@@ -416,8 +413,7 @@ void PrinterState::update_from_status(const json& state) {
         if (extruder.contains("temperature") && extruder["temperature"].is_number()) {
             int temp_centi = helix::units::json_to_centidegrees(extruder, "temperature");
             lv_subject_set_int(&extruder_temp_, temp_centi);
-            // Always notify for temp graphing even when value unchanged
-            lv_subject_notify(&extruder_temp_);
+            // lv_subject_set_int already notifies observers when value changes
         }
 
         if (extruder.contains("target") && extruder["target"].is_number()) {
@@ -433,8 +429,7 @@ void PrinterState::update_from_status(const json& state) {
         if (bed.contains("temperature") && bed["temperature"].is_number()) {
             int temp_centi = helix::units::json_to_centidegrees(bed, "temperature");
             lv_subject_set_int(&bed_temp_, temp_centi);
-            // Always notify for temp graphing even when value unchanged
-            lv_subject_notify(&bed_temp_);
+            // lv_subject_set_int already notifies observers when value changes
             spdlog::trace("[PrinterState] Bed temp: {}.{}°C", temp_centi / 10, temp_centi % 10);
         }
 
@@ -506,22 +501,6 @@ void PrinterState::update_from_status(const json& state) {
                         lv_subject_copy_string(&print_start_message_, "");
                         lv_subject_set_int(&print_start_progress_, 0);
                     }
-                }
-            }
-
-            // Update print_complete (1 when COMPLETE, 0 when starting new print)
-            // Preserves "1" during Complete→Standby transition to keep overlay visible
-            int current_complete = lv_subject_get_int(&print_complete_);
-            if (new_state == PrintJobState::COMPLETE) {
-                if (current_complete != 1) {
-                    lv_subject_set_int(&print_complete_, 1);
-                    spdlog::debug("[PrinterState] Print complete overlay shown");
-                }
-            } else if (new_state == PrintJobState::PRINTING) {
-                // Clear when new print starts (not during Complete→Standby)
-                if (current_complete != 0) {
-                    lv_subject_set_int(&print_complete_, 0);
-                    spdlog::debug("[PrinterState] Print complete overlay cleared (new print)");
                 }
             }
 
@@ -785,6 +764,19 @@ void PrinterState::update_from_status(const json& state) {
 json& PrinterState::get_json_state() {
     std::lock_guard<std::mutex> lock(state_mutex_);
     return json_state_;
+}
+
+void PrinterState::reset_for_new_print() {
+    // Clear stale print PROGRESS data when starting a new print.
+    // The preparing overlay covers the UI, so stale data isn't visible.
+    // IMPORTANT: Do NOT clear print_filename_ or print_display_filename_ here!
+    // Clearing filename triggers ActivePrintMediaManager to wipe the thumbnail we just set.
+    // Filename is Moonraker's source of truth - it updates when the print actually starts.
+    lv_subject_set_int(&print_progress_, 0);
+    lv_subject_set_int(&print_layer_current_, 0);
+    lv_subject_set_int(&print_duration_, 0);
+    lv_subject_set_int(&print_time_left_, 0);
+    spdlog::debug("[PrinterState] Reset print progress for new print");
 }
 
 // ============================================================================

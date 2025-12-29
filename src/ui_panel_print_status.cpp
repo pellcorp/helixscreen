@@ -2227,7 +2227,11 @@ void PrintStatusPanel::set_state(PrintState state) {
 
 void PrintStatusPanel::set_preparing(const std::string& operation_name, int current_step,
                                      int total_steps) {
-    current_state_ = PrintState::Preparing;
+    // Only reset progress data when first entering preparing state (not on subsequent calls)
+    if (current_state_ != PrintState::Preparing) {
+        current_state_ = PrintState::Preparing;
+        printer_state_.reset_for_new_print();
+    }
 
     // NOTE: Do NOT call show_gcode_viewer(true) here!
     // The thumbnail should remain visible until G-code successfully loads.

@@ -5,6 +5,34 @@
  * @file command_sequencer.h
  * @brief Multi-step printer operation queue with state-based completion detection
  *
+ * @deprecated This class is DEPRECATED and should not be used for new code.
+ *
+ * ## Why Deprecated
+ *
+ * CommandSequencer was designed to run G-code commands (like BED_MESH_CALIBRATE, QGL)
+ * before starting a print. This approach is fundamentally flawed because:
+ *
+ * 1. Modern Klipper PRINT_START macros already handle these operations internally
+ * 2. Running commands manually causes "must home first" errors
+ * 3. It duplicates work the macro is already configured to do
+ *
+ * ## Correct Approach
+ *
+ * Pre-print checkboxes should:
+ * - Pass skip/enable parameters to PRINT_START via G-code file modification
+ * - Or comment out embedded operations in the G-code file
+ *
+ * They should NEVER execute G-code commands directly.
+ *
+ * ## What to Use Instead
+ *
+ * - `GCodeFileModifier` for file modifications
+ * - `PrintStartAnalyzer` for detecting macro capabilities
+ * - Moonraker's print start API for starting prints
+ * - Monitor `print_stats.state` to track print progress
+ *
+ * @see PrintPreparationManager for the current implementation
+ *
  * @pattern Thread-safe state machine with atomics (IDLE->RUNNING->WAITING->COMPLETED/FAILED)
  * @threading Safe for concurrent access; mutex protects callbacks; atomics for state
  * @gotchas Destructor cancels operations; non-copyable subscription state; 2-level cancellation

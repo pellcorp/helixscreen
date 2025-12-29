@@ -26,8 +26,8 @@ CommandSequencer::CommandSequencer(MoonrakerClient& client, MoonrakerAPI& api, P
 }
 
 CommandSequencer::~CommandSequencer() {
+    // [L010] No spdlog in destructors - logger may be destroyed first
     if (is_running()) {
-        spdlog::warn("[CommandSequencer] Destructor called while running - forcing cancellation");
         sequencer_state_.store(SequencerState::CANCELLED);
     }
 }

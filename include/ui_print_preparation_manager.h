@@ -5,7 +5,6 @@
 
 #include "ui_observer_guard.h"
 
-#include "command_sequencer.h"
 #include "gcode_file_modifier.h"
 #include "gcode_ops_detector.h"
 #include "moonraker_api.h"
@@ -312,14 +311,17 @@ class PrintPreparationManager {
      * Handles the full workflow:
      * 1. Read checkbox states for pre-print options
      * 2. Check if user disabled operations embedded in G-code
-     * 3. If so, modify file and print modified version
-     * 4. Otherwise, execute pre-print sequence (if any) then print
+     * 3. If so, modify file (add skip params or comment out embedded ops) and print
+     * 4. Otherwise, start print directly
+     *
+     * Print is started by calling Moonraker's print API. The PRINT_START macro
+     * handles all pre-print operations (homing, heating, bed mesh, etc.) internally.
      *
      * @param filename File to print
      * @param current_path Current directory path
      * @param on_navigate_to_status Callback to navigate to print status panel
-     * @param on_preparing Optional callback for preparing state updates
-     * @param on_progress Optional callback for preparing progress updates
+     * @param on_preparing DEPRECATED: No longer used (was for CommandSequencer)
+     * @param on_progress DEPRECATED: No longer used (was for CommandSequencer)
      * @param on_completion Optional callback for print completion
      */
     void start_print(const std::string& filename, const std::string& current_path,
@@ -330,9 +332,13 @@ class PrintPreparationManager {
 
     /**
      * @brief Check if a pre-print sequence is currently running
+     *
+     * @note Pre-print sequences via CommandSequencer have been removed.
+     *       This now always returns false. Preparing state is determined
+     *       by monitoring printer state during PRINT_START execution.
      */
     [[nodiscard]] bool is_preparing() const {
-        return pre_print_sequencer_ != nullptr;
+        return false;
     }
 
     /**
@@ -378,9 +384,6 @@ class PrintPreparationManager {
     // Shared pointer to track if this object is still alive when async callbacks execute.
     // Callbacks capture this shared_ptr; if *alive_guard_ is false, the callback bails out.
     std::shared_ptr<bool> alive_guard_ = std::make_shared<bool>(true);
-
-    // === Command Sequencer ===
-    std::unique_ptr<gcode::CommandSequencer> pre_print_sequencer_;
 
     // === Connection Observer ===
     // Triggers macro analysis when printer connection becomes CONNECTED
@@ -436,15 +439,6 @@ class PrintPreparationManager {
         const std::vector<std::pair<std::string, std::string>>& macro_skip_params,
         const std::vector<std::string>& mod_names, NavigateToStatusCallback on_navigate_to_status,
         bool use_plugin);
-
-    /**
-     * @brief Execute pre-print sequence then start print
-     */
-    void execute_pre_print_sequence(const std::string& filename, const PrePrintOptions& options,
-                                    NavigateToStatusCallback on_navigate_to_status,
-                                    PreparingCallback on_preparing,
-                                    PreparingProgressCallback on_progress,
-                                    PrintCompletionCallback on_completion);
 
     /**
      * @brief Start print directly (no pre-print operations)

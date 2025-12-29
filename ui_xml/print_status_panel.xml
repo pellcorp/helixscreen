@@ -67,12 +67,14 @@
                     style_radius="#space_xs" style_border_width="0"/>
           </lv_obj>
           <!-- PRINT COMPLETE OVERLAY: Shown when print finishes successfully -->
+          <!-- Hidden when: state != COMPLETE (3), OR when preparing (overlay takes precedence) -->
           <lv_obj name="print_complete_overlay"
                   width="100%" height="100%" align="center" style_bg_opa="0" style_border_width="0" style_radius="0"
                   style_pad_all="#space_lg" flex_flow="column" style_flex_main_place="center"
                   style_flex_cross_place="center" style_flex_track_place="center" style_pad_gap="#space_sm"
                   scrollable="false">
-            <lv_obj-bind_flag_if_eq subject="print_complete" flag="hidden" ref_value="0"/>
+            <lv_obj-bind_flag_if_ne subject="print_state_enum" flag="hidden" ref_value="3"/>
+            <lv_obj-bind_flag_if_eq subject="preparing_visible" flag="hidden" ref_value="1"/>
             <!-- Green success badge with checkmark (animated on appearance) -->
             <lv_obj name="success_badge"
                     width="content" height="content" style_bg_color="#success_color" style_bg_opa="255"

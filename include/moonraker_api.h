@@ -858,14 +858,14 @@ class MoonrakerAPI {
                                ErrorCallback on_error);
 
     // ========================================================================
-    // Internal Access (for CommandSequencer integration)
+    // Internal Access
     // ========================================================================
 
     /**
      * @brief Get reference to underlying MoonrakerClient
      *
-     * Required by CommandSequencer which needs direct client access for
-     * G-code execution and state observation.
+     * Provides direct access to the WebSocket client for advanced operations
+     * requiring direct G-code execution or state observation.
      *
      * @return Reference to MoonrakerClient
      */

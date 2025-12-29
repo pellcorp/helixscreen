@@ -37,11 +37,6 @@ PrintPreparationManager::~PrintPreparationManager() {
     if (alive_guard_) {
         *alive_guard_ = false;
     }
-
-    // Cancel any running sequence
-    if (pre_print_sequencer_) {
-        pre_print_sequencer_.reset();
-    }
 }
 
 // ============================================================================
@@ -650,8 +645,22 @@ ModificationCapability PrintPreparationManager::check_modification_capability() 
 PrePrintOptions PrintPreparationManager::read_options_from_checkboxes() const {
     PrePrintOptions options;
 
+    // Only count as checked if checkbox exists, is VISIBLE, AND has checked state.
+    // Hidden checkboxes (for unsupported capabilities like QGL on non-Voron printers)
+    // should NOT contribute to pre-print operations.
+    // NOTE: The hidden flag may be on the parent row container, not the checkbox itself.
     auto is_checked = [](lv_obj_t* checkbox) -> bool {
-        return checkbox && lv_obj_has_state(checkbox, LV_STATE_CHECKED);
+        if (!checkbox)
+            return false;
+        // Check if checkbox or any ancestor is hidden
+        lv_obj_t* obj = checkbox;
+        while (obj) {
+            if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+                return false; // Hidden checkbox = not checked
+            }
+            obj = lv_obj_get_parent(obj);
+        }
+        return lv_obj_has_state(checkbox, LV_STATE_CHECKED);
     };
 
     options.bed_leveling = is_checked(bed_leveling_checkbox_);
@@ -705,15 +714,14 @@ void PrintPreparationManager::start_print(const std::string& filename,
     // Build full path for print
     std::string filename_to_print = current_path.empty() ? filename : current_path + "/" + filename;
 
-    // Read checkbox states
+    // Read checkbox states for logging and timelapse
     PrePrintOptions options = read_options_from_checkboxes();
-    bool has_pre_print_ops =
-        options.bed_leveling || options.qgl || options.z_tilt || options.nozzle_clean;
 
-    spdlog::info("[PrintPreparationManager] Starting print: {} (pre-print: mesh={}, qgl={}, "
-                 "z_tilt={}, clean={}, timelapse={})",
-                 filename_to_print, options.bed_leveling, options.qgl, options.z_tilt,
-                 options.nozzle_clean, options.timelapse);
+    spdlog::info(
+        "[PrintPreparationManager] Starting print: {} (pre-print options: mesh={}, qgl={}, "
+        "z_tilt={}, clean={}, timelapse={})",
+        filename_to_print, options.bed_leveling, options.qgl, options.z_tilt, options.nozzle_clean,
+        options.timelapse);
 
     // Enable timelapse recording if requested (Moonraker-Timelapse plugin)
     if (options.timelapse) {
@@ -765,19 +773,16 @@ void PrintPreparationManager::start_print(const std::string& filename,
         }
     }
 
-    if (has_pre_print_ops) {
-        execute_pre_print_sequence(filename_to_print, options, on_navigate_to_status, on_preparing,
-                                   on_progress, wrapped_completion);
-    } else {
-        start_print_directly(filename_to_print, on_navigate_to_status, wrapped_completion);
-    }
+    // CHECKED checkboxes = trust the macro to handle the operation (do nothing extra)
+    // UNCHECKED checkboxes = already handled above via file modification or skip params
+    // No need for manual G-code execution - just start the print
+    start_print_directly(filename_to_print, on_navigate_to_status, wrapped_completion);
 }
 
 void PrintPreparationManager::cancel_preparation() {
-    if (pre_print_sequencer_) {
-        spdlog::info("[PrintPreparationManager] Cancelling pre-print sequence");
-        pre_print_sequencer_.reset();
-    }
+    // Pre-print sequences via CommandSequencer have been removed.
+    // Cancellation is now handled by calling Moonraker's cancel_print API
+    // if a print is in progress, or simply closing the preparing overlay.
 }
 
 bool PrintPreparationManager::is_print_in_progress() const {
@@ -1272,97 +1277,6 @@ void PrintPreparationManager::modify_and_print_streaming(
         },
         // Download progress callback
         download_progress);
-}
-
-void PrintPreparationManager::execute_pre_print_sequence(
-    const std::string& filename, const PrePrintOptions& options,
-    NavigateToStatusCallback on_navigate_to_status, PreparingCallback on_preparing,
-    PreparingProgressCallback on_progress, PrintCompletionCallback on_completion) {
-    // Create command sequencer for pre-print operations
-    pre_print_sequencer_ =
-        std::make_unique<gcode::CommandSequencer>(api_->get_client(), *api_, *printer_state_);
-
-    // Always home first if doing any pre-print operations
-    pre_print_sequencer_->add_operation(gcode::OperationType::HOMING, {}, "Homing");
-
-    // Add selected operations in logical order
-    if (options.qgl) {
-        pre_print_sequencer_->add_operation(gcode::OperationType::QGL, {}, "Quad Gantry Level");
-    }
-    if (options.z_tilt) {
-        pre_print_sequencer_->add_operation(gcode::OperationType::Z_TILT, {}, "Z-Tilt Adjust");
-    }
-    if (options.bed_leveling) {
-        pre_print_sequencer_->add_operation(gcode::OperationType::BED_LEVELING, {},
-                                            "Bed Mesh Calibration");
-    }
-    if (options.nozzle_clean) {
-        pre_print_sequencer_->add_operation(gcode::OperationType::NOZZLE_CLEAN, {}, "Clean Nozzle");
-    }
-
-    // Add the actual print start as the final operation
-    gcode::OperationParams print_params;
-    print_params.filename = filename;
-    pre_print_sequencer_->add_operation(gcode::OperationType::START_PRINT, print_params,
-                                        "Starting Print");
-
-    int queue_size = static_cast<int>(pre_print_sequencer_->queue_size());
-
-    // Navigate to print status panel in "Preparing" state
-    if (on_navigate_to_status) {
-        on_navigate_to_status();
-    }
-
-    // Initialize the preparing state
-    auto& status_panel = get_global_print_status_panel();
-    status_panel.set_preparing("Starting...", 0, queue_size);
-
-    auto* self = this;
-
-    // Start the sequence
-    pre_print_sequencer_->start(
-        // Progress callback - update the Preparing UI
-        [on_preparing, on_progress](const std::string& op_name, int step, int total,
-                                    float progress) {
-            spdlog::info("[PrintPreparationManager] Pre-print progress: {} ({}/{}, {:.0f}%)",
-                         op_name, step, total, progress * 100.0f);
-
-            // Update PrintStatusPanel's preparing state
-            auto& status_panel = get_global_print_status_panel();
-            status_panel.set_preparing(op_name, step, total);
-            status_panel.set_preparing_progress(progress);
-
-            if (on_preparing) {
-                on_preparing(op_name, step, total);
-            }
-            if (on_progress) {
-                on_progress(progress);
-            }
-        },
-        // Completion callback
-        [self, on_completion](bool success, const std::string& error) {
-            auto& status_panel = get_global_print_status_panel();
-
-            if (success) {
-                spdlog::info(
-                    "[PrintPreparationManager] Pre-print sequence complete, print started");
-                // Transition from Preparing → Printing state
-                status_panel.end_preparing(true);
-            } else {
-                NOTIFY_ERROR("Pre-print failed: {}", error);
-                LOG_ERROR_INTERNAL("[PrintPreparationManager] Pre-print sequence failed: {}",
-                                   error);
-                // Transition from Preparing → Idle state
-                status_panel.end_preparing(false);
-            }
-
-            // Clean up sequencer
-            self->pre_print_sequencer_.reset();
-
-            if (on_completion) {
-                on_completion(success, error);
-            }
-        });
 }
 
 void PrintPreparationManager::start_print_directly(const std::string& filename,

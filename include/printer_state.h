@@ -309,19 +309,6 @@ class PrinterState {
     }
 
     /**
-     * @brief Get subject for print complete overlay visibility
-     *
-     * Integer subject: 1 when print completed, 0 otherwise.
-     * Derived from print_state_enum for simpler XML bindings.
-     * Preserves "1" during Complete→Standby transition to keep overlay visible.
-     *
-     * @return Pointer to integer subject (0 or 1)
-     */
-    lv_subject_t* get_print_complete_subject() {
-        return &print_complete_;
-    }
-
-    /**
      * @brief Get subject for display-ready print filename
      *
      * Clean filename without path or .helix_temp prefix, suitable for UI display.
@@ -392,6 +379,14 @@ class PrinterState {
     [[nodiscard]] bool is_print_in_progress() const {
         return lv_subject_get_int(const_cast<lv_subject_t*>(&print_in_progress_)) != 0;
     }
+
+    /**
+     * @brief Reset UI state when starting a new print
+     *
+     * Clears the print_complete flag and resets progress to prepare for
+     * a new print. Call this BEFORE navigating to print status panel.
+     */
+    void reset_for_new_print();
 
     /**
      * @brief Get the print-in-progress subject for observing workflow state
@@ -934,7 +929,6 @@ class PrinterState {
     lv_subject_t print_state_;            // String buffer (for UI display binding)
     lv_subject_t print_state_enum_;       // Integer: PrintJobState enum (for type-safe logic)
     lv_subject_t print_active_;           // Integer: 1 when PRINTING/PAUSED, 0 otherwise
-    lv_subject_t print_complete_;         // Integer: 1 when COMPLETE, 0 on new print
     lv_subject_t print_show_progress_;    // Integer: 1 when active AND not in start phase
     lv_subject_t print_display_filename_; // String: clean filename for UI display
     lv_subject_t print_thumbnail_path_;   // String: LVGL path to current print thumbnail
