@@ -51,9 +51,13 @@
       <setting_dropdown_row name="row_cancel"
                             label="Cancel" icon="cancel" description="Macro to cancel an active print"
                             callback="on_cancel_changed"/>
+      <!-- Bed Mesh -->
+      <setting_dropdown_row name="row_bed_mesh"
+                            label="Bed Mesh" icon="grid_large" description="Macro for bed mesh calibration"
+                            callback="on_bed_mesh_changed"/>
       <!-- Bed Level -->
       <setting_dropdown_row name="row_bed_level"
-                            label="Bed Level" icon="grid_large" description="Macro for bed mesh calibration"
+                            label="Bed Level" icon="axis_z_arrow" description="Macro for physical bed leveling (QGL/Z-Tilt)"
                             callback="on_bed_level_changed"/>
       <!-- Clean Nozzle -->
       <setting_dropdown_row name="row_clean_nozzle"

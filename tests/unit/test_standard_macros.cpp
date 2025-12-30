@@ -132,6 +132,7 @@ TEST_CASE("StandardMacros - slot_to_name", "[standard_macros]") {
     REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::Pause) == "pause");
     REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::Resume) == "resume");
     REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::Cancel) == "cancel");
+    REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::BedMesh) == "bed_mesh");
     REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::BedLevel) == "bed_level");
     REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::CleanNozzle) == "clean_nozzle");
     REQUIRE(StandardMacros::slot_to_name(StandardMacroSlot::HeatSoak) == "heat_soak");
@@ -146,6 +147,7 @@ TEST_CASE("StandardMacros - slot_from_name", "[standard_macros]") {
         REQUIRE(StandardMacros::slot_from_name("pause") == StandardMacroSlot::Pause);
         REQUIRE(StandardMacros::slot_from_name("resume") == StandardMacroSlot::Resume);
         REQUIRE(StandardMacros::slot_from_name("cancel") == StandardMacroSlot::Cancel);
+        REQUIRE(StandardMacros::slot_from_name("bed_mesh") == StandardMacroSlot::BedMesh);
         REQUIRE(StandardMacros::slot_from_name("bed_level") == StandardMacroSlot::BedLevel);
         REQUIRE(StandardMacros::slot_from_name("clean_nozzle") == StandardMacroSlot::CleanNozzle);
         REQUIRE(StandardMacros::slot_from_name("heat_soak") == StandardMacroSlot::HeatSoak);
@@ -190,11 +192,12 @@ TEST_CASE("StandardMacros - auto-detection", "[standard_macros][slow]") {
         REQUIRE(macros.get(StandardMacroSlot::Pause).detected_macro == "PAUSE");
         REQUIRE(macros.get(StandardMacroSlot::Resume).detected_macro == "RESUME");
         REQUIRE(macros.get(StandardMacroSlot::Cancel).detected_macro == "CANCEL_PRINT");
-        REQUIRE(macros.get(StandardMacroSlot::BedLevel).detected_macro == "BED_MESH_CALIBRATE");
+        REQUIRE(macros.get(StandardMacroSlot::BedMesh).detected_macro == "BED_MESH_CALIBRATE");
         REQUIRE(macros.get(StandardMacroSlot::CleanNozzle).detected_macro == "CLEAN_NOZZLE");
 
         // Slots without matching macros should be empty
         REQUIRE(macros.get(StandardMacroSlot::Purge).detected_macro.empty());
+        REQUIRE(macros.get(StandardMacroSlot::BedLevel).detected_macro.empty());
         REQUIRE(macros.get(StandardMacroSlot::HeatSoak).detected_macro.empty());
     }
 
@@ -332,11 +335,15 @@ TEST_CASE("StandardMacros - HELIX fallbacks", "[standard_macros][slow]") {
 
     macros.init(caps);
 
-    SECTION("BedLevel has HELIX fallback when installed") {
+    SECTION("BedLevel has no fallback (removed in favor of BedMesh slot)") {
+        // BedLevel no longer uses HELIX_BED_LEVEL_IF_NEEDED as a fallback.
+        // The new BedMesh slot handles bed mesh calibration separately.
+        // BedLevel is now only for physical leveling (QGL, Z_TILT_ADJUST).
         const auto& bed_level = macros.get(StandardMacroSlot::BedLevel);
-        REQUIRE(bed_level.fallback_macro == "HELIX_BED_LEVEL_IF_NEEDED");
-        REQUIRE_FALSE(bed_level.is_empty());
-        REQUIRE(bed_level.get_source() == MacroSource::FALLBACK);
+        REQUIRE(bed_level.fallback_macro.empty());
+        REQUIRE(bed_level.detected_macro.empty());
+        REQUIRE(bed_level.is_empty());
+        REQUIRE(bed_level.get_source() == MacroSource::NONE);
     }
 
     SECTION("CleanNozzle has HELIX fallback when installed") {
@@ -353,6 +360,8 @@ TEST_CASE("StandardMacros - HELIX fallbacks", "[standard_macros][slow]") {
         REQUIRE(macros.get(StandardMacroSlot::Pause).fallback_macro.empty());
         REQUIRE(macros.get(StandardMacroSlot::Resume).fallback_macro.empty());
         REQUIRE(macros.get(StandardMacroSlot::Cancel).fallback_macro.empty());
+        REQUIRE(macros.get(StandardMacroSlot::BedMesh).fallback_macro.empty());
+        REQUIRE(macros.get(StandardMacroSlot::BedLevel).fallback_macro.empty());
         REQUIRE(macros.get(StandardMacroSlot::HeatSoak).fallback_macro.empty());
     }
 }
@@ -393,7 +402,8 @@ TEST_CASE("StandardMacros - all() returns all slots", "[standard_macros]") {
     REQUIRE(all_slots[3].slot == StandardMacroSlot::Pause);
     REQUIRE(all_slots[4].slot == StandardMacroSlot::Resume);
     REQUIRE(all_slots[5].slot == StandardMacroSlot::Cancel);
-    REQUIRE(all_slots[6].slot == StandardMacroSlot::BedLevel);
-    REQUIRE(all_slots[7].slot == StandardMacroSlot::CleanNozzle);
-    REQUIRE(all_slots[8].slot == StandardMacroSlot::HeatSoak);
+    REQUIRE(all_slots[6].slot == StandardMacroSlot::BedMesh);
+    REQUIRE(all_slots[7].slot == StandardMacroSlot::BedLevel);
+    REQUIRE(all_slots[8].slot == StandardMacroSlot::CleanNozzle);
+    REQUIRE(all_slots[9].slot == StandardMacroSlot::HeatSoak);
 }

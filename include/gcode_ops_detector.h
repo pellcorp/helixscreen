@@ -17,7 +17,7 @@ namespace gcode {
  * @brief Type of pre-print operation detected in G-code
  */
 enum class OperationType {
-    BED_LEVELING, ///< BED_MESH_CALIBRATE, G29, etc.
+    BED_MESH,     ///< BED_MESH_CALIBRATE, G29, etc.
     QGL,          ///< QUAD_GANTRY_LEVEL
     Z_TILT,       ///< Z_TILT_ADJUST
     NOZZLE_CLEAN, ///< CLEAN_NOZZLE, NOZZLE_WIPE, etc.

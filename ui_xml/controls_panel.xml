@@ -182,7 +182,7 @@
           <icon src="wrench" size="sm" variant="accent"/>
         </lv_obj>
         <text_body text="Calibration &amp; Tools" style_pad_top="#space_xs"/>
-        <text_small text="Mesh | Z-Offset | Leveling" style_text_color="#text_secondary"/>
+        <text_small text="Mesh | Z-Offset | Screw Adj" style_text_color="#text_secondary"/>
       </ui_card>
     </lv_obj>
     <!-- Emergency Stop Row (ONLY visible when printing) -->

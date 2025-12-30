@@ -27,8 +27,8 @@ namespace {
  */
 OperationType to_operation_type(OperationCategory cat) {
     switch (cat) {
-    case OperationCategory::BED_LEVELING:
-        return OperationType::BED_LEVELING;
+    case OperationCategory::BED_MESH:
+        return OperationType::BED_MESH;
     case OperationCategory::QGL:
         return OperationType::QGL;
     case OperationCategory::Z_TILT:
@@ -58,8 +58,8 @@ OperationType to_operation_type(OperationCategory cat) {
 
 std::string DetectedOperation::display_name() const {
     switch (type) {
-    case OperationType::BED_LEVELING:
-        return "Bed Leveling";
+    case OperationType::BED_MESH:
+        return "Bed Mesh";
     case OperationType::QGL:
         return "Quad Gantry Level";
     case OperationType::Z_TILT:
@@ -158,8 +158,8 @@ GCodeOpsDetector::GCodeOpsDetector(const DetectionConfig& config) : config_(conf
 
 std::string GCodeOpsDetector::operation_type_name(OperationType type) {
     switch (type) {
-    case OperationType::BED_LEVELING:
-        return "bed_leveling";
+    case OperationType::BED_MESH:
+        return "bed_mesh";
     case OperationType::QGL:
         return "qgl";
     case OperationType::Z_TILT:
@@ -442,11 +442,11 @@ void GCodeOpsDetector::parse_start_print_params(const std::string& line, size_t 
 
     // Map of parameter names to operation types
     static const std::vector<std::pair<std::string, OperationType>> param_mappings = {
-        // Bed leveling
-        {"FORCE_LEVELING", OperationType::BED_LEVELING},
-        {"BED_LEVEL", OperationType::BED_LEVELING},
-        {"DO_BED_MESH", OperationType::BED_LEVELING},
-        {"MESH", OperationType::BED_LEVELING},
+        // Bed mesh
+        {"FORCE_LEVELING", OperationType::BED_MESH},
+        {"BED_LEVEL", OperationType::BED_MESH},
+        {"DO_BED_MESH", OperationType::BED_MESH},
+        {"MESH", OperationType::BED_MESH},
 
         // QGL
         {"QGL", OperationType::QGL},

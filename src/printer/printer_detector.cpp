@@ -602,7 +602,7 @@ namespace {
  */
 const std::unordered_set<std::string>& get_valid_capability_keys() {
     static const std::unordered_set<std::string> keys = {
-        helix::category_to_string(helix::PrintStartOpCategory::BED_LEVELING),
+        helix::category_to_string(helix::PrintStartOpCategory::BED_MESH),
         helix::category_to_string(helix::PrintStartOpCategory::QGL),
         helix::category_to_string(helix::PrintStartOpCategory::Z_TILT),
         helix::category_to_string(helix::PrintStartOpCategory::NOZZLE_CLEAN),

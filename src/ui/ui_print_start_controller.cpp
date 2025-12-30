@@ -151,7 +151,7 @@ void PrintStartController::execute_print_start() {
     spdlog::info(
         "[PrintStartController] Starting print: {} (pre-print: mesh={}, qgl={}, z_tilt={}, "
         "clean={}, timelapse={})",
-        filename_to_print, options.bed_leveling, options.qgl, options.z_tilt, options.nozzle_clean,
+        filename_to_print, options.bed_mesh, options.qgl, options.z_tilt, options.nozzle_clean,
         options.timelapse);
 
     // Enable timelapse recording if requested (Moonraker-Timelapse plugin)

@@ -117,14 +117,14 @@ TEST_CASE("PrintStartEnhancer: generate_conditional_block", "[enhancer][codegen]
 TEST_CASE("PrintStartEnhancer: generate_wrapper", "[enhancer][codegen]") {
     PrintStartOperation op;
     op.name = "BED_MESH_CALIBRATE";
-    op.category = PrintStartOpCategory::BED_LEVELING;
+    op.category = PrintStartOpCategory::BED_MESH;
     op.line_number = 3;
 
     auto enhancement = PrintStartEnhancer::generate_wrapper(op, "SKIP_BED_MESH");
 
     SECTION("Populates enhancement fields correctly") {
         REQUIRE(enhancement.operation_name == "BED_MESH_CALIBRATE");
-        REQUIRE(enhancement.category == PrintStartOpCategory::BED_LEVELING);
+        REQUIRE(enhancement.category == PrintStartOpCategory::BED_MESH);
         REQUIRE(enhancement.skip_param_name == "SKIP_BED_MESH");
         REQUIRE(enhancement.line_number == 3);
         REQUIRE(enhancement.user_approved == false);
@@ -363,7 +363,7 @@ TEST_CASE("PrintStartEnhancer: generate_backup_filename", "[enhancer][utility]")
 // ============================================================================
 
 TEST_CASE("PrintStartEnhancer: get_skip_param_for_category", "[enhancer][utility]") {
-    REQUIRE(PrintStartEnhancer::get_skip_param_for_category(PrintStartOpCategory::BED_LEVELING) ==
+    REQUIRE(PrintStartEnhancer::get_skip_param_for_category(PrintStartOpCategory::BED_MESH) ==
             "SKIP_BED_MESH");
     REQUIRE(PrintStartEnhancer::get_skip_param_for_category(PrintStartOpCategory::QGL) ==
             "SKIP_QGL");
@@ -422,7 +422,7 @@ TEST_CASE("Integration: Analyze then enhance", "[enhancer][integration]") {
         REQUIRE(initial_analysis.is_controllable == false);
 
         // Get mesh operation and create enhancement
-        auto mesh_op = initial_analysis.get_operation(PrintStartOpCategory::BED_LEVELING);
+        auto mesh_op = initial_analysis.get_operation(PrintStartOpCategory::BED_MESH);
         REQUIRE(mesh_op != nullptr);
 
         auto enhancement = PrintStartEnhancer::generate_wrapper(*mesh_op, "SKIP_BED_MESH");
@@ -435,7 +435,7 @@ TEST_CASE("Integration: Analyze then enhance", "[enhancer][integration]") {
         auto final_analysis = PrintStartAnalyzer::parse_macro("PRINT_START", modified);
 
         // The mesh operation should now be controllable
-        auto enhanced_mesh = final_analysis.get_operation(PrintStartOpCategory::BED_LEVELING);
+        auto enhanced_mesh = final_analysis.get_operation(PrintStartOpCategory::BED_MESH);
         REQUIRE(enhanced_mesh != nullptr);
         REQUIRE(enhanced_mesh->has_skip_param == true);
         REQUIRE(enhanced_mesh->skip_param_name == "SKIP_BED_MESH");

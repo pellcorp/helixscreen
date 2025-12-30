@@ -21,8 +21,8 @@ TEST_CASE("GCodeOpsDetector - Direct command detection", "[gcode][ops]") {
     SECTION("Detects BED_MESH_CALIBRATE") {
         auto result = detector.scan_content("G28\nBED_MESH_CALIBRATE\nG1 X0 Y0 Z0.2 E0.5\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
-        auto op = result.get_operation(OperationType::BED_LEVELING);
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
+        auto op = result.get_operation(OperationType::BED_MESH);
         REQUIRE(op.has_value());
         REQUIRE(op->embedding == OperationEmbedding::DIRECT_COMMAND);
         REQUIRE(op->line_number == 2);
@@ -31,14 +31,14 @@ TEST_CASE("GCodeOpsDetector - Direct command detection", "[gcode][ops]") {
     SECTION("Detects G29") {
         auto result = detector.scan_content("G28\nG29\nG1 X0 Y0 Z0.2 E0.5\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Detects QUAD_GANTRY_LEVEL") {
         auto result = detector.scan_content("G28\nQUAD_GANTRY_LEVEL\nBED_MESH_CALIBRATE\n");
 
         REQUIRE(result.has_operation(OperationType::QGL));
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Detects Z_TILT_ADJUST") {
@@ -95,8 +95,8 @@ TEST_CASE("GCodeOpsDetector - START_PRINT parameter detection", "[gcode][ops]") 
         auto result = detector.scan_content(
             "START_PRINT EXTRUDER_TEMP=220 BED_TEMP=60 FORCE_LEVELING=true\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
-        auto op = result.get_operation(OperationType::BED_LEVELING);
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
+        auto op = result.get_operation(OperationType::BED_MESH);
         REQUIRE(op->embedding == OperationEmbedding::MACRO_PARAMETER);
         REQUIRE(op->macro_name == "START_PRINT");
         REQUIRE(op->param_name == "FORCE_LEVELING");
@@ -106,26 +106,26 @@ TEST_CASE("GCodeOpsDetector - START_PRINT parameter detection", "[gcode][ops]") 
     SECTION("Detects FORCE_LEVELING=1") {
         auto result = detector.scan_content("START_PRINT FORCE_LEVELING=1\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Ignores FORCE_LEVELING=false") {
         auto result = detector.scan_content("START_PRINT FORCE_LEVELING=false\n");
 
-        REQUIRE_FALSE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Ignores FORCE_LEVELING=0") {
         auto result = detector.scan_content("START_PRINT FORCE_LEVELING=0\n");
 
-        REQUIRE_FALSE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Detects multiple parameters") {
         auto result = detector.scan_content(
             "START_PRINT FORCE_LEVELING=1 NOZZLE_CLEAN=true QGL=1 CHAMBER_SOAK=5\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
         REQUIRE(result.has_operation(OperationType::NOZZLE_CLEAN));
         REQUIRE(result.has_operation(OperationType::QGL));
         REQUIRE(result.has_operation(OperationType::CHAMBER_SOAK));
@@ -134,7 +134,7 @@ TEST_CASE("GCodeOpsDetector - START_PRINT parameter detection", "[gcode][ops]") 
     SECTION("Case insensitive parameter detection") {
         auto result = detector.scan_content("start_print force_leveling=TRUE\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 }
 
@@ -156,7 +156,7 @@ TEST_CASE("GCodeOpsDetector - Scanning limits", "[gcode][ops]") {
         auto result = detector.scan_content(content);
 
         REQUIRE(result.has_operation(OperationType::HOMING));
-        REQUIRE_FALSE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Stops at layer marker") {
@@ -171,7 +171,7 @@ TEST_CASE("GCodeOpsDetector - Scanning limits", "[gcode][ops]") {
         auto result = det.scan_content(content);
 
         REQUIRE(result.has_operation(OperationType::HOMING));
-        REQUIRE_FALSE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Respects line limit") {
@@ -184,7 +184,7 @@ TEST_CASE("GCodeOpsDetector - Scanning limits", "[gcode][ops]") {
         auto result = detector.scan_content(content);
 
         REQUIRE(result.reached_limit);
-        REQUIRE_FALSE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(OperationType::BED_MESH));
     }
 }
 
@@ -198,7 +198,7 @@ TEST_CASE("GCodeOpsDetector - Edge cases", "[gcode][ops]") {
     SECTION("Ignores comments") {
         auto result = detector.scan_content("; BED_MESH_CALIBRATE\n");
 
-        REQUIRE_FALSE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Handles empty content") {
@@ -217,14 +217,14 @@ TEST_CASE("GCodeOpsDetector - Edge cases", "[gcode][ops]") {
     SECTION("Detects command with leading whitespace") {
         auto result = detector.scan_content("   BED_MESH_CALIBRATE\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Avoids duplicate detection") {
         // Same operation type shouldn't be detected twice
         auto result = detector.scan_content("BED_MESH_CALIBRATE\nG29\n");
 
-        auto ops = result.get_operations(OperationType::BED_LEVELING);
+        auto ops = result.get_operations(OperationType::BED_MESH);
         REQUIRE(ops.size() == 1);
         REQUIRE(ops[0].macro_name == "BED_MESH_CALIBRATE"); // First one wins
     }
@@ -232,7 +232,7 @@ TEST_CASE("GCodeOpsDetector - Edge cases", "[gcode][ops]") {
     SECTION("Detects BED_MESH_PROFILE LOAD") {
         auto result = detector.scan_content("BED_MESH_PROFILE LOAD=default\n");
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 }
 
@@ -255,8 +255,7 @@ TEST_CASE("GCodeOpsDetector - Display names", "[gcode][ops]") {
     }
 
     SECTION("Static operation_type_name returns valid strings") {
-        REQUIRE(GCodeOpsDetector::operation_type_name(OperationType::BED_LEVELING) ==
-                "bed_leveling");
+        REQUIRE(GCodeOpsDetector::operation_type_name(OperationType::BED_MESH) == "bed_mesh");
         REQUIRE(GCodeOpsDetector::operation_type_name(OperationType::QGL) == "qgl");
         REQUIRE(GCodeOpsDetector::operation_type_name(OperationType::NOZZLE_CLEAN) ==
                 "nozzle_clean");
@@ -306,21 +305,21 @@ TEST_CASE("GCodeOpsDetector - Robustness edge cases", "[gcode][ops][edge]") {
 
         // Should still detect operations after the long line
         REQUIRE(result.has_operation(OperationType::HOMING));
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Handles CRLF line endings") {
         auto result = detector.scan_content("G28\r\nBED_MESH_CALIBRATE\r\n");
 
         REQUIRE(result.has_operation(OperationType::HOMING));
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 
     SECTION("Handles mixed line endings") {
         auto result = detector.scan_content("G28\n\rBED_MESH_CALIBRATE\r\nCLEAN_NOZZLE\n");
 
         REQUIRE(result.has_operation(OperationType::HOMING));
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
         REQUIRE(result.has_operation(OperationType::NOZZLE_CLEAN));
     }
 
@@ -353,7 +352,7 @@ G1 X10 Y10 Z0.3 E0.5 ; start print
 
         REQUIRE(result.has_operation(OperationType::HOMING));
         REQUIRE(result.has_operation(OperationType::QGL));
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
         REQUIRE(result.has_operation(OperationType::NOZZLE_CLEAN));
     }
 
@@ -366,10 +365,10 @@ G1 X10 Y10 Z0.2 E0.5
 
         auto result = detector.scan_content(content);
 
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
         REQUIRE(result.has_operation(OperationType::NOZZLE_CLEAN));
 
-        auto leveling = result.get_operation(OperationType::BED_LEVELING);
+        auto leveling = result.get_operation(OperationType::BED_MESH);
         REQUIRE(leveling->embedding == OperationEmbedding::MACRO_PARAMETER);
     }
 
@@ -384,6 +383,6 @@ G1 X0 Y0 Z0.3 E0.5
         auto result = detector.scan_content(content);
 
         REQUIRE(result.has_operation(OperationType::HOMING));
-        REQUIRE(result.has_operation(OperationType::BED_LEVELING));
+        REQUIRE(result.has_operation(OperationType::BED_MESH));
     }
 }

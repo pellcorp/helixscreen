@@ -27,7 +27,7 @@ namespace helix {
  * command names (which vary by printer/config).
  */
 enum class OperationCategory {
-    BED_LEVELING, ///< Bed mesh calibration (BED_MESH_CALIBRATE, G29)
+    BED_MESH,     ///< Bed mesh calibration (BED_MESH_CALIBRATE, G29)
     QGL,          ///< Quad gantry leveling (QUAD_GANTRY_LEVEL)
     Z_TILT,       ///< Z-tilt adjustment (Z_TILT_ADJUST)
     NOZZLE_CLEAN, ///< Nozzle cleaning/wiping (CLEAN_NOZZLE, BRUSH_NOZZLE)
@@ -57,11 +57,11 @@ struct OperationKeyword {
  */
 // clang-format off
 inline const OperationKeyword OPERATION_KEYWORDS[] = {
-    // === Bed Leveling ===
+    // === Bed Mesh ===
     // Substring matching: AUTO_BED_LEVEL matches BED_LEVEL, etc.
-    {"BED_MESH",             OperationCategory::BED_LEVELING, "SKIP_BED_MESH",     false},
-    {"BED_LEVEL",            OperationCategory::BED_LEVELING, "SKIP_BED_MESH",     false},
-    {"G29",                  OperationCategory::BED_LEVELING, "SKIP_BED_MESH",     true},
+    {"BED_MESH",             OperationCategory::BED_MESH, "SKIP_BED_MESH",     false},
+    {"BED_LEVEL",            OperationCategory::BED_MESH, "SKIP_BED_MESH",     false},
+    {"G29",                  OperationCategory::BED_MESH, "SKIP_BED_MESH",     true},
 
     // === Quad Gantry Level ===
     {"QUAD_GANTRY_LEVEL",    OperationCategory::QGL,          "SKIP_QGL",          false},
@@ -113,7 +113,7 @@ inline constexpr size_t OPERATION_KEYWORDS_COUNT =
  */
 // clang-format off
 inline const std::vector<std::string> SKIP_PARAM_VARIATIONS[] = {
-    // Index 0: BED_LEVELING
+    // Index 0: BED_MESH
     {"SKIP_BED_MESH", "SKIP_MESH", "SKIP_BED_LEVELING", "NO_BED_MESH", "SKIP_LEVEL"},
     // Index 1: QGL
     {"SKIP_QGL", "SKIP_GANTRY", "NO_QGL", "SKIP_QUAD_GANTRY_LEVEL"},
@@ -137,8 +137,8 @@ inline const std::vector<std::string> SKIP_PARAM_VARIATIONS[] = {
  */
 inline const char* category_name(OperationCategory cat) {
     switch (cat) {
-    case OperationCategory::BED_LEVELING:
-        return "Bed leveling";
+    case OperationCategory::BED_MESH:
+        return "Bed mesh";
     case OperationCategory::QGL:
         return "Quad gantry leveling";
     case OperationCategory::Z_TILT:
@@ -166,8 +166,8 @@ inline const char* category_name(OperationCategory cat) {
  */
 inline const char* category_key(OperationCategory cat) {
     switch (cat) {
-    case OperationCategory::BED_LEVELING:
-        return "bed_leveling";
+    case OperationCategory::BED_MESH:
+        return "bed_mesh";
     case OperationCategory::QGL:
         return "qgl";
     case OperationCategory::Z_TILT:

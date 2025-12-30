@@ -41,7 +41,7 @@ namespace helix {
  * in printer_database.json's print_start_capabilities section.
  */
 enum class PrintStartOpCategory {
-    BED_LEVELING, // BED_MESH_CALIBRATE, G29
+    BED_MESH,     // BED_MESH_CALIBRATE, G29
     QGL,          // QUAD_GANTRY_LEVEL
     Z_TILT,       // Z_TILT_ADJUST
     NOZZLE_CLEAN, // CLEAN_NOZZLE, NOZZLE_WIPE, BRUSH_NOZZLE

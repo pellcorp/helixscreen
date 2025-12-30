@@ -68,10 +68,9 @@ void PrintPreparationManager::on_connection_state_changed(lv_observer_t* observe
     }
 }
 
-void PrintPreparationManager::set_checkboxes(lv_obj_t* bed_leveling, lv_obj_t* qgl,
-                                             lv_obj_t* z_tilt, lv_obj_t* nozzle_clean,
-                                             lv_obj_t* timelapse) {
-    bed_leveling_checkbox_ = bed_leveling;
+void PrintPreparationManager::set_checkboxes(lv_obj_t* bed_mesh, lv_obj_t* qgl, lv_obj_t* z_tilt,
+                                             lv_obj_t* nozzle_clean, lv_obj_t* timelapse) {
+    bed_mesh_checkbox_ = bed_mesh;
     qgl_checkbox_ = qgl;
     z_tilt_checkbox_ = z_tilt;
     nozzle_clean_checkbox_ = nozzle_clean;
@@ -200,7 +199,7 @@ std::string PrintPreparationManager::format_macro_operations() const {
 
         // Get user-friendly name for the operation
         switch (op.category) {
-        case helix::PrintStartOpCategory::BED_LEVELING:
+        case helix::PrintStartOpCategory::BED_MESH:
             result += "Bed Mesh";
             break;
         case helix::PrintStartOpCategory::QGL:
@@ -409,8 +408,8 @@ std::string PrintPreparationManager::format_preprint_steps() const {
     // Friendly name mapping for macro operations
     auto get_macro_friendly_name = [](helix::PrintStartOpCategory cat) -> std::string {
         switch (cat) {
-        case helix::PrintStartOpCategory::BED_LEVELING:
-            return "Bed leveling";
+        case helix::PrintStartOpCategory::BED_MESH:
+            return "Bed mesh";
         case helix::PrintStartOpCategory::QGL:
             return "Quad gantry leveling";
         case helix::PrintStartOpCategory::Z_TILT:
@@ -431,8 +430,8 @@ std::string PrintPreparationManager::format_preprint_steps() const {
     // Category key for deduplication
     auto get_category_key = [](helix::PrintStartOpCategory cat) -> std::string {
         switch (cat) {
-        case helix::PrintStartOpCategory::BED_LEVELING:
-            return "bed_leveling";
+        case helix::PrintStartOpCategory::BED_MESH:
+            return "bed_mesh";
         case helix::PrintStartOpCategory::QGL:
             return "qgl";
         case helix::PrintStartOpCategory::Z_TILT:
@@ -490,9 +489,9 @@ std::string PrintPreparationManager::format_preprint_steps() const {
             std::string name;
 
             switch (op.type) {
-            case gcode::OperationType::BED_LEVELING:
-                key = "bed_leveling";
-                name = "Bed leveling";
+            case gcode::OperationType::BED_MESH:
+                key = "bed_mesh";
+                name = "Bed mesh";
                 break;
             case gcode::OperationType::QGL:
                 key = "qgl";
@@ -545,7 +544,7 @@ std::string PrintPreparationManager::format_preprint_steps() const {
             if (!caps.empty()) {
                 // Map capability keys to friendly names
                 static const std::map<std::string, std::string> cap_friendly_names = {
-                    {"bed_leveling", "Bed leveling"},      {"qgl", "Quad gantry leveling"},
+                    {"bed_leveling", "Bed mesh"},          {"qgl", "Quad gantry leveling"},
                     {"z_tilt", "Z-tilt adjustment"},       {"nozzle_clean", "Nozzle cleaning"},
                     {"priming", "Nozzle priming"},         {"skew_correct", "Skew correction"},
                     {"chamber_soak", "Chamber heat soak"},
@@ -663,7 +662,7 @@ PrePrintOptions PrintPreparationManager::read_options_from_checkboxes() const {
         return lv_obj_has_state(checkbox, LV_STATE_CHECKED);
     };
 
-    options.bed_leveling = is_checked(bed_leveling_checkbox_);
+    options.bed_mesh = is_checked(bed_mesh_checkbox_);
     options.qgl = is_checked(qgl_checkbox_);
     options.z_tilt = is_checked(z_tilt_checkbox_);
     options.nozzle_clean = is_checked(nozzle_clean_checkbox_);
@@ -718,7 +717,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
     spdlog::info(
         "[PrintPreparationManager] Starting print: {} (pre-print options: mesh={}, qgl={}, "
         "z_tilt={}, clean={}, timelapse={})",
-        filename_to_print, options.bed_leveling, options.qgl, options.z_tilt, options.nozzle_clean,
+        filename_to_print, options.bed_mesh, options.qgl, options.z_tilt, options.nozzle_clean,
         options.timelapse);
 
     // Enable timelapse recording if requested (Moonraker-Timelapse plugin)
@@ -801,10 +800,10 @@ std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disabl
     }
 
     // Check each operation type: if file has it embedded AND user disabled it
-    if (is_option_disabled(bed_leveling_checkbox_) &&
-        cached_scan_result_->has_operation(gcode::OperationType::BED_LEVELING)) {
-        ops_to_disable.push_back(gcode::OperationType::BED_LEVELING);
-        spdlog::debug("[PrintPreparationManager] User disabled bed leveling, file has it embedded");
+    if (is_option_disabled(bed_mesh_checkbox_) &&
+        cached_scan_result_->has_operation(gcode::OperationType::BED_MESH)) {
+        ops_to_disable.push_back(gcode::OperationType::BED_MESH);
+        spdlog::debug("[PrintPreparationManager] User disabled bed mesh, file has it embedded");
     }
 
     if (is_option_disabled(qgl_checkbox_) &&
@@ -851,9 +850,8 @@ PrintPreparationManager::collect_macro_skip_params() const {
                              "capabilities)",
                              printer_type, caps.params.size());
 
-                // Bed leveling - use database param if available
-                if (caps.has_capability("bed_leveling") &&
-                    is_option_disabled(bed_leveling_checkbox_)) {
+                // Bed mesh - use database param if available
+                if (caps.has_capability("bed_leveling") && is_option_disabled(bed_mesh_checkbox_)) {
                     const auto& cap = caps.params.at("bed_leveling");
                     skip_params.emplace_back(cap.param, cap.skip_value);
                     spdlog::debug("[PrintPreparationManager] Using database param: {}={}",
@@ -888,9 +886,9 @@ PrintPreparationManager::collect_macro_skip_params() const {
     // 3. User has disabled (checkbox unchecked)
 
     // Bed mesh
-    if (is_macro_op_controllable(helix::PrintStartOpCategory::BED_LEVELING) &&
-        is_option_disabled(bed_leveling_checkbox_)) {
-        std::string param = get_macro_skip_param(helix::PrintStartOpCategory::BED_LEVELING);
+    if (is_macro_op_controllable(helix::PrintStartOpCategory::BED_MESH) &&
+        is_option_disabled(bed_mesh_checkbox_)) {
+        std::string param = get_macro_skip_param(helix::PrintStartOpCategory::BED_MESH);
         if (!param.empty()) {
             skip_params.emplace_back(param, "1");
             spdlog::debug("[PrintPreparationManager] Adding skip param for bed mesh: {}=1", param);

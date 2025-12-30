@@ -28,7 +28,8 @@ enum class OverrideState {
  * These string constants map to helixconfig.json keys under capability_overrides.
  */
 namespace capability {
-constexpr const char* BED_LEVELING = "bed_leveling";
+constexpr const char* BED_MESH = "bed_mesh";
+constexpr const char* BED_LEVEL = "bed_level";
 constexpr const char* QGL = "qgl";
 constexpr const char* Z_TILT = "z_tilt";
 constexpr const char* NOZZLE_CLEAN = "nozzle_clean";
@@ -66,7 +67,7 @@ constexpr const char* CHAMBER = "chamber";
  * overrides.set_printer_capabilities(caps);
  *
  * // Check effective capability (with overrides applied)
- * if (overrides.is_available(capability::BED_LEVELING)) {
+ * if (overrides.is_available(capability::BED_MESH)) {
  *     // Show bed leveling option
  * }
  * ```
@@ -129,10 +130,17 @@ class CapabilityOverrides {
     [[nodiscard]] bool is_available(const std::string& name) const;
 
     /**
-     * @brief Check bed leveling availability (with overrides)
+     * @brief Check bed mesh availability (with overrides)
      */
-    [[nodiscard]] bool has_bed_leveling() const {
-        return is_available(capability::BED_LEVELING);
+    [[nodiscard]] bool has_bed_mesh() const {
+        return is_available(capability::BED_MESH);
+    }
+
+    /**
+     * @brief Check bed level (physical leveling) availability (with overrides)
+     */
+    [[nodiscard]] bool has_bed_level() const {
+        return is_available(capability::BED_LEVEL);
     }
 
     /**

@@ -174,7 +174,7 @@ TEST_CASE("GCodeFileModifier - disable_operation integration", "[gcode][modifier
         std::string content = "G28\nBED_MESH_CALIBRATE\nG1 X0 Y0\n";
         auto scan = detector.scan_content(content);
 
-        auto op = scan.get_operation(OperationType::BED_LEVELING);
+        auto op = scan.get_operation(OperationType::BED_MESH);
         REQUIRE(op.has_value());
         REQUIRE(modifier.disable_operation(*op));
 
@@ -198,7 +198,7 @@ TEST_CASE("GCodeFileModifier - disable_operation integration", "[gcode][modifier
         std::string content = "START_PRINT EXTRUDER_TEMP=220 FORCE_LEVELING=true\nG1 X0\n";
         auto scan = detector.scan_content(content);
 
-        auto op = scan.get_operation(OperationType::BED_LEVELING);
+        auto op = scan.get_operation(OperationType::BED_MESH);
         REQUIRE(op.has_value());
         REQUIRE(op->embedding == OperationEmbedding::MACRO_PARAMETER);
         REQUIRE(modifier.disable_operation(*op));
@@ -213,7 +213,7 @@ TEST_CASE("GCodeFileModifier - disable_operation integration", "[gcode][modifier
         std::string content = "START_PRINT FORCE_LEVELING=1\n";
         auto scan = detector.scan_content(content);
 
-        auto op = scan.get_operation(OperationType::BED_LEVELING);
+        auto op = scan.get_operation(OperationType::BED_MESH);
         REQUIRE(op.has_value());
         REQUIRE(modifier.disable_operation(*op));
 
@@ -359,7 +359,7 @@ G1 X10 Y10 Z0.3 E0.5 ; prime
         auto scan = detector.scan_content(content);
 
         // User unchecked bed leveling and QGL
-        modifier.disable_operations(scan, {OperationType::BED_LEVELING, OperationType::QGL});
+        modifier.disable_operations(scan, {OperationType::BED_MESH, OperationType::QGL});
 
         std::string result = modifier.apply_to_content(content);
 
@@ -383,7 +383,7 @@ G1 X10 Y10 Z0.2 E0.5
         auto scan = detector.scan_content(content);
 
         // User unchecked bed leveling
-        if (auto op = scan.get_operation(OperationType::BED_LEVELING)) {
+        if (auto op = scan.get_operation(OperationType::BED_MESH)) {
             modifier.disable_operation(*op);
         }
 

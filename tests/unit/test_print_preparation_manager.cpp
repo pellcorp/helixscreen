@@ -35,7 +35,7 @@ TEST_CASE("PrintPreparationManager: is_macro_op_controllable", "[print_preparati
     PrintPreparationManager manager;
 
     SECTION("Returns false when no analysis available") {
-        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::BED_LEVELING) == false);
+        REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::BED_MESH) == false);
         REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::QGL) == false);
         REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::Z_TILT) == false);
         REQUIRE(manager.is_macro_op_controllable(PrintStartOpCategory::NOZZLE_CLEAN) == false);
@@ -46,7 +46,7 @@ TEST_CASE("PrintPreparationManager: get_macro_skip_param", "[print_preparation][
     PrintPreparationManager manager;
 
     SECTION("Returns empty string when no analysis available") {
-        REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::BED_LEVELING).empty());
+        REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::BED_MESH).empty());
         REQUIRE(manager.get_macro_skip_param(PrintStartOpCategory::QGL).empty());
     }
 }
@@ -156,7 +156,7 @@ TEST_CASE("PrintPreparationManager: read_options_from_checkboxes", "[print_prepa
 
     SECTION("Returns default options when no checkboxes set") {
         auto options = manager.read_options_from_checkboxes();
-        REQUIRE(options.bed_leveling == false);
+        REQUIRE(options.bed_mesh == false);
         REQUIRE(options.qgl == false);
         REQUIRE(options.z_tilt == false);
         REQUIRE(options.nozzle_clean == false);

@@ -49,7 +49,7 @@ namespace helix::ui {
  */
 struct PrePrintOptions {
     // File-level operations (from checkboxes in detail view)
-    bool bed_leveling = false;
+    bool bed_mesh = false;
     bool qgl = false;
     bool z_tilt = false;
     bool nozzle_clean = false;
@@ -128,14 +128,14 @@ class PrintPreparationManager {
     /**
      * @brief Set checkbox widget references for reading user selections
      *
-     * @param bed_leveling Bed leveling checkbox (may be nullptr)
+     * @param bed_mesh Bed mesh checkbox (may be nullptr)
      * @param qgl QGL checkbox (may be nullptr)
      * @param z_tilt Z-tilt checkbox (may be nullptr)
      * @param nozzle_clean Nozzle clean checkbox (may be nullptr)
      * @param timelapse Timelapse checkbox (may be nullptr)
      */
-    void set_checkboxes(lv_obj_t* bed_leveling, lv_obj_t* qgl, lv_obj_t* z_tilt,
-                        lv_obj_t* nozzle_clean, lv_obj_t* timelapse);
+    void set_checkboxes(lv_obj_t* bed_mesh, lv_obj_t* qgl, lv_obj_t* z_tilt, lv_obj_t* nozzle_clean,
+                        lv_obj_t* timelapse);
 
     /**
      * @brief Set callback for when G-code scan completes
@@ -331,7 +331,7 @@ class PrintPreparationManager {
     PrinterState* printer_state_ = nullptr;
 
     // === Checkbox References ===
-    lv_obj_t* bed_leveling_checkbox_ = nullptr;
+    lv_obj_t* bed_mesh_checkbox_ = nullptr;
     lv_obj_t* qgl_checkbox_ = nullptr;
     lv_obj_t* z_tilt_checkbox_ = nullptr;
     lv_obj_t* nozzle_clean_checkbox_ = nullptr;

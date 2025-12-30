@@ -95,7 +95,7 @@ TEST_CASE("PrintStartAnalyzer: Basic operation detection", "[print_start][parsin
         REQUIRE(result.total_ops_count >= 4);
         REQUIRE(result.has_operation(PrintStartOpCategory::HOMING));
         REQUIRE(result.has_operation(PrintStartOpCategory::QGL));
-        REQUIRE(result.has_operation(PrintStartOpCategory::BED_LEVELING));
+        REQUIRE(result.has_operation(PrintStartOpCategory::BED_MESH));
         REQUIRE(result.has_operation(PrintStartOpCategory::NOZZLE_CLEAN));
     }
 
@@ -128,7 +128,7 @@ TEST_CASE("PrintStartAnalyzer: Controllable operation detection", "[print_start]
     }
 
     SECTION("Bed mesh is controllable via SKIP_BED_MESH") {
-        auto mesh = result.get_operation(PrintStartOpCategory::BED_LEVELING);
+        auto mesh = result.get_operation(PrintStartOpCategory::BED_MESH);
         REQUIRE(mesh != nullptr);
         REQUIRE(mesh->has_skip_param == true);
         REQUIRE(mesh->skip_param_name == "SKIP_BED_MESH");
@@ -164,7 +164,7 @@ TEST_CASE("PrintStartAnalyzer: Partial controllability", "[print_start][parsing]
     }
 
     SECTION("Bed mesh is controllable via SKIP_MESH variant") {
-        auto mesh = result.get_operation(PrintStartOpCategory::BED_LEVELING);
+        auto mesh = result.get_operation(PrintStartOpCategory::BED_MESH);
         REQUIRE(mesh != nullptr);
         REQUIRE(mesh->has_skip_param == true);
         REQUIRE(mesh->skip_param_name == "SKIP_MESH");
@@ -200,7 +200,7 @@ TEST_CASE("PrintStartAnalyzer: Minimal macro", "[print_start][parsing]") {
     SECTION("Detects only homing") {
         REQUIRE(result.total_ops_count == 1);
         REQUIRE(result.has_operation(PrintStartOpCategory::HOMING));
-        REQUIRE_FALSE(result.has_operation(PrintStartOpCategory::BED_LEVELING));
+        REQUIRE_FALSE(result.has_operation(PrintStartOpCategory::BED_MESH));
         REQUIRE_FALSE(result.has_operation(PrintStartOpCategory::QGL));
     }
 
@@ -242,8 +242,8 @@ TEST_CASE("PrintStartAnalyzer: Alternative skip parameter patterns", "[print_sta
 
 TEST_CASE("PrintStartAnalyzer: categorize_operation", "[print_start][helpers]") {
     REQUIRE(PrintStartAnalyzer::categorize_operation("BED_MESH_CALIBRATE") ==
-            PrintStartOpCategory::BED_LEVELING);
-    REQUIRE(PrintStartAnalyzer::categorize_operation("G29") == PrintStartOpCategory::BED_LEVELING);
+            PrintStartOpCategory::BED_MESH);
+    REQUIRE(PrintStartAnalyzer::categorize_operation("G29") == PrintStartOpCategory::BED_MESH);
     REQUIRE(PrintStartAnalyzer::categorize_operation("QUAD_GANTRY_LEVEL") ==
             PrintStartOpCategory::QGL);
     REQUIRE(PrintStartAnalyzer::categorize_operation("Z_TILT_ADJUST") ==
@@ -266,7 +266,7 @@ TEST_CASE("PrintStartAnalyzer: get_suggested_skip_param", "[print_start][helpers
 }
 
 TEST_CASE("PrintStartAnalyzer: category_to_string", "[print_start][helpers]") {
-    REQUIRE(std::string(category_to_string(PrintStartOpCategory::BED_LEVELING)) == "bed_leveling");
+    REQUIRE(std::string(category_to_string(PrintStartOpCategory::BED_MESH)) == "bed_mesh");
     REQUIRE(std::string(category_to_string(PrintStartOpCategory::QGL)) == "qgl");
     REQUIRE(std::string(category_to_string(PrintStartOpCategory::Z_TILT)) == "z_tilt");
     REQUIRE(std::string(category_to_string(PrintStartOpCategory::NOZZLE_CLEAN)) == "nozzle_clean");
@@ -324,7 +324,7 @@ QUAD_GANTRY_LEVEL RETRIES=5
     auto result = PrintStartAnalyzer::parse_macro("PRINT_START", ops_with_params);
 
     REQUIRE(result.has_operation(PrintStartOpCategory::HOMING));
-    REQUIRE(result.has_operation(PrintStartOpCategory::BED_LEVELING));
+    REQUIRE(result.has_operation(PrintStartOpCategory::BED_MESH));
     REQUIRE(result.has_operation(PrintStartOpCategory::QGL));
 }
 
@@ -337,6 +337,6 @@ Quad_Gantry_Level
     auto result = PrintStartAnalyzer::parse_macro("PRINT_START", mixed_case);
 
     REQUIRE(result.has_operation(PrintStartOpCategory::HOMING));
-    REQUIRE(result.has_operation(PrintStartOpCategory::BED_LEVELING));
+    REQUIRE(result.has_operation(PrintStartOpCategory::BED_MESH));
     REQUIRE(result.has_operation(PrintStartOpCategory::QGL));
 }

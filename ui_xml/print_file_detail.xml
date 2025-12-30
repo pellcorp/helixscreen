@@ -143,14 +143,14 @@
           <!-- Pre-print G-code modification options -->
           <!-- Visibility: can_show_* = helix_plugin_installed AND printer_has_* -->
           <!-- Toggle rows: label on left, switch on right -->
-          <lv_obj name="bed_leveling_row"
+          <lv_obj name="bed_mesh_row"
                   width="100%" height="content" flex_flow="row" style_flex_main_place="space_between"
                   style_flex_cross_place="center" style_bg_opa="0" style_border_width="0" style_pad_ver="#space_xs"
                   scrollable="false">
             <lv_obj-bind_flag_if_eq subject="can_show_bed_mesh" flag="hidden" ref_value="0"/>
-            <text_body text="Auto Bed Level"/>
-            <lv_switch name="bed_leveling_checkbox" width="50" height="28">
-              <bind_state_if_eq subject="preprint_bed_leveling" state="checked" ref_value="1"/>
+            <text_body text="Auto Bed Mesh"/>
+            <lv_switch name="bed_mesh_checkbox" width="50" height="28">
+              <bind_state_if_eq subject="preprint_bed_mesh" state="checked" ref_value="1"/>
             </lv_switch>
           </lv_obj>
           <lv_obj name="qgl_row"

@@ -27,8 +27,8 @@ namespace {
  */
 PrintStartOpCategory to_print_start_category(OperationCategory cat) {
     switch (cat) {
-    case OperationCategory::BED_LEVELING:
-        return PrintStartOpCategory::BED_LEVELING;
+    case OperationCategory::BED_MESH:
+        return PrintStartOpCategory::BED_MESH;
     case OperationCategory::QGL:
         return PrintStartOpCategory::QGL;
     case OperationCategory::Z_TILT:
@@ -53,8 +53,8 @@ PrintStartOpCategory to_print_start_category(OperationCategory cat) {
  */
 OperationCategory to_operation_category(PrintStartOpCategory cat) {
     switch (cat) {
-    case PrintStartOpCategory::BED_LEVELING:
-        return OperationCategory::BED_LEVELING;
+    case PrintStartOpCategory::BED_MESH:
+        return OperationCategory::BED_MESH;
     case PrintStartOpCategory::QGL:
         return OperationCategory::QGL;
     case PrintStartOpCategory::Z_TILT:
@@ -82,8 +82,8 @@ OperationCategory to_operation_category(PrintStartOpCategory cat) {
 
 const char* category_to_string(PrintStartOpCategory category) {
     switch (category) {
-    case PrintStartOpCategory::BED_LEVELING:
-        return "bed_leveling";
+    case PrintStartOpCategory::BED_MESH:
+        return "bed_mesh";
     case PrintStartOpCategory::QGL:
         return "qgl";
     case PrintStartOpCategory::Z_TILT:
@@ -455,7 +455,7 @@ std::vector<PrintStartOperation> PrintStartAnalyzer::detect_operations(const std
         const auto* kw = find_keyword(cmd);
         if (kw) {
             PrintStartOperation op;
-            op.name = kw->keyword;
+            op.name = cmd; // Store actual command, not just the pattern keyword
             op.category = to_print_start_category(kw->category);
             op.line_number = line_num;
 

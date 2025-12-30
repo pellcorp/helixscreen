@@ -332,8 +332,8 @@ void MacroEnhanceWizard::show_current_operation() {
     // Get friendly name for category
     std::string friendly_name;
     switch (op->category) {
-    case helix::PrintStartOpCategory::BED_LEVELING:
-        friendly_name = "Bed Leveling";
+    case helix::PrintStartOpCategory::BED_MESH:
+        friendly_name = "Bed Mesh";
         break;
     case helix::PrintStartOpCategory::QGL:
         friendly_name = "Quad Gantry Leveling";
@@ -392,8 +392,8 @@ void MacroEnhanceWizard::show_summary() {
             if (e.user_approved) {
                 // Use friendly names in the summary too
                 std::string friendly = e.operation_name;
-                if (e.category == helix::PrintStartOpCategory::BED_LEVELING) {
-                    friendly = "Bed Leveling";
+                if (e.category == helix::PrintStartOpCategory::BED_MESH) {
+                    friendly = "Bed Mesh";
                 } else if (e.category == helix::PrintStartOpCategory::QGL) {
                     friendly = "Quad Gantry Leveling";
                 } else if (e.category == helix::PrintStartOpCategory::Z_TILT) {

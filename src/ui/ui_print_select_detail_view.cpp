@@ -39,7 +39,7 @@ PrintSelectDetailView::~PrintSelectDetailView() {
     // Deinitialize subjects to disconnect observers before widgets are deleted
     // This prevents dangling pointers and frees observer linked lists
     if (subjects_initialized_) {
-        lv_subject_deinit(&preprint_bed_leveling_);
+        lv_subject_deinit(&preprint_bed_mesh_);
         lv_subject_deinit(&preprint_qgl_);
         lv_subject_deinit(&preprint_z_tilt_);
         lv_subject_deinit(&preprint_nozzle_clean_);
@@ -72,7 +72,7 @@ void PrintSelectDetailView::init_subjects() {
 
     // Enable switches default ON (1) - "perform this operation"
     // Subject=1 means switch is checked, operation is enabled
-    lv_subject_init_int(&preprint_bed_leveling_, 1);
+    lv_subject_init_int(&preprint_bed_mesh_, 1);
     lv_subject_init_int(&preprint_qgl_, 1);
     lv_subject_init_int(&preprint_z_tilt_, 1);
     lv_subject_init_int(&preprint_nozzle_clean_, 1);
@@ -81,7 +81,7 @@ void PrintSelectDetailView::init_subjects() {
     lv_subject_init_int(&preprint_timelapse_, 0);
 
     // Register subjects with XML system so bindings can find them
-    lv_xml_register_subject(nullptr, "preprint_bed_leveling", &preprint_bed_leveling_);
+    lv_xml_register_subject(nullptr, "preprint_bed_mesh", &preprint_bed_mesh_);
     lv_xml_register_subject(nullptr, "preprint_qgl", &preprint_qgl_);
     lv_xml_register_subject(nullptr, "preprint_z_tilt", &preprint_z_tilt_);
     lv_xml_register_subject(nullptr, "preprint_nozzle_clean", &preprint_nozzle_clean_);
@@ -129,7 +129,7 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
     print_button_ = lv_obj_find_by_name(overlay_root_, "print_button");
 
     // Look up pre-print option checkboxes
-    bed_leveling_checkbox_ = lv_obj_find_by_name(overlay_root_, "bed_leveling_checkbox");
+    bed_mesh_checkbox_ = lv_obj_find_by_name(overlay_root_, "bed_mesh_checkbox");
     qgl_checkbox_ = lv_obj_find_by_name(overlay_root_, "qgl_checkbox");
     z_tilt_checkbox_ = lv_obj_find_by_name(overlay_root_, "z_tilt_checkbox");
     nozzle_clean_checkbox_ = lv_obj_find_by_name(overlay_root_, "nozzle_clean_checkbox");
@@ -157,7 +157,7 @@ void PrintSelectDetailView::set_dependencies(MoonrakerAPI* api, PrinterState* pr
 
     if (prep_manager_) {
         prep_manager_->set_dependencies(api_, printer_state_);
-        prep_manager_->set_checkboxes(bed_leveling_checkbox_, qgl_checkbox_, z_tilt_checkbox_,
+        prep_manager_->set_checkboxes(bed_mesh_checkbox_, qgl_checkbox_, z_tilt_checkbox_,
                                       nozzle_clean_checkbox_, timelapse_checkbox_);
     }
 }
@@ -226,7 +226,7 @@ void PrintSelectDetailView::on_activate() {
 
     // Reset pre-print option subjects to defaults for new file
     // Skip switches default ON (don't skip = preserve file's original behavior)
-    lv_subject_set_int(&preprint_bed_leveling_, 1);
+    lv_subject_set_int(&preprint_bed_mesh_, 1);
     lv_subject_set_int(&preprint_qgl_, 1);
     lv_subject_set_int(&preprint_z_tilt_, 1);
     lv_subject_set_int(&preprint_nozzle_clean_, 1);
@@ -273,7 +273,7 @@ void PrintSelectDetailView::cleanup() {
 
     // Deinitialize subjects to disconnect observers
     if (subjects_initialized_) {
-        lv_subject_deinit(&preprint_bed_leveling_);
+        lv_subject_deinit(&preprint_bed_mesh_);
         lv_subject_deinit(&preprint_qgl_);
         lv_subject_deinit(&preprint_z_tilt_);
         lv_subject_deinit(&preprint_nozzle_clean_);

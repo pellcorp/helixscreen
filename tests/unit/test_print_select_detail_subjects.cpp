@@ -6,7 +6,7 @@
  * @brief Unit tests for print select detail view subject initialization
  *
  * Tests that pre-print option subjects are initialized with correct defaults:
- * - Skip switches (bed_leveling, qgl, z_tilt, nozzle_clean) default to ON (1)
+ * - Skip switches (bed_mesh, qgl, z_tilt, nozzle_clean) default to ON (1)
  * - Add-on switches (timelapse) default to OFF (0)
  *
  * Bug context: Previously switches defaulted to OFF in XML, which caused
@@ -29,10 +29,10 @@ TEST_CASE("Pre-print skip switches should default to ON (1)",
     // Test the pattern used in PrintSelectDetailView::init_subjects()
     // Skip switches default to 1 (ON) = "don't skip, do what file says"
 
-    SECTION("Bed leveling switch defaults to ON") {
-        static lv_subject_t preprint_bed_leveling;
-        lv_subject_init_int(&preprint_bed_leveling, 1); // Default: ON
-        REQUIRE(lv_subject_get_int(&preprint_bed_leveling) == 1);
+    SECTION("Bed mesh switch defaults to ON") {
+        static lv_subject_t preprint_bed_mesh;
+        lv_subject_init_int(&preprint_bed_mesh, 1); // Default: ON
+        REQUIRE(lv_subject_get_int(&preprint_bed_mesh) == 1);
     }
 
     SECTION("QGL switch defaults to ON") {
@@ -69,16 +69,16 @@ TEST_CASE("Pre-print subjects can be reset to defaults", "[print_select][detail_
     // Simulates what happens in show() - subjects reset to defaults for new file
 
     SECTION("Skip switch can be toggled OFF then reset to ON") {
-        static lv_subject_t preprint_bed_leveling;
-        lv_subject_init_int(&preprint_bed_leveling, 1); // Initial: ON
+        static lv_subject_t preprint_bed_mesh;
+        lv_subject_init_int(&preprint_bed_mesh, 1); // Initial: ON
 
         // User toggles OFF
-        lv_subject_set_int(&preprint_bed_leveling, 0);
-        REQUIRE(lv_subject_get_int(&preprint_bed_leveling) == 0);
+        lv_subject_set_int(&preprint_bed_mesh, 0);
+        REQUIRE(lv_subject_get_int(&preprint_bed_mesh) == 0);
 
         // Reset to default when showing new file
-        lv_subject_set_int(&preprint_bed_leveling, 1);
-        REQUIRE(lv_subject_get_int(&preprint_bed_leveling) == 1);
+        lv_subject_set_int(&preprint_bed_mesh, 1);
+        REQUIRE(lv_subject_get_int(&preprint_bed_mesh) == 1);
     }
 
     SECTION("Add-on switch can be toggled ON then reset to OFF") {

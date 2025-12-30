@@ -301,7 +301,7 @@ std::string PrintStartEnhancer::generate_backup_filename(const std::string& sour
 
 std::string PrintStartEnhancer::get_skip_param_for_category(PrintStartOpCategory category) {
     switch (category) {
-    case PrintStartOpCategory::BED_LEVELING:
+    case PrintStartOpCategory::BED_MESH:
         return "SKIP_BED_MESH";
     case PrintStartOpCategory::QGL:
         return "SKIP_QGL";

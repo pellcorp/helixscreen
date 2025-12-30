@@ -1018,7 +1018,7 @@ void PrinterState::set_printer_capabilities_internal(const PrinterCapabilities& 
     // features they don't want to see in the UI.
     lv_subject_set_int(&printer_has_qgl_, capability_overrides_.has_qgl() ? 1 : 0);
     lv_subject_set_int(&printer_has_z_tilt_, capability_overrides_.has_z_tilt() ? 1 : 0);
-    lv_subject_set_int(&printer_has_bed_mesh_, capability_overrides_.has_bed_leveling() ? 1 : 0);
+    lv_subject_set_int(&printer_has_bed_mesh_, capability_overrides_.has_bed_mesh() ? 1 : 0);
     lv_subject_set_int(&printer_has_nozzle_clean_,
                        capability_overrides_.has_nozzle_clean() ? 1 : 0);
 

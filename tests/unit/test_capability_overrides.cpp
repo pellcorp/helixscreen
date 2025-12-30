@@ -60,16 +60,16 @@ TEST_CASE("CapabilityOverrides - get/set override", "[printer][overrides]") {
     CapabilityOverrides overrides;
 
     SECTION("Default override is AUTO") {
-        REQUIRE(overrides.get_override(capability::BED_LEVELING) == OverrideState::AUTO);
+        REQUIRE(overrides.get_override(capability::BED_MESH) == OverrideState::AUTO);
         REQUIRE(overrides.get_override(capability::QGL) == OverrideState::AUTO);
         REQUIRE(overrides.get_override("unknown_capability") == OverrideState::AUTO);
     }
 
     SECTION("Can set and get overrides") {
-        overrides.set_override(capability::BED_LEVELING, OverrideState::ENABLE);
+        overrides.set_override(capability::BED_MESH, OverrideState::ENABLE);
         overrides.set_override(capability::QGL, OverrideState::DISABLE);
 
-        REQUIRE(overrides.get_override(capability::BED_LEVELING) == OverrideState::ENABLE);
+        REQUIRE(overrides.get_override(capability::BED_MESH) == OverrideState::ENABLE);
         REQUIRE(overrides.get_override(capability::QGL) == OverrideState::DISABLE);
     }
 
@@ -97,8 +97,8 @@ TEST_CASE("CapabilityOverrides - is_available logic", "[printer][overrides]") {
 
     SECTION("AUTO uses detected value") {
         // bed_mesh is detected, should be available
-        overrides.set_override(capability::BED_LEVELING, OverrideState::AUTO);
-        REQUIRE(overrides.is_available(capability::BED_LEVELING));
+        overrides.set_override(capability::BED_MESH, OverrideState::AUTO);
+        REQUIRE(overrides.is_available(capability::BED_MESH));
 
         // QGL is detected, should be available
         overrides.set_override(capability::QGL, OverrideState::AUTO);
@@ -125,8 +125,8 @@ TEST_CASE("CapabilityOverrides - is_available logic", "[printer][overrides]") {
 
     SECTION("DISABLE forces capability off") {
         // bed_mesh IS detected, but DISABLE forces it off
-        overrides.set_override(capability::BED_LEVELING, OverrideState::DISABLE);
-        REQUIRE_FALSE(overrides.is_available(capability::BED_LEVELING));
+        overrides.set_override(capability::BED_MESH, OverrideState::DISABLE);
+        REQUIRE_FALSE(overrides.is_available(capability::BED_MESH));
 
         // QGL IS detected, but DISABLE forces it off
         overrides.set_override(capability::QGL, OverrideState::DISABLE);
@@ -148,7 +148,7 @@ TEST_CASE("CapabilityOverrides - convenience methods", "[printer][overrides]") {
     overrides.set_printer_capabilities(caps);
 
     SECTION("Convenience methods work with defaults") {
-        REQUIRE(overrides.has_bed_leveling());
+        REQUIRE(overrides.has_bed_mesh());
         REQUIRE(overrides.has_qgl());
         REQUIRE(overrides.has_z_tilt());
         REQUIRE(overrides.has_nozzle_clean());
@@ -157,10 +157,10 @@ TEST_CASE("CapabilityOverrides - convenience methods", "[printer][overrides]") {
     }
 
     SECTION("Convenience methods respect overrides") {
-        overrides.set_override(capability::BED_LEVELING, OverrideState::DISABLE);
+        overrides.set_override(capability::BED_MESH, OverrideState::DISABLE);
         overrides.set_override(capability::QGL, OverrideState::DISABLE);
 
-        REQUIRE_FALSE(overrides.has_bed_leveling());
+        REQUIRE_FALSE(overrides.has_bed_mesh());
         REQUIRE_FALSE(overrides.has_qgl());
         REQUIRE(overrides.has_z_tilt()); // Not overridden
     }
@@ -175,18 +175,18 @@ TEST_CASE("CapabilityOverrides - no capabilities set", "[printer][overrides]") {
     // Don't call set_printer_capabilities()
 
     SECTION("AUTO returns false when no capabilities set") {
-        overrides.set_override(capability::BED_LEVELING, OverrideState::AUTO);
-        REQUIRE_FALSE(overrides.is_available(capability::BED_LEVELING));
+        overrides.set_override(capability::BED_MESH, OverrideState::AUTO);
+        REQUIRE_FALSE(overrides.is_available(capability::BED_MESH));
     }
 
     SECTION("ENABLE still works without capabilities") {
-        overrides.set_override(capability::BED_LEVELING, OverrideState::ENABLE);
-        REQUIRE(overrides.is_available(capability::BED_LEVELING));
+        overrides.set_override(capability::BED_MESH, OverrideState::ENABLE);
+        REQUIRE(overrides.is_available(capability::BED_MESH));
     }
 
     SECTION("DISABLE still works without capabilities") {
-        overrides.set_override(capability::BED_LEVELING, OverrideState::DISABLE);
-        REQUIRE_FALSE(overrides.is_available(capability::BED_LEVELING));
+        overrides.set_override(capability::BED_MESH, OverrideState::DISABLE);
+        REQUIRE_FALSE(overrides.is_available(capability::BED_MESH));
     }
 }
 
@@ -200,7 +200,7 @@ TEST_CASE("CapabilityOverrides - summary", "[printer][overrides]") {
     SECTION("Summary shows all capabilities with no printer caps") {
         std::string summary = overrides.summary();
 
-        REQUIRE(summary.find("bed_leveling=") != std::string::npos);
+        REQUIRE(summary.find("bed_mesh=") != std::string::npos);
         REQUIRE(summary.find("qgl=") != std::string::npos);
         REQUIRE(summary.find("z_tilt=") != std::string::npos);
         REQUIRE(summary.find("nozzle_clean=") != std::string::npos);
@@ -215,16 +215,16 @@ TEST_CASE("CapabilityOverrides - summary", "[printer][overrides]") {
         overrides.set_printer_capabilities(caps);
 
         std::string summary = overrides.summary();
-        REQUIRE(summary.find("bed_leveling=auto(Y)") != std::string::npos);
+        REQUIRE(summary.find("bed_mesh=auto(Y)") != std::string::npos);
         REQUIRE(summary.find("qgl=auto(N)") != std::string::npos);
     }
 
     SECTION("Summary shows ENABLE/DISABLE for overrides") {
-        overrides.set_override(capability::BED_LEVELING, OverrideState::ENABLE);
+        overrides.set_override(capability::BED_MESH, OverrideState::ENABLE);
         overrides.set_override(capability::QGL, OverrideState::DISABLE);
 
         std::string summary = overrides.summary();
-        REQUIRE(summary.find("bed_leveling=ENABLE") != std::string::npos);
+        REQUIRE(summary.find("bed_mesh=ENABLE") != std::string::npos);
         REQUIRE(summary.find("qgl=DISABLE") != std::string::npos);
     }
 }
@@ -235,7 +235,7 @@ TEST_CASE("CapabilityOverrides - summary", "[printer][overrides]") {
 
 TEST_CASE("CapabilityOverrides - copy semantics", "[printer][overrides]") {
     CapabilityOverrides original;
-    original.set_override(capability::BED_LEVELING, OverrideState::ENABLE);
+    original.set_override(capability::BED_MESH, OverrideState::ENABLE);
     original.set_override(capability::QGL, OverrideState::DISABLE);
 
     PrinterCapabilities caps;
@@ -246,16 +246,16 @@ TEST_CASE("CapabilityOverrides - copy semantics", "[printer][overrides]") {
     SECTION("Copy constructor preserves state") {
         CapabilityOverrides copy(original);
 
-        REQUIRE(copy.get_override(capability::BED_LEVELING) == OverrideState::ENABLE);
+        REQUIRE(copy.get_override(capability::BED_MESH) == OverrideState::ENABLE);
         REQUIRE(copy.get_override(capability::QGL) == OverrideState::DISABLE);
-        REQUIRE(copy.is_available(capability::BED_LEVELING));
+        REQUIRE(copy.is_available(capability::BED_MESH));
     }
 
     SECTION("Copy assignment preserves state") {
         CapabilityOverrides copy;
         copy = original;
 
-        REQUIRE(copy.get_override(capability::BED_LEVELING) == OverrideState::ENABLE);
+        REQUIRE(copy.get_override(capability::BED_MESH) == OverrideState::ENABLE);
         REQUIRE(copy.get_override(capability::QGL) == OverrideState::DISABLE);
     }
 }

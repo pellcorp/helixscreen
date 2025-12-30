@@ -51,7 +51,8 @@
         "_comment": "Safety limits for G-code generation. Explicit values override Moonraker auto-detection. Defaults are conservative for most FDM printers. High-temp printers may need max_temperature_celsius > 400. Leave unset to auto-detect from printer.cfg via Moonraker."
       },
       "capability_overrides": {
-        "bed_leveling": "auto",
+        "bed_mesh": "auto",
+        "bed_level": "auto",
         "qgl": "auto",
         "z_tilt": "auto",
         "nozzle_clean": "auto",

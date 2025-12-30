@@ -30,7 +30,7 @@ void CapabilityOverrides::load_from_config() {
         overrides_[name] = parse_state(value);
     };
 
-    read_override(capability::BED_LEVELING);
+    read_override(capability::BED_MESH);
     read_override(capability::QGL);
     read_override(capability::Z_TILT);
     read_override(capability::NOZZLE_CLEAN);
@@ -77,7 +77,7 @@ bool CapabilityOverrides::get_auto_value(const std::string& name) const {
         return false;
     }
 
-    if (name == capability::BED_LEVELING) {
+    if (name == capability::BED_MESH) {
         return capabilities_.has_bed_mesh();
     } else if (name == capability::QGL) {
         return capabilities_.has_qgl();
@@ -140,7 +140,7 @@ std::string CapabilityOverrides::summary() const {
         }
     };
 
-    append(capability::BED_LEVELING);
+    append(capability::BED_MESH);
     append(capability::QGL);
     append(capability::Z_TILT);
     append(capability::NOZZLE_CLEAN);

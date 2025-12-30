@@ -75,7 +75,7 @@ class PrintSelectDetailView : public OverlayBase {
      * @brief Initialize subjects for pre-print option switches
      *
      * Creates and registers subjects that control switch default states.
-     * Skip switches (bed_leveling, qgl, z_tilt, nozzle_clean) default to ON.
+     * Skip switches (bed_mesh, qgl, z_tilt, nozzle_clean) default to ON.
      * Add-on switches (timelapse) default to OFF.
      *
      * MUST be called BEFORE create() so bindings can find subjects.
@@ -215,8 +215,8 @@ class PrintSelectDetailView : public OverlayBase {
 
     // === Checkbox Access (for prep manager setup) ===
 
-    [[nodiscard]] lv_obj_t* get_bed_leveling_checkbox() const {
-        return bed_leveling_checkbox_;
+    [[nodiscard]] lv_obj_t* get_bed_mesh_checkbox() const {
+        return bed_mesh_checkbox_;
     }
     [[nodiscard]] lv_obj_t* get_qgl_checkbox() const {
         return qgl_checkbox_;
@@ -261,7 +261,7 @@ class PrintSelectDetailView : public OverlayBase {
     lv_obj_t* print_button_ = nullptr;
 
     // Pre-print option checkboxes
-    lv_obj_t* bed_leveling_checkbox_ = nullptr;
+    lv_obj_t* bed_mesh_checkbox_ = nullptr;
     lv_obj_t* qgl_checkbox_ = nullptr;
     lv_obj_t* z_tilt_checkbox_ = nullptr;
     lv_obj_t* nozzle_clean_checkbox_ = nullptr;
@@ -278,7 +278,7 @@ class PrintSelectDetailView : public OverlayBase {
 
     // Pre-print option subjects (1 = checked/enabled, 0 = unchecked/disabled)
     // Enable switches default ON, add-on switches default OFF
-    lv_subject_t preprint_bed_leveling_{};
+    lv_subject_t preprint_bed_mesh_{};
     lv_subject_t preprint_qgl_{};
     lv_subject_t preprint_z_tilt_{};
     lv_subject_t preprint_nozzle_clean_{};

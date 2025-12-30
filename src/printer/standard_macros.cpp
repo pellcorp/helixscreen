@@ -36,7 +36,8 @@ const std::vector<SlotPatterns> DETECTION_PATTERNS = {
     {StandardMacroSlot::Pause,          {"PAUSE", "M601"}},
     {StandardMacroSlot::Resume,         {"RESUME", "M602"}},
     {StandardMacroSlot::Cancel,         {"CANCEL_PRINT"}},
-    {StandardMacroSlot::BedLevel,       {"BED_MESH_CALIBRATE", "Z_TILT_ADJUST", "QUAD_GANTRY_LEVEL", "QGL"}},
+    {StandardMacroSlot::BedMesh,        {"BED_MESH_CALIBRATE", "G29"}},
+    {StandardMacroSlot::BedLevel,       {"QUAD_GANTRY_LEVEL", "QGL", "Z_TILT_ADJUST"}},
     {StandardMacroSlot::CleanNozzle,    {"CLEAN_NOZZLE", "NOZZLE_WIPE", "WIPE_NOZZLE"}},
     {StandardMacroSlot::HeatSoak,       {"HEAT_SOAK", "CHAMBER_SOAK", "SOAK"}},
 };
@@ -56,7 +57,8 @@ const std::map<StandardMacroSlot, std::string> FALLBACK_MACROS = {
     {StandardMacroSlot::Pause,          ""},
     {StandardMacroSlot::Resume,         ""},
     {StandardMacroSlot::Cancel,         ""},
-    {StandardMacroSlot::BedLevel,       "HELIX_BED_LEVEL_IF_NEEDED"},
+    {StandardMacroSlot::BedMesh,        ""},
+    {StandardMacroSlot::BedLevel,       ""},
     {StandardMacroSlot::CleanNozzle,    "HELIX_CLEAN_NOZZLE"},
     {StandardMacroSlot::HeatSoak,       ""},
 };
@@ -78,6 +80,7 @@ const std::map<StandardMacroSlot, SlotMeta> SLOT_METADATA = {
     {StandardMacroSlot::Pause,          {"pause",           "Pause Print"}},
     {StandardMacroSlot::Resume,         {"resume",          "Resume Print"}},
     {StandardMacroSlot::Cancel,         {"cancel",          "Cancel Print"}},
+    {StandardMacroSlot::BedMesh,        {"bed_mesh",        "Bed Mesh"}},
     {StandardMacroSlot::BedLevel,       {"bed_level",       "Bed Level"}},
     {StandardMacroSlot::CleanNozzle,    {"clean_nozzle",    "Clean Nozzle"}},
     {StandardMacroSlot::HeatSoak,       {"heat_soak",       "Heat Soak"}},

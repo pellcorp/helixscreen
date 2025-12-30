@@ -133,7 +133,7 @@ struct ModificationResult {
  *
  * // Disable detected operations
  * auto scan = detector.scan_file("3DBenchy.gcode");
- * if (auto op = scan.get_operation(OperationType::BED_LEVELING)) {
+ * if (auto op = scan.get_operation(OperationType::BED_MESH)) {
  *     if (!user_wants_bed_leveling) {
  *         modifier.add_modification(Modification::comment_out(
  *             op->line_number, "Disabled by HelixScreen"));

@@ -53,9 +53,9 @@
     <!-- CALIBRATION SECTION -->
     <!-- ================================================================== -->
     <setting_section_header title="CALIBRATION" icon="wrench"/>
-    <!-- Bed Leveling (always shown - handles capability check internally) -->
-    <setting_action_row name="row_bed_leveling"
-                        label="Bed Leveling" icon="grid_large" description="Auto mesh and manual screw adjustment">
+    <!-- Bed Mesh (always shown - handles capability check internally) -->
+    <setting_action_row name="row_bed_mesh"
+                        label="Bed Mesh" icon="grid_large" description="Auto mesh and manual screw adjustment">
       <event_cb trigger="clicked" callback="on_screws_tilt_row_clicked"/>
     </setting_action_row>
     <!-- Input Shaping (hidden if no accelerometer) -->
