@@ -76,14 +76,16 @@
           <lv_button name="btn_macro_1"
                      height="#button_height_small" flex_grow="1" style_radius="#border_radius"
                      style_bg_color="#accent_color" style_bg_opa="40" style_border_width="0">
+            <lv_obj-bind_flag_if_eq subject="macro_1_visible" flag="hidden" ref_value="0"/>
             <event_cb trigger="clicked" callback="on_controls_macro_1"/>
-            <text_small name="macro_1_label" text="Macro 1" style_text_color="#text_primary" align="center"/>
+            <text_small name="macro_1_label" bind_text="macro_1_name" style_text_color="#text_primary" align="center"/>
           </lv_button>
           <lv_button name="btn_macro_2"
                      height="#button_height_small" flex_grow="1" style_radius="#border_radius"
                      style_bg_color="#accent_color" style_bg_opa="40" style_border_width="0">
+            <lv_obj-bind_flag_if_eq subject="macro_2_visible" flag="hidden" ref_value="0"/>
             <event_cb trigger="clicked" callback="on_controls_macro_2"/>
-            <text_small name="macro_2_label" text="Macro 2" style_text_color="#text_primary" align="center"/>
+            <text_small name="macro_2_label" bind_text="macro_2_name" style_text_color="#text_primary" align="center"/>
           </lv_button>
         </lv_obj>
         <!-- Motion panel navigation button -->
@@ -116,7 +118,8 @@
           <event_cb trigger="clicked" callback="on_nozzle_temp_clicked"/>
           <text_small text="Nozzle" style_text_color="#text_secondary"/>
           <temp_display name="nozzle_temp_display"
-                        size="md" show_target="true" bind_current="extruder_temp" bind_target="extruder_target"/>
+                        size="md" show_target="true" bind_current="extruder_temp" bind_target="extruder_target"
+                        event_cb="on_nozzle_temp_clicked"/>
         </lv_button>
         <text_small name="nozzle_status" bind_text="controls_nozzle_status" style_text_color="#text_secondary"/>
         <!-- Bed section (clickable) -->
@@ -127,7 +130,8 @@
           <event_cb trigger="clicked" callback="on_bed_temp_clicked"/>
           <text_small text="Bed" style_text_color="#text_secondary"/>
           <temp_display name="bed_temp_display"
-                        size="md" show_target="true" bind_current="bed_temp" bind_target="bed_target"/>
+                        size="md" show_target="true" bind_current="bed_temp" bind_target="bed_target"
+                        event_cb="on_bed_temp_clicked"/>
         </lv_button>
         <text_small name="bed_status" bind_text="controls_bed_status" style_text_color="#text_secondary"/>
       </ui_card>

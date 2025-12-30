@@ -110,10 +110,6 @@ class ControlsPanel : public PanelBase {
 
     std::optional<StandardMacroSlot> macro_1_slot_; ///< Slot for macro button 1
     std::optional<StandardMacroSlot> macro_2_slot_; ///< Slot for macro button 2
-    lv_obj_t* macro_1_btn_ = nullptr;               ///< Button widget for macro 1
-    lv_obj_t* macro_2_btn_ = nullptr;               ///< Button widget for macro 2
-    lv_obj_t* macro_1_label_ = nullptr;             ///< Label widget for macro 1
-    lv_obj_t* macro_2_label_ = nullptr;             ///< Label widget for macro 2
 
     /**
      * @brief Refresh macro button labels and visibility
@@ -145,6 +141,14 @@ class ControlsPanel : public PanelBase {
     lv_subject_t fan_speed_subject_{};
     char fan_speed_buf_[16] = {};
     lv_subject_t fan_pct_subject_{};
+
+    // Macro button subjects for declarative binding
+    lv_subject_t macro_1_visible_{};
+    lv_subject_t macro_2_visible_{};
+    lv_subject_t macro_1_name_{};
+    lv_subject_t macro_2_name_{};
+    char macro_1_name_buf_[64] = {};
+    char macro_2_name_buf_[64] = {};
 
     // Note: Calibration modal uses ui_modal_show pattern (pointer is calibration_modal_ below)
 

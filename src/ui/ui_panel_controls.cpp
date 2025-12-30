@@ -138,6 +138,12 @@ void ControlsPanel::init_subjects() {
                                         "controls_fan_speed");
     UI_SUBJECT_INIT_AND_REGISTER_INT(fan_pct_subject_, 0, "controls_fan_pct");
 
+    // Macro button visibility and names (for declarative binding)
+    UI_SUBJECT_INIT_AND_REGISTER_INT(macro_1_visible_, 0, "macro_1_visible");
+    UI_SUBJECT_INIT_AND_REGISTER_INT(macro_2_visible_, 0, "macro_2_visible");
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(macro_1_name_, macro_1_name_buf_, "", "macro_1_name");
+    UI_SUBJECT_INIT_AND_REGISTER_STRING(macro_2_name_, macro_2_name_buf_, "", "macro_2_name");
+
     // Z-Offset delta display (for banner showing unsaved adjustment)
     UI_SUBJECT_INIT_AND_REGISTER_STRING(z_offset_delta_display_subject_,
                                         z_offset_delta_display_buf_, "", "z_offset_delta_display");
@@ -187,12 +193,6 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         spdlog::error("[{}] NULL panel", get_name());
         return;
     }
-
-    // Cache macro button widgets for later updates
-    macro_1_btn_ = lv_obj_find_by_name(panel_, "macro_1_btn");
-    macro_2_btn_ = lv_obj_find_by_name(panel_, "macro_2_btn");
-    macro_1_label_ = lv_obj_find_by_name(panel_, "macro_1_label");
-    macro_2_label_ = lv_obj_find_by_name(panel_, "macro_2_label");
 
     // Load quick button slot assignments from config
     // Config stores slot names like "clean_nozzle", "bed_level"
@@ -389,60 +389,38 @@ void ControlsPanel::update_fan_display() {
 void ControlsPanel::refresh_macro_buttons() {
     auto& macros = StandardMacros::instance();
 
-    // Update macro button 1
+    // Update macro button 1 via subjects (declarative binding handles visibility/text)
     if (macro_1_slot_) {
         const auto& info = macros.get(*macro_1_slot_);
         if (info.is_empty()) {
-            // Slot has no macro - hide the button
-            if (macro_1_btn_) {
-                lv_obj_add_flag(macro_1_btn_, LV_OBJ_FLAG_HIDDEN);
-            }
+            lv_subject_set_int(&macro_1_visible_, 0);
             spdlog::debug("[{}] Macro 1 slot '{}' is empty, hiding button", get_name(),
                           info.slot_name);
         } else {
-            // Show button with display name
-            if (macro_1_btn_) {
-                lv_obj_remove_flag(macro_1_btn_, LV_OBJ_FLAG_HIDDEN);
-            }
-            if (macro_1_label_) {
-                lv_label_set_text(macro_1_label_, info.display_name.c_str());
-            }
+            lv_subject_set_int(&macro_1_visible_, 1);
+            lv_subject_copy_string(&macro_1_name_, info.display_name.c_str());
             spdlog::debug("[{}] Macro 1: '{}' → {}", get_name(), info.display_name,
                           info.get_macro());
         }
     } else {
-        // No slot configured - hide the button
-        if (macro_1_btn_) {
-            lv_obj_add_flag(macro_1_btn_, LV_OBJ_FLAG_HIDDEN);
-        }
+        lv_subject_set_int(&macro_1_visible_, 0);
     }
 
-    // Update macro button 2
+    // Update macro button 2 via subjects (declarative binding handles visibility/text)
     if (macro_2_slot_) {
         const auto& info = macros.get(*macro_2_slot_);
         if (info.is_empty()) {
-            // Slot has no macro - hide the button
-            if (macro_2_btn_) {
-                lv_obj_add_flag(macro_2_btn_, LV_OBJ_FLAG_HIDDEN);
-            }
+            lv_subject_set_int(&macro_2_visible_, 0);
             spdlog::debug("[{}] Macro 2 slot '{}' is empty, hiding button", get_name(),
                           info.slot_name);
         } else {
-            // Show button with display name
-            if (macro_2_btn_) {
-                lv_obj_remove_flag(macro_2_btn_, LV_OBJ_FLAG_HIDDEN);
-            }
-            if (macro_2_label_) {
-                lv_label_set_text(macro_2_label_, info.display_name.c_str());
-            }
+            lv_subject_set_int(&macro_2_visible_, 1);
+            lv_subject_copy_string(&macro_2_name_, info.display_name.c_str());
             spdlog::debug("[{}] Macro 2: '{}' → {}", get_name(), info.display_name,
                           info.get_macro());
         }
     } else {
-        // No slot configured - hide the button
-        if (macro_2_btn_) {
-            lv_obj_add_flag(macro_2_btn_, LV_OBJ_FLAG_HIDDEN);
-        }
+        lv_subject_set_int(&macro_2_visible_, 0);
     }
 }
 
