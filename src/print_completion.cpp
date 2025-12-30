@@ -10,6 +10,7 @@
 #include "ui_utils.h"
 
 #include "app_globals.h"
+#include "display_manager.h"
 #include "format_utils.h"
 #include "moonraker_api.h"
 #include "moonraker_manager.h"
@@ -207,7 +208,9 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
 
         // 1. Errors ALWAYS get a modal (high visibility needed)
         if (current == PrintJobState::ERROR) {
-            SettingsManager::instance().wake_display();
+            if (auto* dm = DisplayManager::instance()) {
+                dm->wake_display();
+            }
             show_rich_completion_modal(current, display_name.c_str());
             prev_print_state = current;
             return;
@@ -227,7 +230,9 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
             break;
 
         case CompletionAlertMode::NOTIFICATION: {
-            SettingsManager::instance().wake_display();
+            if (auto* dm = DisplayManager::instance()) {
+                dm->wake_display();
+            }
             char message[128];
             ToastSeverity severity = (current == PrintJobState::COMPLETE) ? ToastSeverity::SUCCESS
                                                                           : ToastSeverity::WARNING;
@@ -239,7 +244,9 @@ static void on_print_state_changed_for_notification(lv_observer_t* observer,
         }
 
         case CompletionAlertMode::ALERT:
-            SettingsManager::instance().wake_display();
+            if (auto* dm = DisplayManager::instance()) {
+                dm->wake_display();
+            }
             show_rich_completion_modal(current, display_name.c_str());
             break;
         }

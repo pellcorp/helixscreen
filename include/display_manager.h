@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "backlight_backend.h"
 #include "display_backend.h"
 
 #include <lvgl.h>
@@ -61,6 +62,16 @@ class DisplayManager {
     DisplayManager& operator=(const DisplayManager&) = delete;
     DisplayManager(DisplayManager&&) = delete;
     DisplayManager& operator=(DisplayManager&&) = delete;
+
+    /**
+     * @brief Get the current DisplayManager instance
+     *
+     * Returns the most recently initialized DisplayManager. Typically there is
+     * only one instance owned by Application. Returns nullptr if none exists.
+     *
+     * @return Pointer to current instance, or nullptr
+     */
+    static DisplayManager* instance();
 
     /**
      * @brief Initialize LVGL and display backend
@@ -137,6 +148,75 @@ class DisplayManager {
     }
 
     // ========================================================================
+    // Display Sleep Management
+    // ========================================================================
+
+    /**
+     * @brief Check inactivity and trigger display sleep if timeout exceeded
+     *
+     * Call this from the main event loop. Uses LVGL's built-in inactivity
+     * tracking (lv_display_get_inactive_time) and the configured sleep timeout.
+     *
+     * Sleep states:
+     * - Awake: Full brightness
+     * - Dimmed: Reduced brightness after dim timeout
+     * - Sleeping: Backlight off after sleep timeout, first touch only wakes
+     */
+    void check_display_sleep();
+
+    /**
+     * @brief Manually wake the display
+     *
+     * Restores brightness to saved level. When waking from full sleep (not dim),
+     * input is disabled for 200ms so the wake touch doesn't trigger UI actions.
+     */
+    void wake_display();
+
+    /**
+     * @brief Force display ON at startup
+     *
+     * Called early in app initialization to ensure display is visible regardless
+     * of previous app's sleep state.
+     */
+    void ensure_display_on();
+
+    /**
+     * @brief Restore display to usable state on shutdown
+     *
+     * Called during app cleanup to ensure display is awake before exiting.
+     * Prevents next app from starting with a black screen.
+     */
+    void restore_display_on_shutdown();
+
+    /**
+     * @brief Check if display is currently sleeping
+     * @return true if backlight is off due to inactivity
+     */
+    bool is_display_sleeping() const {
+        return m_display_sleeping;
+    }
+
+    /**
+     * @brief Check if display is currently dimmed
+     * @return true if backlight is at reduced brightness
+     */
+    bool is_display_dimmed() const {
+        return m_display_dimmed;
+    }
+
+    /**
+     * @brief Set backlight brightness directly
+     * @param percent Brightness 0-100 (clamped to 10-100 minimum)
+     */
+    void set_backlight_brightness(int percent);
+
+    /**
+     * @brief Check if hardware backlight control is available
+     * @return true if brightness can be controlled
+     */
+    bool has_backlight_control() const;
+
+    // ========================================================================
     // Static Timing Functions (portable across platforms)
     // ========================================================================
 
@@ -169,6 +249,15 @@ class DisplayManager {
     lv_indev_t* m_keyboard = nullptr;
     lv_group_t* m_input_group = nullptr;
 
+    // Backlight control
+    std::unique_ptr<BacklightBackend> m_backlight;
+
+    // Display sleep state
+    bool m_display_sleeping = false;
+    bool m_display_dimmed = false;
+    int m_dim_timeout_sec = 300;
+    int m_dim_brightness_percent = 30;
+
     /**
      * @brief Configure scroll behavior on pointer device
      */
@@ -178,4 +267,17 @@ class DisplayManager {
      * @brief Set up keyboard input group
      */
     void setup_keyboard_group();
+
+    /**
+     * @brief Temporarily disable pointer input after wake
+     *
+     * Prevents the wake touch from triggering UI actions.
+     * Re-enables automatically after 200ms via LVGL timer.
+     */
+    void disable_input_briefly();
+
+    /**
+     * @brief Timer callback to re-enable input after wake
+     */
+    static void reenable_input_cb(lv_timer_t* timer);
 };

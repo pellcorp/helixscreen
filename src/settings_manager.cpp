@@ -5,8 +5,8 @@
 
 #include "ui_theme.h"
 
-#include "backlight_backend.h"
 #include "config.h"
+#include "display_manager.h"
 #include "moonraker_client.h"
 #include "runtime_config.h"
 #include "spdlog/spdlog.h"
@@ -47,11 +47,6 @@ void SettingsManager::init_subjects() {
 
     spdlog::debug("[SettingsManager] Initializing subjects");
 
-    // Initialize backlight backend (auto-detects hardware)
-    backlight_backend_ = BacklightBackend::create();
-    spdlog::info("[SettingsManager] Backlight backend: {} (available: {})",
-                 backlight_backend_->name(), backlight_backend_->is_available());
-
     // Get initial values from Config
     Config* config = Config::get_instance();
 
@@ -63,34 +58,18 @@ void SettingsManager::init_subjects() {
     int sleep_sec = config->get<int>("/display_sleep_sec", 1800);
     lv_subject_init_int(&display_sleep_subject_, sleep_sec);
 
-    // Display dim settings (default: dim to 30% after 5 minutes)
-    dim_timeout_sec_ = config->get<int>("/display_dim_sec", 300);
-    dim_brightness_percent_ = std::clamp(config->get<int>("/display_dim_brightness", 30), 1, 100);
-    spdlog::info("[SettingsManager] Display dim: {}s timeout, {}% brightness", dim_timeout_sec_,
-                 dim_brightness_percent_);
-
-    // Brightness: Read from hardware first, fall back to config
-    // This ensures UI reflects actual display state on startup
-    // NOTE: If hardware reports 0 (screen off), use config value - we always want to turn ON
-    int brightness = backlight_backend_->get_brightness();
-    bool brightness_from_hardware = (brightness > 0); // 0 means "off", treat as no value
-    if (!brightness_from_hardware) {
-        // Fall back to config value (or default 50%)
-        brightness = config->get<int>("/brightness", 50);
-    }
-    brightness = std::clamp(brightness, 10, 100); // Always ensure minimum 10%
+    // Brightness: Read from config (DisplayManager handles hardware)
+    int brightness = config->get<int>("/brightness", 50);
+    brightness = std::clamp(brightness, 10, 100);
     lv_subject_init_int(&brightness_subject_, brightness);
-    spdlog::info("[SettingsManager] Brightness initialized to {}% (from {})", brightness,
-                 brightness_from_hardware ? "hardware" : "config");
+    spdlog::info("[SettingsManager] Brightness initialized to {}%", brightness);
 
-    // Ensure backlight is ON at startup (may have been off from sleep or crash)
-    if (backlight_backend_->is_available()) {
-        backlight_backend_->set_brightness(brightness);
-        spdlog::info("[SettingsManager] Backlight ON at {}%", brightness);
+    // Has backlight control subject (for UI visibility) - check DisplayManager
+    bool has_backlight = false;
+    if (auto* dm = DisplayManager::instance()) {
+        has_backlight = dm->has_backlight_control();
     }
-
-    // Has backlight control subject (for UI visibility)
-    lv_subject_init_int(&has_backlight_subject_, backlight_backend_->is_available() ? 1 : 0);
+    lv_subject_init_int(&has_backlight_subject_, has_backlight ? 1 : 0);
 
     // LED state (ephemeral, not persisted - start as off)
     lv_subject_init_int(&led_enabled_subject_, 0);
@@ -225,9 +204,9 @@ void SettingsManager::set_brightness(int percent) {
     // 1. Update subject (UI reflects change immediately)
     lv_subject_set_int(&brightness_subject_, clamped);
 
-    // 2. Apply to hardware via backend
-    if (backlight_backend_) {
-        backlight_backend_->set_brightness(clamped);
+    // 2. Apply to hardware via DisplayManager
+    if (auto* dm = DisplayManager::instance()) {
+        dm->set_backlight_brightness(clamped);
     }
 
     // 3. Persist to config
@@ -237,7 +216,10 @@ void SettingsManager::set_brightness(int percent) {
 }
 
 bool SettingsManager::has_backlight_control() const {
-    return backlight_backend_ && backlight_backend_->is_available();
+    if (auto* dm = DisplayManager::instance()) {
+        return dm->has_backlight_control();
+    }
+    return false;
 }
 
 bool SettingsManager::get_animations_enabled() const {
@@ -518,132 +500,4 @@ void SettingsManager::set_estop_require_confirmation(bool require) {
 
     spdlog::debug("[SettingsManager] E-Stop confirmation {} and saved",
                   require ? "enabled" : "disabled");
-}
-
-// =============================================================================
-// DISPLAY SLEEP MANAGEMENT
-// =============================================================================
-
-void SettingsManager::check_display_sleep() {
-    // Get configured sleep timeout (0 = disabled)
-    int sleep_timeout_sec = get_display_sleep_sec();
-
-    // Get LVGL inactivity time (milliseconds since last touch/input)
-    uint32_t inactive_ms = lv_display_get_inactive_time(nullptr);
-    uint32_t dim_timeout_ms =
-        (dim_timeout_sec_ > 0) ? static_cast<uint32_t>(dim_timeout_sec_) * 1000U : UINT32_MAX;
-    uint32_t sleep_timeout_ms =
-        (sleep_timeout_sec > 0) ? static_cast<uint32_t>(sleep_timeout_sec) * 1000U : UINT32_MAX;
-
-    // Check for activity (touch detected within last 500ms)
-    bool activity_detected = (inactive_ms < 500);
-
-    if (display_sleeping_) {
-        // Currently sleeping - wake on any touch
-        if (activity_detected) {
-            wake_display();
-        }
-    } else if (display_dimmed_) {
-        // Currently dimmed - wake on touch, or go to sleep if timeout exceeded
-        if (activity_detected) {
-            wake_display();
-        } else if (sleep_timeout_sec > 0 && inactive_ms >= sleep_timeout_ms) {
-            // Transition from dimmed to sleeping
-            display_sleeping_ = true;
-            if (backlight_backend_) {
-                backlight_backend_->set_brightness(0);
-            }
-            spdlog::info("[DisplaySleep] Display sleeping (backlight off) after {}s inactivity",
-                         sleep_timeout_sec);
-        }
-    } else {
-        // Currently awake - check if we should dim or sleep
-        if (sleep_timeout_sec > 0 && inactive_ms >= sleep_timeout_ms) {
-            // Skip dim, go straight to sleep (sleep timeout <= dim timeout)
-            display_sleeping_ = true;
-            if (backlight_backend_) {
-                backlight_backend_->set_brightness(0);
-            }
-            spdlog::info("[DisplaySleep] Display sleeping (backlight off) after {}s inactivity",
-                         sleep_timeout_sec);
-        } else if (dim_timeout_sec_ > 0 && inactive_ms >= dim_timeout_ms) {
-            // Dim the display
-            display_dimmed_ = true;
-            if (backlight_backend_) {
-                backlight_backend_->set_brightness(dim_brightness_percent_);
-            }
-            spdlog::info("[DisplaySleep] Display dimmed to {}% after {}s inactivity",
-                         dim_brightness_percent_, dim_timeout_sec_);
-        }
-    }
-}
-
-void SettingsManager::wake_display() {
-    if (!display_sleeping_ && !display_dimmed_) {
-        return; // Already fully awake
-    }
-
-    bool was_sleeping = display_sleeping_;
-    (void)was_sleeping; // Currently unused but retained for potential debugging
-    display_sleeping_ = false;
-    display_dimmed_ = false;
-
-    // Restore configured brightness from config file (source of truth)
-    Config* config = Config::get_instance();
-
-    // Check if brightness key exists in config
-    bool has_brightness = config->get_json("/").contains("brightness");
-    int brightness = config->get<int>("/brightness", 50);
-    int subject_value = lv_subject_get_int(const_cast<lv_subject_t*>(&brightness_subject_));
-
-    spdlog::debug("[DisplaySleep] Wake: config_has_key={}, config_value={}, subject_value={}",
-                  has_brightness, brightness, subject_value);
-
-    brightness = std::clamp(brightness, 10, 100);
-
-    // Sync subject with config value (ensures get_brightness() returns correct value)
-    if (subject_value != brightness) {
-        spdlog::warn("[DisplaySleep] Subject out of sync! Updating {} -> {}", subject_value,
-                     brightness);
-        lv_subject_set_int(&brightness_subject_, brightness);
-    }
-
-    if (backlight_backend_) {
-        backlight_backend_->set_brightness(brightness);
-    }
-    spdlog::info("[DisplaySleep] Display woken from {}, brightness restored to {}%",
-                 was_sleeping ? "sleep" : "dim", brightness);
-}
-
-void SettingsManager::ensure_display_on() {
-    // Force display awake at startup regardless of previous state
-    display_sleeping_ = false;
-    display_dimmed_ = false;
-
-    // Get configured brightness (or default to 50%)
-    Config* config = Config::get_instance();
-    int brightness = config->get<int>("/brightness", 50);
-    brightness = std::clamp(brightness, 10, 100);
-
-    // Apply to hardware - this ensures display is visible
-    if (backlight_backend_) {
-        backlight_backend_->set_brightness(brightness);
-    }
-    spdlog::info("[Display] Startup: forcing display ON at {}% brightness", brightness);
-
-    // Note: We control display sleep via backlight brightness only.
-    // Linux VT console blanking (TIOCLINUX) is not used - we're on DRM/KMS.
-}
-
-void SettingsManager::restore_display_on_shutdown() {
-    // Ensure display is awake before exiting so next app doesn't start with black screen
-    Config* config = Config::get_instance();
-    int brightness = config->get<int>("/brightness", 50);
-    brightness = std::clamp(brightness, 10, 100);
-
-    if (backlight_backend_) {
-        backlight_backend_->set_brightness(brightness);
-    }
-    display_sleeping_ = false;
-    spdlog::info("[Display] Shutdown: restoring display to {}% brightness", brightness);
 }

@@ -16,9 +16,13 @@
 #include "ui_fatal_error.h"
 #include "ui_update_queue.h"
 
+#include "config.h"
 #include "lvgl/src/libs/svg/lv_svg_decoder.h"
+#include "settings_manager.h"
 
 #include <spdlog/spdlog.h>
+
+#include <algorithm>
 
 #ifdef HELIX_DISPLAY_SDL
 #include <SDL.h>
@@ -27,6 +31,9 @@
 #ifndef HELIX_DISPLAY_SDL
 #include <time.h>
 #endif
+
+// Static instance pointer for global access (e.g., from print_completion)
+static DisplayManager* s_instance = nullptr;
 
 DisplayManager::DisplayManager() = default;
 
@@ -115,9 +122,26 @@ bool DisplayManager::init(const Config& config) {
     // Initialize SVG decoder for loading .svg files
     lv_svg_decoder_init();
 
+    // Create backlight backend (auto-detects hardware)
+    m_backlight = BacklightBackend::create();
+    spdlog::info("[DisplayManager] Backlight: {} (available: {})", m_backlight->name(),
+                 m_backlight->is_available());
+
+    // Load dim settings from config
+    ::Config* cfg = ::Config::get_instance();
+    m_dim_timeout_sec = cfg->get<int>("/display_dim_sec", 300);
+    m_dim_brightness_percent = std::clamp(cfg->get<int>("/display_dim_brightness", 30), 1, 100);
+    spdlog::info("[DisplayManager] Display dim: {}s timeout, {}% brightness", m_dim_timeout_sec,
+                 m_dim_brightness_percent);
+
     spdlog::debug("[DisplayManager] Initialized: {}x{}", m_width, m_height);
     m_initialized = true;
+    s_instance = this;
     return true;
+}
+
+DisplayManager* DisplayManager::instance() {
+    return s_instance;
 }
 
 void DisplayManager::shutdown() {
@@ -125,6 +149,7 @@ void DisplayManager::shutdown() {
         return;
     }
 
+    s_instance = nullptr;
     spdlog::debug("[DisplayManager] Shutting down");
 
     // NOTE: We do NOT call lv_group_delete(m_input_group) here because:
@@ -142,7 +167,8 @@ void DisplayManager::shutdown() {
     // Manually deleting first causes double-free crash.
     m_display = nullptr;
 
-    // Release backend
+    // Release backends
+    m_backlight.reset();
     m_backend.reset();
 
     // Shutdown UI update queue before LVGL
@@ -199,4 +225,163 @@ void DisplayManager::delay(uint32_t ms) {
                           static_cast<long>((ms % 1000) * 1000000L)};
     nanosleep(&ts, nullptr);
 #endif
+}
+
+// ============================================================================
+// Display Sleep Management
+// ============================================================================
+
+void DisplayManager::check_display_sleep() {
+    // Get configured sleep timeout from settings (0 = disabled)
+    int sleep_timeout_sec = SettingsManager::instance().get_display_sleep_sec();
+
+    // Get LVGL inactivity time (milliseconds since last touch/input)
+    uint32_t inactive_ms = lv_display_get_inactive_time(nullptr);
+    uint32_t dim_timeout_ms =
+        (m_dim_timeout_sec > 0) ? static_cast<uint32_t>(m_dim_timeout_sec) * 1000U : UINT32_MAX;
+    uint32_t sleep_timeout_ms =
+        (sleep_timeout_sec > 0) ? static_cast<uint32_t>(sleep_timeout_sec) * 1000U : UINT32_MAX;
+
+    // Check for activity (touch detected within last 500ms)
+    bool activity_detected = (inactive_ms < 500);
+
+    if (m_display_sleeping) {
+        // Currently sleeping - wake on any touch
+        if (activity_detected) {
+            wake_display();
+        }
+    } else if (m_display_dimmed) {
+        // Currently dimmed - wake on touch, or go to sleep if timeout exceeded
+        if (activity_detected) {
+            wake_display();
+        } else if (sleep_timeout_sec > 0 && inactive_ms >= sleep_timeout_ms) {
+            // Transition from dimmed to sleeping
+            m_display_sleeping = true;
+            if (m_backlight) {
+                m_backlight->set_brightness(0);
+            }
+            spdlog::info("[DisplayManager] Display sleeping (backlight off) after {}s inactivity",
+                         sleep_timeout_sec);
+        }
+    } else {
+        // Currently awake - check if we should dim or sleep
+        if (sleep_timeout_sec > 0 && inactive_ms >= sleep_timeout_ms) {
+            // Skip dim, go straight to sleep (sleep timeout <= dim timeout)
+            m_display_sleeping = true;
+            if (m_backlight) {
+                m_backlight->set_brightness(0);
+            }
+            spdlog::info("[DisplayManager] Display sleeping (backlight off) after {}s inactivity",
+                         sleep_timeout_sec);
+        } else if (m_dim_timeout_sec > 0 && inactive_ms >= dim_timeout_ms) {
+            // Dim the display
+            m_display_dimmed = true;
+            if (m_backlight) {
+                m_backlight->set_brightness(m_dim_brightness_percent);
+            }
+            spdlog::info("[DisplayManager] Display dimmed to {}% after {}s inactivity",
+                         m_dim_brightness_percent, m_dim_timeout_sec);
+        }
+    }
+}
+
+void DisplayManager::wake_display() {
+    if (!m_display_sleeping && !m_display_dimmed) {
+        return; // Already fully awake
+    }
+
+    bool was_sleeping = m_display_sleeping;
+    m_display_sleeping = false;
+    m_display_dimmed = false;
+
+    // Gate input if waking from full sleep (not dim)
+    // This prevents the wake touch from triggering UI actions
+    if (was_sleeping) {
+        disable_input_briefly();
+    }
+
+    // Restore configured brightness from settings
+    int brightness = SettingsManager::instance().get_brightness();
+    brightness = std::clamp(brightness, 10, 100);
+
+    if (m_backlight) {
+        m_backlight->set_brightness(brightness);
+    }
+    spdlog::info("[DisplayManager] Display woken from {}, brightness restored to {}%",
+                 was_sleeping ? "sleep" : "dim", brightness);
+}
+
+void DisplayManager::ensure_display_on() {
+    // Force display awake at startup regardless of previous state
+    m_display_sleeping = false;
+    m_display_dimmed = false;
+
+    // Get configured brightness (or default to 50%)
+    int brightness = SettingsManager::instance().get_brightness();
+    brightness = std::clamp(brightness, 10, 100);
+
+    // Apply to hardware - this ensures display is visible
+    if (m_backlight) {
+        m_backlight->set_brightness(brightness);
+    }
+    spdlog::info("[DisplayManager] Startup: forcing display ON at {}% brightness", brightness);
+}
+
+void DisplayManager::restore_display_on_shutdown() {
+    // Ensure display is awake before exiting so next app doesn't start with black screen
+    int brightness = SettingsManager::instance().get_brightness();
+    brightness = std::clamp(brightness, 10, 100);
+
+    if (m_backlight) {
+        m_backlight->set_brightness(brightness);
+    }
+    m_display_sleeping = false;
+    spdlog::info("[DisplayManager] Shutdown: restoring display to {}% brightness", brightness);
+}
+
+void DisplayManager::set_backlight_brightness(int percent) {
+    percent = std::clamp(percent, 0, 100);
+    if (m_backlight) {
+        m_backlight->set_brightness(percent);
+    }
+}
+
+bool DisplayManager::has_backlight_control() const {
+    return m_backlight && m_backlight->is_available();
+}
+
+// ============================================================================
+// Input Gating (Wake-Only First Touch)
+// ============================================================================
+
+void DisplayManager::disable_input_briefly() {
+    // Disable all pointer input devices
+    lv_indev_t* indev = lv_indev_get_next(nullptr);
+    while (indev) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            lv_indev_enable(indev, false);
+        }
+        indev = lv_indev_get_next(indev);
+    }
+
+    // Schedule re-enable after 200ms via LVGL timer
+    lv_timer_create(reenable_input_cb, 200, nullptr);
+
+    spdlog::debug("[DisplayManager] Input disabled for 200ms (wake-only touch)");
+}
+
+void DisplayManager::reenable_input_cb(lv_timer_t* timer) {
+    // Re-enable all pointer input devices
+    lv_indev_t* indev = lv_indev_get_next(nullptr);
+    while (indev) {
+        if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            lv_indev_enable(indev, true);
+        }
+        indev = lv_indev_get_next(indev);
+    }
+
+    // Delete the one-shot timer
+    lv_timer_delete(timer);
+
+    spdlog::debug("[DisplayManager] Input re-enabled after wake");
 }

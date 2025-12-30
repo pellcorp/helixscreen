@@ -1032,7 +1032,7 @@ int Application::main_loop() {
         process_notifications();
 
         // Check display sleep
-        SettingsManager::instance().check_display_sleep();
+        m_display->check_display_sleep();
 
         // Run LVGL tasks
         lv_timer_handler();
@@ -1133,7 +1133,7 @@ void Application::shutdown() {
     destroy_wizard_wifi_step();
 
     // Restore display backlight
-    SettingsManager::instance().restore_display_on_shutdown();
+    m_display->restore_display_on_shutdown();
 
     // Shutdown display (calls lv_deinit)
     m_display.reset();

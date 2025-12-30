@@ -9,7 +9,6 @@
 #include <memory>
 #include <string>
 
-class BacklightBackend;
 class MoonrakerClient;
 
 /** @brief Print completion notification mode (Off=0, Notification=1, Alert=2) */
@@ -455,61 +454,12 @@ class SettingsManager {
      */
     static int index_to_sleep_seconds(int index);
 
-    // =========================================================================
-    // DISPLAY SLEEP MANAGEMENT
-    // =========================================================================
-
-    /**
-     * @brief Check inactivity and trigger display sleep if timeout exceeded
-     *
-     * Call this from the main event loop. Uses LVGL's built-in inactivity
-     * tracking (lv_display_get_inactive_time) and the configured sleep timeout.
-     *
-     * When sleep triggers: backlight dims to minimum (10%)
-     * When touch detected: backlight restores to previous brightness
-     */
-    void check_display_sleep();
-
-    /**
-     * @brief Check if display is currently in sleep mode
-     * @return true if display is sleeping (dimmed due to inactivity)
-     */
-    bool is_display_sleeping() const {
-        return display_sleeping_;
-    }
-
-    /**
-     * @brief Manually wake the display (e.g., on important notification)
-     *
-     * Restores brightness to saved level and resets inactivity timer.
-     */
-    void wake_display();
-
-    /**
-     * @brief Force display ON at startup
-     *
-     * Called early in app initialization to ensure display is visible regardless
-     * of previous app's sleep state. Also disables OS console blanking on Linux.
-     */
-    void ensure_display_on();
-
-    /**
-     * @brief Restore display to usable state on shutdown
-     *
-     * Called during app cleanup to ensure display is awake before exiting.
-     * Prevents next app from starting with a black screen.
-     */
-    void restore_display_on_shutdown();
-
   private:
     SettingsManager();
     ~SettingsManager() = default;
 
     // Apply immediate effects
     void send_led_command(bool enabled);
-
-    // Backlight backend
-    std::unique_ptr<BacklightBackend> backlight_backend_;
 
     // LVGL subjects
     lv_subject_t dark_mode_subject_;
@@ -534,10 +484,4 @@ class SettingsManager {
     // State
     bool subjects_initialized_ = false;
     bool restart_pending_ = false;
-
-    // Display sleep/dim state
-    bool display_sleeping_ = false;
-    bool display_dimmed_ = false;
-    int dim_timeout_sec_ = 300;       ///< Configurable: seconds before dimming (0 = no dim)
-    int dim_brightness_percent_ = 30; ///< Configurable: brightness when dimmed (1-100)
 };
