@@ -11,6 +11,7 @@
 #include "ui_print_select_file_provider.h"
 #include "ui_print_select_list_view.h"
 #include "ui_print_select_usb_source.h"
+#include "ui_print_start_controller.h"
 
 #include "helix_plugin_installer.h"
 #include "print_file_data.h"
@@ -368,8 +369,6 @@ class PrintSelectPanel : public PanelBase {
     lv_obj_t* view_toggle_btn_ = nullptr;
     lv_obj_t* view_toggle_icon_ = nullptr;
     lv_obj_t* print_status_panel_widget_ = nullptr;
-    lv_obj_t* filament_warning_dialog_ = nullptr; ///< Pre-print filament sensor warning
-    lv_obj_t* color_mismatch_dialog_ = nullptr;   ///< Pre-print AMS color mismatch warning
 
     //
     // === Subject Buffers ===
@@ -425,6 +424,7 @@ class PrintSelectPanel : public PanelBase {
 
     std::vector<PrintFileData> file_list_;
     std::string current_path_;           ///< Current directory path (empty = root gcodes dir)
+    std::string last_populated_path_;    ///< Track path for scroll preservation on refresh
     std::string selected_filament_type_; ///< Filament type of selected file (for dropdown default)
     std::vector<std::string> selected_filament_colors_; ///< Tool colors of selected file
     size_t selected_file_size_bytes_ = 0; ///< File size of selected file (for safety checks)
@@ -455,6 +455,9 @@ class PrintSelectPanel : public PanelBase {
 
     // File data provider (handles Moonraker file fetching and metadata)
     std::unique_ptr<helix::ui::PrintSelectFileProvider> file_provider_;
+
+    // Print start controller (handles print initiation workflow, warnings)
+    std::unique_ptr<helix::ui::PrintStartController> print_controller_;
 
     // Observers for reactive updates (ObserverGuard handles cleanup)
     ObserverGuard connection_observer_;
@@ -488,13 +491,15 @@ class PrintSelectPanel : public PanelBase {
 
     /**
      * @brief Populate card view with file list (delegates to card_view_)
+     * @param preserve_scroll If true, preserve scroll position; otherwise reset to top
      */
-    void populate_card_view();
+    void populate_card_view(bool preserve_scroll = false);
 
     /**
      * @brief Populate list view with file list (delegates to list_view_)
+     * @param preserve_scroll If true, preserve scroll position; otherwise reset to top
      */
-    void populate_list_view();
+    void populate_list_view(bool preserve_scroll = false);
 
     /**
      * @brief Animate view container entrance with fade-in
@@ -596,42 +601,6 @@ class PrintSelectPanel : public PanelBase {
     void handle_file_click(size_t file_index);
 
     /**
-     * @brief Show filament warning dialog before print
-     *
-     * Called when runout sensor indicates no filament. User can proceed anyway or cancel.
-     */
-    void show_filament_warning();
-
-    /**
-     * @brief Check if G-code tool colors match available AMS slot colors
-     *
-     * Compares required colors from selected_filament_colors_ with colors loaded
-     * in AMS slots. Uses approximate color matching (within tolerance) since
-     * slicer colors may not exactly match Spoolman/AMS colors.
-     *
-     * @return Vector of tool indices (T0, T1, etc.) that have no matching slot color.
-     *         Empty vector if all colors match or AMS is not available.
-     */
-    std::vector<int> check_ams_color_match();
-
-    /**
-     * @brief Show color mismatch warning dialog before print
-     *
-     * Called when G-code requires colors not loaded in any AMS slot.
-     * Shows which tools are missing and allows user to proceed or cancel.
-     *
-     * @param missing_tools Tool indices without matching slot colors
-     */
-    void show_color_mismatch_warning(const std::vector<int>& missing_tools);
-
-    /**
-     * @brief Execute the actual print start (after any warnings)
-     *
-     * Called directly when no warning needed, or after user confirms warning dialog.
-     */
-    void execute_print_start();
-
-    /**
      * @brief Merge print history status into file list
      *
      * Uses PrintHistoryManager to populate FileHistoryStatus and success_count
@@ -647,10 +616,6 @@ class PrintSelectPanel : public PanelBase {
     static void on_resize_static(void* user_data);
     static void on_scroll_static(lv_event_t* e);
     static void on_file_clicked_static(lv_event_t* e);
-    static void on_filament_warning_proceed_static(lv_event_t* e);
-    static void on_filament_warning_cancel_static(lv_event_t* e);
-    static void on_color_mismatch_proceed_static(lv_event_t* e);
-    static void on_color_mismatch_cancel_static(lv_event_t* e);
 };
 
 // ============================================================================

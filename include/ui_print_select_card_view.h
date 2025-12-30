@@ -151,10 +151,12 @@ class PrintSelectCardView {
      * @brief Populate view with file list
      * @param file_list Reference to file data vector
      * @param dims Card dimensions for layout
+     * @param preserve_scroll If true, preserve scroll position; otherwise reset to top
      *
      * Resets scroll position and visible range, then updates visible cards.
      */
-    void populate(const std::vector<PrintFileData>& file_list, const CardDimensions& dims);
+    void populate(const std::vector<PrintFileData>& file_list, const CardDimensions& dims,
+                  bool preserve_scroll = false);
 
     /**
      * @brief Update visible cards based on scroll position

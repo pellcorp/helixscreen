@@ -320,12 +320,16 @@ void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size
 // ============================================================================
 
 void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
-                                   const CardDimensions& dims) {
+                                   const CardDimensions& dims, bool preserve_scroll) {
     if (!container_) {
         return;
     }
 
-    spdlog::debug("[PrintSelectCardView] Populating with {} files", file_list.size());
+    spdlog::debug("[PrintSelectCardView] Populating with {} files (preserve_scroll={})",
+                  file_list.size(), preserve_scroll);
+
+    // Save scroll position before any changes if preserving
+    int32_t saved_scroll = preserve_scroll ? lv_obj_get_scroll_y(container_) : 0;
 
     // Initialize pool on first call
     if (card_pool_.empty()) {
@@ -342,11 +346,17 @@ void PrintSelectCardView::populate(const std::vector<PrintFileData>& file_list,
     visible_start_row_ = -1;
     visible_end_row_ = -1;
 
-    // Reset scroll position
-    lv_obj_scroll_to_y(container_, 0, LV_ANIM_OFF);
-
-    // Update visible cards
+    // Update visible cards (this also updates spacer heights)
     update_visible(file_list, dims);
+
+    // Restore or reset scroll position
+    if (preserve_scroll && saved_scroll > 0) {
+        lv_obj_update_layout(container_);
+        int32_t max_scroll = lv_obj_get_scroll_bottom(container_);
+        lv_obj_scroll_to_y(container_, std::min(saved_scroll, max_scroll), LV_ANIM_OFF);
+    } else {
+        lv_obj_scroll_to_y(container_, 0, LV_ANIM_OFF);
+    }
 
     int total_rows = (static_cast<int>(file_list.size()) + cards_per_row_ - 1) / cards_per_row_;
     spdlog::debug("[PrintSelectCardView] Populated: {} files, {} rows, pool size {}",

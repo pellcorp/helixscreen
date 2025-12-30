@@ -24,10 +24,8 @@
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
-#include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
-#include "filament_sensor_manager.h"
 #include "lvgl/src/xml/lv_xml.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h" // For ConnectionState enum
@@ -191,19 +189,9 @@ PrintSelectPanel::~PrintSelectPanel() {
             lv_timer_delete(refresh_timer_);
             refresh_timer_ = nullptr;
         }
-
-        // Clean up filament warning dialog if open
-        if (filament_warning_dialog_) {
-            ui_modal_hide(filament_warning_dialog_);
-            filament_warning_dialog_ = nullptr;
-        }
-
-        // Clean up color mismatch warning dialog if open
-        if (color_mismatch_dialog_) {
-            ui_modal_hide(color_mismatch_dialog_);
-            color_mismatch_dialog_ = nullptr;
-        }
     }
+
+    // print_controller_ cleanup happens automatically via unique_ptr destructor
 
     // Cleanup extracted view modules (handles observer removal internally)
     if (card_view_) {
@@ -384,11 +372,14 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
         self->file_list_ = std::move(files);
 
         self->apply_sort();
+        // Preserve scroll if still in the same directory (e.g., refresh after file changes)
+        bool same_dir = (self->current_path_ == self->last_populated_path_);
         if (self->current_view_mode_ == PrintSelectViewMode::CARD) {
-            self->populate_card_view();
+            self->populate_card_view(same_dir);
         } else {
-            self->populate_list_view();
+            self->populate_list_view(same_dir);
         }
+        self->last_populated_path_ = self->current_path_;
         self->update_empty_state();
     });
 
@@ -415,8 +406,16 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
                 panel->apply_sort();
                 panel->merge_history_into_file_list(); // Populate history status for each file
                 panel->update_sort_indicators();
-                panel->populate_card_view();
-                panel->populate_list_view();
+
+                // Preserve scroll if still in the same directory (e.g., refresh after metadata)
+                bool same_dir = (panel->current_path_ == panel->last_populated_path_);
+                if (panel->current_view_mode_ == PrintSelectViewMode::CARD) {
+                    panel->populate_card_view(same_dir);
+                } else {
+                    panel->populate_list_view(same_dir);
+                }
+                panel->last_populated_path_ = panel->current_path_;
+
                 panel->update_empty_state();
 
                 // Check for pending file selection
@@ -990,6 +989,11 @@ void PrintSelectPanel::set_api(MoonrakerAPI* api) {
         detail_view_->set_dependencies(api_, &printer_state_);
     }
 
+    // Update print controller's API reference
+    if (print_controller_) {
+        print_controller_->set_api(api_);
+    }
+
     // Note: Don't auto-refresh here - WebSocket may not be connected yet.
     // refresh_files() has a connection check that will silently return if not connected.
     // Files will be loaded lazily via on_activate() when user navigates to this panel.
@@ -1351,16 +1355,16 @@ void PrintSelectPanel::handle_scroll(lv_obj_t* container) {
     }
 }
 
-void PrintSelectPanel::populate_card_view() {
+void PrintSelectPanel::populate_card_view(bool preserve_scroll) {
     if (!card_view_ || !card_view_container_)
         return;
 
-    spdlog::debug("[{}] populate_card_view() with {} files (virtualized)", get_name(),
-                  file_list_.size());
+    spdlog::debug("[{}] populate_card_view() with {} files (virtualized, preserve_scroll={})",
+                  get_name(), file_list_.size(), preserve_scroll);
 
     // Delegate to extracted card view module
     CardDimensions dims = calculate_card_dimensions();
-    card_view_->populate(file_list_, dims);
+    card_view_->populate(file_list_, dims, preserve_scroll);
 
     spdlog::debug("[{}] Card view populated with {} files", get_name(), file_list_.size());
 }
@@ -1398,18 +1402,20 @@ void PrintSelectPanel::animate_view_entrance(lv_obj_t* container) {
     spdlog::debug("[{}] View entrance animation started", get_name());
 }
 
-void PrintSelectPanel::populate_list_view() {
+void PrintSelectPanel::populate_list_view(bool preserve_scroll) {
     if (!list_view_ || !list_rows_container_)
         return;
 
-    spdlog::debug("[{}] populate_list_view() with {} files (virtualized)", get_name(),
-                  file_list_.size());
+    spdlog::debug("[{}] populate_list_view() with {} files (virtualized, preserve_scroll={})",
+                  get_name(), file_list_.size(), preserve_scroll);
 
     // Delegate to extracted list view module
-    list_view_->populate(file_list_);
+    list_view_->populate(file_list_, preserve_scroll);
 
-    // Trigger entrance animation for newly visible rows
-    list_view_->animate_entrance();
+    // Trigger entrance animation for newly visible rows (skip if preserving scroll)
+    if (!preserve_scroll) {
+        list_view_->animate_entrance();
+    }
 
     spdlog::debug("[{}] List view populated with {} files", get_name(), file_list_.size());
 }
@@ -1723,6 +1729,19 @@ void PrintSelectPanel::create_detail_view() {
             });
     }
 
+    // Create and wire up print start controller
+    print_controller_ = std::make_unique<helix::ui::PrintStartController>(printer_state_, api_);
+    print_controller_->set_detail_view(detail_view_.get());
+    print_controller_->set_can_print_subject(&can_print_subject_);
+    print_controller_->set_update_print_button([this]() { update_print_button_state(); });
+    print_controller_->set_hide_detail_view([this]() { hide_detail_view(); });
+    print_controller_->set_show_detail_view([this]() { show_detail_view(); });
+    print_controller_->set_navigate_to_print_status([this]() {
+        if (print_status_panel_widget_) {
+            ui_nav_push_overlay(print_status_panel_widget_);
+        }
+    });
+
     spdlog::debug("[{}] Detail view module initialized", get_name());
 }
 
@@ -1739,7 +1758,7 @@ void PrintSelectPanel::handle_resize() {
     spdlog::info("[{}] Handling resize event", get_name());
 
     if (current_view_mode_ == PrintSelectViewMode::CARD && card_view_container_) {
-        populate_card_view();
+        populate_card_view(true); // Preserve scroll on resize
     }
 
     if (detail_view_ && parent_screen_) {
@@ -1795,148 +1814,18 @@ void PrintSelectPanel::handle_file_click(size_t file_index) {
 }
 
 void PrintSelectPanel::start_print() {
-    // OPTIMISTIC UI: Disable button IMMEDIATELY to prevent double-clicks.
-    // This must happen BEFORE any async work or checks that could allow
-    // the user to click again while we're processing.
-    lv_subject_set_int(&can_print_subject_, 0);
-
-    // Stage 9: Concurrent Print Prevention
-    // Check if a print is already active before allowing a new one to start
-    if (!printer_state_.can_start_new_print()) {
-        PrintJobState current_state = printer_state_.get_print_job_state();
-        const char* state_str = print_job_state_to_string(current_state);
-        NOTIFY_ERROR("Cannot start print: printer is {}", state_str);
-        spdlog::warn("[{}] Attempted to start print while printer is in {} state", get_name(),
-                     state_str);
-        update_print_button_state(); // Re-enable button on early failure
-        return;
-    }
-
-    // Check if runout sensor shows no filament (pre-print warning)
-    auto& sensor_mgr = helix::FilamentSensorManager::instance();
-    if (sensor_mgr.is_master_enabled() &&
-        sensor_mgr.is_sensor_available(helix::FilamentSensorRole::RUNOUT) &&
-        !sensor_mgr.is_filament_detected(helix::FilamentSensorRole::RUNOUT)) {
-        // No filament detected - show warning dialog
-        // Button stays disabled - dialog will handle continuation or re-enable on cancel
-        spdlog::info("[{}] Runout sensor shows no filament - showing pre-print warning",
-                     get_name());
-        show_filament_warning();
-        return;
-    }
-
-    // Check if G-code requires colors not loaded in AMS
-    auto missing_tools = check_ams_color_match();
-    if (!missing_tools.empty()) {
-        // Button stays disabled - dialog will handle continuation or re-enable on cancel
-        spdlog::info("[{}] G-code requires {} tool colors not found in AMS slots", get_name(),
-                     missing_tools.size());
-        show_color_mismatch_warning(missing_tools);
-        return;
-    }
-
-    // All checks passed - proceed directly
-    execute_print_start();
-}
-
-void PrintSelectPanel::execute_print_start() {
-    // OPTIMISTIC UI: Disable button immediately to prevent double-clicks
-    lv_subject_set_int(&can_print_subject_, 0);
-
-    auto* prep_manager = detail_view_ ? detail_view_->get_prep_manager() : nullptr;
-    if (!prep_manager) {
-        spdlog::error("[{}] Cannot start print - prep manager not initialized", get_name());
+    if (!print_controller_) {
+        spdlog::error("[{}] Cannot start print - controller not initialized", get_name());
         NOTIFY_ERROR("Cannot start print: internal error");
-        update_print_button_state(); // Re-enable button on early failure
         return;
     }
 
-    std::string filename_to_print(selected_filename_buffer_);
-    auto* self = this;
+    // Set the file to print in the controller
+    print_controller_->set_file(selected_filename_buffer_, current_path_,
+                                selected_filament_colors_);
 
-    // Read options to check for timelapse (handled separately from prep_manager)
-    auto options = prep_manager->read_options_from_checkboxes();
-
-    spdlog::info(
-        "[{}] Starting print: {} (pre-print: mesh={}, qgl={}, z_tilt={}, clean={}, timelapse={})",
-        get_name(), filename_to_print, options.bed_leveling, options.qgl, options.z_tilt,
-        options.nozzle_clean, options.timelapse);
-
-    // Enable timelapse recording if requested (Moonraker-Timelapse plugin)
-    if (options.timelapse && api_) {
-        api_->set_timelapse_enabled(
-            true, []() { spdlog::info("[PrintSelect] Timelapse enabled for this print"); },
-            [](const MoonrakerError& err) {
-                spdlog::error("[PrintSelect] Failed to enable timelapse: {}", err.message);
-            });
-    }
-
-    // Navigate to print status panel IMMEDIATELY (optimistic navigation)
-    // The busy overlay will show on top during download/upload operations.
-    // On failure, we'll navigate back to the detail overlay.
-    if (print_status_panel_widget_) {
-        spdlog::info("[{}] Navigating to print status panel (preparing...)", get_name());
-        hide_detail_view();
-        ui_nav_push_overlay(print_status_panel_widget_);
-    }
-
-    // Delegate to PrintPreparationManager
-    prep_manager->start_print(
-        filename_to_print, current_path_,
-        // Navigation callback - called when Moonraker confirms print start
-        // Sets thumbnail source so PrintStatusPanel loads the correct thumbnail
-        [self, filename_to_print]() {
-            auto& status_panel = get_global_print_status_panel();
-            status_panel.set_thumbnail_source(filename_to_print);
-            spdlog::debug("[{}] Print start confirmed, thumbnail source set: {}", self->get_name(),
-                          filename_to_print);
-        },
-        // Completion callback
-        [self](bool success, const std::string& error) {
-            auto& status_panel = get_global_print_status_panel();
-
-            if (success) {
-                spdlog::info("[{}] Print started successfully", self->get_name());
-                status_panel.end_preparing(true);
-            } else if (!error.empty()) {
-                NOTIFY_ERROR("Print preparation failed: {}", error);
-                LOG_ERROR_INTERNAL("[{}] Print preparation failed: {}", self->get_name(), error);
-                status_panel.end_preparing(false);
-
-                // Navigate back to print detail overlay on failure
-                spdlog::info("[{}] Navigating back to print select after failure",
-                             self->get_name());
-                ui_nav_go_back(); // Pop print status overlay
-
-                // Re-show the detail view so user can retry
-                self->show_detail_view();
-
-                // Re-enable button on failure
-                self->update_print_button_state();
-            }
-        });
-}
-
-void PrintSelectPanel::show_filament_warning() {
-    // Close any existing dialog first
-    if (filament_warning_dialog_) {
-        ui_modal_hide(filament_warning_dialog_);
-        filament_warning_dialog_ = nullptr;
-    }
-
-    filament_warning_dialog_ = ui_modal_show_confirmation(
-        "No Filament Detected",
-        "The runout sensor indicates no filament is loaded. "
-        "Start print anyway?",
-        ModalSeverity::Warning, "Start Print", on_filament_warning_proceed_static,
-        on_filament_warning_cancel_static, this);
-
-    if (!filament_warning_dialog_) {
-        spdlog::error("[{}] Failed to create filament warning dialog", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Pre-print filament warning dialog shown", get_name());
+    // Delegate to the print start controller
+    print_controller_->initiate();
 }
 
 void PrintSelectPanel::delete_file() {
@@ -2099,162 +1988,4 @@ void PrintSelectPanel::on_usb_drive_removed() {
     }
     // Note: The usb_source_ module handles switching to Printer source if needed,
     // and the on_source_changed callback triggers refresh_files()
-}
-
-void PrintSelectPanel::on_filament_warning_proceed_static(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintSelectPanel] on_filament_warning_proceed_static");
-    auto* self = static_cast<PrintSelectPanel*>(lv_event_get_user_data(e));
-    if (self) {
-        // Hide dialog first
-        if (self->filament_warning_dialog_) {
-            ui_modal_hide(self->filament_warning_dialog_);
-            self->filament_warning_dialog_ = nullptr;
-        }
-        // Execute print
-        self->execute_print_start();
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintSelectPanel::on_filament_warning_cancel_static(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintSelectPanel] on_filament_warning_cancel_static");
-    auto* self = static_cast<PrintSelectPanel*>(lv_event_get_user_data(e));
-    if (self && self->filament_warning_dialog_) {
-        ui_modal_hide(self->filament_warning_dialog_);
-        self->filament_warning_dialog_ = nullptr;
-        // Re-enable print button since user cancelled
-        self->update_print_button_state();
-        spdlog::debug("[PrintSelectPanel] Print cancelled by user (no filament warning)");
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// AMS Color Mismatch Detection
-// ============================================================================
-
-std::vector<int> PrintSelectPanel::check_ams_color_match() {
-    std::vector<int> missing_tools;
-
-    // Skip check if no multi-color G-code (single color or no colors)
-    if (selected_filament_colors_.size() <= 1) {
-        return missing_tools;
-    }
-
-    // Skip check if AMS not available
-    if (!AmsState::instance().is_available()) {
-        spdlog::debug("[{}] AMS not available, skipping color match check", get_name());
-        return missing_tools;
-    }
-
-    // Get slot count from AMS
-    int slot_count = lv_subject_get_int(AmsState::instance().get_slot_count_subject());
-    if (slot_count <= 0) {
-        spdlog::debug("[{}] No AMS slots available", get_name());
-        return missing_tools;
-    }
-
-    // Collect all slot colors
-    std::vector<uint32_t> slot_colors;
-    for (int i = 0; i < slot_count && i < AmsState::MAX_SLOTS; ++i) {
-        lv_subject_t* color_subject = AmsState::instance().get_slot_color_subject(i);
-        if (color_subject) {
-            uint32_t color = static_cast<uint32_t>(lv_subject_get_int(color_subject));
-            slot_colors.push_back(color);
-        }
-    }
-
-    // Color match tolerance (0-255 scale)
-    // Value of 40 allows ~15% variance per RGB channel, accounting for
-    // differences between slicer color palettes and Spoolman/AMS colors
-    constexpr int COLOR_MATCH_TOLERANCE = 40;
-
-    // Check each required tool color
-    for (size_t tool_idx = 0; tool_idx < selected_filament_colors_.size(); ++tool_idx) {
-        auto required_color = ui_parse_hex_color(selected_filament_colors_[tool_idx]);
-        if (!required_color) {
-            continue; // Skip invalid/empty colors (but NOT black #000000!)
-        }
-
-        // Look for a matching slot
-        bool found_match = false;
-        for (uint32_t slot_color : slot_colors) {
-            if (ui_color_distance(*required_color, slot_color) <= COLOR_MATCH_TOLERANCE) {
-                found_match = true;
-                break;
-            }
-        }
-
-        if (!found_match) {
-            missing_tools.push_back(static_cast<int>(tool_idx));
-            spdlog::debug("[{}] Tool T{} color #{:06X} not found in AMS slots", get_name(),
-                          tool_idx, *required_color);
-        }
-    }
-
-    return missing_tools;
-}
-
-void PrintSelectPanel::show_color_mismatch_warning(const std::vector<int>& missing_tools) {
-    // Close any existing dialog first
-    if (color_mismatch_dialog_) {
-        ui_modal_hide(color_mismatch_dialog_);
-        color_mismatch_dialog_ = nullptr;
-    }
-
-    // Build message listing missing tools and their colors
-    std::string message = "This print requires colors not loaded in the AMS:\n\n";
-    for (int tool_idx : missing_tools) {
-        if (tool_idx < static_cast<int>(selected_filament_colors_.size())) {
-            const std::string& color = selected_filament_colors_[tool_idx];
-            message += "  • T" + std::to_string(tool_idx) + ": " + color + "\n";
-        }
-    }
-    message += "\nLoad the required filaments or start anyway?";
-
-    // Static buffer for message - must persist during modal lifetime.
-    // Safe because we always close any existing dialog first above,
-    // preventing concurrent access to this buffer.
-    static char message_buffer[512];
-    snprintf(message_buffer, sizeof(message_buffer), "%s", message.c_str());
-
-    color_mismatch_dialog_ = ui_modal_show_confirmation(
-        "Color Mismatch", message_buffer, ModalSeverity::Warning, "Start Anyway",
-        on_color_mismatch_proceed_static, on_color_mismatch_cancel_static, this);
-
-    if (!color_mismatch_dialog_) {
-        spdlog::error("[{}] Failed to create color mismatch warning dialog", get_name());
-        return;
-    }
-
-    spdlog::debug("[{}] Color mismatch warning dialog shown for {} tools", get_name(),
-                  missing_tools.size());
-}
-
-void PrintSelectPanel::on_color_mismatch_proceed_static(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintSelectPanel] on_color_mismatch_proceed_static");
-    auto* self = static_cast<PrintSelectPanel*>(lv_event_get_user_data(e));
-    if (self) {
-        // Hide dialog first
-        if (self->color_mismatch_dialog_) {
-            ui_modal_hide(self->color_mismatch_dialog_);
-            self->color_mismatch_dialog_ = nullptr;
-        }
-        // Execute print despite mismatch
-        self->execute_print_start();
-    }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void PrintSelectPanel::on_color_mismatch_cancel_static(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[PrintSelectPanel] on_color_mismatch_cancel_static");
-    auto* self = static_cast<PrintSelectPanel*>(lv_event_get_user_data(e));
-    if (self && self->color_mismatch_dialog_) {
-        ui_modal_hide(self->color_mismatch_dialog_);
-        self->color_mismatch_dialog_ = nullptr;
-        // Re-enable print button since user cancelled
-        self->update_print_button_state();
-        spdlog::debug("[PrintSelectPanel] Print cancelled by user (color mismatch warning)");
-    }
-    LVGL_SAFE_EVENT_CB_END();
 }

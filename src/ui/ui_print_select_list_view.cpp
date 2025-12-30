@@ -305,12 +305,17 @@ void PrintSelectListView::configure_row(lv_obj_t* row, size_t pool_index, size_t
 // Population / Visibility
 // ============================================================================
 
-void PrintSelectListView::populate(const std::vector<PrintFileData>& file_list) {
+void PrintSelectListView::populate(const std::vector<PrintFileData>& file_list,
+                                   bool preserve_scroll) {
     if (!container_) {
         return;
     }
 
-    spdlog::debug("[PrintSelectListView] Populating with {} files", file_list.size());
+    spdlog::debug("[PrintSelectListView] Populating with {} files (preserve_scroll={})",
+                  file_list.size(), preserve_scroll);
+
+    // Save scroll position before any changes if preserving
+    int32_t saved_scroll = preserve_scroll ? lv_obj_get_scroll_y(container_) : 0;
 
     // Initialize pool on first call
     if (list_pool_.empty()) {
@@ -324,11 +329,17 @@ void PrintSelectListView::populate(const std::vector<PrintFileData>& file_list) 
     visible_start_ = -1;
     visible_end_ = -1;
 
-    // Reset scroll position
-    lv_obj_scroll_to_y(container_, 0, LV_ANIM_OFF);
-
-    // Update visible rows
+    // Update visible rows (this also updates spacer heights)
     update_visible(file_list);
+
+    // Restore or reset scroll position
+    if (preserve_scroll && saved_scroll > 0) {
+        lv_obj_update_layout(container_);
+        int32_t max_scroll = lv_obj_get_scroll_bottom(container_);
+        lv_obj_scroll_to_y(container_, std::min(saved_scroll, max_scroll), LV_ANIM_OFF);
+    } else {
+        lv_obj_scroll_to_y(container_, 0, LV_ANIM_OFF);
+    }
 
     spdlog::debug("[PrintSelectListView] Populated: {} files, pool size {}", file_list.size(),
                   list_pool_.size());
