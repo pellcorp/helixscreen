@@ -313,6 +313,8 @@ std::string PrintStartEnhancer::get_skip_param_for_category(PrintStartOpCategory
         return "SKIP_HOMING";
     case PrintStartOpCategory::CHAMBER_SOAK:
         return "SKIP_SOAK";
+    case PrintStartOpCategory::BED_LEVEL:
+        return "SKIP_BED_LEVEL";
     case PrintStartOpCategory::UNKNOWN:
     default:
         return "";

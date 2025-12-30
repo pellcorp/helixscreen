@@ -2038,12 +2038,12 @@ TEST_CASE("PrinterDetector: Print start capabilities lookup", "[printer][capabil
 
         REQUIRE_FALSE(caps.empty());
         REQUIRE(caps.macro_name == "START_PRINT");
-        REQUIRE(caps.has_capability("bed_leveling"));
+        REQUIRE(caps.has_capability("bed_mesh"));
         REQUIRE(caps.has_capability("priming"));
         REQUIRE(caps.has_capability("skew_correct"));
 
-        // Check bed_leveling param details
-        auto* bed_level = caps.get_capability("bed_leveling");
+        // Check bed_mesh param details
+        auto* bed_level = caps.get_capability("bed_mesh");
         REQUIRE(bed_level != nullptr);
         REQUIRE(bed_level->param == "FORCE_LEVELING");
         REQUIRE(bed_level->skip_value == "false");
@@ -2084,23 +2084,23 @@ TEST_CASE("PrintStartCapabilities: Helper methods work correctly", "[printer][ca
 
         PrintStartCapabilities filled_caps;
         filled_caps.macro_name = "PRINT_START";
-        filled_caps.params["bed_leveling"] = PrintStartParamCapability{.param = "SKIP_BED_MESH"};
+        filled_caps.params["bed_mesh"] = PrintStartParamCapability{.param = "SKIP_BED_MESH"};
         REQUIRE_FALSE(filled_caps.empty());
     }
 
     SECTION("has_capability() and get_capability() work together") {
         PrintStartCapabilities caps;
-        caps.params["bed_leveling"] =
+        caps.params["bed_mesh"] =
             PrintStartParamCapability{.param = "SKIP_BED_MESH", .skip_value = "1"};
         caps.params["priming"] =
             PrintStartParamCapability{.param = "DISABLE_PRIMING", .skip_value = "true"};
 
-        REQUIRE(caps.has_capability("bed_leveling"));
+        REQUIRE(caps.has_capability("bed_mesh"));
         REQUIRE(caps.has_capability("priming"));
         REQUIRE_FALSE(caps.has_capability("qgl"));
         REQUIRE_FALSE(caps.has_capability("unknown_key"));
 
-        auto* bed_cap = caps.get_capability("bed_leveling");
+        auto* bed_cap = caps.get_capability("bed_mesh");
         REQUIRE(bed_cap != nullptr);
         REQUIRE(bed_cap->param == "SKIP_BED_MESH");
 

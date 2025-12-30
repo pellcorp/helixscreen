@@ -20,6 +20,7 @@ enum class OperationType {
     BED_MESH,     ///< BED_MESH_CALIBRATE, G29, etc.
     QGL,          ///< QUAD_GANTRY_LEVEL
     Z_TILT,       ///< Z_TILT_ADJUST
+    BED_LEVEL,    ///< Physical bed/gantry leveling (QGL, Z_TILT)
     NOZZLE_CLEAN, ///< CLEAN_NOZZLE, NOZZLE_WIPE, etc.
     HOMING,       ///< G28
     CHAMBER_SOAK, ///< HEAT_SOAK, chamber heating commands

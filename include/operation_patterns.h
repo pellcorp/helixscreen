@@ -30,6 +30,7 @@ enum class OperationCategory {
     BED_MESH,     ///< Bed mesh calibration (BED_MESH_CALIBRATE, G29)
     QGL,          ///< Quad gantry leveling (QUAD_GANTRY_LEVEL)
     Z_TILT,       ///< Z-tilt adjustment (Z_TILT_ADJUST)
+    BED_LEVEL,    ///< Physical bed/gantry leveling (parent of QGL and Z_TILT)
     NOZZLE_CLEAN, ///< Nozzle cleaning/wiping (CLEAN_NOZZLE, BRUSH_NOZZLE)
     PURGE_LINE,   ///< Purge/prime line (PURGE_LINE, PRIME_LINE)
     HOMING,       ///< Homing axes (G28)
@@ -58,9 +59,8 @@ struct OperationKeyword {
 // clang-format off
 inline const OperationKeyword OPERATION_KEYWORDS[] = {
     // === Bed Mesh ===
-    // Substring matching: AUTO_BED_LEVEL matches BED_LEVEL, etc.
+    // Matches BED_MESH_CALIBRATE, BED_MESH_PROFILE, etc.
     {"BED_MESH",             OperationCategory::BED_MESH, "SKIP_BED_MESH",     false},
-    {"BED_LEVEL",            OperationCategory::BED_MESH, "SKIP_BED_MESH",     false},
     {"G29",                  OperationCategory::BED_MESH, "SKIP_BED_MESH",     true},
 
     // === Quad Gantry Level ===
@@ -119,15 +119,17 @@ inline const std::vector<std::string> SKIP_PARAM_VARIATIONS[] = {
     {"SKIP_QGL", "SKIP_GANTRY", "NO_QGL", "SKIP_QUAD_GANTRY_LEVEL"},
     // Index 2: Z_TILT
     {"SKIP_Z_TILT", "SKIP_TILT", "NO_Z_TILT", "SKIP_Z_TILT_ADJUST"},
-    // Index 3: NOZZLE_CLEAN
+    // Index 3: BED_LEVEL (parent of QGL and Z_TILT)
+    {"SKIP_BED_LEVEL", "SKIP_LEVELING", "SKIP_LEVEL", "NO_BED_LEVEL"},
+    // Index 4: NOZZLE_CLEAN
     {"SKIP_NOZZLE_CLEAN", "SKIP_CLEAN", "NO_CLEAN"},
-    // Index 4: PURGE_LINE
+    // Index 5: PURGE_LINE
     {"SKIP_PURGE", "SKIP_PRIME", "NO_PURGE", "NO_PRIME", "DISABLE_PRIMING"},
-    // Index 5: HOMING
+    // Index 6: HOMING
     {"SKIP_HOMING", "SKIP_HOME", "NO_HOME"},
-    // Index 6: CHAMBER_SOAK
+    // Index 7: CHAMBER_SOAK
     {"SKIP_SOAK", "SKIP_HEAT_SOAK", "NO_SOAK", "SKIP_CHAMBER"},
-    // Index 7: SKEW_CORRECT
+    // Index 8: SKEW_CORRECT
     {"SKIP_SKEW", "NO_SKEW", "DISABLE_SKEW", "DISABLE_SKEW_CORRECT"},
 };
 // clang-format on
@@ -143,6 +145,8 @@ inline const char* category_name(OperationCategory cat) {
         return "Quad gantry leveling";
     case OperationCategory::Z_TILT:
         return "Z-tilt adjustment";
+    case OperationCategory::BED_LEVEL:
+        return "Bed leveling";
     case OperationCategory::NOZZLE_CLEAN:
         return "Nozzle cleaning";
     case OperationCategory::PURGE_LINE:
@@ -172,6 +176,8 @@ inline const char* category_key(OperationCategory cat) {
         return "qgl";
     case OperationCategory::Z_TILT:
         return "z_tilt";
+    case OperationCategory::BED_LEVEL:
+        return "bed_level";
     case OperationCategory::NOZZLE_CLEAN:
         return "nozzle_clean";
     case OperationCategory::PURGE_LINE:
@@ -204,6 +210,37 @@ inline const std::vector<std::string>& get_skip_variations(OperationCategory cat
         return SKIP_PARAM_VARIATIONS[idx];
     }
     return empty;
+}
+
+/**
+ * @brief Check if a category is a physical bed leveling operation
+ *
+ * Returns true for BED_LEVEL, QGL, and Z_TILT categories.
+ * Useful for unified handling where SKIP_BED_LEVEL should affect all physical leveling.
+ */
+inline bool is_bed_level_category(OperationCategory cat) {
+    return cat == OperationCategory::BED_LEVEL || cat == OperationCategory::QGL ||
+           cat == OperationCategory::Z_TILT;
+}
+
+/**
+ * @brief Get all skip parameter variations that could disable this category
+ *
+ * For QGL and Z_TILT, includes both specific variations (SKIP_QGL, SKIP_Z_TILT)
+ * AND the unified BED_LEVEL variations. This allows SKIP_BED_LEVEL to work
+ * as a catch-all for physical bed leveling operations.
+ */
+inline std::vector<std::string> get_all_skip_variations(OperationCategory cat) {
+    std::vector<std::string> result;
+    const auto& own_vars = get_skip_variations(cat);
+    result.insert(result.end(), own_vars.begin(), own_vars.end());
+
+    // For QGL and Z_TILT, also accept BED_LEVEL variations as unified skip
+    if (cat == OperationCategory::QGL || cat == OperationCategory::Z_TILT) {
+        const auto& bed_level_vars = get_skip_variations(OperationCategory::BED_LEVEL);
+        result.insert(result.end(), bed_level_vars.begin(), bed_level_vars.end());
+    }
+    return result;
 }
 
 /**

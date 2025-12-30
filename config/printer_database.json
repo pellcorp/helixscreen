@@ -74,12 +74,12 @@
       "print_start_capabilities": {
         "macro_name": "START_PRINT",
         "params": {
-          "bed_leveling": {
+          "bed_mesh": {
             "param": "FORCE_LEVELING",
             "skip_value": "false",
             "enable_value": "true",
             "default_value": "false",
-            "description": "Skip bed leveling if mesh already exists"
+            "description": "Skip bed mesh if already loaded"
           },
           "priming": {
             "param": "DISABLE_PRIMING",
@@ -171,12 +171,12 @@
       "print_start_capabilities": {
         "macro_name": "START_PRINT",
         "params": {
-          "bed_leveling": {
+          "bed_mesh": {
             "param": "FORCE_LEVELING",
             "skip_value": "false",
             "enable_value": "true",
             "default_value": "false",
-            "description": "Skip bed leveling if mesh already exists"
+            "description": "Skip bed mesh if already loaded"
           },
           "priming": {
             "param": "DISABLE_PRIMING",

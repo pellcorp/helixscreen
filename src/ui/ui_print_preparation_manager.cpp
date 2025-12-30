@@ -214,6 +214,9 @@ std::string PrintPreparationManager::format_macro_operations() const {
         case helix::PrintStartOpCategory::CHAMBER_SOAK:
             result += "Chamber Soak";
             break;
+        case helix::PrintStartOpCategory::BED_LEVEL:
+            result += "Bed Level";
+            break;
         default:
             result += op.name;
             break;
@@ -422,6 +425,8 @@ std::string PrintPreparationManager::format_preprint_steps() const {
             return "Skew correction";
         case helix::PrintStartOpCategory::CHAMBER_SOAK:
             return "Chamber heat soak";
+        case helix::PrintStartOpCategory::BED_LEVEL:
+            return "Bed leveling";
         default:
             return "";
         }
@@ -444,6 +449,8 @@ std::string PrintPreparationManager::format_preprint_steps() const {
             return "skew_correct";
         case helix::PrintStartOpCategory::CHAMBER_SOAK:
             return "chamber_soak";
+        case helix::PrintStartOpCategory::BED_LEVEL:
+            return "bed_level";
         default:
             return "";
         }
@@ -516,6 +523,10 @@ std::string PrintPreparationManager::format_preprint_steps() const {
             case gcode::OperationType::SKEW_CORRECT:
                 key = "skew_correct";
                 name = "Skew correction";
+                break;
+            case gcode::OperationType::BED_LEVEL:
+                key = "bed_level";
+                name = "Bed leveling";
                 break;
             default:
                 continue; // Skip homing, start_print, etc.

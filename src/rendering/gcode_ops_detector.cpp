@@ -45,6 +45,8 @@ OperationType to_operation_type(OperationCategory cat) {
         return OperationType::SKEW_CORRECT;
     case OperationCategory::START_PRINT:
         return OperationType::START_PRINT;
+    case OperationCategory::BED_LEVEL:
+        return OperationType::BED_LEVEL;
     default:
         return OperationType::HOMING; // Safe fallback
     }
@@ -64,6 +66,8 @@ std::string DetectedOperation::display_name() const {
         return "Quad Gantry Level";
     case OperationType::Z_TILT:
         return "Z Tilt Adjust";
+    case OperationType::BED_LEVEL:
+        return "Bed Leveling";
     case OperationType::NOZZLE_CLEAN:
         return "Nozzle Cleaning";
     case OperationType::HOMING:
@@ -164,6 +168,8 @@ std::string GCodeOpsDetector::operation_type_name(OperationType type) {
         return "qgl";
     case OperationType::Z_TILT:
         return "z_tilt";
+    case OperationType::BED_LEVEL:
+        return "bed_level";
     case OperationType::NOZZLE_CLEAN:
         return "nozzle_clean";
     case OperationType::HOMING:
@@ -196,9 +202,8 @@ void GCodeOpsDetector::init_default_patterns() {
         OperationEmbedding embedding = OperationEmbedding::MACRO_CALL;
 
         std::string pattern = kw.keyword;
-        if (pattern.rfind("G", 0) == 0 ||     // G28, G29
-            pattern.find("BED_MESH") == 0 ||  // BED_MESH, BED_MESH_CALIBRATE, etc.
-            pattern.find("BED_LEVEL") == 0 || // BED_LEVEL variants
+        if (pattern.rfind("G", 0) == 0 ||    // G28, G29
+            pattern.find("BED_MESH") == 0 || // BED_MESH, BED_MESH_CALIBRATE, etc.
             pattern == "QUAD_GANTRY_LEVEL" || pattern == "QGL" ||
             pattern.find("Z_TILT") == 0 || // Z_TILT, Z_TILT_ADJUST
             pattern.find("SET_HEATER_TEMPERATURE") == 0 ||
@@ -434,7 +439,7 @@ void GCodeOpsDetector::parse_start_print_params(const std::string& line, size_t 
                                                 size_t byte_offset, ScanResult& result) const {
     // Parse parameters like: START_PRINT EXTRUDER_TEMP=220 BED_TEMP=60 FORCE_LEVELING=true
     // We're looking for parameters that indicate operations:
-    // - FORCE_LEVELING, BED_LEVEL, DO_BED_MESH, MESH -> bed leveling
+    // - FORCE_LEVELING, DO_BED_MESH, MESH -> bed mesh calibration
     // - QGL, GANTRY_LEVEL, DO_QGL -> QGL
     // - Z_TILT, TILT_ADJUST -> Z tilt
     // - NOZZLE_CLEAN, CLEAN_NOZZLE, WIPE -> nozzle clean
@@ -444,7 +449,6 @@ void GCodeOpsDetector::parse_start_print_params(const std::string& line, size_t 
     static const std::vector<std::pair<std::string, OperationType>> param_mappings = {
         // Bed mesh
         {"FORCE_LEVELING", OperationType::BED_MESH},
-        {"BED_LEVEL", OperationType::BED_MESH},
         {"DO_BED_MESH", OperationType::BED_MESH},
         {"MESH", OperationType::BED_MESH},
 

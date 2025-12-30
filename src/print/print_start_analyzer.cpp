@@ -43,6 +43,8 @@ PrintStartOpCategory to_print_start_category(OperationCategory cat) {
         return PrintStartOpCategory::HOMING;
     case OperationCategory::CHAMBER_SOAK:
         return PrintStartOpCategory::CHAMBER_SOAK;
+    case OperationCategory::BED_LEVEL:
+        return PrintStartOpCategory::BED_LEVEL;
     default:
         return PrintStartOpCategory::UNKNOWN;
     }
@@ -69,6 +71,8 @@ OperationCategory to_operation_category(PrintStartOpCategory cat) {
         return OperationCategory::HOMING;
     case PrintStartOpCategory::CHAMBER_SOAK:
         return OperationCategory::CHAMBER_SOAK;
+    case PrintStartOpCategory::BED_LEVEL:
+        return OperationCategory::BED_LEVEL;
     default:
         return OperationCategory::UNKNOWN;
     }
@@ -98,6 +102,8 @@ const char* category_to_string(PrintStartOpCategory category) {
         return "homing";
     case PrintStartOpCategory::CHAMBER_SOAK:
         return "chamber_soak";
+    case PrintStartOpCategory::BED_LEVEL:
+        return "bed_level";
     case PrintStartOpCategory::UNKNOWN:
     default:
         return "unknown";
@@ -484,8 +490,9 @@ bool PrintStartAnalyzer::detect_skip_conditional(const std::string& gcode,
     }
 
     // Get skip param variations from shared registry
+    // Use get_all_skip_variations() so that SKIP_BED_LEVEL works for QGL and Z_TILT
     OperationCategory shared_cat = to_operation_category(category);
-    const auto& variations = get_skip_variations(shared_cat);
+    auto variations = get_all_skip_variations(shared_cat);
     if (variations.empty()) {
         return false;
     }

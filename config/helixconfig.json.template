@@ -52,7 +52,6 @@
       },
       "capability_overrides": {
         "bed_mesh": "auto",
-        "bed_level": "auto",
         "qgl": "auto",
         "z_tilt": "auto",
         "nozzle_clean": "auto",

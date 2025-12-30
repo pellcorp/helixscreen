@@ -1,7 +1,10 @@
 // Copyright 2025 HelixScreen
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "operation_patterns.h"
 #include "print_start_analyzer.h"
+
+#include <algorithm> // for std::find
 
 #include "../catch_amalgamated.hpp"
 
@@ -339,4 +342,68 @@ Quad_Gantry_Level
     REQUIRE(result.has_operation(PrintStartOpCategory::HOMING));
     REQUIRE(result.has_operation(PrintStartOpCategory::BED_MESH));
     REQUIRE(result.has_operation(PrintStartOpCategory::QGL));
+}
+
+// ============================================================================
+// Tests: New Helper Functions (operation_patterns.h)
+// ============================================================================
+
+TEST_CASE("PrintStart: is_bed_level_category helper", "[print_start]") {
+    using helix::is_bed_level_category;
+    using helix::OperationCategory;
+
+    SECTION("Returns true for physical leveling categories") {
+        REQUIRE(is_bed_level_category(OperationCategory::BED_LEVEL) == true);
+        REQUIRE(is_bed_level_category(OperationCategory::QGL) == true);
+        REQUIRE(is_bed_level_category(OperationCategory::Z_TILT) == true);
+    }
+
+    SECTION("Returns false for other categories") {
+        REQUIRE(is_bed_level_category(OperationCategory::BED_MESH) == false);
+        REQUIRE(is_bed_level_category(OperationCategory::NOZZLE_CLEAN) == false);
+        REQUIRE(is_bed_level_category(OperationCategory::HOMING) == false);
+    }
+}
+
+TEST_CASE("PrintStart: get_all_skip_variations includes unified BED_LEVEL", "[print_start]") {
+    using helix::get_all_skip_variations;
+    using helix::get_skip_variations;
+    using helix::OperationCategory;
+
+    SECTION("QGL includes both QGL and BED_LEVEL variations") {
+        auto qgl_all = get_all_skip_variations(OperationCategory::QGL);
+        auto qgl_own = get_skip_variations(OperationCategory::QGL);
+        auto bed_level = get_skip_variations(OperationCategory::BED_LEVEL);
+
+        // Should include own variations
+        for (const auto& var : qgl_own) {
+            REQUIRE(std::find(qgl_all.begin(), qgl_all.end(), var) != qgl_all.end());
+        }
+        // Should include BED_LEVEL variations
+        for (const auto& var : bed_level) {
+            REQUIRE(std::find(qgl_all.begin(), qgl_all.end(), var) != qgl_all.end());
+        }
+    }
+
+    SECTION("Z_TILT includes both Z_TILT and BED_LEVEL variations") {
+        auto ztilt_all = get_all_skip_variations(OperationCategory::Z_TILT);
+        auto ztilt_own = get_skip_variations(OperationCategory::Z_TILT);
+        auto bed_level = get_skip_variations(OperationCategory::BED_LEVEL);
+
+        // Should include own variations
+        for (const auto& var : ztilt_own) {
+            REQUIRE(std::find(ztilt_all.begin(), ztilt_all.end(), var) != ztilt_all.end());
+        }
+        // Should include BED_LEVEL variations
+        for (const auto& var : bed_level) {
+            REQUIRE(std::find(ztilt_all.begin(), ztilt_all.end(), var) != ztilt_all.end());
+        }
+    }
+
+    SECTION("BED_MESH only includes own variations (not BED_LEVEL)") {
+        auto mesh_all = get_all_skip_variations(OperationCategory::BED_MESH);
+        auto mesh_own = get_skip_variations(OperationCategory::BED_MESH);
+
+        REQUIRE(mesh_all.size() == mesh_own.size());
+    }
 }

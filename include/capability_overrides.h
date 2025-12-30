@@ -29,7 +29,6 @@ enum class OverrideState {
  */
 namespace capability {
 constexpr const char* BED_MESH = "bed_mesh";
-constexpr const char* BED_LEVEL = "bed_level";
 constexpr const char* QGL = "qgl";
 constexpr const char* Z_TILT = "z_tilt";
 constexpr const char* NOZZLE_CLEAN = "nozzle_clean";
@@ -134,13 +133,6 @@ class CapabilityOverrides {
      */
     [[nodiscard]] bool has_bed_mesh() const {
         return is_available(capability::BED_MESH);
-    }
-
-    /**
-     * @brief Check bed level (physical leveling) availability (with overrides)
-     */
-    [[nodiscard]] bool has_bed_level() const {
-        return is_available(capability::BED_LEVEL);
     }
 
     /**
