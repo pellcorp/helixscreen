@@ -126,7 +126,7 @@ class SettingsPanel : public PanelBase {
     lv_obj_t* display_settings_overlay_ = nullptr;
     lv_obj_t* filament_sensors_overlay_ = nullptr;
     lv_obj_t* macro_buttons_overlay_ = nullptr;
-    lv_obj_t* bed_mesh_panel_ = nullptr;
+    // Note: Bed mesh panel managed by get_global_bed_mesh_panel()
     // Note: Z-Offset calibration panel managed by get_global_zoffset_cal_panel()
     // Note: PID calibration panel managed by get_global_pid_cal_panel()
     // Note: factory_reset_dialog_ and theme_restart_dialog_ are public (for static callbacks)

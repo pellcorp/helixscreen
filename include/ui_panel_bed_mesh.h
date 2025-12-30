@@ -3,9 +3,8 @@
 
 #pragma once
 
-#include "ui_panel_base.h"
-
 #include "moonraker_domain_service.h" // For BedMeshProfile
+#include "overlay_base.h"
 
 #include <array>
 #include <atomic>
@@ -30,19 +29,22 @@
 // Maximum number of profiles displayed in UI
 constexpr int BED_MESH_MAX_PROFILES = 5;
 
-class BedMeshPanel : public PanelBase {
+class BedMeshPanel : public OverlayBase {
   public:
-    BedMeshPanel(PrinterState& printer_state, MoonrakerAPI* api);
+    BedMeshPanel();
     ~BedMeshPanel() override;
 
+    // === OverlayBase interface ===
     void init_subjects() override;
-    void setup(lv_obj_t* panel, lv_obj_t* parent_screen) override;
+    void register_callbacks() override;
+    lv_obj_t* create(lv_obj_t* parent) override;
     const char* get_name() const override {
         return "Bed Mesh Panel";
     }
-    const char* get_xml_component_name() const override {
-        return "bed_mesh_panel";
-    }
+
+    // === Lifecycle hooks ===
+    void on_activate() override;
+    void on_deactivate() override;
 
     /**
      * @brief Load mesh data and render
@@ -134,8 +136,10 @@ class BedMeshPanel : public PanelBase {
     // Shared with WebSocket callbacks to detect when panel is destroyed
     std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
 
+    lv_obj_t* parent_screen_ = nullptr;
+    bool callbacks_registered_ = false;
+
     // ========== Private Methods ==========
-    void register_event_callbacks();
     void setup_profile_dropdown();
     void setup_moonraker_subscription();
     void on_mesh_update_internal(const BedMeshProfile& mesh);

@@ -7,6 +7,7 @@
 #include "ui_event_safety.h"
 #include "ui_modal.h"
 #include "ui_nav.h"
+#include "ui_nav_manager.h"
 #include "ui_panel_bed_mesh.h"
 #include "ui_panel_calibration_pid.h"
 #include "ui_panel_calibration_zoffset.h"
@@ -1135,29 +1136,34 @@ void SettingsPanel::populate_sensor_list() {
 void SettingsPanel::handle_bed_mesh_clicked() {
     spdlog::debug("[{}] Bed Mesh clicked - opening visualization", get_name());
 
+    auto& overlay = get_global_bed_mesh_panel();
+
     // Create bed mesh panel on first access (lazy initialization)
-    if (!bed_mesh_panel_ && parent_screen_) {
+    if (!overlay.get_root() && parent_screen_) {
         spdlog::debug("[{}] Creating bed mesh visualization panel...", get_name());
 
-        // Create from XML
-        bed_mesh_panel_ =
-            static_cast<lv_obj_t*>(lv_xml_create(parent_screen_, "bed_mesh_panel", nullptr));
-        if (bed_mesh_panel_) {
-            // Setup event handlers and renderer (class-based API)
-            get_global_bed_mesh_panel().setup(bed_mesh_panel_, parent_screen_);
+        // Initialize subjects and callbacks if not already done
+        if (!overlay.are_subjects_initialized()) {
+            overlay.init_subjects();
+        }
+        overlay.register_callbacks();
 
-            // Initially hidden
-            lv_obj_add_flag(bed_mesh_panel_, LV_OBJ_FLAG_HIDDEN);
-            spdlog::info("[{}] Bed mesh visualization panel created", get_name());
-        } else {
-            spdlog::error("[{}] Failed to create bed mesh panel from XML", get_name());
+        // Create overlay UI
+        lv_obj_t* root = overlay.create(parent_screen_);
+        if (!root) {
+            spdlog::error("[{}] Failed to create bed mesh panel", get_name());
             return;
         }
+
+        // Register with NavigationManager for lifecycle callbacks
+        NavigationManager::instance().register_overlay_instance(root, &overlay);
+        spdlog::info("[{}] Bed mesh visualization panel created", get_name());
     }
 
     // Push bed mesh panel onto navigation history and show it
-    if (bed_mesh_panel_) {
-        ui_nav_push_overlay(bed_mesh_panel_);
+    lv_obj_t* root = overlay.get_root();
+    if (root) {
+        ui_nav_push_overlay(root);
     }
 }
 

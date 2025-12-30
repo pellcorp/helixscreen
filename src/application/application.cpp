@@ -773,8 +773,19 @@ void Application::create_overlays() {
     }
 
     if (m_args.overlays.bed_mesh) {
-        if (auto* p = create_overlay_panel(m_screen, "bed_mesh_panel", "bed mesh")) {
-            get_global_bed_mesh_panel().setup(p, m_screen);
+        auto& overlay = get_global_bed_mesh_panel();
+
+        // Initialize subjects and callbacks if not already done
+        if (!overlay.are_subjects_initialized()) {
+            overlay.init_subjects();
+        }
+        overlay.register_callbacks();
+
+        // Create overlay UI
+        auto* p = overlay.create(m_screen);
+        if (p) {
+            m_overlay_panels.bed_mesh = p;
+            NavigationManager::instance().register_overlay_instance(p, &overlay);
             ui_nav_push_overlay(p);
         }
     }

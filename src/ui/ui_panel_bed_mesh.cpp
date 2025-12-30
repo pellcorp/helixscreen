@@ -54,8 +54,7 @@ static void on_save_config_yes_cb(lv_event_t* e);
 // Constructor / Destructor
 // ============================================================================
 
-BedMeshPanel::BedMeshPanel(PrinterState& printer_state, MoonrakerAPI* api)
-    : PanelBase(printer_state, api) {
+BedMeshPanel::BedMeshPanel() {
     // Initialize buffer contents
     std::memset(profile_name_buf_, 0, sizeof(profile_name_buf_));
     std::strncpy(dimensions_buf_, "No mesh data", sizeof(dimensions_buf_) - 1);
@@ -71,6 +70,8 @@ BedMeshPanel::BedMeshPanel(PrinterState& printer_state, MoonrakerAPI* api)
         std::memset(profile_name_bufs_[static_cast<size_t>(i)].data(), 0, 64);
         std::memset(profile_range_bufs_[static_cast<size_t>(i)].data(), 0, 32);
     }
+
+    spdlog::debug("[BedMeshPanel] Instance created");
 }
 
 BedMeshPanel::~BedMeshPanel() {
@@ -170,36 +171,61 @@ void BedMeshPanel::init_subjects() {
 }
 
 // ============================================================================
-// Setup
+// Create
 // ============================================================================
 
-void BedMeshPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
-    PanelBase::setup(panel, parent_screen);
-
-    if (!panel_) {
-        spdlog::error("[{}] NULL panel", get_name());
-        return;
+lv_obj_t* BedMeshPanel::create(lv_obj_t* parent) {
+    if (!parent) {
+        spdlog::error("[{}] Cannot create: null parent", get_name());
+        return nullptr;
     }
 
-    spdlog::info("[{}] Setting up event handlers...", get_name());
+    spdlog::debug("[{}] Creating overlay from XML", get_name());
 
-    // Register all XML event callbacks
-    register_event_callbacks();
+    parent_screen_ = parent;
+
+    // Reset cleanup flag when (re)creating
+    cleanup_called_ = false;
+
+    // Create overlay from XML
+    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "bed_mesh_panel", nullptr));
+
+    if (!overlay_root_) {
+        spdlog::error("[{}] Failed to create from XML", get_name());
+        return nullptr;
+    }
 
     // Use standard overlay panel setup
-    ui_overlay_panel_setup_standard(panel_, parent_screen_, "overlay_header", "overlay_content");
+    ui_overlay_panel_setup_standard(overlay_root_, parent_screen_, "overlay_header",
+                                    "overlay_content");
 
-    lv_obj_t* overlay_content = lv_obj_find_by_name(panel_, "overlay_content");
+    // Wire up header bar back button imperatively (exception for overlays)
+    lv_obj_t* header = lv_obj_find_by_name(overlay_root_, "overlay_header");
+    if (header) {
+        lv_obj_t* back_btn = lv_obj_find_by_name(header, "back_button");
+        if (back_btn) {
+            lv_obj_add_event_cb(
+                back_btn,
+                [](lv_event_t*) {
+                    spdlog::debug("[BedMeshPanel] Back button clicked");
+                    ui_nav_go_back();
+                },
+                LV_EVENT_CLICKED, nullptr);
+            spdlog::debug("[{}] Back button wired", get_name());
+        }
+    }
+
+    lv_obj_t* overlay_content = lv_obj_find_by_name(overlay_root_, "overlay_content");
     if (!overlay_content) {
         spdlog::error("[{}] overlay_content not found!", get_name());
-        return;
+        return overlay_root_;
     }
 
     // Find canvas widget
     canvas_ = lv_obj_find_by_name(overlay_content, "bed_mesh_canvas");
     if (!canvas_) {
         spdlog::error("[{}] Canvas widget 'bed_mesh_canvas' not found in XML", get_name());
-        return;
+        return overlay_root_;
     }
     spdlog::debug("[{}] Found canvas widget - rotation controlled by touch drag", get_name());
 
@@ -207,8 +233,9 @@ void BedMeshPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     setup_moonraker_subscription();
 
     // Load initial mesh data from MoonrakerAPI
-    if (api_ && api_->has_bed_mesh()) {
-        const BedMeshProfile* mesh = api_->get_active_bed_mesh();
+    MoonrakerAPI* api = get_moonraker_api();
+    if (api && api->has_bed_mesh()) {
+        const BedMeshProfile* mesh = api->get_active_bed_mesh();
         if (mesh) {
             spdlog::info("[{}] Active mesh: profile='{}', size={}x{}", get_name(), mesh->name,
                          mesh->x_count, mesh->y_count);
@@ -232,16 +259,27 @@ void BedMeshPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     ui_bed_mesh_evaluate_render_mode(canvas_);
 
     // Register cleanup handler
-    lv_obj_add_event_cb(panel_, on_panel_delete, LV_EVENT_DELETE, this);
+    lv_obj_add_event_cb(overlay_root_, on_panel_delete, LV_EVENT_DELETE, this);
 
-    spdlog::info("[{}] Setup complete!", get_name());
+    // Initially hidden
+    lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
+
+    spdlog::info("[{}] Overlay created successfully", get_name());
+    return overlay_root_;
 }
 
 // ============================================================================
-// Event Callback Registration
+// Callback Registration
 // ============================================================================
 
-void BedMeshPanel::register_event_callbacks() {
+void BedMeshPanel::register_callbacks() {
+    if (callbacks_registered_) {
+        spdlog::debug("[{}] Callbacks already registered", get_name());
+        return;
+    }
+
+    spdlog::debug("[{}] Registering event callbacks", get_name());
+
     // Header calibrate button
     lv_xml_register_event_cb(nullptr, "on_bed_mesh_calibrate_clicked",
                              on_calibrate_header_clicked_cb);
@@ -281,7 +319,36 @@ void BedMeshPanel::register_event_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_bed_mesh_save_config_no", on_save_config_no_cb);
     lv_xml_register_event_cb(nullptr, "on_bed_mesh_save_config_yes", on_save_config_yes_cb);
 
-    spdlog::debug("[{}] XML event callbacks registered", get_name());
+    callbacks_registered_ = true;
+    spdlog::debug("[{}] Event callbacks registered", get_name());
+}
+
+// ============================================================================
+// Lifecycle Hooks
+// ============================================================================
+
+void BedMeshPanel::on_activate() {
+    // Call base class first
+    OverlayBase::on_activate();
+
+    spdlog::debug("[{}] on_activate()", get_name());
+
+    // Refresh mesh data when panel becomes visible
+    MoonrakerAPI* api = get_moonraker_api();
+    if (api && api->has_bed_mesh()) {
+        const BedMeshProfile* mesh = api->get_active_bed_mesh();
+        if (mesh) {
+            on_mesh_update_internal(*mesh);
+        }
+        update_profile_list_subjects();
+    }
+}
+
+void BedMeshPanel::on_deactivate() {
+    spdlog::debug("[{}] on_deactivate()", get_name());
+
+    // Call base class
+    OverlayBase::on_deactivate();
 }
 
 // ============================================================================
@@ -289,13 +356,14 @@ void BedMeshPanel::register_event_callbacks() {
 // ============================================================================
 
 void BedMeshPanel::update_profile_list_subjects() {
-    if (!api_) {
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api) {
         lv_subject_set_int(&bed_mesh_profile_count_, 0);
         return;
     }
 
-    const auto profiles = api_->get_bed_mesh_profiles();
-    const BedMeshProfile* active_mesh = api_->get_active_bed_mesh();
+    const auto profiles = api->get_bed_mesh_profiles();
+    const BedMeshProfile* active_mesh = api->get_active_bed_mesh();
     std::string active_name = active_mesh ? active_mesh->name : "";
 
     int count = std::min(static_cast<int>(profiles.size()), BED_MESH_MAX_PROFILES);
@@ -330,13 +398,14 @@ void BedMeshPanel::update_profile_list_subjects() {
 }
 
 float BedMeshPanel::calculate_profile_range(const std::string& profile_name) {
-    if (!api_)
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api)
         return 0.0f;
 
     // Get mesh data for this profile
     // Note: MoonrakerAPI stores profiles in bed_mesh.profiles map
     // For now, we'll use the active mesh if it matches, otherwise return 0
-    const BedMeshProfile* mesh = api_->get_active_bed_mesh();
+    const BedMeshProfile* mesh = api->get_active_bed_mesh();
     if (!mesh || mesh->name != profile_name || mesh->probed_matrix.empty()) {
         return 0.0f;
     }
@@ -394,15 +463,15 @@ void BedMeshPanel::redraw() {
 }
 
 void BedMeshPanel::setup_moonraker_subscription() {
-    if (!api_) {
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api) {
         spdlog::warn("[{}] Cannot subscribe to Moonraker - API is null", get_name());
         return;
     }
 
-    MoonrakerAPI* api = api_;
     auto alive = alive_; // Capture shared_ptr by value for destruction detection [L012]
 
-    api_->get_client().register_notify_update([this, api, alive](nlohmann::json notification) {
+    api->get_client().register_notify_update([this, api, alive](nlohmann::json notification) {
         // Check destruction flag FIRST - panel may have been deleted
         if (!alive->load()) {
             return;
@@ -560,9 +629,10 @@ void BedMeshPanel::load_profile(int index) {
     const std::string& name = profile_names_[static_cast<size_t>(index)];
     spdlog::info("[{}] Loading profile: {}", get_name(), name);
 
-    if (api_) {
+    MoonrakerAPI* api = get_moonraker_api();
+    if (api) {
         std::string cmd = "BED_MESH_PROFILE LOAD=" + name;
-        api_->execute_gcode(
+        api->execute_gcode(
             cmd, [this, name]() { spdlog::debug("[{}] Profile loaded: {}", get_name(), name); },
             [this](const MoonrakerError& err) {
                 spdlog::error("[{}] Failed to load profile: {}", get_name(), err.message);
@@ -696,13 +766,14 @@ void BedMeshPanel::confirm_rename(const std::string& new_name) {
 // ============================================================================
 
 void BedMeshPanel::execute_delete_profile(const std::string& name) {
-    if (!api_)
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api)
         return;
 
     spdlog::info("[{}] Deleting profile: {}", get_name(), name);
 
     std::string cmd = "BED_MESH_PROFILE REMOVE=" + name;
-    api_->execute_gcode(
+    api->execute_gcode(
         cmd,
         [this, name]() {
             spdlog::info("[{}] Profile deleted: {}", get_name(), name);
@@ -718,24 +789,31 @@ void BedMeshPanel::execute_delete_profile(const std::string& name) {
 
 void BedMeshPanel::execute_rename_profile(const std::string& old_name,
                                           const std::string& new_name) {
-    if (!api_)
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api)
         return;
 
     spdlog::info("[{}] Renaming profile: {} -> {}", get_name(), old_name, new_name);
 
     // Step 1: Load the profile
     std::string load_cmd = "BED_MESH_PROFILE LOAD=" + old_name;
-    api_->execute_gcode(
+    api->execute_gcode(
         load_cmd,
         [this, old_name, new_name]() {
             // Step 2: Save with new name
+            MoonrakerAPI* api2 = get_moonraker_api();
+            if (!api2)
+                return;
             std::string save_cmd = "BED_MESH_PROFILE SAVE=" + new_name;
-            api_->execute_gcode(
+            api2->execute_gcode(
                 save_cmd,
                 [this, old_name, new_name]() {
                     // Step 3: Remove old name
+                    MoonrakerAPI* api3 = get_moonraker_api();
+                    if (!api3)
+                        return;
                     std::string remove_cmd = "BED_MESH_PROFILE REMOVE=" + old_name;
-                    api_->execute_gcode(
+                    api3->execute_gcode(
                         remove_cmd,
                         [this, old_name, new_name]() {
                             spdlog::info("[{}] Profile renamed: {} -> {}", get_name(), old_name,
@@ -762,14 +840,15 @@ void BedMeshPanel::execute_rename_profile(const std::string& old_name,
 }
 
 void BedMeshPanel::execute_calibration(const std::string& profile_name) {
-    if (!api_)
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api)
         return;
 
     spdlog::info("[{}] Starting calibration for profile: {}", get_name(), profile_name);
     lv_subject_set_int(&bed_mesh_calibrating_, 1);
 
     std::string cmd = "BED_MESH_CALIBRATE PROFILE=" + profile_name;
-    api_->execute_gcode(
+    api->execute_gcode(
         cmd,
         [this, profile_name]() {
             spdlog::info("[{}] Calibration started for: {}", get_name(), profile_name);
@@ -784,12 +863,13 @@ void BedMeshPanel::execute_calibration(const std::string& profile_name) {
 }
 
 void BedMeshPanel::execute_save_config() {
-    if (!api_)
+    MoonrakerAPI* api = get_moonraker_api();
+    if (!api)
         return;
 
     spdlog::info("[{}] Saving config (will restart Klipper)", get_name());
 
-    api_->execute_gcode(
+    api->execute_gcode(
         "SAVE_CONFIG",
         [this]() {
             spdlog::info("[{}] SAVE_CONFIG sent - Klipper will restart", get_name());
@@ -926,7 +1006,7 @@ static void on_save_config_yes_cb(lv_event_t* /*e*/) {
 
 BedMeshPanel& get_global_bed_mesh_panel() {
     if (!g_bed_mesh_panel) {
-        g_bed_mesh_panel = std::make_unique<BedMeshPanel>(get_printer_state(), get_moonraker_api());
+        g_bed_mesh_panel = std::make_unique<BedMeshPanel>();
     }
     return *g_bed_mesh_panel;
 }

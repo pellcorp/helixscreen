@@ -113,6 +113,7 @@ class Application {
         lv_obj_t* extrusion = nullptr;
         lv_obj_t* print_status = nullptr;
         lv_obj_t* ams = nullptr;
+        lv_obj_t* bed_mesh = nullptr;
     } m_overlay_panels;
 
     // NOTE: Print start collector and observers are kept in main.cpp
