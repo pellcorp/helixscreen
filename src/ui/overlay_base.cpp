@@ -7,8 +7,10 @@
 #include <spdlog/spdlog.h>
 
 OverlayBase::~OverlayBase() {
-    // Fallback unregister in case cleanup() wasn't called
-    if (overlay_root_) {
+    // Fallback unregister in case cleanup() wasn't called.
+    // Guard against Static Destruction Order Fiasco: during shutdown,
+    // NavigationManager may already be destroyed.
+    if (overlay_root_ && !NavigationManager::is_destroyed()) {
         NavigationManager::instance().unregister_overlay_instance(overlay_root_);
     }
 

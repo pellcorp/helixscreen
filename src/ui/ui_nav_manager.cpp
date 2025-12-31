@@ -30,6 +30,20 @@ NavigationManager& NavigationManager::instance() {
     return instance;
 }
 
+bool NavigationManager::is_destroyed() {
+    // Guard against Static Destruction Order Fiasco.
+    // The nested struct's destructor sets destroyed=true when NavigationManager
+    // is being destroyed, allowing other destructors to safely skip operations
+    // that would otherwise access the destroyed singleton.
+    static bool destroyed = false;
+    static struct DestructionGuard {
+        ~DestructionGuard() {
+            destroyed = true;
+        }
+    } guard;
+    return destroyed;
+}
+
 // ============================================================================
 // HELPER METHODS
 // ============================================================================

@@ -59,6 +59,18 @@ class NavigationManager {
      */
     static NavigationManager& instance();
 
+    /**
+     * @brief Check if singleton has been destroyed
+     *
+     * Guards against Static Destruction Order Fiasco. During program shutdown,
+     * static objects are destroyed in undefined order across translation units.
+     * This allows destructors to safely skip operations that require the
+     * NavigationManager singleton.
+     *
+     * @return true if singleton has been destroyed, false if still valid
+     */
+    static bool is_destroyed();
+
     // Non-copyable, non-movable (singleton)
     NavigationManager(const NavigationManager&) = delete;
     NavigationManager& operator=(const NavigationManager&) = delete;
