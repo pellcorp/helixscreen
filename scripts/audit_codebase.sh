@@ -644,11 +644,11 @@ fi
 section "P2c: LVGL Shutdown Safety"
 
 echo "Checking for dangerous manual LVGL cleanup calls:"
-# Exclude comments (lines starting with // or containing NOTE:)
+# Exclude comments: // line comments, NOTE: documentation, Doxygen * style
 set +e
-lv_display_delete_count=$(grep -rn 'lv_display_delete' src/ --include='*.cpp' 2>/dev/null | grep -v '^\s*//' | grep -v 'NOTE:' | grep -v '^[^:]*:[^:]*:\s*//' | wc -l | tr -d ' ')
-lv_group_delete_count=$(grep -rn 'lv_group_delete' src/ --include='*.cpp' 2>/dev/null | grep -v '^\s*//' | grep -v 'NOTE:' | grep -v '^[^:]*:[^:]*:\s*//' | wc -l | tr -d ' ')
-lv_indev_delete_count=$(grep -rn 'lv_indev_delete' src/ --include='*.cpp' 2>/dev/null | grep -v '^\s*//' | grep -v 'NOTE:' | grep -v '^[^:]*:[^:]*:\s*//' | wc -l | tr -d ' ')
+lv_display_delete_count=$(grep -rn 'lv_display_delete' src/ --include='*.cpp' 2>/dev/null | grep -v 'NOTE:' | grep -v ' \* @' | grep -v ':\s*//' | wc -l | tr -d ' ')
+lv_group_delete_count=$(grep -rn 'lv_group_delete' src/ --include='*.cpp' 2>/dev/null | grep -v 'NOTE:' | grep -v ' \* @' | grep -v ':\s*//' | wc -l | tr -d ' ')
+lv_indev_delete_count=$(grep -rn 'lv_indev_delete' src/ --include='*.cpp' 2>/dev/null | grep -v 'NOTE:' | grep -v ' \* @' | grep -v ':\s*//' | wc -l | tr -d ' ')
 set -e
 
 echo "  lv_display_delete: $lv_display_delete_count (should be 0)"
