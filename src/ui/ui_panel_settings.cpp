@@ -10,6 +10,7 @@
 #include "ui_nav_manager.h"
 #include "ui_overlay_network_settings.h"
 #include "ui_panel_memory_stats.h"
+#include "ui_settings_plugins.h"
 #include "ui_toast.h"
 
 #include "app_globals.h"
@@ -349,6 +350,7 @@ void SettingsPanel::init_subjects() {
     lv_xml_register_event_cb(nullptr, "on_machine_limits_clicked", on_machine_limits_clicked);
     lv_xml_register_event_cb(nullptr, "on_network_clicked", on_network_clicked);
     lv_xml_register_event_cb(nullptr, "on_factory_reset_clicked", on_factory_reset_clicked);
+    lv_xml_register_event_cb(nullptr, "on_plugins_clicked", on_plugins_clicked);
 
     // Register XML event callbacks for overlays
     lv_xml_register_event_cb(nullptr, "on_restart_later_clicked", on_restart_later_clicked);
@@ -1171,6 +1173,23 @@ void SettingsPanel::handle_factory_reset_clicked() {
     }
 }
 
+void SettingsPanel::handle_plugins_clicked() {
+    spdlog::debug("[{}] Plugins clicked - opening overlay", get_name());
+
+    auto& overlay = get_settings_plugins_overlay();
+
+    if (!overlay.are_subjects_initialized()) {
+        overlay.init_subjects();
+        overlay.register_callbacks();
+        overlay.create(parent_screen_);
+    }
+
+    // Show the overlay via navigation stack
+    if (overlay.get_root()) {
+        ui_nav_push_overlay(overlay.get_root());
+    }
+}
+
 void SettingsPanel::perform_factory_reset() {
     spdlog::warn("[{}] Performing factory reset - resetting config!", get_name());
 
@@ -1290,6 +1309,12 @@ void SettingsPanel::on_network_clicked(lv_event_t* /*e*/) {
 void SettingsPanel::on_factory_reset_clicked(lv_event_t* /*e*/) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_factory_reset_clicked");
     get_global_settings_panel().handle_factory_reset_clicked();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void SettingsPanel::on_plugins_clicked(lv_event_t* /*e*/) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_plugins_clicked");
+    get_global_settings_panel().handle_plugins_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 

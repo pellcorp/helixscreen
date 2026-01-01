@@ -164,6 +164,7 @@ class SettingsPanel : public PanelBase {
     void handle_machine_limits_clicked();
     void handle_network_clicked();
     void handle_factory_reset_clicked();
+    void handle_plugins_clicked();
     void show_theme_restart_dialog();
     void populate_sensor_list();
     void populate_macro_dropdowns();
@@ -195,6 +196,7 @@ class SettingsPanel : public PanelBase {
     static void on_machine_limits_clicked(lv_event_t* e);
     static void on_network_clicked(lv_event_t* e);
     static void on_factory_reset_clicked(lv_event_t* e);
+    static void on_plugins_clicked(lv_event_t* e);
 
     // Static callbacks for overlays
     static void on_restart_later_clicked(lv_event_t* e);
