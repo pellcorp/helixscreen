@@ -177,17 +177,11 @@ void SubjectInitializer::init_panel_subjects() {
     StaticPanelRegistry::instance().register_destroy(
         "HomePanelSubjects", []() { get_global_home_panel().deinit_subjects(); });
 
+    // Controls, Filament, Settings panels: deinit handled by destructor
+    // (registered with StaticPanelRegistry in their get_global_* functions)
     get_global_controls_panel().init_subjects();
-    StaticSubjectRegistry::instance().register_deinit(
-        "ControlsPanelSubjects", []() { get_global_controls_panel().deinit_subjects(); });
-
     get_global_filament_panel().init_subjects();
-    StaticSubjectRegistry::instance().register_deinit(
-        "FilamentPanelSubjects", []() { get_global_filament_panel().deinit_subjects(); });
-
     get_global_settings_panel().init_subjects();
-    StaticSubjectRegistry::instance().register_deinit(
-        "SettingsPanelSubjects", []() { get_global_settings_panel().deinit_subjects(); });
 
     // SettingsManager subjects are initialized by settings_panel.init_subjects() above
     // Register cleanup here (StaticSubjectRegistry - core state singleton)
@@ -248,15 +242,13 @@ void SubjectInitializer::init_panel_subjects() {
     StaticPanelRegistry::instance().register_destroy(
         "PrintStatusPanelSubjects", []() { get_global_print_status_panel().deinit_subjects(); });
 
+    // Motion and Extrusion panels: deinit handled by destructor
+    // (registered with StaticPanelRegistry in their get_global_* functions)
     m_motion_panel = &get_global_motion_panel();
     m_motion_panel->init_subjects();
-    StaticSubjectRegistry::instance().register_deinit(
-        "MotionPanelSubjects", []() { get_global_motion_panel().deinit_subjects(); });
 
     m_extrusion_panel = &get_global_extrusion_panel();
     m_extrusion_panel->init_subjects();
-    StaticSubjectRegistry::instance().register_deinit(
-        "ExtrusionPanelSubjects", []() { get_global_extrusion_panel().deinit_subjects(); });
 
     m_bed_mesh_panel = &get_global_bed_mesh_panel();
     m_bed_mesh_panel->init_subjects();
@@ -264,9 +256,8 @@ void SubjectInitializer::init_panel_subjects() {
         "BedMeshPanelSubjects", []() { get_global_bed_mesh_panel().deinit_subjects(); });
 
     // Panel initialization via global instances
+    // PIDCalibrationPanel: deinit handled by destructor (registered with StaticPanelRegistry)
     get_global_pid_cal_panel().init_subjects();
-    StaticSubjectRegistry::instance().register_deinit(
-        "PIDCalibrationPanelSubjects", []() { get_global_pid_cal_panel().deinit_subjects(); });
 
     get_global_zoffset_cal_panel().init_subjects();
 
