@@ -6,6 +6,7 @@
 #include "ui_observer_guard.h"
 
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 /**
  * @file ui_panel_motion.h
@@ -66,6 +67,9 @@ class MotionPanel : public OverlayBase {
     void handle_z_button(const char* name);
 
   private:
+    // RAII subject manager - auto-deinits all registered subjects on destruction
+    SubjectManager subjects_;
+
     lv_subject_t pos_x_subject_;
     lv_subject_t pos_y_subject_;
     lv_subject_t pos_z_subject_;

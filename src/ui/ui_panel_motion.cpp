@@ -9,6 +9,7 @@
 #include "ui_nav.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
+#include "ui_panel_singleton_macros.h"
 #include "ui_subject_registry.h"
 #include "ui_theme.h"
 #include "ui_utils.h"
@@ -16,7 +17,7 @@
 #include "app_globals.h"
 #include "moonraker_api.h"
 #include "printer_state.h"
-#include "static_panel_registry.h"
+#include "subject_managed_panel.h"
 
 #include <spdlog/spdlog.h>
 
@@ -31,19 +32,10 @@ static void on_motion_z_down_1(lv_event_t* e);
 static void on_motion_z_down_10(lv_event_t* e);
 
 // ============================================================================
-// Global Instance
+// Global Instance (via DEFINE_GLOBAL_PANEL macro)
 // ============================================================================
 
-static std::unique_ptr<MotionPanel> g_motion_panel;
-
-MotionPanel& get_global_motion_panel() {
-    if (!g_motion_panel) {
-        g_motion_panel = std::make_unique<MotionPanel>();
-        StaticPanelRegistry::instance().register_destroy("MotionPanel",
-                                                         []() { g_motion_panel.reset(); });
-    }
-    return *g_motion_panel;
-}
+DEFINE_GLOBAL_PANEL(MotionPanel, motion)
 
 // ============================================================================
 // Constructor
@@ -60,7 +52,8 @@ MotionPanel::MotionPanel() {
 }
 
 MotionPanel::~MotionPanel() {
-    deinit_subjects();
+    // SubjectManager (subjects_) handles deinit automatically via RAII
+    // No need to call deinit_subjects() manually
 }
 
 // ============================================================================
@@ -76,20 +69,25 @@ void MotionPanel::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
     // Initialize position subjects with default placeholder values
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(pos_x_subject_, pos_x_buf_, "X:    --  mm", "motion_pos_x");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(pos_y_subject_, pos_y_buf_, "Y:    --  mm", "motion_pos_y");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(pos_z_subject_, pos_z_buf_, "Z:    --  mm", "motion_pos_z");
+    // Using UI_MANAGED_SUBJECT_STRING to register with both XML system and SubjectManager
+    UI_MANAGED_SUBJECT_STRING(pos_x_subject_, pos_x_buf_, "X:    --  mm", "motion_pos_x",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(pos_y_subject_, pos_y_buf_, "Y:    --  mm", "motion_pos_y",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(pos_z_subject_, pos_z_buf_, "Z:    --  mm", "motion_pos_z",
+                              subjects_);
 
     // Z-axis label: "Bed" (cartesian) or "Print Head" (corexy/delta)
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(z_axis_label_subject_, z_axis_label_buf_, "Z Axis",
-                                        "motion_z_axis_label");
+    UI_MANAGED_SUBJECT_STRING(z_axis_label_subject_, z_axis_label_buf_, "Z Axis",
+                              "motion_z_axis_label", subjects_);
 
     // Register PrinterState observers (RAII - auto-removed on destruction)
     register_position_observers();
 
     subjects_initialized_ = true;
-    spdlog::debug("[{}] Subjects initialized: X/Y/Z position + Z-axis label + observers",
-                  get_name());
+    spdlog::debug("[{}] Subjects initialized: X/Y/Z position + Z-axis label + observers ({} "
+                  "subjects managed)",
+                  get_name(), subjects_.count());
 }
 
 void MotionPanel::deinit_subjects() {
@@ -99,11 +97,8 @@ void MotionPanel::deinit_subjects() {
 
     spdlog::debug("[{}] Deinitializing subjects", get_name());
 
-    // Deinitialize all local lv_subject_t members (4 total)
-    lv_subject_deinit(&pos_x_subject_);
-    lv_subject_deinit(&pos_y_subject_);
-    lv_subject_deinit(&pos_z_subject_);
-    lv_subject_deinit(&z_axis_label_subject_);
+    // SubjectManager handles deinitialization of all registered subjects
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());

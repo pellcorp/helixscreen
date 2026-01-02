@@ -149,6 +149,10 @@ bool FileDataSource::is_valid() const {
     return file_ != nullptr;
 }
 
+std::string FileDataSource::indexable_file_path() const {
+    return filepath_;
+}
+
 // =============================================================================
 // MoonrakerDataSource
 // =============================================================================
@@ -432,6 +436,39 @@ bool MoonrakerDataSource::is_valid() const {
         return fallback_source_->is_valid();
     }
     return valid_;
+}
+
+std::string MoonrakerDataSource::indexable_file_path() const {
+    // Only return a path if we've downloaded to a temp file
+    if (fallback_source_) {
+        return temp_file_path_;
+    }
+    return "";
+}
+
+bool MoonrakerDataSource::ensure_indexable() {
+    // If we already have a temp file, we're ready
+    if (fallback_source_) {
+        return true;
+    }
+
+    // Check if range requests are supported
+    if (!range_support_probed_) {
+        probe_range_support();
+    }
+
+    // If range requests aren't supported, download to temp file
+    if (!range_support_) {
+        spdlog::warn(
+            "[MoonrakerDataSource] Range requests not supported, downloading to temp file");
+        return download_to_temp();
+    }
+
+    // Even with range request support, the layer indexer requires filesystem access
+    // to memory-map the file for efficient random-access parsing. Download once
+    // for indexing, then streaming can use range requests for actual rendering.
+    spdlog::info("[MoonrakerDataSource] Downloading for file-based layer indexing");
+    return download_to_temp();
 }
 
 // =============================================================================

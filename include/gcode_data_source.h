@@ -67,6 +67,35 @@ class GCodeDataSource {
     virtual bool is_valid() const = 0;
 
     /**
+     * @brief Get a local file path suitable for indexing
+     *
+     * Returns a path that can be used for file-based indexing.
+     * For file sources, this is the original filepath.
+     * For Moonraker sources, this may be a temp file path after download.
+     * For memory sources, this returns empty string (no file available).
+     *
+     * @return Local file path, or empty string if no file is available
+     */
+    virtual std::string indexable_file_path() const {
+        return "";
+    }
+
+    /**
+     * @brief Ensure the source is ready for indexing
+     *
+     * For sources that may need preparation before indexing (e.g., downloading
+     * a remote file), this method performs that preparation.
+     *
+     * For local files and memory sources, this is a no-op.
+     * For Moonraker sources without range request support, downloads the file.
+     *
+     * @return true if the source is now ready for indexing
+     */
+    virtual bool ensure_indexable() {
+        return true;
+    }
+
+    /**
      * @brief Read a single line starting at offset
      *
      * Reads characters until newline or end of source.
@@ -118,6 +147,7 @@ class FileDataSource : public GCodeDataSource {
     bool supports_range_requests() const override;
     std::string source_name() const override;
     bool is_valid() const override;
+    std::string indexable_file_path() const override;
 
     /**
      * @brief Get the file path
@@ -164,6 +194,8 @@ class MoonrakerDataSource : public GCodeDataSource {
     bool supports_range_requests() const override;
     std::string source_name() const override;
     bool is_valid() const override;
+    std::string indexable_file_path() const override;
+    bool ensure_indexable() override;
 
     /**
      * @brief Force download of entire file to temp storage
@@ -257,6 +289,11 @@ class MemoryDataSource : public GCodeDataSource {
     bool supports_range_requests() const override;
     std::string source_name() const override;
     bool is_valid() const override;
+
+    /// Memory sources cannot provide a file path for indexing
+    std::string indexable_file_path() const override {
+        return "";
+    }
 
   private:
     std::vector<char> data_;

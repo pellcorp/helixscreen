@@ -296,16 +296,11 @@ bool GCodeStreamingController::open_moonraker(const std::string& moonraker_url,
 
     data_source_ = std::move(source);
 
-    // For Moonraker, we may need to download the file if range requests aren't supported
-    auto* moonraker_src = static_cast<MoonrakerDataSource*>(data_source_.get());
-    if (!moonraker_src->supports_range_requests()) {
-        spdlog::warn("[StreamingController] Moonraker doesn't support Range requests, "
-                     "downloading to temp file");
-        if (!moonraker_src->download_to_temp()) {
-            spdlog::error("[StreamingController] Failed to download file");
-            data_source_.reset();
-            return false;
-        }
+    // Ensure the source is ready for indexing (may download to temp file)
+    if (!data_source_->ensure_indexable()) {
+        spdlog::error("[StreamingController] Failed to prepare source for indexing");
+        data_source_.reset();
+        return false;
     }
 
     if (!build_index()) {
@@ -586,30 +581,18 @@ bool GCodeStreamingController::build_index() {
         return false;
     }
 
-    // For file sources, build index directly from file path
-    auto* file_source = dynamic_cast<FileDataSource*>(data_source_.get());
-    if (file_source) {
-        return index_.build_from_file(file_source->filepath());
+    // Use the virtual method to get an indexable file path
+    // This works for FileDataSource (returns original filepath) and
+    // MoonrakerDataSource (returns temp file path after download)
+    std::string file_path = data_source_->indexable_file_path();
+
+    if (!file_path.empty()) {
+        return index_.build_from_file(file_path);
     }
 
-    // For other sources (Moonraker with temp file fallback), check if we have a temp file
-    auto* moonraker_source = dynamic_cast<MoonrakerDataSource*>(data_source_.get());
-    if (moonraker_source && moonraker_source->is_using_temp_file()) {
-        return index_.build_from_file(moonraker_source->temp_file_path());
-    }
-
-    // For memory sources or sources without file path, we need to read all bytes
-    // and build index manually. This is less efficient but works for testing.
-    auto* memory_source = dynamic_cast<MemoryDataSource*>(data_source_.get());
-    if (memory_source) {
-        // For memory sources, we need to write to a temp file for indexing
-        // or implement a memory-based index builder
-        // For now, just log and return false
-        spdlog::warn("[StreamingController] Memory source requires file-based indexing");
-        return false;
-    }
-
-    spdlog::error("[StreamingController] Unable to build index for source type");
+    // Sources without file path (e.g., MemoryDataSource) cannot be indexed
+    // with the current file-based indexer
+    spdlog::warn("[StreamingController] Data source has no indexable file path");
     return false;
 }
 
