@@ -72,6 +72,9 @@ void print_test_mode_banner() {
     if (config.simulate_disconnect)
         printf("  SIMULATING DISCONNECTED STATE\n");
 
+    if (config.disable_mock_ams)
+        printf("  Mock AMS DISABLED (runout modal enabled)\n");
+
     printf("\n");
 }
 
@@ -132,6 +135,7 @@ static void print_help(const char* program_name) {
     printf("    --real-moonraker   Connect to real printer (requires --test)\n");
     printf("    --real-files       Use real files from printer (requires --test)\n");
     printf("    --disconnected     Simulate disconnected state (requires --test)\n");
+    printf("    --no-ams           Don't create mock AMS (enables runout modal testing)\n");
     printf("    --test-history     Enable test history API data\n");
     printf("    --sim-speed <n>    Simulation speedup factor (1.0-1000.0, e.g., 100 for 100x)\n");
     printf("    --select-file <name>  Auto-select file in print-select panel\n");
@@ -430,6 +434,8 @@ bool parse_cli_args(int argc, char** argv, CliArgs& args, int& screen_width, int
             config.use_real_files = true;
         } else if (strcmp(argv[i], "--disconnected") == 0) {
             config.simulate_disconnect = true;
+        } else if (strcmp(argv[i], "--no-ams") == 0) {
+            config.disable_mock_ams = true;
         } else if (strcmp(argv[i], "--test-history") == 0) {
             config.test_history_api = true;
         } else if (strcmp(argv[i], "--sim-speed") == 0) {

@@ -1554,6 +1554,18 @@ bool MoonrakerClientMock::toggle_filament_runout() {
     status[runout_sensor]["filament_detected"] = new_state;
     dispatch_status_update(status);
 
+    // Auto-pause if: runout detected + actively printing + runout modal enabled
+    // This simulates Klipper's pause_on_runout behavior
+    if (!new_state) { // new_state=false means filament NOT detected (runout)
+        MockPrintPhase phase = print_phase_.load();
+        if (phase == MockPrintPhase::PRINTING || phase == MockPrintPhase::PREHEAT) {
+            if (get_runtime_config()->should_show_runout_modal()) {
+                spdlog::info("[MoonrakerClientMock] Filament runout during print - auto-pausing");
+                pause_print_internal();
+            }
+        }
+    }
+
     return true;
 }
 

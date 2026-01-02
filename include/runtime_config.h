@@ -36,6 +36,7 @@ struct RuntimeConfig {
         false;                   ///< Use real Moonraker client (--real-moonraker, requires --test)
     bool use_real_files = false; ///< Use real file listing (--real-files, requires --test)
     bool use_real_ams = false;   ///< Use real AMS backend (--real-ams, requires --test)
+    bool disable_mock_ams = false; ///< Don't create mock AMS (--no-ams, requires --test)
 
     bool simulate_disconnect =
         false; ///< Simulate disconnected state for testing (--disconnected, requires --test)
@@ -123,10 +124,10 @@ struct RuntimeConfig {
 
     /**
      * @brief Check if AMS should use mock implementation
-     * @return true if test mode is enabled and real AMS is not requested
+     * @return true if test mode is enabled, real AMS is not requested, and mock not disabled
      */
     bool should_mock_ams() const {
-        return test_mode && !use_real_ams;
+        return test_mode && !use_real_ams && !disable_mock_ams;
     }
 
     /**
@@ -155,6 +156,16 @@ struct RuntimeConfig {
     bool should_skip_splash() const {
         return skip_splash || test_mode;
     }
+
+    /**
+     * @brief Check if filament runout modal should be shown
+     *
+     * Returns false if an AMS/MMU system is present (runout during swaps is normal).
+     * Can be overridden with HELIX_FORCE_RUNOUT_MODAL=1 environment variable.
+     *
+     * @return true if runout modal should be displayed
+     */
+    bool should_show_runout_modal() const;
 };
 
 /**

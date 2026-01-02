@@ -9,7 +9,7 @@ This document provides a comprehensive reference for all environment variables u
 | [Display & Backend](#display--backend-configuration) | 7 | `HELIX_` |
 | [G-Code Viewer](#g-code-viewer) | 3 | `HELIX_` |
 | [Bed Mesh](#bed-mesh) | 1 | `HELIX_` |
-| [Mock & Testing](#mock--testing) | 9 | `HELIX_MOCK_*` |
+| [Mock & Testing](#mock--testing) | 10 | `HELIX_MOCK_*` |
 | [UI Automation](#ui-automation) | 3 | `HELIX_AUTO_*` |
 | [Calibration](#calibration-auto-start) | 2 | `*_AUTO_START` |
 | [Logging & Paths](#logging--data-paths) | 2 | Standard Unix |
@@ -350,6 +350,26 @@ Set the initial state of filament sensors.
 # Start with empty filament sensor
 HELIX_MOCK_FILAMENT_STATE="fsensor:empty" ./build/bin/helix-screen --test
 ```
+
+### `HELIX_FORCE_RUNOUT_MODAL`
+
+Force the filament runout guidance modal to appear even when an AMS/MMU system is present. Normally, runout modals are suppressed for AMS systems because filament runout during swaps is expected behavior.
+
+| Property | Value |
+|----------|-------|
+| **Values** | `1` (enable), unset (normal behavior) |
+| **Default** | Unset (modal suppressed with AMS) |
+| **File** | `src/system/runtime_config.cpp` |
+
+```bash
+# Force runout modal with real AMS system
+HELIX_FORCE_RUNOUT_MODAL=1 ./build/bin/helix-screen
+
+# In test mode, use --no-ams instead (simpler)
+./build/bin/helix-screen --test --no-ams
+```
+
+**Note:** In test mode, a mock AMS is created by default (4 gates). Use `--no-ams` flag to disable the mock AMS, which enables runout modal testing without needing this environment variable.
 
 ### `MOCK_EMPTY_POWER`
 

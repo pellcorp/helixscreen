@@ -2660,6 +2660,11 @@ void PrintStatusPanel::check_and_show_runout_guidance() {
         return;
     }
 
+    // Skip if AMS/MMU present and not forced (runout during swaps is normal)
+    if (!get_runtime_config()->should_show_runout_modal()) {
+        return;
+    }
+
     auto& sensor_mgr = helix::FilamentSensorManager::instance();
 
     // Check if any runout sensor shows no filament
