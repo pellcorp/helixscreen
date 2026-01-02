@@ -528,25 +528,32 @@ lv_color_t ui_theme_get_color(const char* base_name) {
     snprintf(light_name, sizeof(light_name), "%s_light", base_name);
     snprintf(dark_name, sizeof(dark_name), "%s_dark", base_name);
 
-    // Look up color strings from globals.xml
-    const char* light_str = lv_xml_get_const(nullptr, light_name);
-    const char* dark_str = lv_xml_get_const(nullptr, dark_name);
+    // Use silent lookups to avoid LVGL warnings when probing for variants
+    // Pattern 1: Theme-aware color with _light/_dark variants
+    const char* light_str = lv_xml_get_const_silent(nullptr, light_name);
+    const char* dark_str = lv_xml_get_const_silent(nullptr, dark_name);
 
-    if (!light_str || !dark_str) {
-        // Fallback: try the base name directly (for static colors like warning_color, error_color)
-        const char* base_str = lv_xml_get_const(nullptr, base_name);
-        if (base_str) {
-            return ui_theme_parse_hex_color(base_str);
-        }
+    if (light_str && dark_str) {
+        // Both variants exist - use theme-appropriate one
+        return ui_theme_parse_hex_color(use_dark_mode ? dark_str : light_str);
+    }
 
-        spdlog::error("[Theme] Color not found: {} (no _light/_dark variants, no static fallback)",
+    // Pattern 2: Static color with just base name (no variants)
+    const char* base_str = lv_xml_get_const_silent(nullptr, base_name);
+    if (base_str) {
+        return ui_theme_parse_hex_color(base_str);
+    }
+
+    // Pattern 3: Partial variants (error case)
+    if (light_str || dark_str) {
+        spdlog::error("[Theme] Color {} has only one variant (_light or _dark), need both",
                       base_name);
         return lv_color_hex(0x000000);
     }
 
-    // Select appropriate variant based on theme mode
-    const char* selected_str = use_dark_mode ? dark_str : light_str;
-    return ui_theme_parse_hex_color(selected_str);
+    // Nothing found
+    spdlog::error("[Theme] Color not found: {} (no base, no _light/_dark variants)", base_name);
+    return lv_color_hex(0x000000);
 }
 
 /**

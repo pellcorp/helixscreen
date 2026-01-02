@@ -11,6 +11,7 @@ LVGL_PATCHED_FILES := \
 	src/xml/parsers/lv_xml_image_parser.c \
 	src/xml/lv_xml_style.c \
 	src/xml/lv_xml.c \
+	src/xml/lv_xml.h \
 	src/drivers/display/fb/lv_linux_fbdev.c \
 	src/core/lv_refr.c
 
@@ -93,16 +94,16 @@ apply-patches:
 	else \
 		echo "$(GREEN)✓ LVGL fbdev stride bpp detection patch already applied$(RESET)"; \
 	fi
-	$(Q)if git -C $(LVGL_DIR) diff --quiet src/xml/lv_xml.c 2>/dev/null; then \
-		echo "$(YELLOW)→ Applying LVGL XML prop const resolution patch...$(RESET)"; \
-		if git -C $(LVGL_DIR) apply --check ../../patches/lvgl_xml_prop_const_resolution.patch 2>/dev/null; then \
-			git -C $(LVGL_DIR) apply ../../patches/lvgl_xml_prop_const_resolution.patch && \
-			echo "$(GREEN)✓ XML prop const resolution patch applied$(RESET)"; \
+	$(Q)if git -C $(LVGL_DIR) diff --quiet src/xml/lv_xml.h 2>/dev/null; then \
+		echo "$(YELLOW)→ Applying LVGL XML silent const lookup patch...$(RESET)"; \
+		if git -C $(LVGL_DIR) apply --check ../../patches/lvgl_xml_const_silent.patch 2>/dev/null; then \
+			git -C $(LVGL_DIR) apply ../../patches/lvgl_xml_const_silent.patch && \
+			echo "$(GREEN)✓ XML silent const lookup patch applied$(RESET)"; \
 		else \
 			echo "$(YELLOW)⚠ Cannot apply patch (already applied or conflicts)$(RESET)"; \
 		fi \
 	else \
-		echo "$(GREEN)✓ LVGL XML prop const resolution patch already applied$(RESET)"; \
+		echo "$(GREEN)✓ LVGL XML silent const lookup patch already applied$(RESET)"; \
 	fi
 	$(ECHO) "$(CYAN)Checking libhv patches...$(RESET)"
 	$(Q)if git -C $(LIBHV_DIR) diff --quiet http/client/requests.h 2>/dev/null; then \

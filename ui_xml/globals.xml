@@ -300,10 +300,8 @@
     <px name="anim_press" value="80"/>
     <!-- anim_release: Button release with overshoot -->
     <px name="anim_release" value="120"/>
-    <!-- Theme colors -->
+    <!-- Theme colors (static - same in light/dark modes) -->
     <color name="primary_color" value="#AD2724"/>
-    <color name="primary_color_light" value="#AD2724"/>
-    <color name="primary_color_dark" value="#AD2724"/>
     <color name="secondary_color" value="#D4A84B"/>
     <!-- Graph/Visualization colors -->
     <color name="graph_line_primary" value="#AD2724"/>
@@ -318,7 +316,7 @@
     <color name="mesh_low" value="#2196F3"/>
     <color name="mesh_mid" value="#4CAF50"/>
     <color name="mesh_high" value="#FF4444"/>
-    <!-- Selection/highlight states -->
+    <!-- Selection/highlight states (theme-aware) -->
     <color name="selection_highlight_light" value="#E3F2FD"/>
     <color name="selection_highlight_dark" value="#1E3A5F"/>
     <!-- Step progress colors (wizard steps) -->
@@ -327,42 +325,41 @@
     <color name="step_completed" value="#4CAF50"/>
     <color name="step_label_inactive_light" value="#666666"/>
     <color name="step_label_inactive_dark" value="#CCCCCC"/>
-    <!-- Jog pad colors (motion panel) -->
-    <color name="jog_outer_ring_dark" value="#3A3A3A"/>
+    <!-- Jog pad colors (motion panel, theme-aware) -->
     <color name="jog_outer_ring_light" value="#D0D0D0"/>
-    <color name="jog_inner_circle_dark" value="#2A2A2A"/>
+    <color name="jog_outer_ring_dark" value="#3A3A3A"/>
     <color name="jog_inner_circle_light" value="#E0E0E0"/>
-    <color name="jog_grid_lines_dark" value="#000000"/>
+    <color name="jog_inner_circle_dark" value="#2A2A2A"/>
     <color name="jog_grid_lines_light" value="#888888"/>
-    <color name="jog_home_bg_dark" value="#404040"/>
+    <color name="jog_grid_lines_dark" value="#000000"/>
     <color name="jog_home_bg_light" value="#CCCCCC"/>
-    <color name="jog_home_border_dark" value="#606060"/>
+    <color name="jog_home_bg_dark" value="#404040"/>
     <color name="jog_home_border_light" value="#999999"/>
-    <color name="jog_boundary_lines_dark" value="#484848"/>
+    <color name="jog_home_border_dark" value="#606060"/>
     <color name="jog_boundary_lines_light" value="#AAAAAA"/>
-    <color name="jog_distance_labels_dark" value="#CCCCCC"/>
+    <color name="jog_boundary_lines_dark" value="#484848"/>
     <color name="jog_distance_labels_light" value="#555555"/>
+    <color name="jog_distance_labels_dark" value="#CCCCCC"/>
     <!-- Filament path visualization colors -->
-    <color name="filament_idle_dark" value="#606060"/>
     <color name="filament_idle_light" value="#A0A0A0"/>
+    <color name="filament_idle_dark" value="#606060"/>
     <color name="filament_error" value="#E53935"/>
-    <color name="filament_hub_bg_dark" value="#404040"/>
     <color name="filament_hub_bg_light" value="#E0E0E0"/>
-    <color name="filament_hub_border_dark" value="#505050"/>
+    <color name="filament_hub_bg_dark" value="#404040"/>
     <color name="filament_hub_border_light" value="#CCCCCC"/>
-    <color name="filament_nozzle_dark" value="#888888"/>
+    <color name="filament_hub_border_dark" value="#505050"/>
     <color name="filament_nozzle_light" value="#666666"/>
+    <color name="filament_nozzle_dark" value="#888888"/>
     <color name="filament_metal" value="#808890"/>
-    <!-- Faceted toolhead base color (Voron-style red) -->
-    <color name="toolhead_body_dark" value="#E53935"/>
-    <color name="toolhead_body_light" value="#E53935"/>
-    <!-- AMS slot colors -->
+    <!-- Faceted toolhead base color (static - Voron-style red) -->
+    <color name="toolhead_body" value="#E53935"/>
+    <!-- AMS slot colors (static) -->
     <color name="ams_hub_dark" value="#1A1A1A"/>
     <color name="ams_hub_border" value="#333333"/>
     <color name="ams_badge_bg" value="#505050"/>
-    <!-- Spool canvas colors (3D spool visualization) -->
+    <!-- Spool canvas colors (static - 3D visualization) -->
     <color name="spool_body" value="#666666"/>
-    <color name="spool_body_dark" value="#444444"/>
+    <color name="spool_body_shade" value="#444444"/>
     <color name="spool_hub_top" value="#050505"/>
     <color name="spool_hub_bottom" value="#404040"/>
     <!-- Alternative secondary colors (uncomment to try):
@@ -370,20 +367,11 @@
     <color name="secondary_color" value="#607D8B"/>  Slate blue - cool professional
     <color name="secondary_color" value="#37AEB3"/>  Original teal/cyan
     -->
+    <!-- Semantic feedback colors (static - same in light/dark) -->
     <color name="error_color" value="#AD2724"/>
-    <color name="error_color_light" value="#AD2724"/>
-    <color name="error_color_dark" value="#AD2724"/>
-    <!-- Error/validation feedback (red) -->
     <color name="warning_color" value="#FF9800"/>
-    <color name="warning_color_light" value="#FF9800"/>
-    <color name="warning_color_dark" value="#FF9800"/>
-    <!-- Warning feedback (orange) -->
     <color name="success_color" value="#4CAF50"/>
-    <color name="success_color_light" value="#4CAF50"/>
-    <color name="success_color_dark" value="#4CAF50"/>
-    <!-- Success feedback (green) -->
     <color name="info_color" value="#2196F3"/>
-    <!-- Info feedback (blue) -->
     <!-- Temperature gradient colors (for heating progress indicator) -->
     <color name="temp_gradient_cold" value="#2196F3"/>
     <!-- Cold/ambient (blue) -->
@@ -391,56 +379,37 @@
     <!-- Warming (amber) -->
     <color name="temp_gradient_hot" value="#FF4444"/>
     <!-- At target (red) -->
-    <!-- Heater-specific colors (nozzle heating and bed cooling) -->
+    <!-- Heater-specific colors (theme-aware) -->
     <color name="heating_color_light" value="#FF4444"/>
-    <!-- Light mode: red for heating (nozzle) -->
     <color name="heating_color_dark" value="#FF6666"/>
-    <!-- Dark mode: lighter red for heating (nozzle) -->
     <color name="cooling_color_light" value="#00CED1"/>
-    <!-- Light mode: cyan for cooling (bed) -->
     <color name="cooling_color_dark" value="#33E5E8"/>
-    <!-- Dark mode: lighter cyan for cooling (bed) -->
-    <!-- App background colors (theme-specific variants) -->
+    <!-- App background colors (theme-aware) -->
     <color name="app_bg_color_light" value="#FFFFFF"/>
-    <!-- Light mode: white -->
     <color name="app_bg_color_dark" value="#1F1F1F"/>
-    <!-- Dark mode: darker background -->
-    <!-- Primary text colors (theme-specific variants) -->
+    <!-- Primary text colors (theme-aware) -->
     <color name="text_primary_light" value="#565656"/>
-    <!-- Light mode: dark gray -->
     <color name="text_primary_dark" value="#E6E8F0"/>
-    <!-- Dark mode: light gray -->
-    <!-- Header text colors (theme-specific variants) -->
+    <!-- Header text colors (theme-aware) -->
     <color name="header_text_light" value="#1F1F1F"/>
-    <!-- Light mode: very dark -->
     <color name="header_text_dark" value="#FFFFFF"/>
-    <!-- Dark mode: very light -->
-    <!-- Secondary text color (theme-aware: light/dark modes) -->
-    <color name="text_secondary" value="#ADAEB8"/>
+    <!-- Secondary text color (theme-aware) -->
     <color name="text_secondary_light" value="#565656"/>
     <color name="text_secondary_dark" value="#ADAEB8"/>
-    <!-- Card background colors (theme-aware: light/dark modes) -->
+    <!-- Card background colors (theme-aware) -->
     <color name="card_bg_light" value="#F0F3F9"/>
     <color name="card_bg_dark" value="#292A2D"/>
-    <!-- Image caption overlay (semi-transparent, same for both themes) -->
+    <!-- Image caption overlay (static) -->
     <color name="image_caption_bg" value="#000000"/>
-    <!-- Dark mode: very dark gray -->
-    <!-- Theme grey colors (replaces LVGL default grey palette) -->
+    <!-- Theme grey colors (theme-aware) -->
     <color name="theme_grey_light" value="#D0D0D0"/>
-    <!-- Light mode: Medium light grey -->
     <color name="theme_grey_dark" value="#505050"/>
-    <!-- Dark mode: Medium dark grey -->
-    <!-- Keyboard key colors (theme-aware) - iOS-style two-tone effect -->
-    <!-- Letter keys: prominent, lighter color -->
+    <!-- Keyboard key colors (theme-aware, iOS-style) -->
     <color name="keyboard_key_light" value="#FFFFFF"/>
-    <!-- Light: white keys -->
     <color name="keyboard_key_dark" value="#636366"/>
-    <!-- Dark: iOS medium gray -->
-    <!-- Special/modifier keys (shift, backspace, return, ?123): recessed, darker -->
+    <!-- Special/modifier keys (shift, backspace, return, ?123) -->
     <color name="keyboard_key_special_light" value="#B8BCC4"/>
-    <!-- Light: subtle gray -->
     <color name="keyboard_key_special_dark" value="#4A4A4C"/>
-    <!-- Dark: iOS darker gray -->
     <!-- Component dimensions -->
     <px name="header_height" value="60"/>
     <!-- Standard header bar height -->

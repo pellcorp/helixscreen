@@ -4,7 +4,7 @@
 <component>
   <!-- Root row container (clickable for selection) -->
   <view name="spoolman_spool_row"
-        extends="lv_obj" width="100%" height="content" style_bg_color="#surface_bg" style_bg_opa="255"
+        extends="lv_obj" width="100%" height="content" style_bg_color="#card_bg" style_bg_opa="255"
         style_radius="#border_radius" style_border_width="0" style_pad_all="#space_md" scrollable="false"
         flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_md" clickable="true">
     <!-- LEFT: 3D Spool Canvas (48x48 fixed size) -->

@@ -31,7 +31,7 @@ static constexpr uint32_t DEFAULT_COLOR = 0xE0E0E0; // Default white/light filam
 
 // Note: Spool body colors now come from theme tokens in globals.xml:
 // - spool_body: Front flange color
-// - spool_body_dark: Back flange color
+// - spool_body_shade: Back flange color (darker shade)
 // - spool_hub_top, spool_hub_bottom: Center hub gradient
 
 struct SpoolCanvasData {
@@ -198,7 +198,7 @@ static void redraw_spool(SpoolCanvasData* data) {
     int32_t filament_rx = (int32_t)(filament_ry * ELLIPSE_RATIO);
 
     // Colors (from theme tokens)
-    lv_color_t back_color = ui_theme_get_color("spool_body_dark");
+    lv_color_t back_color = ui_theme_get_color("spool_body_shade");
     lv_color_t front_color = ui_theme_get_color("spool_body");
     lv_color_t filament_color = data->color;
     lv_color_t filament_side = darken_color(filament_color, 30);
