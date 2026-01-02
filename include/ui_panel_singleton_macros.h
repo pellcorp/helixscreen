@@ -32,6 +32,16 @@
  * - Requires including "static_panel_registry.h" and <memory>
  * - For DEFINE_GLOBAL_PANEL_WITH_STATE, also requires "app_globals.h" for get_printer_state()
  * - The getter function is always named get_global_<name>_panel()
+ *
+ * ## Threading
+ * These macros are NOT thread-safe. The getter functions must only be called
+ * from the main (LVGL) thread. This matches LVGL's single-threaded model.
+ *
+ * ## API Parameter (WITH_STATE variant)
+ * The API pointer is passed as nullptr at construction time. Panels should use
+ * get_moonraker_api() when they need the API, not cache it in the constructor.
+ * This supports the deferred initialization pattern where the API connection
+ * may not be established until after panel construction.
  */
 
 #include "static_panel_registry.h"

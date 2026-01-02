@@ -145,6 +145,10 @@ class SubjectManager {
      * Safe to call multiple times - subsequent calls are no-ops.
      *
      * @note Checks lv_is_initialized() to handle static destruction order safely
+     * @note Subjects registered via lv_xml_register_subject() are NOT automatically
+     *       unregistered from the XML system. This is safe because panels are
+     *       destroyed via StaticPanelRegistry BEFORE lv_deinit() destroys the
+     *       XML registry. Do not destroy panels after lv_deinit().
      */
     void deinit_all() {
         if (subjects_.empty()) {

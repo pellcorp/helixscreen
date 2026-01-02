@@ -86,8 +86,11 @@ class GCodeDataSource {
      * For sources that may need preparation before indexing (e.g., downloading
      * a remote file), this method performs that preparation.
      *
-     * For local files and memory sources, this is a no-op.
-     * For Moonraker sources without range request support, downloads the file.
+     * For local files and memory sources, this is a no-op (returns true).
+     * For Moonraker sources, downloads the file to a temp location because
+     * the layer indexer requires filesystem access for memory-mapped parsing.
+     * This happens even if range requests are supported - range requests are
+     * used for streaming, but indexing needs a local file.
      *
      * @return true if the source is now ready for indexing
      */

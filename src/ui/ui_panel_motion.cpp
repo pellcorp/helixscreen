@@ -91,6 +91,9 @@ void MotionPanel::init_subjects() {
 }
 
 void MotionPanel::deinit_subjects() {
+    // NOTE: This method exists for API symmetry with init_subjects() and to support
+    // explicit cleanup if needed. However, it's NOT called in the destructor because
+    // SubjectManager handles cleanup via RAII. This is intentional - RAII is preferred.
     if (!subjects_initialized_) {
         return;
     }
