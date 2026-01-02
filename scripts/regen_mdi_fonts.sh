@@ -60,6 +60,7 @@ MDI_ICONS+=",0xF00AF"    # bluetooth
 MDI_ICONS+=",0xF0B5C"    # backspace-outline
 
 # Check/Close/UI
+MDI_ICONS+=",0xF0109"    # camera-timer (timelapse)
 MDI_ICONS+=",0xF011D"    # tray-arrow-up (unload)
 MDI_ICONS+=",0xF012A"    # chart-line
 MDI_ICONS+=",0xF012C"    # check
@@ -206,6 +207,7 @@ MDI_ICONS+=",0xF0EC7"    # rotate-3d (orbit/3D view rotation)
 MDI_ICONS+=",0xF0F85"    # speedometer-medium (speed-up)
 MDI_ICONS+=",0xF0F86"    # speedometer-slow (speed-down)
 MDI_ICONS+=",0xF0F9C"    # home-import-outline (home-z)
+MDI_ICONS+=",0xF128D"    # toy-brick-outline (building block)
 MDI_ICONS+=",0xF1323"    # hammer-wrench (tools/build)
 MDI_ICONS+=",0xF16B5"    # wifi-alert
 MDI_ICONS+=",0xF16BD"    # wifi-check

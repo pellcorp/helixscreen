@@ -156,7 +156,7 @@
                           callback="on_phase_tracking_changed"/>
     </lv_obj>
     <!-- Timelapse Settings -->
-    <setting_action_row name="row_timelapse" label="Timelapse" icon="video" description="Configure timelapse recording">
+    <setting_action_row name="row_timelapse" label="Timelapse" icon="camera_timer" description="Configure timelapse recording">
       <lv_obj-bind_flag_if_eq subject="printer_has_timelapse" flag="hidden" ref_value="0"/>
       <event_cb trigger="clicked" callback="on_timelapse_row_clicked"/>
     </setting_action_row>

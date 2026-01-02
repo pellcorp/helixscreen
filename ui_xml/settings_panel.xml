@@ -92,10 +92,6 @@
     <setting_action_row name="row_network"
                         label="Network Settings" icon="wifi" description="WiFi and Ethernet configuration"
                         callback="on_network_clicked"/>
-    <!-- Factory Reset -->
-    <setting_action_row name="row_factory_reset"
-                        label="Factory Reset" icon="refresh" description="Reset all settings and restart wizard"
-                        callback="on_factory_reset_clicked"/>
     <!-- Hardware Issues (hidden when no issues) -->
     <lv_obj name="container_hardware_health"
             width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false">
@@ -105,6 +101,10 @@
                           label="Hardware Issues" icon="alert" description="Review detected hardware validation issues"
                           callback="on_hardware_health_clicked"/>
     </lv_obj>
+    <!-- Factory Reset -->
+    <setting_action_row name="row_factory_reset"
+                        label="Factory Reset" icon="refresh" description="Reset all settings and restart wizard"
+                        callback="on_factory_reset_clicked"/>
     <!-- ================================================================== -->
     <!-- ABOUT SECTION -->
     <!-- ================================================================== -->
@@ -120,9 +120,9 @@
       <text_body name="value" bind_text="printer_value" style_text_color="#text_secondary"/>
     </setting_info_row>
     <!-- Klipper Version -->
-    <setting_info_row name="row_klipper" label="Klipper" icon="" value="—"/>
+    <setting_info_row name="row_klipper" label="Klipper" icon="toy_brick_outline" value="—"/>
     <!-- Moonraker Version -->
-    <setting_info_row name="row_moonraker" label="Moonraker" icon="" value="—"/>
+    <setting_info_row name="row_moonraker" label="Moonraker" icon="toy_brick_outline" value="—"/>
     <!-- Bottom padding for scroll -->
     <lv_obj width="100%" height="#space_lg" style_bg_opa="0" style_border_width="0" scrollable="false"/>
   </view>

@@ -63,6 +63,9 @@ static const IconMapping ICON_MAP[] = {
     {"bell",               "\xF3\xB0\x82\x9A"},  // F009A bell/notifications
     {"block_helper",       "\xF3\xB0\x82\xAD"},  // F00AD block-helper/prohibited
 
+    // Camera icons
+    {"camera_timer",       "\xF3\xB0\x84\x89"},  // F0109 camera-timer (timelapse)
+
     // Cancel/Close/Check
     {"cancel",             "\xF3\xB0\x9C\xBA"},  // F073A cancel
     {"chart_line",         "\xF3\xB0\x84\xAA"},  // F012A chart-line
@@ -197,6 +200,7 @@ static const IconMapping ICON_MAP[] = {
     {"thermometer_minus",  "\xF3\xB0\xB8\x84"},  // F0E04 thermometer-minus
     {"thermometer_plus",   "\xF3\xB0\xB8\x85"},  // F0E05 thermometer-plus
     {"tortoise",           "\xF3\xB0\xB4\xBB"},  // F0D3B tortoise (AFC/Box Turtle logo)
+    {"toy_brick_outline",  "\xF3\xB1\x8A\x8D"},  // F128D toy-brick-outline (building block)
     {"train_flatbed",      "\xF3\xB1\xAC\xB5"},  // F1B35 train-car-flatbed (print bed base)
     {"trash_can_outline",  "\xF3\xB0\xA9\xBA"},  // F0A7A trash-can-outline (delete)
     {"tray_arrow_up",      "\xF3\xB0\x84\x9D"},  // F011D tray-arrow-up (unload/eject)
