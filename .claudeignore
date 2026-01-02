@@ -8,9 +8,8 @@ build/
 *.so
 *.dylib
 
-# Dependencies (node_modules contains 1,442+ lines of READMEs)
+# Dependencies
 node_modules/
-libhv/docs/
 
 # Historical/archived documentation
 docs/archive/
@@ -42,6 +41,22 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Submodule documentation (libhv, lvgl)
-lvgl/docs/
-lvgl/examples/
+# Submodule docs/tests/examples
+lib/lvgl/docs/
+lib/lvgl/examples/
+lib/lvgl/tests/
+lib/lvgl/demos/
+lib/glm/test/
+lib/glm/doc/
+lib/libhv/docs/
+lib/libhv/examples/
+lib/libhv/unittest/
+lib/openvdb/doc/
+lib/tinygl/Raw_Demos/
+lib/tinygl/SDL_Examples/
+
+# Generated font files (large C arrays)
+assets/fonts/*.c
+
+# Clangd cache
+.cache/
