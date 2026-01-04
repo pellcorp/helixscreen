@@ -77,7 +77,6 @@ ui_theme_parse_color("#FF4444");   // ✅ Hex string only
 // ui_theme_parse_color("#card_bg") → ❌ WRONG - doesn't lookup tokens!
 ```
 
-**Macros:** `UI_COLOR_TEXT_PRIMARY`, `UI_FONT_SMALL`. Reference: `ui_icon.cpp`
 
 ---
 
