@@ -105,6 +105,7 @@ static const IconMapping ICON_MAP[] = {
     {"filament",           "\xF3\xB0\xB9\x9B"},  // F0E5B printer-3d-nozzle
     {"fine_tune",          "\xF3\xB0\x98\xAE"},  // F062E tune
     {"fire",               "\xF3\xB0\x88\xB8"},  // F0238 fire
+    {"flash",              "\xF3\xB0\x89\x81"},  // F0241 flash (lightning bolt)
     {"folder",             "\xF3\xB0\x89\x8B"},  // F024B folder
     {"folder_open",        "\xF3\xB0\x9D\xB0"},  // F0770 folder-open
     {"folder_upload",      "\xF3\xB0\x89\x99"},  // F0259 folder-upload
