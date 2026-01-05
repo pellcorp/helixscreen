@@ -15,10 +15,12 @@ Complete reference for HelixScreen configuration options.
 - [Printer Settings](#printer-settings)
 - [Moonraker Settings](#moonraker-settings)
 - [G-code Viewer Settings](#g-code-viewer-settings)
+- [Cache Settings](#cache-settings)
 - [AMS Settings](#ams-settings)
 - [Safety Limits](#safety-limits)
 - [Capability Overrides](#capability-overrides)
 - [Resetting Configuration](#resetting-configuration)
+- [Command-Line Options](#command-line-options)
 - [Environment Variables](#environment-variables)
 
 ---
@@ -92,7 +94,24 @@ The configuration file is JSON format with several top-level sections:
 ### `display_sleep_sec`
 **Type:** integer
 **Default:** `600`
-**Description:** Seconds of inactivity before screen dims/sleeps. Set to `0` to disable.
+**Description:** Seconds of inactivity before screen turns off. Set to `0` to disable.
+
+### `display_dim_sec`
+**Type:** integer
+**Default:** `300`
+**Description:** Seconds of inactivity before screen dims (must be less than `display_sleep_sec`). Set to `0` to disable dimming.
+
+### `display_dim_brightness`
+**Type:** integer
+**Default:** `30`
+**Range:** `1` - `100`
+**Description:** Brightness percentage when screen is dimmed.
+
+### `time_format`
+**Type:** integer
+**Default:** `0`
+**Values:** `0` (12-hour), `1` (24-hour)
+**Description:** Time display format. `0` shows "2:30 PM", `1` shows "14:30".
 
 ### `log_dest`
 **Type:** string
@@ -365,7 +384,9 @@ Located in the `gcode_viewer` section:
 {
   "gcode_viewer": {
     "shading_model": "smooth",
-    "tube_sides": 4
+    "tube_sides": 4,
+    "streaming_mode": "auto",
+    "streaming_threshold_percent": 40
   }
 }
 ```
@@ -387,6 +408,52 @@ Located in the `gcode_viewer` section:
 - `4` - Diamond shape, fastest rendering
 - `8` - Octagonal, balanced quality
 - `16` - Circular, matches OrcaSlicer quality
+
+### `streaming_mode`
+**Type:** string
+**Default:** `"auto"`
+**Values:** `"auto"`, `"on"`, `"off"`
+**Description:** Large G-code file handling:
+- `auto` - Stream files that would use too much RAM
+- `on` - Always stream (lowest memory)
+- `off` - Always load full file (fastest viewing)
+
+### `streaming_threshold_percent`
+**Type:** integer
+**Default:** `40`
+**Range:** `1` - `90`
+**Description:** Percent of available RAM that triggers streaming mode. Lower values stream smaller files. Only used when `streaming_mode` is `"auto"`.
+
+---
+
+## Cache Settings
+
+Located in the `cache` section:
+
+```json
+{
+  "cache": {
+    "thumbnail_max_mb": 20,
+    "disk_critical_mb": 5,
+    "disk_low_mb": 20
+  }
+}
+```
+
+### `thumbnail_max_mb`
+**Type:** integer
+**Default:** `20`
+**Description:** Maximum thumbnail cache size in MB. Cache auto-sizes to 5% of available disk, capped at this limit.
+
+### `disk_critical_mb`
+**Type:** integer
+**Default:** `5`
+**Description:** Stop caching when available disk falls below this threshold (MB). Prevents filling filesystem.
+
+### `disk_low_mb`
+**Type:** integer
+**Default:** `20`
+**Description:** Evict cache aggressively when available disk falls below this threshold (MB).
 
 ---
 
@@ -496,6 +563,70 @@ Or copy fresh from template:
 ```bash
 sudo cp /opt/helixscreen/config/helixconfig.json.template /opt/helixscreen/helixconfig.json
 ```
+
+---
+
+## Command-Line Options
+
+HelixScreen accepts command-line options for overriding configuration and debugging.
+
+### Display Options
+
+| Option | Description |
+|--------|-------------|
+| `-s, --size <size>` | Screen size: `tiny` (480×320), `small` (800×480), `medium` (1024×600), `large` (1280×720) |
+| `--dpi <n>` | Display DPI (50-500, default: 160) |
+| `--dark` | Use dark theme |
+| `--light` | Use light theme |
+| `--skip-splash` | Skip splash screen on startup |
+
+### Navigation Options
+
+| Option | Description |
+|--------|-------------|
+| `-p, --panel <panel>` | Start on specific panel (home, controls, filament, settings, advanced, print-select) |
+| `-w, --wizard` | Force first-run configuration wizard |
+
+### Connection Options
+
+| Option | Description |
+|--------|-------------|
+| `--moonraker <url>` | Override Moonraker URL (e.g., `ws://192.168.1.112:7125`) |
+
+### Logging Options
+
+| Option | Description |
+|--------|-------------|
+| `-v, --verbose` | Increase verbosity (`-v`=info, `-vv`=debug, `-vvv`=trace) |
+| `--log-dest <dest>` | Log destination: `auto`, `journal`, `syslog`, `file`, `console` |
+| `--log-file <path>` | Log file path (when `--log-dest=file`) |
+
+### Utility Options
+
+| Option | Description |
+|--------|-------------|
+| `--screenshot [sec]` | Take screenshot after delay (default: 2 seconds) |
+| `-t, --timeout <sec>` | Auto-quit after specified seconds (1-3600) |
+| `-h, --help` | Show help message |
+| `-V, --version` | Show version information |
+
+### Examples
+
+```bash
+# Start in dark mode on the settings panel
+helix-screen --dark --panel settings
+
+# Override Moonraker connection
+helix-screen --moonraker ws://192.168.1.50:7125
+
+# Enable debug logging
+helix-screen -vv
+
+# Take screenshot after 5 seconds
+helix-screen --screenshot 5
+```
+
+> **Note:** Test mode options (`--test`, `--real-*`) are for development only and not documented here.
 
 ---
 

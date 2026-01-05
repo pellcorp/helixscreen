@@ -11,6 +11,7 @@ Learn how to use HelixScreen to control your 3D printer.
 - [Starting a Print](#starting-a-print)
 - [During a Print](#during-a-print)
 - [Controls Panel](#controls-panel)
+- [AMS Panel](#ams-panel)
 - [Settings](#settings)
 - [Advanced Features](#advanced-features)
 - [Keyboard & Input](#keyboard--input)
@@ -86,6 +87,8 @@ Buttons for common operations:
 ---
 
 ## Starting a Print
+
+![Print Select Panel](../images/user/print-select.png)
 
 ### Step 1: Browse Files
 
@@ -184,6 +187,8 @@ The Controls Panel provides access to all printer adjustments, organized into ca
 
 ### Motion Controls
 
+![Motion Controls](../images/user/motion.png)
+
 **Jog Pad:** Move print head manually
 - X/Y crosshair for horizontal movement
 - Z buttons for up/down
@@ -197,6 +202,8 @@ The Controls Panel provides access to all printer adjustments, organized into ca
 **Position Display:** Shows current X, Y, Z coordinates
 
 ### Temperature Controls
+
+![Temperature Panel](../images/user/temperature.png)
 
 **Nozzle Panel:**
 - Current temperature display
@@ -251,6 +258,42 @@ Calibrate temperature controllers:
 
 ---
 
+## AMS Panel
+
+![Filament Panel](../images/user/filament.png)
+
+The AMS panel provides multi-material system control for Happy Hare, AFC-Klipper, Bambu AMS, and Valgace backends. Access via the **Spool icon** in the navigation bar.
+
+### Slot Status
+
+Visual display of all filament slots (typically 4-8):
+- **Color indicators** show loaded filament colors
+- **Active slot** highlighted with border
+- **Empty slots** shown as gray
+- Tap a slot to select it for loading operations
+
+### Load/Unload Controls
+
+- **Load:** Feed filament from selected slot to toolhead
+- **Unload:** Retract filament back to buffer
+- **Home:** Run homing sequence for the AMS
+
+### Dryer Control
+
+If your AMS has a dryer (e.g., AFC with drying box):
+- Temperature display and control
+- Timer settings
+- Enable/disable drying cycle
+
+### Spoolman Integration
+
+When Spoolman is configured, the panel shows:
+- Spool name and material type
+- Remaining filament weight
+- Tap a slot to open the **Spool Picker** and assign a different spool
+
+---
+
 ## Settings
 
 ![Settings Panel](../images/user/settings.png)
@@ -293,6 +336,43 @@ Access settings via the **Gear icon** in the navigation bar.
 ---
 
 ## Advanced Features
+
+![Advanced Panel](../images/user/advanced.png)
+
+Access advanced features via the **More (⋯)** icon in the navigation bar.
+
+### Input Shaper
+
+Tune vibration compensation for smoother, faster prints:
+
+1. Navigate to **Advanced > Input Shaper**
+2. Select axis to test (X or Y)
+3. Tap **Measure** to run resonance test
+4. Review recommended shaper type and frequency
+5. Tap **Apply** to save to configuration
+
+The panel shows current shaper settings and test results with frequency graphs.
+
+### Screws Tilt Adjust
+
+Assisted manual bed leveling using the SCREWS_TILT_CALCULATE macro:
+
+1. Navigate to **Advanced > Screws Tilt**
+2. Tap **Measure** to probe all bed screws
+3. View adjustment amounts for each screw (e.g., "CW 00:15" = clockwise 15 minutes)
+4. Adjust screws and re-measure until level
+
+Color coding: green (level), yellow (minor adjustment), red (significant adjustment needed).
+
+### Notification History
+
+Review past system notifications:
+
+1. Tap the **bell icon** in the status bar
+2. Scroll through notification history
+3. Tap **Clear All** to dismiss
+
+Notifications are color-coded by severity: info (blue), warning (yellow), error (red).
 
 ### Macro Panel
 

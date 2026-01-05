@@ -131,10 +131,10 @@ The web frontend you use (Mainsail, Fluidd, etc.) doesn't matter - HelixScreen t
 
 ### Does it support multiple extruders?
 
-**Partially.** Current support:
+**Yes.** Current support:
 - ✅ Primary extruder temperature control
-- ⚠️ Multi-extruder display (in development via AMS feature)
-- ⚠️ Toolchanger support (planned)
+- ✅ Multi-extruder display via AMS panel
+- ⚠️ Full toolchanger support (planned)
 
 ### Can I use my webcam?
 
@@ -142,14 +142,20 @@ The web frontend you use (Mainsail, Fluidd, etc.) doesn't matter - HelixScreen t
 
 ### Does it work with Spoolman?
 
-**Coming soon.** Spoolman integration for filament tracking is planned for a future update.
+**Yes.** Spoolman integration is fully supported. Access it via the AMS panel or Filament panel to:
+- View your spool inventory
+- Assign spools to AMS slots
+- Track filament usage
 
 ### Does it support Happy Hare or AFC-Klipper?
 
-**In development.** AMS/multi-material support is being actively developed with:
-- ✅ Slot status display on home panel
-- 🚧 Full load/unload controls
-- 🚧 Filament path visualization
+**Yes.** Full AMS/multi-material support is available with four backends:
+- **Happy Hare** - MMU2, ERCF, and other Happy Hare systems
+- **AFC-Klipper** - Armored Filament Changer
+- **Bambu AMS** - Bambu Lab AMS (via Klipper integration)
+- **Valgace** - Valgace AMS backend
+
+Features include slot status display, load/unload controls, dryer control, and filament path visualization. Access via the **AMS panel** from the main navigation.
 
 ### Can I customize the colors or layout?
 

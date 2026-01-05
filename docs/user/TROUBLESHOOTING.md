@@ -10,6 +10,9 @@ Solutions to common problems with HelixScreen.
 - [Display Issues](#display-issues)
 - [Touch Input Issues](#touch-input-issues)
 - [Print Issues](#print-issues)
+- [AMS/Multi-Material Issues](#amsmulti-material-issues)
+- [Spoolman Issues](#spoolman-issues)
+- [Calibration Issues](#calibration-issues)
 - [Performance Issues](#performance-issues)
 - [Configuration Issues](#configuration-issues)
 - [Gathering Diagnostic Information](#gathering-diagnostic-information)
@@ -398,6 +401,154 @@ sudo systemctl restart klipper
 ```bash
 curl -X POST http://localhost:7125/printer/print/cancel
 ```
+
+---
+
+## AMS/Multi-Material Issues
+
+### AMS slots not detected
+
+**Symptoms:**
+- AMS panel shows no slots
+- "No AMS detected" message
+
+**Causes:**
+1. Backend not configured in Klipper
+2. Wrong backend type detected
+3. Backend not initialized
+
+**Solutions:**
+
+**Verify backend is running:**
+```bash
+# For Happy Hare
+curl http://localhost:7125/printer/objects/query?mmu
+# For AFC-Klipper
+curl http://localhost:7125/printer/objects/query?AFC
+```
+
+**Check Klipper logs:**
+```bash
+sudo journalctl -u klipper -n 50 | grep -i "mmu\|afc\|ams"
+```
+
+**Restart services:**
+```bash
+sudo systemctl restart klipper
+sudo systemctl restart moonraker
+sudo systemctl restart helixscreen
+```
+
+### Load/Unload fails
+
+**Symptoms:**
+- Load command sent but no filament movement
+- Error messages in notification history
+
+**Solutions:**
+
+**Check filament path:**
+Ensure no physical obstructions and buffer tubes are connected.
+
+**Verify homing:**
+Run home operation first - many load/unload macros require homing.
+
+**Check temperatures:**
+Some backends require extruder at temperature before operations.
+
+---
+
+## Spoolman Issues
+
+### Spoolman not showing
+
+**Symptoms:**
+- No Spoolman option in AMS panel
+- Spool picker not available
+
+**Causes:**
+1. Spoolman not configured in Moonraker
+2. Spoolman service not running
+3. Connection timeout
+
+**Solutions:**
+
+**Check Spoolman configuration** in `moonraker.conf`:
+```ini
+[spoolman]
+server: http://localhost:7912
+```
+
+**Verify Spoolman is running:**
+```bash
+curl http://localhost:7912/api/v1/health
+```
+
+**Restart services:**
+```bash
+sudo systemctl restart spoolman
+sudo systemctl restart moonraker
+```
+
+### Spool data not syncing
+
+**Solutions:**
+
+**Force refresh:**
+Navigate away from and back to the AMS panel to trigger refresh.
+
+**Check Moonraker logs:**
+```bash
+sudo journalctl -u moonraker | grep -i spoolman
+```
+
+---
+
+## Calibration Issues
+
+### Input Shaper measurement fails
+
+**Symptoms:**
+- Measurement starts but errors out
+- "ADXL not found" error
+
+**Causes:**
+1. Accelerometer not connected
+2. SPI/I2C configuration issue
+3. Klipper input_shaper section missing
+
+**Solutions:**
+
+**Verify ADXL connection:**
+```bash
+ACCELEROMETER_QUERY
+```
+Should return acceleration values.
+
+**Check Klipper config** for `[adxl345]` or `[lis2dw12]` section.
+
+**Re-run calibration** after fixing hardware issues.
+
+### Screws tilt shows wrong adjustments
+
+**Symptoms:**
+- Adjustment values seem incorrect
+- Bed gets worse after adjustments
+
+**Solutions:**
+
+**Verify screw positions** in `printer.cfg`:
+```ini
+[screws_tilt_adjust]
+screw1: 30,30       # Front-left
+screw1_name: front left
+```
+
+**Check probe accuracy:**
+```bash
+PROBE_ACCURACY
+```
+Standard deviation should be < 0.01mm.
 
 ---
 
