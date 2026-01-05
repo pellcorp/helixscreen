@@ -39,7 +39,7 @@ Welcome to the HelixScreen documentation. Choose your path:
 | Document | Description |
 |----------|-------------|
 | [**LVGL 9 XML Guide**](LVGL9_XML_GUIDE.md) | Complete XML syntax reference (92K) |
-| [**Quick Reference**](QUICK_REFERENCE.md) | Common patterns and code snippets |
+| [**Quick Reference**](DEVELOPER_QUICK_REFERENCE.md) | Common patterns and code snippets |
 | [**Environment Variables**](ENVIRONMENT_VARIABLES.md) | All runtime and build env vars |
 | [**Moonraker Architecture**](MOONRAKER_ARCHITECTURE.md) | Moonraker integration details |
 | [**HelixPrint Plugin**](../moonraker-plugin/README.md) | Phase tracking Moonraker plugin |
@@ -92,7 +92,7 @@ docs/
 ├── TESTING.md                # Test infrastructure
 │
 ├── LVGL9_XML_GUIDE.md        # XML reference
-├── QUICK_REFERENCE.md        # Code patterns
+├── DEVELOPER_QUICK_REFERENCE.md        # Code patterns
 ├── ENVIRONMENT_VARIABLES.md  # Env var reference
 ├── MOONRAKER_ARCHITECTURE.md # Moonraker integration
 ├── LOGGING.md                # Logging standards

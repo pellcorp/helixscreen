@@ -163,7 +163,7 @@ git commit --no-verify
 
 **Referenced docs (lazy-load):**
 - `docs/LVGL9_XML_GUIDE.md` - Complete XML reference
-- `docs/QUICK_REFERENCE.md` - Common code patterns
+- `docs/DEVELOPER_QUICK_REFERENCE.md` - Common code patterns
 - `docs/BUILD_SYSTEM.md` - Makefile and patches
 - `ARCHITECTURE.md` - System design
 - `CONTRIBUTING.md` - Code standards

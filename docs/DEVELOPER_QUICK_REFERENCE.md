@@ -1,6 +1,6 @@
-# LVGL 9 XML UI Quick Reference
+# Developer Quick Reference
 
-Quick patterns and cheat sheets for common implementation tasks. For system design and architectural rationale, see [ARCHITECTURE.md](ARCHITECTURE.md). For comprehensive XML syntax, see [LVGL9_XML_GUIDE.md](LVGL9_XML_GUIDE.md).
+Quick patterns and cheat sheets for developers working on the HelixScreen codebase. For system design and architectural rationale, see [ARCHITECTURE.md](ARCHITECTURE.md). For comprehensive XML syntax, see [LVGL9_XML_GUIDE.md](LVGL9_XML_GUIDE.md).
 
 ---
 

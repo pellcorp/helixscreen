@@ -793,4 +793,4 @@ See **[docs/MEMORY_ANALYSIS.md](docs/MEMORY_ANALYSIS.md)** for detailed analysis
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design and patterns
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Code standards and workflow
 - **[LVGL 9 XML Guide](docs/LVGL9_XML_GUIDE.md)** - Complete XML system reference
-- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Common patterns and gotchas
+- **[Quick Reference](docs/DEVELOPER_QUICK_REFERENCE.md)** - Common patterns and gotchas

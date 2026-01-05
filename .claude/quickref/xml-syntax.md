@@ -109,5 +109,5 @@
 ---
 
 **Full documentation:** `docs/LVGL9_XML_GUIDE.md` (lazy-load when needed)
-**Common patterns:** `docs/QUICK_REFERENCE.md`
+**Common patterns:** `docs/DEVELOPER_QUICK_REFERENCE.md`
 **Pre-flight checklist:** `.claude/checklist.md`

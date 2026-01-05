@@ -86,7 +86,7 @@ BedMeshPanel::~BedMeshPanel() {
     // During static destruction, LVGL may already be torn down.
     if (lv_is_initialized()) {
         // Modal dialogs: use ui_modal_hide() - NOT lv_obj_del()!
-        // See docs/QUICK_REFERENCE.md "Modal Dialog Lifecycle"
+        // See docs/DEVELOPER_QUICK_REFERENCE.md "Modal Dialog Lifecycle"
         if (calibrate_modal_widget_) {
             ui_modal_hide(calibrate_modal_widget_);
             calibrate_modal_widget_ = nullptr;

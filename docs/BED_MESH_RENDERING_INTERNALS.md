@@ -768,7 +768,7 @@ gprof build/bin/helix-screen gmon.out > profile.txt
 ### Related Documentation
 
 - **ARCHITECTURE.md** - Overall system design patterns
-- **QUICK_REFERENCE.md** - Common code patterns and examples
+- **DEVELOPER_QUICK_REFERENCE.md** - Common code patterns and examples
 - **LVGL9_XML_GUIDE.md** - XML-based UI layout system
 - **TESTING.md** - Test infrastructure and Catch2 usage
 

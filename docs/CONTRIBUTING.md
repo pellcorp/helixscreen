@@ -464,7 +464,7 @@ make -j  # Test build
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design and patterns
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Build system and daily workflow
 - **[LVGL 9 XML Guide](docs/LVGL9_XML_GUIDE.md)** - Complete XML syntax reference
-- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Common patterns and gotchas
+- **[Quick Reference](docs/DEVELOPER_QUICK_REFERENCE.md)** - Common patterns and gotchas
 - **[BUILD_SYSTEM.md](docs/BUILD_SYSTEM.md)** - Build configuration details
 
 ### Common Issues

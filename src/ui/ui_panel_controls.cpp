@@ -92,7 +92,7 @@ ControlsPanel::~ControlsPanel() {
         screws_panel_ = nullptr;
     }
     // Modal dialogs: use ui_modal_hide() - NOT lv_obj_del()!
-    // See docs/QUICK_REFERENCE.md "Modal Dialog Lifecycle"
+    // See docs/DEVELOPER_QUICK_REFERENCE.md "Modal Dialog Lifecycle"
     if (motors_confirmation_dialog_) {
         ui_modal_hide(motors_confirmation_dialog_);
         motors_confirmation_dialog_ = nullptr;

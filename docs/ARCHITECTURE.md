@@ -249,7 +249,7 @@ app_layout.xml
 | **Testability** | Mock via interface inheritance, isolate dependencies |
 | **Lifecycle** | Explicit init/start/stop/destroy - no hidden state |
 
-**For implementation examples, see [QUICK_REFERENCE.md](QUICK_REFERENCE.md#class-patterns).**
+**For implementation examples, see [DEVELOPER_QUICK_REFERENCE.md](DEVELOPER_QUICK_REFERENCE.md#class-patterns).**
 
 ### ❌ AVOID: Function-Based Patterns
 
@@ -882,7 +882,7 @@ return std::make_unique<WifiBackendMacOS>();     // Production
 
 **Why:** Component names in `<view name="...">` definitions do NOT propagate to `<component_tag/>` instantiations. Without explicit names, `lv_obj_find_by_name()` returns NULL.
 
-**See [QUICK_REFERENCE.md](QUICK_REFERENCE.md#component-names-critical) for quick syntax reference.**
+**See [DEVELOPER_QUICK_REFERENCE.md](DEVELOPER_QUICK_REFERENCE.md#component-names-critical) for quick syntax reference.**
 
 ### Widget Lookup by Name
 
@@ -939,7 +939,7 @@ if (!ui_nav_go_back()) {
 - Consistent back button behavior
 - State preservation when navigating back
 
-**For common implementation patterns and code snippets, see [QUICK_REFERENCE.md](QUICK_REFERENCE.md).**
+**For common implementation patterns and code snippets, see [DEVELOPER_QUICK_REFERENCE.md](DEVELOPER_QUICK_REFERENCE.md).**
 
 ## Performance Characteristics
 
@@ -1060,7 +1060,7 @@ This is safe - truncates rather than overflows. Not a security issue.
 
 This document focuses on system design, patterns, and architectural decisions ("why"). For implementation details:
 
-- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Code snippets, common patterns, quick lookups ("how")
+- **[DEVELOPER_QUICK_REFERENCE.md](DEVELOPER_QUICK_REFERENCE.md)** - Code snippets, common patterns, quick lookups ("how")
 - **[LVGL9_XML_GUIDE.md](LVGL9_XML_GUIDE.md)** - Complete XML syntax reference
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Build system and daily workflow
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Code standards and git workflow
