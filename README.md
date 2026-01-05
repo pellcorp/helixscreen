@@ -47,8 +47,6 @@ HelixScreen is a printer control interface built with LVGL 9's declarative XML s
 | Status | Beta | Stable | Mature |
 | Language | C++17 | C | Python 3 |
 
-See [docs/FEATURES.md](docs/FEATURES.md) for the full comparison table.
-
 ## Screenshots
 
 ### Home Panel
@@ -74,9 +72,7 @@ See [docs/GALLERY.md](docs/GALLERY.md) for all screenshots.
 
 **Integrations** — HelixPrint plugin, power devices, print history, timelapse, exclude objects
 
-**System** — First-run wizard, 20+ panels, light/dark themes, responsive 480×320 to 1024×600+
-
-See [docs/FEATURES.md](docs/FEATURES.md) for detailed feature breakdown.
+**System** — First-run wizard, 30 panels, light/dark themes, responsive 480×320 to 1024×600+
 
 ## Quick Start
 
@@ -107,7 +103,7 @@ Beta status. Core features work, but we're seeking testers. Suitable for enthusi
 HelixScreen uses LVGL 9's declarative XML—change layouts without recompiling. Lower memory than KlipperScreen. See the [comparison table](#why-helixscreen).
 
 **Which printers are supported?**
-Any printer running Klipper + Moonraker. The wizard auto-discovers your printer's capabilities.
+Any Klipper + Moonraker printer. Currently tested on Voron 2.4, Voron 0.2, FlashForge Adventurer 5M Pro, and Doron Velta. The wizard auto-discovers your printer's capabilities.
 
 **What multi-material systems work?**
 AFC (Box Turtle), Happy Hare (ERCF, 3MS, Tradrack), tool changers, and ValgACE.
@@ -129,7 +125,6 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) or open a [GitHub issue](https://
 |-------|-------------|
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Build system, workflow, contributing |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, patterns |
-| [FEATURES.md](docs/FEATURES.md) | Detailed features, comparison |
 | [GALLERY.md](docs/GALLERY.md) | All screenshots |
 | [ROADMAP.md](docs/ROADMAP.md) | Feature timeline |
 | [LVGL9_XML_GUIDE.md](docs/LVGL9_XML_GUIDE.md) | XML syntax reference |
