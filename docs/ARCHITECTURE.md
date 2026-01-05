@@ -213,17 +213,7 @@ void ui_panel_init() {
 ```
 app_layout.xml
 ├── navigation_bar.xml      # 5-button vertical navigation
-└── content_area
-    ├── home_panel.xml       # Print status overview
-    ├── controls_panel.xml   # Motion/temperature/extrusion launcher
-    │   ├── motion_panel.xml
-    │   ├── nozzle_temp_panel.xml
-    │   ├── bed_temp_panel.xml
-    │   └── extrusion_panel.xml
-    ├── print_select_panel.xml
-    ├── filament_panel.xml
-    ├── settings_panel.xml
-    └── advanced_panel.xml
+└── content_area            # 30+ panels (see ui_xml/*.xml)
 ```
 
 **Design Patterns:**
