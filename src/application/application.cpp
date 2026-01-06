@@ -1152,7 +1152,8 @@ bool Application::connect_moonraker() {
                 }
 
                 // Save session snapshot for next comparison (even if no issues)
-                validator.save_session_snapshot(Config::get_instance(), client_ptr);
+                validator.save_session_snapshot(Config::get_instance(), client_ptr,
+                                                std::get<0>(*ctx));
 
                 // Detect helix_print plugin during discovery (not UI-initiated)
                 // This ensures plugin status is known early for UI gating

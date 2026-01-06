@@ -206,6 +206,18 @@ class PrinterHardware {
      */
     static std::string guess_runout_sensor(const std::vector<std::string>& filament_sensors);
 
+    /**
+     * @brief Check if a filament sensor is managed by an AMS system
+     *
+     * Detects sensors that belong to multi-material systems like AFC, ERCF,
+     * Happy Hare, MMU, TradRack, BoxTurtle, etc. These sensors should be
+     * filtered from standalone sensor selection and hardware discovery.
+     *
+     * @param sensor_name The sensor name to check
+     * @return true if sensor appears to be AMS-managed
+     */
+    static bool is_ams_sensor(const std::string& sensor_name);
+
   private:
     const std::vector<std::string>& heaters_;
     const std::vector<std::string>& sensors_;

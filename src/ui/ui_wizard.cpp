@@ -640,7 +640,22 @@ void ui_wizard_complete() {
             }
         }
 
-        // 1c. Add AMS to expected hardware if detected (step wasn't skipped)
+        // 1c. Add user-selected runout sensor to expected hardware
+        {
+            auto& sensor_mgr = helix::FilamentSensorManager::instance();
+            auto sensors = sensor_mgr.get_sensors();
+            for (const auto& sensor : sensors) {
+                if (sensor.role == helix::FilamentSensorRole::RUNOUT &&
+                    !sensor.klipper_name.empty()) {
+                    HardwareValidator::add_expected_hardware(config, sensor.klipper_name);
+                    spdlog::info("[Wizard] Added runout sensor '{}' to expected_hardware",
+                                 sensor.klipper_name);
+                    break;
+                }
+            }
+        }
+
+        // 1d. Add AMS to expected hardware if detected (step wasn't skipped)
         // This allows the hardware validator to warn if AMS disappears between sessions
         if (!ams_step_skipped) {
             auto& ams = AmsState::instance();

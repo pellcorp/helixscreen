@@ -264,8 +264,10 @@ class HardwareValidator {
      *
      * @param config Config instance to save to
      * @param client MoonrakerClient with current hardware lists
+     * @param caps PrinterCapabilities with filament sensors
      */
-    void save_session_snapshot(Config* config, const MoonrakerClient* client);
+    void save_session_snapshot(Config* config, const MoonrakerClient* client,
+                               const PrinterCapabilities& caps);
 
     /**
      * @brief Create snapshot from current Moonraker client state

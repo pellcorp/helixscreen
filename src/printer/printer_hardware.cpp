@@ -393,3 +393,72 @@ std::string PrinterHardware::guess_runout_sensor(const std::vector<std::string>&
     spdlog::debug("[PrinterHardware] guess_runout_sensor() -> no match found");
     return "";
 }
+
+// ============================================================================
+// AMS Sensor Detection
+// ============================================================================
+
+bool PrinterHardware::is_ams_sensor(const std::string& sensor_name) {
+    // Convert to lowercase for case-insensitive matching
+    std::string lower_name = sensor_name;
+    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+
+    // AFC (Armored Turtle Filament Changer) patterns
+    if (lower_name.find("lane") != std::string::npos)
+        return true;
+    if (lower_name.find("afc") != std::string::npos)
+        return true;
+    if (lower_name.find("slot") != std::string::npos)
+        return true;
+
+    // ERCF (Enraged Rabbit Carrot Feeder) patterns
+    if (lower_name.find("ercf") != std::string::npos)
+        return true;
+    if (lower_name.find("gate") != std::string::npos)
+        return true;
+
+    // MMU2/MMU3 (Prusa Multi-Material Unit) patterns
+    if (lower_name.find("mmu") != std::string::npos)
+        return true;
+
+    // TradRack patterns
+    if (lower_name.find("trad") != std::string::npos)
+        return true;
+
+    // BoxTurtle patterns
+    if (lower_name.find("turtle") != std::string::npos)
+        return true;
+    if (lower_name.find("box") != std::string::npos &&
+        lower_name.find("filament") != std::string::npos)
+        return true;
+
+    // Happy Hare patterns
+    if (lower_name.find("happy") != std::string::npos)
+        return true;
+    if (lower_name.find("hare") != std::string::npos)
+        return true;
+
+    // Generic multi-material patterns (numbered sensors)
+    // Match patterns like "filament_0", "filament_1", "unit_0", "channel_1"
+    if (lower_name.find("unit") != std::string::npos)
+        return true;
+    if (lower_name.find("channel") != std::string::npos)
+        return true;
+    if (lower_name.find("buffer") != std::string::npos)
+        return true;
+    if (lower_name.find("hub") != std::string::npos)
+        return true;
+
+    // Check for numbered filament sensors (e.g., filament_0, fil_sensor_2)
+    // These typically indicate multi-material setups
+    for (char c = '0'; c <= '9'; c++) {
+        std::string pattern = std::string("filament_") + c;
+        if (lower_name.find(pattern) != std::string::npos)
+            return true;
+        pattern = std::string("fil_") + c;
+        if (lower_name.find(pattern) != std::string::npos)
+            return true;
+    }
+
+    return false;
+}

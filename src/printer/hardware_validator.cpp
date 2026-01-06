@@ -10,6 +10,7 @@
 #include "config.h"
 #include "moonraker_client.h"
 #include "printer_capabilities.h"
+#include "printer_hardware.h"
 #include "spdlog/spdlog.h"
 
 #include <algorithm>
@@ -175,7 +176,28 @@ void HardwareValidator::notify_user(const HardwareValidationResult& result) {
         message = std::to_string(count) + " configured hardware not found";
         severity = ToastSeverity::WARNING;
     } else {
-        message = std::to_string(result.newly_discovered.size()) + " new hardware discovered";
+        // Build intelligent message based on hardware types
+        size_t led_count = 0, sensor_count = 0, other_count = 0;
+        for (const auto& issue : result.newly_discovered) {
+            if (issue.hardware_type == HardwareType::LED) {
+                led_count++;
+            } else if (issue.hardware_type == HardwareType::FILAMENT_SENSOR) {
+                sensor_count++;
+            } else {
+                other_count++;
+            }
+        }
+
+        if (led_count > 0 && sensor_count == 0 && other_count == 0) {
+            message = led_count == 1 ? "LED strip available for lighting control"
+                                     : std::to_string(led_count) + " LED strips available";
+        } else if (sensor_count > 0 && led_count == 0 && other_count == 0) {
+            message = sensor_count == 1
+                          ? "Filament sensor available for runout detection"
+                          : std::to_string(sensor_count) + " filament sensors available";
+        } else {
+            message = std::to_string(result.newly_discovered.size()) + " new hardware available";
+        }
         severity = ToastSeverity::INFO;
     }
 
@@ -189,14 +211,14 @@ void HardwareValidator::notify_user(const HardwareValidationResult& result) {
                   message);
 }
 
-void HardwareValidator::save_session_snapshot(Config* config, const MoonrakerClient* client) {
+void HardwareValidator::save_session_snapshot(Config* config, const MoonrakerClient* client,
+                                              const PrinterCapabilities& caps) {
     if (!config || !client) {
         return;
     }
 
-    // Create current snapshot
-    PrinterCapabilities dummy_caps; // We'll get filament sensors from client's printer_objects
-    auto snapshot = create_snapshot(client, dummy_caps);
+    // Create current snapshot using the real capabilities
+    auto snapshot = create_snapshot(client, caps);
 
     // Generate ISO 8601 timestamp
     auto now = std::chrono::system_clock::now();
@@ -593,6 +615,11 @@ void HardwareValidator::validate_new_hardware(Config* config, const MoonrakerCli
 
     // Find sensors in discovery but not in config
     for (const auto& sensor : discovered_sensors) {
+        // Skip AMS/AFC sensors - they're managed by multi-material systems
+        if (PrinterHardware::is_ams_sensor(sensor)) {
+            spdlog::debug("[HardwareValidator] Skipping AMS sensor: {}", sensor);
+            continue;
+        }
         if (!contains_name(configured_names, sensor)) {
             result.newly_discovered.push_back(HardwareIssue::info(
                 sensor, HardwareType::FILAMENT_SENSOR,
