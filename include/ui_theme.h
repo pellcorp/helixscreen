@@ -249,3 +249,63 @@ const lv_font_t* ui_theme_get_font(const char* token);
  * @return Font token string (e.g., "font_small"). Never returns NULL.
  */
 const char* ui_theme_size_to_font_token(const char* size, const char* default_size = "sm");
+
+// ============================================================================
+// Multi-File Responsive Constants API
+// ============================================================================
+// These functions extend the responsive constant system to work with ALL XML
+// files, not just globals.xml. Component-local constants are aggregated with
+// last-wins precedence (alphabetical order, so component files can override
+// globals.xml values).
+
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+/**
+ * @brief Parse an XML file and extract constants with a specific suffix
+ *
+ * Extracts name→value pairs for elements of the given type that end with
+ * the specified suffix. The base name (suffix stripped) is used as the key.
+ *
+ * Example: For suffix="_small", element <px name="button_height_small" value="32"/>
+ * produces entry {"button_height", "32"} in the results map.
+ *
+ * @param filepath Path to the XML file to parse
+ * @param element_type Element type to match ("px", "color", "string")
+ * @param suffix Suffix to match ("_small", "_medium", "_large", "_light", "_dark")
+ * @param token_values Output map: base_name → value (last-wins if duplicate)
+ */
+void ui_theme_parse_xml_file_for_suffix(const char* filepath, const char* element_type,
+                                        const char* suffix,
+                                        std::unordered_map<std::string, std::string>& token_values);
+
+/**
+ * @brief Find all XML files in a directory
+ *
+ * Returns a sorted list of *.xml file paths in the given directory.
+ * Files are sorted alphabetically to ensure deterministic processing order
+ * (important for last-wins precedence).
+ *
+ * Does NOT recurse into subdirectories.
+ *
+ * @param directory Directory path to search
+ * @return Sorted vector of full file paths, empty if directory doesn't exist
+ */
+std::vector<std::string> ui_theme_find_xml_files(const char* directory);
+
+/**
+ * @brief Parse all XML files in a directory for constants with a specific suffix
+ *
+ * Aggregates constants from all XML files in the directory. Files are processed
+ * in alphabetical order, so later files (by name) override earlier ones.
+ * This allows component files to override globals.xml values.
+ *
+ * @param directory Directory containing XML files
+ * @param element_type Element type to match ("px", "color", "string")
+ * @param suffix Suffix to match ("_small", "_medium", "_large", "_light", "_dark")
+ * @return Map of base_name → value for all matching constants
+ */
+std::unordered_map<std::string, std::string>
+ui_theme_parse_all_xml_for_suffix(const char* directory, const char* element_type,
+                                  const char* suffix);

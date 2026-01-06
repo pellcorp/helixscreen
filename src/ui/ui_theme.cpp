@@ -13,11 +13,14 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 static lv_theme_t* current_theme = nullptr;
@@ -36,108 +39,24 @@ lv_color_t ui_theme_parse_hex_color(const char* hex_str) {
 
 // No longer needed - helix_theme.c handles all color patching and input widget styling
 
-// ============================================================================
-// Responsive Token Pattern Matching
-// ============================================================================
-// Unified system for discovering responsive tokens from globals.xml by suffix:
-// - Colors: xxx_light / xxx_dark -> xxx (theme mode selects variant)
-// - Spacing: xxx_small / xxx_medium / xxx_large -> xxx (breakpoint selects variant)
-// - Fonts: xxx_small / xxx_medium / xxx_large -> xxx (breakpoint selects variant)
-
-// Expat callback data for collecting base names with a specific suffix
-struct SuffixParserData {
-    const char* element_type;            // "color", "px", or "string"
-    const char* suffix;                  // "_light", "_small", etc.
-    std::vector<std::string> base_names; // Collected base names (without suffix)
-};
-
-// Generic expat element start handler - finds <element_type name="xxx{suffix}"> elements
-static void XMLCALL suffix_element_start(void* user_data, const XML_Char* name,
-                                         const XML_Char** attrs) {
-    SuffixParserData* data = static_cast<SuffixParserData*>(user_data);
-
-    if (strcmp(name, data->element_type) != 0)
-        return;
-
-    // Find the "name" attribute
-    for (int i = 0; attrs[i]; i += 2) {
-        if (strcmp(attrs[i], "name") == 0) {
-            const char* attr_name = attrs[i + 1];
-            size_t len = strlen(attr_name);
-            size_t suffix_len = strlen(data->suffix);
-
-            // Check if name ends with the target suffix
-            if (len > suffix_len && strcmp(attr_name + len - suffix_len, data->suffix) == 0) {
-                // Extract base name (without suffix)
-                std::string base_name(attr_name, len - suffix_len);
-                data->base_names.push_back(base_name);
-            }
-            break;
-        }
-    }
-}
-
 /**
- * Parse globals.xml and collect base names for elements with a given suffix
+ * Auto-register theme-aware color constants from all XML files
  *
- * @param element_type XML element type ("color", "px", "string")
- * @param suffix Suffix to match ("_light", "_small", etc.)
- * @return Vector of base names (without suffix)
- */
-static std::vector<std::string> parse_globals_for_suffix(const char* element_type,
-                                                         const char* suffix) {
-    std::vector<std::string> result;
-
-    std::ifstream file("ui_xml/globals.xml");
-    if (!file.is_open()) {
-        NOTIFY_ERROR("Could not open ui_xml/globals.xml for {} pattern matching", element_type);
-        return result;
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string xml_content = buffer.str();
-    file.close();
-
-    SuffixParserData parser_data = {element_type, suffix, {}};
-    XML_Parser parser = XML_ParserCreate(nullptr);
-    XML_SetUserData(parser, &parser_data);
-    XML_SetElementHandler(parser, suffix_element_start, nullptr);
-
-    if (XML_Parse(parser, xml_content.c_str(), static_cast<int>(xml_content.size()), XML_TRUE) ==
-        XML_STATUS_ERROR) {
-        NOTIFY_ERROR("XML parse error in globals.xml line {}: {}", XML_GetCurrentLineNumber(parser),
-                     XML_ErrorString(XML_GetErrorCode(parser)));
-        XML_ParserFree(parser);
-        return result;
-    }
-    XML_ParserFree(parser);
-
-    return parser_data.base_names;
-}
-
-/**
- * Auto-register theme-aware color constants from globals.xml
- *
- * Parses globals.xml to find color pairs (xxx_light, xxx_dark) and registers
+ * Parses all XML files in ui_xml/ to find color pairs (xxx_light, xxx_dark) and registers
  * the base name (xxx) as a runtime constant with the appropriate value
  * based on current theme mode.
  */
 static void ui_theme_register_color_pairs(lv_xml_component_scope_t* scope, bool dark_mode) {
-    // Find all color base names that have _light suffix
-    std::vector<std::string> base_names = parse_globals_for_suffix("color", "_light");
+    // Find all color tokens with _light and _dark suffixes from all XML files
+    auto light_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "color", "_light");
+    auto dark_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "color", "_dark");
 
     // For each _light color, check if _dark exists and register base name
     int registered = 0;
-    for (const auto& base_name : base_names) {
-        std::string light_name = base_name + "_light";
-        std::string dark_name = base_name + "_dark";
-
-        const char* light_val = lv_xml_get_const(nullptr, light_name.c_str());
-        const char* dark_val = lv_xml_get_const(nullptr, dark_name.c_str());
-
-        if (light_val && dark_val) {
-            const char* selected = dark_mode ? dark_val : light_val;
+    for (const auto& [base_name, light_val] : light_tokens) {
+        auto dark_it = dark_tokens.find(base_name);
+        if (dark_it != dark_tokens.end()) {
+            const char* selected = dark_mode ? dark_it->second.c_str() : light_val.c_str();
             spdlog::trace("[Theme] Registering color {}: selected={}", base_name, selected);
             lv_xml_register_const(scope, base_name.c_str(), selected);
             registered++;
@@ -165,14 +84,14 @@ const char* ui_theme_get_breakpoint_suffix(int32_t max_resolution) {
 }
 
 /**
- * Register responsive spacing tokens from globals.xml
+ * Register responsive spacing tokens from all XML files
  *
- * Auto-discovers all <px name="xxx_small"> elements and registers base tokens
- * by matching xxx_small/xxx_medium/xxx_large triplets. This makes the system
- * fully extensible from globals.xml without C++ code changes.
+ * Auto-discovers all <px name="xxx_small"> elements from all XML files in ui_xml/
+ * and registers base tokens by matching xxx_small/xxx_medium/xxx_large triplets.
+ * This makes the system fully extensible without C++ code changes.
  *
- * CRITICAL: Base tokens must NOT be defined in globals.xml or responsive
- * overrides will be silently ignored (LVGL ignores duplicate lv_xml_register_const).
+ * CRITICAL: Base tokens must NOT be pre-defined or responsive overrides will be
+ * silently ignored (LVGL ignores duplicate lv_xml_register_const).
  *
  * @param display The LVGL display to get resolution from
  */
@@ -192,29 +111,30 @@ void ui_theme_register_responsive_spacing(lv_display_t* display) {
         return;
     }
 
-    // Auto-discover all px tokens with _small suffix
-    std::vector<std::string> base_names = parse_globals_for_suffix("px", "_small");
+    // Auto-discover all px tokens from all XML files
+    auto small_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "px", "_small");
+    auto medium_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "px", "_medium");
+    auto large_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "px", "_large");
 
     int registered = 0;
-    for (const auto& base_name : base_names) {
+    for (const auto& [base_name, small_val] : small_tokens) {
         // Verify all three variants exist
-        std::string small_name = base_name + "_small";
-        std::string medium_name = base_name + "_medium";
-        std::string large_name = base_name + "_large";
+        auto medium_it = medium_tokens.find(base_name);
+        auto large_it = large_tokens.find(base_name);
 
-        const char* small_val = lv_xml_get_const(nullptr, small_name.c_str());
-        const char* medium_val = lv_xml_get_const(nullptr, medium_name.c_str());
-        const char* large_val = lv_xml_get_const(nullptr, large_name.c_str());
-
-        if (small_val && medium_val && large_val) {
+        if (medium_it != medium_tokens.end() && large_it != large_tokens.end()) {
             // Select appropriate variant based on breakpoint
-            std::string variant_name = base_name + size_suffix;
-            const char* value = lv_xml_get_const(nullptr, variant_name.c_str());
-            if (value) {
-                spdlog::trace("[Theme] Registering spacing {}: selected={}", base_name, value);
-                lv_xml_register_const(scope, base_name.c_str(), value);
-                registered++;
+            const char* value = nullptr;
+            if (strcmp(size_suffix, "_small") == 0) {
+                value = small_val.c_str();
+            } else if (strcmp(size_suffix, "_medium") == 0) {
+                value = medium_it->second.c_str();
+            } else {
+                value = large_it->second.c_str();
             }
+            spdlog::trace("[Theme] Registering spacing {}: selected={}", base_name, value);
+            lv_xml_register_const(scope, base_name.c_str(), value);
+            registered++;
         }
     }
 
@@ -263,11 +183,11 @@ void ui_theme_register_responsive_spacing(lv_display_t* display) {
 }
 
 /**
- * Register responsive font tokens from globals.xml
+ * Register responsive font tokens from all XML files
  *
- * Auto-discovers all <string name="xxx_small"> elements and registers base tokens
- * by matching xxx_small/xxx_medium/xxx_large triplets. This makes the system
- * fully extensible from globals.xml without C++ code changes.
+ * Auto-discovers all <string name="xxx_small"> elements from all XML files in ui_xml/
+ * and registers base tokens by matching xxx_small/xxx_medium/xxx_large triplets.
+ * This makes the system fully extensible without C++ code changes.
  *
  * @param display The LVGL display to get resolution from
  */
@@ -287,29 +207,30 @@ void ui_theme_register_responsive_fonts(lv_display_t* display) {
         return;
     }
 
-    // Auto-discover all string tokens with _small suffix
-    std::vector<std::string> base_names = parse_globals_for_suffix("string", "_small");
+    // Auto-discover all string tokens from all XML files
+    auto small_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "string", "_small");
+    auto medium_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "string", "_medium");
+    auto large_tokens = ui_theme_parse_all_xml_for_suffix("ui_xml", "string", "_large");
 
     int registered = 0;
-    for (const auto& base_name : base_names) {
+    for (const auto& [base_name, small_val] : small_tokens) {
         // Verify all three variants exist
-        std::string small_name = base_name + "_small";
-        std::string medium_name = base_name + "_medium";
-        std::string large_name = base_name + "_large";
+        auto medium_it = medium_tokens.find(base_name);
+        auto large_it = large_tokens.find(base_name);
 
-        const char* small_val = lv_xml_get_const(nullptr, small_name.c_str());
-        const char* medium_val = lv_xml_get_const(nullptr, medium_name.c_str());
-        const char* large_val = lv_xml_get_const(nullptr, large_name.c_str());
-
-        if (small_val && medium_val && large_val) {
+        if (medium_it != medium_tokens.end() && large_it != large_tokens.end()) {
             // Select appropriate variant based on breakpoint
-            std::string variant_name = base_name + size_suffix;
-            const char* value = lv_xml_get_const(nullptr, variant_name.c_str());
-            if (value) {
-                spdlog::trace("[Theme] Registering font {}: selected={}", base_name, value);
-                lv_xml_register_const(scope, base_name.c_str(), value);
-                registered++;
+            const char* value = nullptr;
+            if (strcmp(size_suffix, "_small") == 0) {
+                value = small_val.c_str();
+            } else if (strcmp(size_suffix, "_medium") == 0) {
+                value = medium_it->second.c_str();
+            } else {
+                value = large_it->second.c_str();
             }
+            spdlog::trace("[Theme] Registering font {}: selected={}", base_name, value);
+            lv_xml_register_const(scope, base_name.c_str(), value);
+            registered++;
         }
     }
 
@@ -720,4 +641,161 @@ const char* ui_theme_size_to_font_token(const char* size, const char* default_si
     // Unknown size - warn and return default
     spdlog::warn("[Theme] Unknown size '{}', using default '{}'", effective_size, default_size);
     return ui_theme_size_to_font_token(default_size, "sm");
+}
+
+// ============================================================================
+// Multi-File Responsive Constants
+// ============================================================================
+// Extension of responsive constants (_small/_medium/_large) to work with ALL
+// XML files, not just globals.xml. This allows component-specific responsive
+// tokens to be defined in their respective XML files.
+
+// Expat callback data for extracting name→value pairs with a specific suffix
+struct SuffixValueParserData {
+    const char* element_type;                              // "color", "px", or "string"
+    const char* suffix;                                    // "_light", "_small", etc.
+    std::unordered_map<std::string, std::string>* results; // Output: base_name → value
+};
+
+// Helper: check if string ends with suffix
+static bool ends_with_suffix(const char* str, const char* suffix) {
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+    if (str_len < suffix_len)
+        return false;
+    return strcmp(str + str_len - suffix_len, suffix) == 0;
+}
+
+// Expat element start handler - extracts name and value for matching elements
+static void XMLCALL suffix_value_element_start(void* user_data, const XML_Char* name,
+                                               const XML_Char** attrs) {
+    SuffixValueParserData* data = static_cast<SuffixValueParserData*>(user_data);
+
+    if (strcmp(name, data->element_type) != 0)
+        return;
+
+    // Extract both name and value attributes
+    const char* const_name = nullptr;
+    const char* const_value = nullptr;
+    for (int i = 0; attrs[i]; i += 2) {
+        if (strcmp(attrs[i], "name") == 0)
+            const_name = attrs[i + 1];
+        if (strcmp(attrs[i], "value") == 0)
+            const_value = attrs[i + 1];
+    }
+
+    // Skip if either attribute is missing
+    if (!const_name || !const_value)
+        return;
+
+    // Check if name ends with the target suffix
+    if (ends_with_suffix(const_name, data->suffix)) {
+        // Extract base name (without suffix)
+        size_t base_len = strlen(const_name) - strlen(data->suffix);
+        std::string base_name(const_name, base_len);
+
+        // Store in results (overwrites any existing value - last-wins)
+        (*data->results)[base_name] = const_value;
+    }
+}
+
+void ui_theme_parse_xml_file_for_suffix(
+    const char* filepath, const char* element_type, const char* suffix,
+    std::unordered_map<std::string, std::string>& token_values) {
+    // Handle NULL filepath gracefully
+    if (!filepath) {
+        spdlog::trace("[Theme] parse_xml_file_for_suffix: NULL filepath");
+        return;
+    }
+
+    std::ifstream file(filepath);
+    if (!file.is_open()) {
+        spdlog::trace("[Theme] Could not open {} for suffix parsing", filepath);
+        return;
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string xml_content = buffer.str();
+    file.close();
+
+    // Handle empty file
+    if (xml_content.empty()) {
+        return;
+    }
+
+    SuffixValueParserData parser_data = {element_type, suffix, &token_values};
+    XML_Parser parser = XML_ParserCreate(nullptr);
+    if (!parser) {
+        spdlog::error("[Theme] Failed to create XML parser for {}", filepath);
+        return;
+    }
+    XML_SetUserData(parser, &parser_data);
+    XML_SetElementHandler(parser, suffix_value_element_start, nullptr);
+
+    if (XML_Parse(parser, xml_content.c_str(), static_cast<int>(xml_content.size()), XML_TRUE) ==
+        XML_STATUS_ERROR) {
+        spdlog::trace("[Theme] XML parse error in {} line {}: {}", filepath,
+                      XML_GetCurrentLineNumber(parser), XML_ErrorString(XML_GetErrorCode(parser)));
+        // Continue with partial results (don't clear token_values)
+    }
+    XML_ParserFree(parser);
+}
+
+std::vector<std::string> ui_theme_find_xml_files(const char* directory) {
+    std::vector<std::string> result;
+
+    // Handle NULL directory gracefully
+    if (!directory) {
+        spdlog::trace("[Theme] find_xml_files: NULL directory");
+        return result;
+    }
+
+    DIR* dir = opendir(directory);
+    if (!dir) {
+        spdlog::trace("[Theme] Could not open directory: {}", directory);
+        return result;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+
+        // Skip directories (including . and ..)
+        if (entry->d_type == DT_DIR)
+            continue;
+
+        // Skip suspicious filenames (path traversal defense)
+        if (filename.find('/') != std::string::npos || filename.find("..") != std::string::npos) {
+            continue;
+        }
+
+        // Check if file ends with .xml (case-sensitive, lowercase only)
+        if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".xml") {
+            std::string full_path = std::string(directory) + "/" + filename;
+            result.push_back(full_path);
+        }
+    }
+    closedir(dir);
+
+    // Sort alphabetically for deterministic ordering (needed for last-wins)
+    std::sort(result.begin(), result.end());
+
+    return result;
+}
+
+std::unordered_map<std::string, std::string>
+ui_theme_parse_all_xml_for_suffix(const char* directory, const char* element_type,
+                                  const char* suffix) {
+    std::unordered_map<std::string, std::string> token_values;
+
+    // Get sorted list of all XML files
+    std::vector<std::string> files = ui_theme_find_xml_files(directory);
+
+    // Parse each file in alphabetical order (last-wins via map overwrite)
+    for (const auto& filepath : files) {
+        ui_theme_parse_xml_file_for_suffix(filepath.c_str(), element_type, suffix, token_values);
+    }
+
+    return token_values;
 }
