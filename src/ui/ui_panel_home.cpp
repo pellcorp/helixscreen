@@ -171,6 +171,21 @@ void HomePanel::init_subjects() {
     ams_slot_count_observer_ = ObserverGuard(AmsState::instance().get_slot_count_subject(),
                                              ams_slot_count_observer_cb, this);
 
+    // Computed subject for filament status visibility:
+    // Show when sensors exist AND (no AMS OR bypass active)
+    lv_subject_init_int(&show_filament_status_, 0);
+    lv_xml_register_subject(nullptr, "show_filament_status", &show_filament_status_);
+
+    // Observe inputs that affect filament status visibility
+    ams_bypass_observer_ = ObserverGuard(AmsState::instance().get_bypass_active_subject(),
+                                         ams_bypass_observer_cb, this);
+    filament_sensor_count_observer_ =
+        ObserverGuard(helix::FilamentSensorManager::instance().get_sensor_count_subject(),
+                      filament_sensor_count_observer_cb, this);
+
+    // Compute initial visibility
+    update_filament_status_visibility();
+
     subjects_initialized_ = true;
     spdlog::debug("[{}] Registered subjects and event callbacks", get_name());
 
@@ -191,6 +206,7 @@ void HomePanel::deinit_subjects() {
     lv_subject_deinit(&printer_type_subject_);
     lv_subject_deinit(&printer_host_subject_);
     lv_subject_deinit(&printer_info_visible_);
+    lv_subject_deinit(&show_filament_status_);
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());
 }
@@ -1053,36 +1069,51 @@ void HomePanel::ams_slot_count_observer_cb(lv_observer_t* observer, lv_subject_t
 }
 
 void HomePanel::update_ams_indicator(int slot_count) {
-    if (!panel_) {
-        return; // Panel not yet set up
+    // Visibility is handled declaratively via XML bind_flag_if_eq on ams_button/ams_divider.
+    // This method only refreshes the indicator content when AMS is available.
+    if (slot_count > 0 && ams_indicator_) {
+        ui_ams_mini_status_refresh(ams_indicator_);
+        spdlog::debug("[{}] AMS indicator refreshed ({} slots)", get_name(), slot_count);
     }
+    // AMS slot count also affects filament status visibility
+    update_filament_status_visibility();
+}
 
-    // Find the AMS button and divider - manually control visibility since XML binding
-    // may not work reliably when subject changes after XML is parsed
-    lv_obj_t* ams_button = lv_obj_find_by_name(panel_, "ams_button");
-    lv_obj_t* ams_divider = lv_obj_find_by_name(panel_, "ams_divider");
+void HomePanel::ams_bypass_observer_cb(lv_observer_t* observer, lv_subject_t* /*subject*/) {
+    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
+    if (self) {
+        self->update_filament_status_visibility();
+    }
+}
 
-    if (slot_count > 0) {
-        // Show AMS button and divider
-        if (ams_button) {
-            lv_obj_remove_flag(ams_button, LV_OBJ_FLAG_HIDDEN);
-            spdlog::debug("[{}] AMS button unhidden (slot_count={})", get_name(), slot_count);
-        }
-        if (ams_divider) {
-            lv_obj_remove_flag(ams_divider, LV_OBJ_FLAG_HIDDEN);
-        }
-        if (ams_indicator_) {
-            ui_ams_mini_status_refresh(ams_indicator_);
-            spdlog::debug("[{}] AMS indicator refreshed ({} slots)", get_name(), slot_count);
-        }
-    } else {
-        // Hide AMS button and divider
-        if (ams_button) {
-            lv_obj_add_flag(ams_button, LV_OBJ_FLAG_HIDDEN);
-        }
-        if (ams_divider) {
-            lv_obj_add_flag(ams_divider, LV_OBJ_FLAG_HIDDEN);
-        }
+void HomePanel::filament_sensor_count_observer_cb(lv_observer_t* observer,
+                                                  lv_subject_t* /*subject*/) {
+    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
+    if (self) {
+        self->update_filament_status_visibility();
+    }
+}
+
+void HomePanel::update_filament_status_visibility() {
+    // Computed subject: show filament status when sensors exist AND (no AMS OR bypass active)
+    int sensor_count =
+        lv_subject_get_int(helix::FilamentSensorManager::instance().get_sensor_count_subject());
+    int ams_slot_count = lv_subject_get_int(AmsState::instance().get_slot_count_subject());
+    int bypass_active = lv_subject_get_int(AmsState::instance().get_bypass_active_subject());
+
+    bool has_sensors = sensor_count > 0;
+    bool has_ams = ams_slot_count > 0;
+    bool in_bypass = bypass_active != 0;
+
+    // Show filament status if: has sensors AND (no AMS OR bypass mode active)
+    bool show = has_sensors && (!has_ams || in_bypass);
+    int new_value = show ? 1 : 0;
+
+    if (lv_subject_get_int(&show_filament_status_) != new_value) {
+        lv_subject_set_int(&show_filament_status_, new_value);
+        spdlog::debug("[{}] Filament status visibility: {} (sensors={}, ams={}, bypass={})",
+                      get_name(), show ? "shown" : "hidden", sensor_count, ams_slot_count,
+                      bypass_active);
     }
 }
 

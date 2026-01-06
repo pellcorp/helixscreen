@@ -82,10 +82,13 @@
         </lv_obj>
       </lv_obj>
     </lv_obj>
+
+
     <!-- Bottom section: Info cards (40% of height via flex_grow="2", balances with top section's flex_grow="3") -->
     <lv_obj width="100%"
             flex_grow="2" style_bg_opa="0%" style_border_width="0" style_pad_all="#space_lg" flex_flow="row"
             style_pad_gap="#space_md" style_flex_cross_place="start" scrollable="false">
+    
       <!-- Print Files Card - Benchy thumbnail + text in horizontal layout -->
       <!-- Disabled when not connected (state != 2) using LVGL's native disabled state -->
       <lv_button name="print_card"
@@ -149,32 +152,20 @@
           </lv_obj>
         </lv_obj>
       </lv_button>
+    
+    
       <!-- Status Card - Column layout with status row on top, info row below -->
       <ui_card name="status_card"
                height="100%" flex_grow="2" style_radius="#border_radius" style_pad_all="#space_md" flex_flow="column"
                style_pad_gap="#space_sm">
+    
         <!-- Top Row: [AMS if available] + Printer Status + Notification -->
         <!-- Uses flex_grow="1" like bottom row so divider height="80%" works correctly -->
         <lv_obj width="100%"
                 flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
                 style_flex_cross_place="center">
-          <!-- AMS status indicator - visibility bound to ams_slot_count subject -->
-          <lv_button name="ams_button"
-                     height="100%" flex_grow="1" style_bg_opa="0" style_shadow_width="0" style_border_width="0"
-                     style_radius="0" style_pad_all="0">
-            <lv_obj-bind_flag_if_eq subject="ams_slot_count" flag="hidden" ref_value="0"/>
-            <event_cb trigger="clicked" callback="ams_clicked_cb"/>
-            <!-- Container for ams_mini_status widget (centering handled in C++ widget) -->
-            <lv_obj name="ams_indicator_container"
-                    width="100%" height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0"/>
-          </lv_button>
-          <!-- Divider after AMS - visibility bound to ams_slot_count subject -->
-          <lv_obj name="ams_divider"
-                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="50%" style_border_width="0"
-                  style_pad_all="0">
-            <lv_obj-bind_flag_if_eq subject="ams_slot_count" flag="hidden" ref_value="0"/>
-          </lv_obj>
-          <!-- Printer Status (above network column) -->
+    
+          <!-- Printer Status -->
           <lv_obj height="100%"
                   flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
                   style_flex_main_place="center" style_flex_track_place="center">
@@ -200,102 +191,12 @@
               </icon>
             </lv_button>
           </lv_obj>
-          <!-- Vertical divider (above divider2) -->
+    
+          <!-- Vertical divider -->
           <lv_obj name="status_divider"
                   width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="128" style_border_width="0"
                   style_pad_all="0"/>
-          <!-- Notification (above light column) -->
-          <lv_obj height="100%"
-                  flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
-                  style_flex_main_place="center" style_flex_track_place="center">
-            <lv_obj name="status_notification_container"
-                    width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0">
-              <icon name="status_notification_icon"
-                    src="notifications" size="#icon_size_card" variant="secondary" align="center" clickable="true">
-                <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
-              </icon>
-              <!-- Notification Count Badge - wrapper provides fixed sizing, label inside uses bind_style -->
-              <lv_obj name="notification_badge"
-                      width="18" height="18" align="top_right" x="-#space_xxs" y="#space_xxs" style_radius="9"
-                      style_border_width="0" style_pad_all="0" hidden="true" scrollable="false" clickable="true">
-                <lv_obj-bind_flag_if_eq subject="notification_count" flag="hidden" ref_value="0"/>
-                <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
-                <!-- Background with severity-bound color -->
-                <lv_obj name="badge_bg"
-                        width="100%" height="100%" style_radius="9" style_border_width="0" style_bg_color="#info_color">
-                  <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
-                  <bind_style name="badge_warning" subject="notification_severity" ref_value="1"/>
-                  <bind_style name="badge_error" subject="notification_severity" ref_value="2"/>
-                </lv_obj>
-                <text_small name="notification_badge_count"
-                            bind_text="notification_count_text" style_pad_top="0" align="center"
-                            style_text_color="#keyboard_key_light"/>
-              </lv_obj>
-            </lv_obj>
-          </lv_obj>
-          <!-- E-stop divider (ONLY visible when printing) -->
-          <lv_obj name="estop_divider"
-                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="128" style_border_width="0"
-                  style_pad_all="0" hidden="true">
-            <lv_obj-bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
-          </lv_obj>
-          <!-- E-stop button container (ONLY visible when printing) -->
-          <lv_obj height="100%"
-                  flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
-                  style_flex_main_place="center" style_flex_track_place="center" hidden="true">
-            <lv_obj-bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
-            <!-- Circular button: radius=24 is half of button_height_small (48px) -->
-            <lv_button name="estop_button_home"
-                       width="#button_height_small" height="#button_height_small" style_radius="24"
-                       style_bg_color="#error_color" style_border_width="2" style_border_color="#text_primary"
-                       style_shadow_width="0" style_pad_all="0" align="center">
-              <icon src="alert_octagon" size="sm" color="#text_primary" align="center"/>
-              <event_cb trigger="clicked" callback="emergency_stop_clicked"/>
-            </lv_button>
-          </lv_obj>
-          <!-- Firmware restart divider (ONLY visible when klippy SHUTDOWN) -->
-          <lv_obj name="firmware_restart_divider"
-                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="128" style_border_width="0"
-                  style_pad_all="0" hidden="true">
-            <lv_obj-bind_flag_if_not_eq subject="klippy_state" flag="hidden" ref_value="2"/>
-          </lv_obj>
-          <!-- Firmware restart button container (ONLY visible when klippy SHUTDOWN) -->
-          <lv_obj height="100%"
-                  flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
-                  style_flex_main_place="center" style_flex_track_place="center" hidden="true">
-            <lv_obj-bind_flag_if_not_eq subject="klippy_state" flag="hidden" ref_value="2"/>
-            <!-- Circular button: uses primary_color to indicate "safe" recovery action -->
-            <lv_button name="firmware_restart_button_home"
-                       width="#button_height_small" height="#button_height_small" style_radius="24"
-                       style_bg_color="#primary_color" style_border_width="2" style_border_color="#text_primary"
-                       style_shadow_width="0" style_pad_all="0" align="center">
-              <icon src="refresh" size="sm" color="#text_primary" align="center"/>
-              <event_cb trigger="clicked" callback="firmware_restart_clicked"/>
-            </lv_button>
-          </lv_obj>
-        </lv_obj>
-        <!-- Bottom Row: Temperature, Network, Light -->
-        <lv_obj width="100%"
-                flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
-                style_flex_cross_place="center">
-          <!-- Temperature display - icon on top, text below -->
-          <!-- Icon color controlled by HeatingIconAnimator (gradient + pulse while heating) -->
-          <!-- Disabled when not connected (state != 2) using LVGL's native disabled state -->
-          <lv_button name="temp_btn"
-                     height="100%" flex_grow="1" style_bg_opa="0" style_shadow_width="0" style_border_width="0"
-                     style_radius="0" style_pad_all="0" flex_flow="column" style_flex_main_place="center"
-                     style_flex_cross_place="center">
-            <lv_obj-bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
-            <event_cb trigger="clicked" callback="temp_clicked_cb"/>
-            <icon name="temp_icon" src="heater" size="#icon_size_card" variant="secondary"/>
-            <temp_display name="temp_text_label"
-                          width="100%" size="md" show_target="false" bind_current="extruder_temp"
-                          bind_target="extruder_target" align="center"/>
-          </lv_button>
-          <!-- Vertical divider (80% height for visual breathing room) -->
-          <lv_obj name="divider1"
-                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="50%" style_border_width="0"
-                  style_pad_all="0"/>
+    
           <!-- Network status - icon on top, label below (centered) -->
           <!-- Icons switch based on home_network_icon_state: 0=disconnected, 1-4=wifi strength, 5=ethernet -->
           <!-- Note: Uses different subject than navigation_bar's network_icon_state (simpler 3-state) -->
@@ -330,12 +231,114 @@
             </icon>
             <text_tiny name="network_label" width="100%" bind_text="network_label" style_text_align="center"/>
           </lv_button>
+
+          <!-- Vertical divider (80% height for visual breathing room) -->
+          <lv_obj name="divider1"
+                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="50%" style_border_width="0"
+                  style_pad_all="0"/>
+
+          <!-- Notification (above light column) -->
+          <lv_obj height="100%"
+                  flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
+                  style_flex_main_place="center" style_flex_track_place="center">
+            <lv_obj name="status_notification_container"
+                    width="content" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0">
+              <icon name="status_notification_icon"
+                    src="notifications" size="#icon_size_card" variant="secondary" align="center" clickable="true">
+                <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
+              </icon>
+              <!-- Notification Count Badge - wrapper provides fixed sizing, label inside uses bind_style -->
+              <lv_obj name="notification_badge"
+                      width="18" height="18" align="top_right" x="-#space_xxs" y="#space_xxs" style_radius="9"
+                      style_border_width="0" style_pad_all="0" hidden="true" scrollable="false" clickable="true">
+                <lv_obj-bind_flag_if_eq subject="notification_count" flag="hidden" ref_value="0"/>
+                <event_cb trigger="clicked" callback="status_notification_history_clicked"/>
+                <!-- Background with severity-bound color -->
+                <lv_obj name="badge_bg"
+                        width="100%" height="100%" style_radius="9" style_border_width="0" style_bg_color="#info_color">
+                  <bind_style name="badge_info" subject="notification_severity" ref_value="0"/>
+                  <bind_style name="badge_warning" subject="notification_severity" ref_value="1"/>
+                  <bind_style name="badge_error" subject="notification_severity" ref_value="2"/>
+                </lv_obj>
+                <text_small name="notification_badge_count"
+                            bind_text="notification_count_text" style_pad_top="0" align="center"
+                            style_text_color="#keyboard_key_light"/>
+              </lv_obj>
+            </lv_obj>
+          </lv_obj>
+    
+          <!-- E-stop divider (ONLY visible when printing) -->
+          <lv_obj name="estop_divider"
+                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="128" style_border_width="0"
+                  style_pad_all="0" hidden="true">
+            <lv_obj-bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
+          </lv_obj>
+    
+          <!-- E-stop button container (ONLY visible when printing) -->
+          <lv_obj height="100%"
+                  flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
+                  style_flex_main_place="center" style_flex_track_place="center" hidden="true">
+            <lv_obj-bind_flag_if_eq subject="estop_visible" flag="hidden" ref_value="0"/>
+            <!-- Circular button: radius=24 is half of button_height_small (48px) -->
+            <lv_button name="estop_button_home"
+                       width="#button_height_small" height="#button_height_small" style_radius="24"
+                       style_bg_color="#error_color" style_border_width="2" style_border_color="#text_primary"
+                       style_shadow_width="0" style_pad_all="0" align="center">
+              <icon src="alert_octagon" size="sm" color="#text_primary" align="center"/>
+              <event_cb trigger="clicked" callback="emergency_stop_clicked"/>
+            </lv_button>
+          </lv_obj>
+    
+          <!-- Firmware restart divider (ONLY visible when klippy SHUTDOWN) -->
+          <lv_obj name="firmware_restart_divider"
+                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="128" style_border_width="0"
+                  style_pad_all="0" hidden="true">
+            <lv_obj-bind_flag_if_not_eq subject="klippy_state" flag="hidden" ref_value="2"/>
+          </lv_obj>
+    
+          <!-- Firmware restart button container (ONLY visible when klippy SHUTDOWN) -->
+          <lv_obj height="100%"
+                  flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
+                  style_flex_main_place="center" style_flex_track_place="center" hidden="true">
+            <lv_obj-bind_flag_if_not_eq subject="klippy_state" flag="hidden" ref_value="2"/>
+            <!-- Circular button: uses primary_color to indicate "safe" recovery action -->
+            <lv_button name="firmware_restart_button_home"
+                       width="#button_height_small" height="#button_height_small" style_radius="24"
+                       style_bg_color="#primary_color" style_border_width="2" style_border_color="#text_primary"
+                       style_shadow_width="0" style_pad_all="0" align="center">
+              <icon src="refresh" size="sm" color="#text_primary" align="center"/>
+              <event_cb trigger="clicked" callback="firmware_restart_clicked"/>
+            </lv_button>
+          </lv_obj>
+        </lv_obj>
+    
+        <!-- Bottom Row: Temperature, Network, Light -->
+        <lv_obj width="100%"
+                flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
+                style_flex_cross_place="center">
+    
+          <!-- Temperature display - icon on top, text below -->
+          <!-- Icon color controlled by HeatingIconAnimator (gradient + pulse while heating) -->
+          <!-- Disabled when not connected (state != 2) using LVGL's native disabled state -->
+          <lv_button name="temp_btn"
+                     height="100%" flex_grow="1" style_bg_opa="0" style_shadow_width="0" style_border_width="0"
+                     style_radius="0" style_pad_all="0" flex_flow="column" style_flex_main_place="center"
+                     style_flex_cross_place="center">
+            <lv_obj-bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
+            <event_cb trigger="clicked" callback="temp_clicked_cb"/>
+            <icon name="temp_icon" src="heater" size="#icon_size_card" variant="secondary"/>
+            <temp_display name="temp_text_label"
+                          width="100%" size="md" show_target="false" bind_current="extruder_temp"
+                          bind_target="extruder_target" align="center"/>
+          </lv_button>
+    
           <!-- Vertical divider (hidden if no LED capability) -->
           <lv_obj name="divider2"
                   width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="50%" style_border_width="0"
                   style_pad_all="0">
             <lv_obj-bind_flag_if_eq subject="printer_has_led" flag="hidden" ref_value="0"/>
           </lv_obj>
+    
           <!-- Light control button - single icon with dynamic brightness/color -->
           <lv_button name="light_button"
                      height="100%" flex_grow="1" style_bg_opa="0%" style_border_width="0" style_pad_all="0"
@@ -347,17 +350,38 @@
                   src="lightbulb_outline" size="#icon_size_card" align="center" color="#light_icon_off"/>
             <event_cb trigger="clicked" callback="light_toggle_cb"/>
           </lv_button>
+    
+          <!-- Divider before AMS - visibility bound to ams_slot_count subject -->
+          <lv_obj name="ams_divider"
+                  width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="50%" style_border_width="0"
+                  style_pad_all="0">
+            <lv_obj-bind_flag_if_eq subject="ams_slot_count" flag="hidden" ref_value="0"/>
+          </lv_obj>
+
+          <!-- AMS status indicator - visibility bound to ams_slot_count subject -->
+          <lv_button name="ams_button"
+                     height="100%" flex_grow="1" style_bg_opa="0" style_shadow_width="0" style_border_width="0"
+                     style_radius="0" style_pad_all="0">
+            <lv_obj-bind_flag_if_eq subject="ams_slot_count" flag="hidden" ref_value="0"/>
+            <event_cb trigger="clicked" callback="ams_clicked_cb"/>
+            <!-- Container for ams_mini_status widget (centering handled in C++ widget) -->
+            <lv_obj name="ams_indicator_container"
+                    width="100%" height="100%" style_bg_opa="0" style_border_width="0" style_pad_all="0"/>
+          </lv_button>
+    
           <!-- Vertical divider for filament sensor (hidden if no sensors) -->
           <lv_obj name="divider_filament"
                   width="1" height="80%" style_bg_color="#text_secondary" style_bg_opa="50%" style_border_width="0"
                   style_pad_all="0">
-            <lv_obj-bind_flag_if_eq subject="filament_sensor_count" flag="hidden" ref_value="0"/>
+            <lv_obj-bind_flag_if_eq subject="show_filament_status" flag="hidden" ref_value="0"/>
           </lv_obj>
-          <!-- Filament sensor status (hidden if no sensors) -->
+
+          <!-- Filament sensor status (hidden if no sensors, or has AMS and not in bypass) -->
           <lv_obj name="filament_status_container"
                   height="100%" flex_grow="1" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                  flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center">
-            <lv_obj-bind_flag_if_eq subject="filament_sensor_count" flag="hidden" ref_value="0"/>
+                  flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
+                  style_flex_track_place="center">
+            <lv_obj-bind_flag_if_eq subject="show_filament_status" flag="hidden" ref_value="0"/>
             <filament_sensor_indicator/>
             <text_tiny text="Loaded" style_text_align="center">
               <lv_obj-bind_flag_if_not_eq subject="filament_runout_detected" flag="hidden" ref_value="1"/>
@@ -367,6 +391,8 @@
             </text_tiny>
           </lv_obj>
         </lv_obj>
+    
+    
         <!-- Plugin injection point: widgets from plugins appear here -->
         <!-- Plugins can inject status widgets, indicators, or custom controls -->
         <lv_obj name="home_widget_area"
