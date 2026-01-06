@@ -76,6 +76,8 @@ void print_test_mode_banner() {
     if (config.disable_mock_ams)
         printf("  Mock AMS DISABLED (runout modal enabled)\n");
 
+    printf("  Config: %s\n", RuntimeConfig::TEST_CONFIG_PATH);
+
     printf("\n");
 }
 
