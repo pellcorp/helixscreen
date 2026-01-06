@@ -16,6 +16,7 @@
 #include "ui_panel_temp_control.h"
 #include "ui_subject_registry.h"
 #include "ui_temperature_utils.h"
+#include "ui_theme.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -579,32 +580,9 @@ void HomePanel::handle_tip_text_clicked() {
 
     spdlog::info("[{}] Tip text clicked - showing detail dialog", get_name());
 
-    const char* attrs[] = {"title", current_tip_.title.c_str(), "message",
-                           current_tip_.content.c_str(), nullptr};
-
-    ui_modal_configure(ModalSeverity::Info, false, "Ok", nullptr);
-    lv_obj_t* tip_dialog = ui_modal_show("modal_dialog", attrs);
-
-    if (!tip_dialog) {
-        spdlog::error("[{}] Failed to show tip detail modal", get_name());
-        return;
-    }
-
-    // Wire up Ok button to close
-    lv_obj_t* ok_btn = lv_obj_find_by_name(tip_dialog, "btn_primary");
-    if (ok_btn) {
-        lv_obj_set_user_data(ok_btn, tip_dialog);
-        lv_obj_add_event_cb(
-            ok_btn,
-            [](lv_event_t* e) {
-                auto* btn = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-                auto* dialog = static_cast<lv_obj_t*>(lv_obj_get_user_data(btn));
-                if (dialog) {
-                    ui_modal_hide(dialog);
-                }
-            },
-            LV_EVENT_CLICKED, nullptr);
-    }
+    // Use alert helper which auto-handles OK button to close
+    ui_modal_show_alert(current_tip_.title.c_str(), current_tip_.content.c_str(),
+                        ModalSeverity::Info, "Ok");
 }
 
 void HomePanel::handle_tip_rotation_timer() {
@@ -713,8 +691,8 @@ void HomePanel::update_light_icon() {
 
     // Calculate icon color from LED RGBW values
     if (brightness == 0) {
-        // OFF state - use muted gray
-        ui_icon_set_color(light_icon_, lv_color_hex(0x808080), LV_OPA_COVER);
+        // OFF state - use muted gray from design tokens
+        ui_icon_set_color(light_icon_, ui_theme_get_color("light_icon_off"), LV_OPA_COVER);
     } else {
         // Get RGB values from PrinterState
         int r = lv_subject_get_int(printer_state_.get_led_r_subject());
@@ -723,9 +701,9 @@ void HomePanel::update_light_icon() {
         int w = lv_subject_get_int(printer_state_.get_led_w_subject());
 
         lv_color_t icon_color;
-        // If white channel dominant or RGB near white, use gold
+        // If white channel dominant or RGB near white, use gold from design tokens
         if (w > std::max({r, g, b}) || (r > 200 && g > 200 && b > 200)) {
-            icon_color = lv_color_hex(0xFFD700); // Gold
+            icon_color = ui_theme_get_color("light_icon_on");
         } else {
             // Use actual LED color, boost if too dark for visibility
             int max_val = std::max({r, g, b});

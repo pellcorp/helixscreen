@@ -372,6 +372,9 @@
     <color name="warning_color" value="#FF9800"/>
     <color name="success_color" value="#4CAF50"/>
     <color name="info_color" value="#2196F3"/>
+    <!-- Light icon colors (static - same in light/dark) -->
+    <color name="light_icon_off" value="#808080"/>
+    <color name="light_icon_on" value="#FFD700"/>
     <!-- Temperature gradient colors (for heating progress indicator) -->
     <color name="temp_gradient_cold" value="#2196F3"/>
     <!-- Cold/ambient (blue) -->
