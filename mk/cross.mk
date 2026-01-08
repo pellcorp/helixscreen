@@ -360,7 +360,7 @@ help-cross:
 
 # Rsync flags for asset sync: delete stale files, checksum-based skip, exclude junk
 DEPLOY_RSYNC_FLAGS := -avz --delete --checksum
-DEPLOY_ASSET_EXCLUDES := --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_Store' --exclude='*.pyc' --exclude='helixconfig.json'
+DEPLOY_ASSET_EXCLUDES := --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_Store' --exclude='*.pyc' --exclude='helixconfig.json' --exclude='.claude-recall'
 DEPLOY_ASSET_DIRS := ui_xml assets config moonraker-plugin
 
 # Common deploy recipe (called with: $(call deploy-common,SSH_TARGET,DEPLOY_DIR,BIN_DIR))
@@ -533,7 +533,7 @@ deploy-ad5m-legacy:
 	scp -O build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/
 	@if [ -f build/ad5m/bin/helix-watchdog ]; then scp -O build/ad5m/bin/helix-watchdog $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/; fi
 	@echo "$(DIM)Transferring assets (excluding test files)...$(RESET)"
-	tar -cf - --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_Store' ui_xml assets config | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xf -"
+	tar -cf - --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_Store' --exclude='.claude-recall' ui_xml assets config | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xf -"
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered splash images...$(RESET)"; \
 		ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/assets/images/prerendered"; \
