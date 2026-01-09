@@ -38,6 +38,7 @@ make pi-test                         # Build on thelio + deploy + run
 | **SPDX headers** | 20-line GPL boilerplate | `// SPDX-License-Identifier: GPL-3.0-or-later` |
 | **RAII widgets** | `lv_malloc()` / `lv_free()` | `lvgl_make_unique<T>()` + `release()` |
 | **Class-based** | `ui_panel_*_init()` functions | Classes: `MotionPanel`, `WiFiManager` |
+| **Observer factory** | Static callback + `lv_observer_get_user_data()` | `observe_int_sync<Panel>()` from `observer_factory.h` |
 | **Icon sync** | Add icon, forget fonts | codepoints.h + `make regen-fonts` + rebuild |
 | **Formatting** | Manual formatting | Let pre-commit hook (clang-format) fix |
 | **No auto-mock** | `if(!start()) return Mock()` | Check `RuntimeConfig::should_mock_*()` |
@@ -87,8 +88,28 @@ WebSocket/libhv callbacks = background thread. **NEVER** call `lv_subject_set_*(
 Use `ui_async_call()` from `ui_update_queue.h`. Pattern: `printer_state.cpp` `set_*_internal()`
 
 ### Cleanup
-- **Observer cleanup:** Save & remove observers BEFORE freeing struct with subjects (see `docs/LVGL9_XML_GUIDE.md`)
+- **Observer cleanup:** Use `ObserverGuard` RAII wrapper - automatically removes observer on destruction
 - **Shutdown guard:** `Application::shutdown()` needs `m_shutdown_complete` flag against double-call
+
+### Observer Factory Pattern (REQUIRED)
+Use `observer_factory.h` for all subject observers - eliminates boilerplate static callbacks.
+
+```cpp
+#include "observer_factory.h"
+using helix::ui::observe_int_sync;
+
+// Sync observer (UI thread only)
+observer_ = observe_int_sync<MyPanel>(subject, this, [](MyPanel* self, int val) {
+    self->handle_value(val);
+});
+
+// Async observer (background thread → UI update)
+observer_ = observe_int_async<MyPanel>(subject, this,
+    [](MyPanel* self, int val) { self->cached_val_ = val; },  // Called on any thread
+    [](MyPanel* self) { self->update_ui(); });                // Called on UI thread
+```
+
+**Available functions:** `observe_int_sync`, `observe_int_async`, `observe_string`, `observe_string_async`
 
 ### Deferred Dependencies
 When `set_X()` updates member, also update child objects that cached old value.
