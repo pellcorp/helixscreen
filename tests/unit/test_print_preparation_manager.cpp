@@ -8,6 +8,7 @@
 #include "moonraker_error.h"
 #include "print_start_analyzer.h"
 #include "printer_detector.h"
+#include "printer_state.h"
 
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/spdlog.h>
@@ -372,18 +373,175 @@ TEST_CASE("PrintPreparationManager: macro analysis in-progress tracking",
 }
 
 // ============================================================================
-// Tests: Capability Cache Invalidation
+// Tests: Capabilities from PrinterState (LT1 Refactor)
 // ============================================================================
 
 /**
- * Tests for capability cache behavior.
+ * Tests for the LT1 refactor: capabilities should come from PrinterState.
  *
- * The capability cache stores PrinterDetector lookup results to avoid
- * repeated database parsing. Cache must invalidate when printer type changes.
+ * After the refactor:
+ * - PrintPreparationManager::get_cached_capabilities() delegates to PrinterState
+ * - PrinterState owns the printer type and cached capabilities
+ * - Manager no longer needs its own cache or Config lookup
  *
- * Note: These tests verify the PUBLIC interface behavior without directly
- * accessing the private cache. We test through format_preprint_steps() which
- * internally uses get_cached_capabilities().
+ * These tests verify the manager correctly uses PrinterState for capabilities.
+ */
+TEST_CASE("PrintPreparationManager: capabilities come from PrinterState",
+          "[print_preparation][capabilities][lt1]") {
+    // Initialize LVGL for PrinterState subjects
+    lv_init_safe();
+
+    // Create PrinterState and initialize subjects (without XML registration for tests)
+    PrinterState printer_state;
+    printer_state.init_subjects(false);
+
+    // Create manager and set dependencies
+    PrintPreparationManager manager;
+    manager.set_dependencies(nullptr, &printer_state);
+
+    SECTION("Manager uses PrinterState capabilities for known printer") {
+        // Set printer type on PrinterState (sync version for testing)
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+
+        // Verify PrinterState has the capabilities
+        const auto& state_caps = printer_state.get_print_start_capabilities();
+        REQUIRE_FALSE(state_caps.empty());
+        REQUIRE(state_caps.has_capability("bed_mesh"));
+        REQUIRE(state_caps.macro_name == "START_PRINT");
+
+        // Get expected capability details for comparison
+        auto* bed_cap = state_caps.get_capability("bed_mesh");
+        REQUIRE(bed_cap != nullptr);
+        REQUIRE(bed_cap->param == "FORCE_LEVELING");
+    }
+
+    SECTION("Manager sees empty capabilities when PrinterState has no type") {
+        // Don't set any printer type - should have empty capabilities
+        const auto& state_caps = printer_state.get_print_start_capabilities();
+        REQUIRE(state_caps.empty());
+        REQUIRE(state_caps.macro_name.empty());
+    }
+
+    SECTION("Manager sees empty capabilities for unknown printer type") {
+        // Set an unknown printer type
+        printer_state.set_printer_type_sync("Unknown Printer That Does Not Exist");
+
+        // Should return empty capabilities, not crash
+        const auto& state_caps = printer_state.get_print_start_capabilities();
+        REQUIRE(state_caps.empty());
+    }
+
+    SECTION("Manager without PrinterState returns empty capabilities") {
+        // Create manager without setting dependencies
+        PrintPreparationManager standalone_manager;
+
+        // format_preprint_steps uses get_cached_capabilities internally
+        // Without printer_state_, it should return empty steps (not crash)
+        std::string steps = standalone_manager.format_preprint_steps();
+        REQUIRE(steps.empty());
+    }
+}
+
+TEST_CASE("PrintPreparationManager: capabilities update when PrinterState type changes",
+          "[print_preparation][capabilities][lt1]") {
+    // Initialize LVGL for PrinterState subjects
+    lv_init_safe();
+
+    // Create PrinterState and initialize subjects
+    PrinterState printer_state;
+    printer_state.init_subjects(false);
+
+    // Create manager and set dependencies
+    PrintPreparationManager manager;
+    manager.set_dependencies(nullptr, &printer_state);
+
+    SECTION("Capabilities change when switching between known printers") {
+        // Set to AD5M Pro first
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+
+        // Verify AD5M Pro capabilities
+        const auto& caps_v1 = printer_state.get_print_start_capabilities();
+        REQUIRE_FALSE(caps_v1.empty());
+        REQUIRE(caps_v1.macro_name == "START_PRINT");
+        std::string v1_macro = caps_v1.macro_name;
+        size_t v1_param_count = caps_v1.params.size();
+
+        // Now switch to AD5M (non-Pro)
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M");
+
+        // Verify capabilities updated
+        const auto& caps_v2 = printer_state.get_print_start_capabilities();
+        REQUIRE_FALSE(caps_v2.empty());
+        // Both have START_PRINT but this confirms the lookup happened
+        REQUIRE(caps_v2.macro_name == "START_PRINT");
+
+        INFO("AD5M Pro params: " << v1_param_count);
+        INFO("AD5M params: " << caps_v2.params.size());
+    }
+
+    SECTION("Capabilities become empty when switching to unknown printer") {
+        // Start with known printer
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+
+        const auto& caps_known = printer_state.get_print_start_capabilities();
+        REQUIRE_FALSE(caps_known.empty());
+
+        // Switch to unknown printer
+        printer_state.set_printer_type_sync("Generic Unknown Printer XYZ");
+
+        // Capabilities should now be empty (no stale cache)
+        const auto& caps_unknown = printer_state.get_print_start_capabilities();
+        REQUIRE(caps_unknown.empty());
+        REQUIRE(caps_unknown.macro_name.empty());
+    }
+
+    SECTION("Capabilities become empty when clearing printer type") {
+        // Start with known printer
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+
+        const auto& caps_before = printer_state.get_print_start_capabilities();
+        REQUIRE_FALSE(caps_before.empty());
+
+        // Clear printer type
+        printer_state.set_printer_type_sync("");
+
+        // Capabilities should be empty
+        const auto& caps_after = printer_state.get_print_start_capabilities();
+        REQUIRE(caps_after.empty());
+    }
+
+    SECTION("No stale cache when rapidly switching printer types") {
+        // Rapidly switch between multiple printer types
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+        REQUIRE_FALSE(printer_state.get_print_start_capabilities().empty());
+
+        printer_state.set_printer_type_sync("Unknown Printer 1");
+        REQUIRE(printer_state.get_print_start_capabilities().empty());
+
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M");
+        REQUIRE_FALSE(printer_state.get_print_start_capabilities().empty());
+
+        printer_state.set_printer_type_sync("");
+        REQUIRE(printer_state.get_print_start_capabilities().empty());
+
+        // Final state: set back to known printer
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+        const auto& final_caps = printer_state.get_print_start_capabilities();
+        REQUIRE_FALSE(final_caps.empty());
+        REQUIRE(final_caps.has_capability("bed_mesh"));
+    }
+}
+
+// ============================================================================
+// Tests: Capability Cache Behavior (Legacy - using PrinterDetector directly)
+// ============================================================================
+
+/**
+ * Tests for PrinterDetector capability lookup behavior.
+ *
+ * These tests verify the underlying PrinterDetector::get_print_start_capabilities()
+ * works correctly. After the LT1 refactor, PrinterState wraps this, but these
+ * tests remain valuable for verifying the database lookup layer.
  */
 TEST_CASE("PrintPreparationManager: capability cache behavior",
           "[print_preparation][capabilities][cache]") {

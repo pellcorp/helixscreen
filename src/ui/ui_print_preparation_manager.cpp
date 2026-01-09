@@ -10,10 +10,7 @@
 
 #include "active_print_media_manager.h"
 #include "app_globals.h"
-#include "config.h"
 #include "memory_utils.h"
-#include "printer_detector.h"
-#include "wizard_config_paths.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -44,30 +41,14 @@ PrintPreparationManager::~PrintPreparationManager() {
 // ============================================================================
 
 const PrintStartCapabilities& PrintPreparationManager::get_cached_capabilities() const {
-    // Get current printer type
-    Config* config = Config::get_instance();
-    std::string printer_type;
-    if (config) {
-        printer_type = config->get<std::string>(helix::wizard::PRINTER_TYPE, "");
+    // Delegate to PrinterState which owns the capability cache
+    if (printer_state_) {
+        return printer_state_->get_print_start_capabilities();
     }
 
-    // Return cached if printer type matches
-    if (cached_capabilities_.has_value() && cached_capabilities_printer_type_ == printer_type) {
-        return *cached_capabilities_;
-    }
-
-    // Fetch and cache
-    if (!printer_type.empty()) {
-        cached_capabilities_ = PrinterDetector::get_print_start_capabilities(printer_type);
-        cached_capabilities_printer_type_ = printer_type;
-        spdlog::debug("[PrintPreparationManager] Cached capabilities for '{}' ({} params)",
-                      printer_type, cached_capabilities_->params.size());
-    } else {
-        cached_capabilities_ = PrintStartCapabilities{};
-        cached_capabilities_printer_type_.clear();
-    }
-
-    return *cached_capabilities_;
+    // Return empty capabilities if PrinterState not set
+    static const PrintStartCapabilities empty_caps;
+    return empty_caps;
 }
 
 // ============================================================================

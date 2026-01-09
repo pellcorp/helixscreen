@@ -6,6 +6,7 @@
 #include "capability_overrides.h"
 #include "hardware_validator.h"
 #include "lvgl/lvgl.h"
+#include "printer_detector.h"
 #include "spdlog/spdlog.h"
 
 #include <memory>
@@ -1096,6 +1097,51 @@ class PrinterState {
      */
     void remove_hardware_issue(const std::string& hardware_name);
 
+    // ========================================================================
+    // PRINTER TYPE AND PRINT START CAPABILITIES
+    // ========================================================================
+
+    /**
+     * @brief Set the printer type and fetch capabilities from database (async)
+     *
+     * Stores the type name and fetches PrintStartCapabilities from the
+     * printer database via PrinterDetector::get_print_start_capabilities().
+     *
+     * Thread-safe: Uses helix::async::call_method_ref() to defer LVGL subject
+     * updates to the main thread. Safe to call from WebSocket callbacks.
+     *
+     * @param type Printer type name (e.g., "FlashForge Adventurer 5M Pro")
+     */
+    void set_printer_type(const std::string& type);
+
+    /**
+     * @brief Set the printer type synchronously (main-thread only)
+     *
+     * Directly updates printer type without async deferral.
+     * Only call this from the main LVGL thread (e.g., in tests with init_subjects(false)).
+     *
+     * @param type Printer type name (e.g., "FlashForge Adventurer 5M Pro")
+     */
+    void set_printer_type_sync(const std::string& type);
+
+    /**
+     * @brief Get the current printer type name
+     *
+     * @return Const reference to the stored printer type string
+     */
+    const std::string& get_printer_type() const;
+
+    /**
+     * @brief Get the print start capabilities for the current printer type
+     *
+     * Returns capabilities fetched from the database when set_printer_type()
+     * was called. If the printer type is unknown or not set, returns an
+     * empty capabilities struct.
+     *
+     * @return Const reference to the PrintStartCapabilities
+     */
+    const PrintStartCapabilities& get_print_start_capabilities() const;
+
   private:
     // Temperature subjects
     lv_subject_t extruder_temp_;
@@ -1268,6 +1314,10 @@ class PrinterState {
     // Capability override layer (user config overrides for auto-detected capabilities)
     CapabilityOverrides capability_overrides_;
 
+    // Printer type and print start capabilities
+    std::string printer_type_;                        ///< Selected printer type name
+    PrintStartCapabilities print_start_capabilities_; ///< Cached capabilities for current type
+
     // ============================================================================
     // Thread-safe internal methods (called via lv_async_call from main thread)
     // ============================================================================
@@ -1285,6 +1335,7 @@ class PrinterState {
     void set_moonraker_version_internal(const std::string& version);
     void set_klippy_state_internal(KlippyState state);
     void set_print_in_progress_internal(bool in_progress);
+    void set_printer_type_internal(const std::string& type);
 
     /**
      * @brief Update combined nav_buttons_enabled subject

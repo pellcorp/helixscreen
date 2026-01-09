@@ -6,10 +6,10 @@
 #include "ui_macro_enhance_wizard.h"
 #include "ui_toast_manager.h"
 
+#include "app_globals.h"
 #include "config.h"
 #include "moonraker_api.h"
-#include "printer_detector.h"
-#include "wizard_config_paths.h"
+#include "printer_state.h"
 
 #include <spdlog/spdlog.h>
 
@@ -276,36 +276,27 @@ bool MacroModificationManager::should_show_notification(
     }
 
     // Check if printer has native capabilities in database that cover these operations
-    Config* config = Config::get_instance();
-    if (config) {
-        std::string printer_type = config->get<std::string>(helix::wizard::PRINTER_TYPE, "");
-        if (!printer_type.empty()) {
-            PrintStartCapabilities caps =
-                PrinterDetector::get_print_start_capabilities(printer_type);
-
-            if (!caps.empty()) {
-                // Count how many uncontrollable ops are covered by native capabilities
-                size_t covered_by_native = 0;
-                for (const auto* op : uncontrollable_ops) {
-                    std::string cap_key = category_to_capability_key(op->category);
-                    if (!cap_key.empty() && caps.has_capability(cap_key)) {
-                        covered_by_native++;
-                    }
-                }
-
-                if (covered_by_native == uncontrollable) {
-                    // All uncontrollable operations have native params - no wizard needed!
-                    spdlog::info(
-                        "[MacroModificationManager] Suppressing wizard toast: {} ops covered "
-                        "by native {} capabilities for '{}'",
-                        uncontrollable, caps.macro_name, printer_type);
-                    return false;
-                } else if (covered_by_native > 0) {
-                    spdlog::debug(
-                        "[MacroModificationManager] {}/{} ops covered by native capabilities",
-                        covered_by_native, uncontrollable);
-                }
+    const PrintStartCapabilities& caps = get_printer_state().get_print_start_capabilities();
+    if (!caps.empty()) {
+        // Count how many uncontrollable ops are covered by native capabilities
+        size_t covered_by_native = 0;
+        for (const auto* op : uncontrollable_ops) {
+            std::string cap_key = category_to_capability_key(op->category);
+            if (!cap_key.empty() && caps.has_capability(cap_key)) {
+                covered_by_native++;
             }
+        }
+
+        if (covered_by_native == uncontrollable) {
+            // All uncontrollable operations have native params - no wizard needed!
+            const std::string& printer_type = get_printer_state().get_printer_type();
+            spdlog::info("[MacroModificationManager] Suppressing wizard toast: {} ops covered "
+                         "by native {} capabilities for '{}'",
+                         uncontrollable, caps.macro_name, printer_type);
+            return false;
+        } else if (covered_by_native > 0) {
+            spdlog::debug("[MacroModificationManager] {}/{} ops covered by native capabilities",
+                          covered_by_native, uncontrollable);
         }
     }
 

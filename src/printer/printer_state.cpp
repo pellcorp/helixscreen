@@ -192,6 +192,10 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&klipper_version_);
     lv_subject_deinit(&moonraker_version_);
 
+    // Reset printer type and capabilities to initial empty state
+    printer_type_.clear();
+    print_start_capabilities_ = PrintStartCapabilities{};
+
     subjects_initialized_ = false;
 }
 
@@ -1532,4 +1536,33 @@ void PrinterState::remove_hardware_issue(const std::string& hardware_name) {
 void PrinterState::set_print_outcome(PrintOutcome outcome) {
     lv_subject_set_int(&print_outcome_, static_cast<int>(outcome));
     spdlog::info("[PrinterState] Print outcome set to: {}", static_cast<int>(outcome));
+}
+
+// ============================================================================
+// PRINTER TYPE AND PRINT START CAPABILITIES
+// ============================================================================
+
+void PrinterState::set_printer_type(const std::string& type) {
+    // Thread-safe wrapper: defer updates to main thread
+    helix::async::call_method_ref(this, &PrinterState::set_printer_type_internal, type);
+}
+
+void PrinterState::set_printer_type_sync(const std::string& type) {
+    // Direct call for main-thread use (testing, or when already on main thread)
+    set_printer_type_internal(type);
+}
+
+void PrinterState::set_printer_type_internal(const std::string& type) {
+    printer_type_ = type;
+    print_start_capabilities_ = PrinterDetector::get_print_start_capabilities(type);
+    spdlog::info("[PrinterState] Printer type set to: '{}' (capabilities: {})", type,
+                 print_start_capabilities_.empty() ? "none" : print_start_capabilities_.macro_name);
+}
+
+const std::string& PrinterState::get_printer_type() const {
+    return printer_type_;
+}
+
+const PrintStartCapabilities& PrinterState::get_print_start_capabilities() const {
+    return print_start_capabilities_;
 }
