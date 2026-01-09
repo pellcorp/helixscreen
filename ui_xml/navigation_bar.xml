@@ -24,59 +24,55 @@
       </icon>
     </lv_obj>
     <!-- Controls Button (Panel 2) - CONNECTION + KLIPPY READY REQUIRED -->
-    <!-- Disabled when not connected OR when klippy not READY (SHUTDOWN/ERROR) -->
+    <!-- Uses combined nav_buttons_enabled subject (1=enabled when connected AND klippy ready) -->
     <lv_obj name="nav_btn_controls"
             width="100%" height="content" clickable="true" scrollable="false" style_bg_opa="0" style_border_width="0"
             style_pad_all="#space_sm" flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
             style_flex_track_place="center">
-      <!-- Disabled when not connected (state != 2) -->
-      <lv_obj-bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
-      <!-- Also disabled when klippy not READY (state != 0) - covers STARTUP, SHUTDOWN, ERROR -->
-      <lv_obj-bind_state_if_not_eq subject="klippy_state" state="disabled" ref_value="0"/>
-      <!-- Active icon (accent) - shown when active_panel == 2 -->
-      <icon name="nav_icon_controls_active" src="fine_tune" size="lg" variant="accent" hidden="true">
-        <lv_obj-bind_flag_if_not_eq subject="active_panel" flag="hidden" ref_value="2"/>
-      </icon>
-      <!-- Inactive icon (secondary) - shown when active_panel != 2 -->
-      <icon name="nav_icon_controls_inactive" src="fine_tune" size="lg" variant="secondary">
-        <lv_obj-bind_flag_if_eq subject="active_panel" flag="hidden" ref_value="2"/>
-      </icon>
-      <!-- Disabled overlay for disconnection - covers active/inactive when NOT connected -->
-      <icon name="nav_icon_controls_disabled_conn"
-            src="fine_tune" size="lg" variant="disabled" align="center" hidden="true">
-        <lv_obj-bind_flag_if_eq subject="printer_connection_state" flag="hidden" ref_value="2"/>
-      </icon>
-      <!-- Disabled overlay for klippy - covers when klippy NOT READY (STARTUP/SHUTDOWN/ERROR) -->
-      <icon name="nav_icon_controls_disabled_klippy" src="fine_tune" size="lg" variant="disabled" align="center">
-        <lv_obj-bind_flag_if_eq subject="klippy_state" flag="hidden" ref_value="0"/>
+      <!-- Disabled clickability when not enabled (disconnected OR klippy not ready) -->
+      <lv_obj-bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
+      <!-- Normal icons container - visible only when enabled -->
+      <lv_obj name="nav_controls_icons"
+              width="content" height="content" style_bg_opa="0" style_pad_all="0" style_border_width="0" hidden="true">
+        <lv_obj-bind_flag_if_not_eq subject="nav_buttons_enabled" flag="hidden" ref_value="1"/>
+        <!-- Active icon (accent) - shown when on controls panel -->
+        <icon name="nav_icon_controls_active" src="fine_tune" size="lg" variant="accent" hidden="true">
+          <lv_obj-bind_flag_if_not_eq subject="active_panel" flag="hidden" ref_value="2"/>
+        </icon>
+        <!-- Inactive icon (secondary) - shown when not on controls panel -->
+        <icon name="nav_icon_controls_inactive" src="fine_tune" size="lg" variant="secondary">
+          <lv_obj-bind_flag_if_eq subject="active_panel" flag="hidden" ref_value="2"/>
+        </icon>
+      </lv_obj>
+      <!-- Disabled icon - visible only when disabled (disconnected OR klippy not ready) -->
+      <icon name="nav_icon_controls_disabled" src="fine_tune" size="lg" variant="disabled" hidden="true">
+        <lv_obj-bind_flag_if_eq subject="nav_buttons_enabled" flag="hidden" ref_value="1"/>
       </icon>
     </lv_obj>
     <!-- Filament Button (Panel 3) - CONNECTION + KLIPPY READY REQUIRED -->
-    <!-- Disabled when not connected OR when klippy not READY (SHUTDOWN/ERROR) -->
+    <!-- Uses combined nav_buttons_enabled subject (1=enabled when connected AND klippy ready) -->
     <lv_obj name="nav_btn_filament"
             width="100%" height="content" clickable="true" scrollable="false" style_bg_opa="0" style_border_width="0"
             style_pad_all="#space_sm" flex_flow="column" style_flex_main_place="center" style_flex_cross_place="center"
             style_flex_track_place="center">
-      <!-- Disabled when not connected (state != 2) -->
-      <lv_obj-bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
-      <!-- Also disabled when klippy not READY (state != 0) - covers STARTUP, SHUTDOWN, ERROR -->
-      <lv_obj-bind_state_if_not_eq subject="klippy_state" state="disabled" ref_value="0"/>
-      <!-- Active icon (accent) - shown when active_panel == 3 -->
-      <icon name="nav_icon_filament_active" src="filament" size="lg" variant="accent" hidden="true">
-        <lv_obj-bind_flag_if_not_eq subject="active_panel" flag="hidden" ref_value="3"/>
-      </icon>
-      <!-- Inactive icon (secondary) - shown when active_panel != 3 -->
-      <icon name="nav_icon_filament_inactive" src="filament" size="lg" variant="secondary">
-        <lv_obj-bind_flag_if_eq subject="active_panel" flag="hidden" ref_value="3"/>
-      </icon>
-      <!-- Disabled overlay for disconnection - covers active/inactive when NOT connected -->
-      <icon name="nav_icon_filament_disabled_conn"
-            src="filament" size="lg" variant="disabled" align="center" hidden="true">
-        <lv_obj-bind_flag_if_eq subject="printer_connection_state" flag="hidden" ref_value="2"/>
-      </icon>
-      <!-- Disabled overlay for klippy - covers when klippy NOT READY (STARTUP/SHUTDOWN/ERROR) -->
-      <icon name="nav_icon_filament_disabled_klippy" src="filament" size="lg" variant="disabled" align="center">
-        <lv_obj-bind_flag_if_eq subject="klippy_state" flag="hidden" ref_value="0"/>
+      <!-- Disabled clickability when not enabled (disconnected OR klippy not ready) -->
+      <lv_obj-bind_state_if_not_eq subject="nav_buttons_enabled" state="disabled" ref_value="1"/>
+      <!-- Normal icons container - visible only when enabled -->
+      <lv_obj name="nav_filament_icons"
+              width="content" height="content" style_bg_opa="0" style_pad_all="0" style_border_width="0" hidden="true">
+        <lv_obj-bind_flag_if_not_eq subject="nav_buttons_enabled" flag="hidden" ref_value="1"/>
+        <!-- Active icon (accent) - shown when on filament panel -->
+        <icon name="nav_icon_filament_active" src="filament" size="lg" variant="accent" hidden="true">
+          <lv_obj-bind_flag_if_not_eq subject="active_panel" flag="hidden" ref_value="3"/>
+        </icon>
+        <!-- Inactive icon (secondary) - shown when not on filament panel -->
+        <icon name="nav_icon_filament_inactive" src="filament" size="lg" variant="secondary">
+          <lv_obj-bind_flag_if_eq subject="active_panel" flag="hidden" ref_value="3"/>
+        </icon>
+      </lv_obj>
+      <!-- Disabled icon - visible only when disabled (disconnected OR klippy not ready) -->
+      <icon name="nav_icon_filament_disabled" src="filament" size="lg" variant="disabled" hidden="true">
+        <lv_obj-bind_flag_if_eq subject="nav_buttons_enabled" flag="hidden" ref_value="1"/>
       </icon>
     </lv_obj>
     <!-- Settings Button (Panel 4) -->

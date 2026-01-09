@@ -3,10 +3,12 @@
 
 #include "../../include/ui_nav.h"
 #include "../../include/ui_theme.h"
+#include "../ui_test_utils.h"
 #include "lvgl/lvgl.h"
 
+#include <spdlog/spdlog.h>
+
 #include "../catch_amalgamated.hpp"
-#include "../ui_test_utils.h"
 
 // Test fixture for navigation tests
 class NavigationTestFixture {
@@ -85,5 +87,184 @@ TEST_CASE_METHOD(NavigationTestFixture, "All panels are accessible", "[core][nav
     for (int i = 0; i < UI_PANEL_COUNT; i++) {
         ui_nav_set_active((ui_panel_id_t)i);
         REQUIRE(ui_nav_get_active() == (ui_panel_id_t)i);
+    }
+}
+
+// ============================================================================
+// Navbar Icon Visibility Tests (XML Integration)
+// ============================================================================
+// These tests verify that navbar icons show/hide correctly based on
+// connection state and klippy state. They require full XML registration.
+
+#include "../lvgl_ui_test_fixture.h"
+#include "printer_state.h"
+
+/**
+ * @brief Test fixture for navbar XML binding tests
+ *
+ * Tests the dual-icon pattern where:
+ * - Active/Inactive icons show when connected AND klippy ready
+ * - Disabled icons show when disconnected OR klippy not ready
+ */
+class NavbarIconTestFixture : public LVGLUITestFixture {
+  public:
+    NavbarIconTestFixture() {
+        // Create the navigation bar component
+        navbar_ = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "navigation_bar", nullptr));
+        if (!navbar_) {
+            spdlog::error("[NavbarIconTestFixture] Failed to create navigation_bar!");
+            return;
+        }
+
+        // NOTE: Don't call process_lvgl() in constructor - mDNS timer processing
+        // causes test hangs. Subject changes trigger binding updates synchronously.
+    }
+
+    ~NavbarIconTestFixture() override {
+        if (navbar_) {
+            lv_obj_delete(navbar_);
+            navbar_ = nullptr;
+        }
+    }
+
+    /**
+     * @brief Check if an object would be visible (no hidden flag on self or ancestors)
+     *
+     * Unlike lv_obj_is_visible(), this doesn't require an active screen -
+     * it just checks the hidden flag chain, which is what we need for testing
+     * XML binding behavior.
+     */
+    bool is_visible(const char* name) {
+        lv_obj_t* obj = lv_obj_find_by_name(navbar_, name);
+        if (!obj) {
+            spdlog::warn("[NavbarIconTestFixture] Could not find object: {}", name);
+            return false;
+        }
+
+        // Check hidden flag on object itself
+        if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+            return false;
+        }
+
+        // Check all ancestors for hidden flag
+        lv_obj_t* parent = lv_obj_get_parent(obj);
+        while (parent) {
+            if (lv_obj_has_flag(parent, LV_OBJ_FLAG_HIDDEN)) {
+                return false;
+            }
+            parent = lv_obj_get_parent(parent);
+        }
+
+        return true;
+    }
+
+    /**
+     * @brief Helper to check if an icon is hidden (not visible)
+     */
+    bool is_hidden(const char* name) {
+        return !is_visible(name);
+    }
+
+    /**
+     * @brief Set nav buttons enabled state directly (combined subject)
+     */
+    void set_nav_buttons_enabled(bool enabled) {
+        lv_subject_set_int(state().get_nav_buttons_enabled_subject(), enabled ? 1 : 0);
+    }
+
+    /**
+     * @brief Set active panel
+     */
+    void set_active_panel(int panel_id) {
+        ui_nav_set_active(static_cast<ui_panel_id_t>(panel_id));
+    }
+
+    lv_obj_t* navbar_ = nullptr;
+};
+
+TEST_CASE_METHOD(NavbarIconTestFixture, "Navbar: Only one icon visible per button",
+                 "[navbar][ui_integration]") {
+    REQUIRE(navbar_ != nullptr);
+
+    SECTION("Enabled + On Home: shows inactive icons") {
+        set_nav_buttons_enabled(true);
+        set_active_panel(UI_PANEL_HOME); // Not on controls or filament
+
+        // Controls button: inactive should be visible, others hidden
+        REQUIRE(is_visible("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_active"));
+        REQUIRE(is_hidden("nav_icon_controls_disabled"));
+
+        // Filament button: same pattern
+        REQUIRE(is_visible("nav_icon_filament_inactive"));
+        REQUIRE(is_hidden("nav_icon_filament_active"));
+        REQUIRE(is_hidden("nav_icon_filament_disabled"));
+    }
+
+    SECTION("Enabled + On Controls: shows active icon") {
+        set_nav_buttons_enabled(true);
+        set_active_panel(UI_PANEL_CONTROLS);
+
+        // Controls button: active should be visible
+        REQUIRE(is_visible("nav_icon_controls_active"));
+        REQUIRE(is_hidden("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_disabled"));
+    }
+
+    SECTION("Disabled: shows only disabled icon") {
+        set_nav_buttons_enabled(false);
+        set_active_panel(UI_PANEL_HOME);
+
+        // Controls button: only disabled should be visible
+        REQUIRE(is_visible("nav_icon_controls_disabled"));
+        REQUIRE(is_hidden("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_active"));
+
+        // Filament button: same pattern
+        REQUIRE(is_visible("nav_icon_filament_disabled"));
+        REQUIRE(is_hidden("nav_icon_filament_inactive"));
+        REQUIRE(is_hidden("nav_icon_filament_active"));
+    }
+}
+
+TEST_CASE_METHOD(NavbarIconTestFixture, "Navbar: State transitions work correctly",
+                 "[navbar][ui_integration]") {
+    REQUIRE(navbar_ != nullptr);
+
+    SECTION("Transition: Enabled -> Disabled -> Enabled") {
+        // Start enabled
+        set_nav_buttons_enabled(true);
+        set_active_panel(UI_PANEL_HOME);
+
+        REQUIRE(is_visible("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_disabled"));
+
+        // Disable (simulate disconnect or klippy shutdown)
+        set_nav_buttons_enabled(false);
+        REQUIRE(is_hidden("nav_icon_controls_inactive"));
+        REQUIRE(is_visible("nav_icon_controls_disabled"));
+
+        // Re-enable
+        set_nav_buttons_enabled(true);
+        REQUIRE(is_visible("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_disabled"));
+    }
+
+    SECTION("Transition: Panel switch while enabled") {
+        set_nav_buttons_enabled(true);
+        set_active_panel(UI_PANEL_HOME);
+
+        REQUIRE(is_visible("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_active"));
+
+        // Switch to controls panel
+        set_active_panel(UI_PANEL_CONTROLS);
+        REQUIRE(is_hidden("nav_icon_controls_inactive"));
+        REQUIRE(is_visible("nav_icon_controls_active"));
+
+        // Switch back to home
+        set_active_panel(UI_PANEL_HOME);
+        REQUIRE(is_visible("nav_icon_controls_inactive"));
+        REQUIRE(is_hidden("nav_icon_controls_active"));
     }
 }

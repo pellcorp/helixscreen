@@ -155,6 +155,7 @@ void PrinterState::reset_for_testing() {
     lv_subject_deinit(&printer_connection_message_);
     lv_subject_deinit(&network_status_);
     lv_subject_deinit(&klippy_state_);
+    lv_subject_deinit(&nav_buttons_enabled_);
     lv_subject_deinit(&led_state_);
     lv_subject_deinit(&led_r_);
     lv_subject_deinit(&led_g_);
@@ -280,6 +281,10 @@ void PrinterState::init_subjects(bool register_xml) {
     // Klipper firmware state subject (default to READY)
     lv_subject_init_int(&klippy_state_, static_cast<int>(KlippyState::READY));
 
+    // Combined nav button enabled subject (connected AND klippy ready)
+    // Starts disabled (0) - will be updated when connection/klippy state changes
+    lv_subject_init_int(&nav_buttons_enabled_, 0);
+
     // LED state subject (0=off, 1=on, derived from LED color data)
     lv_subject_init_int(&led_state_, 0);
 
@@ -388,6 +393,7 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "printer_connection_message", &printer_connection_message_);
         lv_xml_register_subject(NULL, "network_status", &network_status_);
         lv_xml_register_subject(NULL, "klippy_state", &klippy_state_);
+        lv_xml_register_subject(NULL, "nav_buttons_enabled", &nav_buttons_enabled_);
         lv_xml_register_subject(NULL, "led_state", &led_state_);
         lv_xml_register_subject(NULL, "led_r", &led_r_);
         lv_xml_register_subject(NULL, "led_g", &led_g_);
@@ -1049,6 +1055,7 @@ void PrinterState::set_printer_connection_state_internal(int state, const char* 
     spdlog::trace("[PrinterState] Subject value now: {}",
                   lv_subject_get_int(&printer_connection_state_));
     lv_subject_copy_string(&printer_connection_message_, message);
+    update_nav_buttons_enabled();
     spdlog::trace(
         "[PrinterState] Printer connection state update complete, observers should be notified");
 }
@@ -1073,6 +1080,23 @@ void PrinterState::set_klippy_state_internal(KlippyState state) {
     int state_int = static_cast<int>(state);
     spdlog::info("[PrinterState] Klippy state changed: {} ({})", state_names[state_int], state_int);
     lv_subject_set_int(&klippy_state_, state_int);
+    update_nav_buttons_enabled();
+}
+
+void PrinterState::update_nav_buttons_enabled() {
+    // Compute combined state: enabled when connected AND klippy ready
+    int connection = lv_subject_get_int(&printer_connection_state_);
+    int klippy = lv_subject_get_int(&klippy_state_);
+    bool connected = (connection == static_cast<int>(ConnectionState::CONNECTED));
+    bool klippy_ready = (klippy == static_cast<int>(KlippyState::READY));
+    int enabled = (connected && klippy_ready) ? 1 : 0;
+
+    // Only update if changed to avoid unnecessary observer notifications
+    if (lv_subject_get_int(&nav_buttons_enabled_) != enabled) {
+        spdlog::debug("[PrinterState] nav_buttons_enabled: {} (connected={}, klippy_ready={})",
+                      enabled, connected, klippy_ready);
+        lv_subject_set_int(&nav_buttons_enabled_, enabled);
+    }
 }
 
 void PrinterState::set_print_in_progress(bool in_progress) {

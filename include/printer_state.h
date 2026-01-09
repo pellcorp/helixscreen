@@ -665,6 +665,11 @@ class PrinterState {
         return &klippy_state_;
     } // 0=ready, 1=startup, 2=shutdown, 3=error (matches KlippyState enum)
 
+    // Combined nav button enabled subject (for navbar icon visibility)
+    lv_subject_t* get_nav_buttons_enabled_subject() {
+        return &nav_buttons_enabled_;
+    } // 1=enabled (connected AND klippy ready), 0=disabled
+
     // LED state subject (for home panel light control)
     lv_subject_t* get_led_state_subject() {
         return &led_state_;
@@ -1155,6 +1160,10 @@ class PrinterState {
     // Klipper firmware state subject
     lv_subject_t klippy_state_; // Integer: uses KlippyState enum values
 
+    // Combined nav button enabled state (for navbar icon visibility)
+    // 1 = enabled (connected AND klippy ready), 0 = disabled
+    lv_subject_t nav_buttons_enabled_;
+
     // LED state subject
     lv_subject_t led_state_; // Integer: 0=off, 1=on
 
@@ -1276,6 +1285,14 @@ class PrinterState {
     void set_moonraker_version_internal(const std::string& version);
     void set_klippy_state_internal(KlippyState state);
     void set_print_in_progress_internal(bool in_progress);
+
+    /**
+     * @brief Update combined nav_buttons_enabled subject
+     *
+     * Recalculates nav_buttons_enabled based on connection and klippy state.
+     * Called whenever printer_connection_state or klippy_state changes.
+     */
+    void update_nav_buttons_enabled();
 
     /**
      * @brief Update composite visibility subjects for G-code modification options
