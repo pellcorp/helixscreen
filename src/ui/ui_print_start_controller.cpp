@@ -150,7 +150,7 @@ void PrintStartController::execute_print_start() {
     std::string filename_to_print = filename_;
 
     // Read options to check for timelapse (handled separately from prep_manager)
-    auto options = prep_manager->read_options_from_checkboxes();
+    auto options = prep_manager->read_options_from_subjects();
 
     spdlog::info(
         "[PrintStartController] Starting print: {} (pre-print: mesh={}, qgl={}, z_tilt={}, "

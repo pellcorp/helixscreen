@@ -137,6 +137,7 @@ class PrintPreparationManager {
      *
      * @deprecated Use set_preprint_subjects() instead for subject-based state reading
      */
+    [[deprecated("Use set_preprint_subjects() instead")]]
     void set_checkboxes(lv_obj_t* bed_mesh, lv_obj_t* qgl, lv_obj_t* z_tilt, lv_obj_t* nozzle_clean,
                         lv_obj_t* timelapse);
 
@@ -349,7 +350,8 @@ class PrintPreparationManager {
      *
      * @deprecated Use read_options_from_subjects() instead
      */
-    [[nodiscard]] PrePrintOptions read_options_from_checkboxes() const;
+    [[deprecated("Use read_options_from_subjects() instead")]] [[nodiscard]] PrePrintOptions
+    read_options_from_checkboxes() const;
 
     /**
      * @brief Read pre-print options from subject states (LT2)
@@ -522,8 +524,25 @@ class PrintPreparationManager {
 
     /**
      * @brief Helper to check if a checkbox is visible and unchecked
+     *
+     * @deprecated Use is_option_disabled_from_subject() instead
      */
+    [[deprecated("Use is_option_disabled_from_subject() instead")]]
     static bool is_option_disabled(lv_obj_t* checkbox);
+
+    /**
+     * @brief Helper to check if an option is disabled via subjects (LT2)
+     *
+     * An option is considered "disabled" if:
+     * 1. The visibility subject is set and value is 0 (hidden), OR
+     * 2. The checked subject is set and value is 0 (unchecked)
+     *
+     * @param visibility_subject Subject controlling row visibility (1=visible, 0=hidden)
+     * @param checked_subject Subject controlling checkbox state (1=checked, 0=unchecked)
+     * @return true if the option should be considered disabled
+     */
+    [[nodiscard]] bool is_option_disabled_from_subject(lv_subject_t* visibility_subject,
+                                                       lv_subject_t* checked_subject) const;
 
     /**
      * @brief Static callback for connection state observer

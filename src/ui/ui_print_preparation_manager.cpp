@@ -816,7 +816,7 @@ void PrintPreparationManager::start_print(const std::string& filename,
     std::string filename_to_print = current_path.empty() ? filename : current_path + "/" + filename;
 
     // Read checkbox states for logging and timelapse
-    PrePrintOptions options = read_options_from_checkboxes();
+    PrePrintOptions options = read_options_from_subjects();
 
     spdlog::info(
         "[PrintPreparationManager] Starting print: {} (pre-print options: mesh={}, qgl={}, "
@@ -896,6 +896,19 @@ bool PrintPreparationManager::is_option_disabled(lv_obj_t* checkbox) {
     return is_visible && !is_checked; // Visible but NOT checked = disabled
 }
 
+bool PrintPreparationManager::is_option_disabled_from_subject(lv_subject_t* visibility_subject,
+                                                              lv_subject_t* checked_subject) const {
+    // Hidden = disabled (visibility value 0 means hidden)
+    if (visibility_subject && lv_subject_get_int(visibility_subject) == 0) {
+        return true;
+    }
+    // Unchecked = disabled (checked value 0 means unchecked)
+    if (checked_subject && lv_subject_get_int(checked_subject) == 0) {
+        return true;
+    }
+    return false;
+}
+
 std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disable() const {
     std::vector<gcode::OperationType> ops_to_disable;
 
@@ -904,25 +917,26 @@ std::vector<gcode::OperationType> PrintPreparationManager::collect_ops_to_disabl
     }
 
     // Check each operation type: if file has it embedded AND user disabled it
-    if (is_option_disabled(bed_mesh_checkbox_) &&
+    if (is_option_disabled_from_subject(can_show_bed_mesh_subject_, preprint_bed_mesh_subject_) &&
         cached_scan_result_->has_operation(gcode::OperationType::BED_MESH)) {
         ops_to_disable.push_back(gcode::OperationType::BED_MESH);
         spdlog::debug("[PrintPreparationManager] User disabled bed mesh, file has it embedded");
     }
 
-    if (is_option_disabled(qgl_checkbox_) &&
+    if (is_option_disabled_from_subject(can_show_qgl_subject_, preprint_qgl_subject_) &&
         cached_scan_result_->has_operation(gcode::OperationType::QGL)) {
         ops_to_disable.push_back(gcode::OperationType::QGL);
         spdlog::debug("[PrintPreparationManager] User disabled QGL, file has it embedded");
     }
 
-    if (is_option_disabled(z_tilt_checkbox_) &&
+    if (is_option_disabled_from_subject(can_show_z_tilt_subject_, preprint_z_tilt_subject_) &&
         cached_scan_result_->has_operation(gcode::OperationType::Z_TILT)) {
         ops_to_disable.push_back(gcode::OperationType::Z_TILT);
         spdlog::debug("[PrintPreparationManager] User disabled Z-tilt, file has it embedded");
     }
 
-    if (is_option_disabled(nozzle_clean_checkbox_) &&
+    if (is_option_disabled_from_subject(can_show_nozzle_clean_subject_,
+                                        preprint_nozzle_clean_subject_) &&
         cached_scan_result_->has_operation(gcode::OperationType::NOZZLE_CLEAN)) {
         ops_to_disable.push_back(gcode::OperationType::NOZZLE_CLEAN);
         spdlog::debug("[PrintPreparationManager] User disabled nozzle clean, file has it embedded");
@@ -950,14 +964,16 @@ PrintPreparationManager::collect_macro_skip_params() const {
         // Bed mesh - use database param if available
         // Use get_capability() for safe access without exception risk
         if (auto* cap = caps.get_capability("bed_mesh");
-            cap && is_option_disabled(bed_mesh_checkbox_)) {
+            cap && is_option_disabled_from_subject(can_show_bed_mesh_subject_,
+                                                   preprint_bed_mesh_subject_)) {
             skip_params.emplace_back(cap->param, cap->skip_value);
             spdlog::debug("[PrintPreparationManager] Using database param: {}={}", cap->param,
                           cap->skip_value);
         }
 
         // QGL - use database param if available
-        if (auto* cap = caps.get_capability("qgl"); cap && is_option_disabled(qgl_checkbox_)) {
+        if (auto* cap = caps.get_capability("qgl");
+            cap && is_option_disabled_from_subject(can_show_qgl_subject_, preprint_qgl_subject_)) {
             skip_params.emplace_back(cap->param, cap->skip_value);
             spdlog::debug("[PrintPreparationManager] Using database param: {}={}", cap->param,
                           cap->skip_value);
@@ -965,7 +981,8 @@ PrintPreparationManager::collect_macro_skip_params() const {
 
         // Z Tilt - use database param if available
         if (auto* cap = caps.get_capability("z_tilt");
-            cap && is_option_disabled(z_tilt_checkbox_)) {
+            cap &&
+            is_option_disabled_from_subject(can_show_z_tilt_subject_, preprint_z_tilt_subject_)) {
             skip_params.emplace_back(cap->param, cap->skip_value);
             spdlog::debug("[PrintPreparationManager] Using database param: {}={}", cap->param,
                           cap->skip_value);
@@ -973,7 +990,8 @@ PrintPreparationManager::collect_macro_skip_params() const {
 
         // Nozzle clean - use database param if available
         if (auto* cap = caps.get_capability("nozzle_clean");
-            cap && is_option_disabled(nozzle_clean_checkbox_)) {
+            cap && is_option_disabled_from_subject(can_show_nozzle_clean_subject_,
+                                                   preprint_nozzle_clean_subject_)) {
             skip_params.emplace_back(cap->param, cap->skip_value);
             spdlog::debug("[PrintPreparationManager] Using database param: {}={}", cap->param,
                           cap->skip_value);
@@ -1005,7 +1023,7 @@ PrintPreparationManager::collect_macro_skip_params() const {
 
     // Bed mesh
     if (is_macro_op_controllable(helix::PrintStartOpCategory::BED_MESH) &&
-        is_option_disabled(bed_mesh_checkbox_)) {
+        is_option_disabled_from_subject(can_show_bed_mesh_subject_, preprint_bed_mesh_subject_)) {
         std::string param = get_macro_skip_param(helix::PrintStartOpCategory::BED_MESH);
         if (!param.empty()) {
             auto semantic = get_macro_param_semantic(helix::PrintStartOpCategory::BED_MESH);
@@ -1019,7 +1037,7 @@ PrintPreparationManager::collect_macro_skip_params() const {
 
     // QGL
     if (is_macro_op_controllable(helix::PrintStartOpCategory::QGL) &&
-        is_option_disabled(qgl_checkbox_)) {
+        is_option_disabled_from_subject(can_show_qgl_subject_, preprint_qgl_subject_)) {
         std::string param = get_macro_skip_param(helix::PrintStartOpCategory::QGL);
         if (!param.empty()) {
             auto semantic = get_macro_param_semantic(helix::PrintStartOpCategory::QGL);
@@ -1033,7 +1051,7 @@ PrintPreparationManager::collect_macro_skip_params() const {
 
     // Z-Tilt
     if (is_macro_op_controllable(helix::PrintStartOpCategory::Z_TILT) &&
-        is_option_disabled(z_tilt_checkbox_)) {
+        is_option_disabled_from_subject(can_show_z_tilt_subject_, preprint_z_tilt_subject_)) {
         std::string param = get_macro_skip_param(helix::PrintStartOpCategory::Z_TILT);
         if (!param.empty()) {
             auto semantic = get_macro_param_semantic(helix::PrintStartOpCategory::Z_TILT);
@@ -1047,7 +1065,8 @@ PrintPreparationManager::collect_macro_skip_params() const {
 
     // Nozzle clean
     if (is_macro_op_controllable(helix::PrintStartOpCategory::NOZZLE_CLEAN) &&
-        is_option_disabled(nozzle_clean_checkbox_)) {
+        is_option_disabled_from_subject(can_show_nozzle_clean_subject_,
+                                        preprint_nozzle_clean_subject_)) {
         std::string param = get_macro_skip_param(helix::PrintStartOpCategory::NOZZLE_CLEAN);
         if (!param.empty()) {
             auto semantic = get_macro_param_semantic(helix::PrintStartOpCategory::NOZZLE_CLEAN);
