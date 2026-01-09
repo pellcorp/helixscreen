@@ -20,7 +20,7 @@
 
 
 ### [L004] [****-|-----] Subject init before create
-- **Uses**: 15 | **Velocity**: 0.13 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: pattern | **Type**: informational
+- **Uses**: 15 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: pattern | **Type**: informational
 > Initialize and register subjects BEFORE lv_xml_create(). Order: fonts, images, components, init subjects, register subjects, create UI
 
 
@@ -40,7 +40,7 @@
 
 
 ### [L011] [****-|-----] No mutex in destructors
-- **Uses**: 13 | **Velocity**: 0.02 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
+- **Uses**: 13 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
 > Avoid mutex locks in destructors during static destruction phase. Other objects may already be destroyed, causing deadlock or crash on exit
 
 
@@ -85,18 +85,13 @@
 
 
 ### [L031] [***--|-----] XML no recompile
-- **Uses**: 10 | **Velocity**: 0.01 | **Learned**: 2025-12-27 | **Last**: 2026-01-07 | **Category**: gotcha | **Type**: constraint
+- **Uses**: 12 | **Velocity**: 0.25 | **Learned**: 2025-12-27 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
 > XML layout changes (ui_xml/*.xml) don't require recompilation - just restart the app. Only C++ changes need make.
 
 
 ### [L032] [*****|+----] Re-stage after pre-commit format
-- **Uses**: 59 | **Velocity**: 0.64 | **Learned**: 2025-12-27 | **Last**: 2026-01-08 | **Category**: correction | **Type**: constraint
+- **Uses**: 62 | **Velocity**: 0.92 | **Learned**: 2025-12-27 | **Last**: 2026-01-08 | **Category**: correction | **Type**: constraint
 > When pre-commit hook auto-formats files, they are NOT automatically re-staged. Always check git status after a commit and amend if the hook formatted files. Look for 'Auto-formatted: <file>' messages and run 'git add -u && git commit --amend --no-edit'.
-
-
-### [L034] [***--|-----] macOS audio feedback
-- **Uses**: 8 | **Velocity**: 0.01 | **Learned**: 2025-12-28 | **Last**: 2025-12-28 | **Category**: preference | **Type**: informational
-> When using macOS say command for audio feedback, use the Fred voice: say -v Fred
 
 
 ### [L035] [**---|-----] Push It celebration
@@ -139,8 +134,8 @@
 > Use Sonnet (not Haiku) for architectural-level code reviews, structural changes, or final comprehensive reviews. Haiku is fine for quick single-file spot-checks with clear pass/fail criteria.
 
 
-### [L044] [**---|+----] Targeted tests during development
-- **Uses**: 5 | **Velocity**: 0.51 | **Learned**: 2026-01-04 | **Last**: 2026-01-08 | **Category**: preference | **Type**: informational
+### [L044] [**---|-----] Targeted tests during development
+- **Uses**: 5 | **Velocity**: 0.04 | **Learned**: 2026-01-04 | **Last**: 2026-01-08 | **Category**: preference | **Type**: informational
 > Run targeted tests with specific tags during implementation (e.g., ./build/bin/helix-tests "[tag]"). Only run full test suite (make test-run) at the end of a feature or phase. Full suite is SLOW - save it for final verification.
 
 
@@ -154,8 +149,8 @@
 > When XML <subjects> declares a subject with the same name as a C++-registered subject (UI_SUBJECT_INIT_AND_REGISTER_*), the XML component-local subject shadows the global C++ one. XML bindings will find the local subject (stuck at default value) instead of the C++ one. Solution: Don't declare XML subjects for values managed entirely by C++.
 
 
-### [L047] [*----|+----] Claude session forensics
-- **Uses**: 2 | **Velocity**: 0.5 | **Learned**: 2026-01-08 | **Last**: 2026-01-08 | **Category**: recovery | **Type**: informational
+### [L047] [*----|-----] Claude session forensics
+- **Uses**: 2 | **Velocity**: 0.03 | **Learned**: 2026-01-08 | **Last**: 2026-01-08 | **Category**: recovery | **Type**: informational
 > Recover lost session content: 1) ~/.claude/history.jsonl has user prompts + session IDs + timestamps, 2) ~/.claude/projects/<url-encoded-path>/<session-id>.jsonl has full transcripts, 3) ~/.claude/plans/ survives /clear. Key grep: -l for filename search, -o to extract JSON fields, pipe through sed 's/\n/\n/g' to decode. Use ls -lt for recency, ls -lS for size (longer sessions).
 
 
