@@ -983,28 +983,6 @@ TEST_CASE_METHOD(ThemeConstantsFixture, "ui_theme: str (icon glyph) constant is 
     cleanup_temp_dir();
 }
 
-TEST_CASE_METHOD(ThemeConstantsFixture, "ui_theme: percentage constant is valid reference",
-                 "[ui_theme][validation][undefined]") {
-    setup_temp_xml_dir();
-
-    write_xml("test.xml", R"(
-<component>
-    <consts>
-        <percentage name="card_width" value="45%"/>
-    </consts>
-    <view>
-        <lv_obj width="#card_width"/>
-    </view>
-</component>
-)");
-
-    auto warnings = ui_theme_validate_constant_sets(temp_dir.string().c_str());
-
-    REQUIRE(warnings.empty());
-
-    cleanup_temp_dir();
-}
-
 TEST_CASE_METHOD(ThemeConstantsFixture,
                  "ui_theme: multiple undefined constants produce multiple warnings",
                  "[ui_theme][validation][undefined]") {

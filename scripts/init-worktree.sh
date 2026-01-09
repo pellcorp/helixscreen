@@ -50,6 +50,8 @@ SUBMODULES="lib/lvgl lib/spdlog lib/libhv lib/glm lib/cpp-terminal lib/wpa_suppl
 echo "→ Initializing submodules..."
 for sub in $SUBMODULES; do
     echo "  - $sub"
+    # Properly deinit before removing to clean up git metadata (fixes worktree issues)
+    git submodule deinit -f "$sub" 2>/dev/null || true
     rm -rf "$sub" 2>/dev/null || true
     git submodule update --init --force "$sub"
 done
@@ -70,6 +72,32 @@ if [ -f "$MAIN_REPO/build/lib/libhv.a" ]; then
     mkdir -p build/lib
     cp "$MAIN_REPO/build/lib/libhv.a" build/lib/
     echo "  ✓ Copied libhv.a"
+fi
+
+# Step 5: Run npm install for font tools (if npm available)
+if command -v npm >/dev/null 2>&1; then
+    echo "→ Installing npm packages..."
+    npm install --silent 2>/dev/null
+    if [ -x "node_modules/.bin/lv_font_conv" ]; then
+        echo "  ✓ lv_font_conv installed"
+    else
+        echo "  ⚠ Warning: lv_font_conv not found after npm install"
+    fi
+else
+    echo "  ⚠ Warning: npm not found - font regeneration will not work"
+    echo "    Install Node.js: brew install node (macOS) or apt install nodejs npm (Linux)"
+fi
+
+# Step 6: Set up Python venv (if python3 available)
+if command -v python3 >/dev/null 2>&1; then
+    echo "→ Setting up Python virtual environment..."
+    if [ ! -d ".venv" ]; then
+        python3 -m venv .venv
+    fi
+    .venv/bin/pip install -q -r requirements.txt 2>/dev/null
+    echo "  ✓ Python venv ready (activate with: source .venv/bin/activate)"
+else
+    echo "  ⚠ Warning: python3 not found - some scripts may not work"
 fi
 
 echo ""

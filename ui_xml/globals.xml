@@ -21,6 +21,7 @@
     <px name="border_radius_large" value="12"/>
     <!-- Static small radius for elements that always want 4px regardless of screen size -->
     <px name="border_radius_sm" value="4"/>
+    
     <!-- ===================================================================== -->
     <!-- Unified Responsive Spacing System (space_*)                         -->
     <!-- ===================================================================== -->
@@ -63,6 +64,7 @@
     <px name="space_2xl_neg_small" value="-24"/>
     <px name="space_2xl_neg_medium" value="-32"/>
     <px name="space_2xl_neg_large" value="-40"/>
+    
     <!-- ===================================================================== -->
     <!-- Responsive Icon Sizes (icon_size_*)                                  -->
     <!-- ===================================================================== -->
@@ -72,6 +74,7 @@
     <string name="icon_size_card_small" value="md"/>
     <string name="icon_size_card_medium" value="lg"/>
     <string name="icon_size_card_large" value="xl"/>
+    
     <!-- ===================================================================== -->
     <!-- Responsive Spinner Sizes (spinner_*)                                  -->
     <!-- ===================================================================== -->
@@ -93,6 +96,7 @@
     <px name="spinner_xs_small" value="12"/>
     <px name="spinner_xs_medium" value="14"/>
     <px name="spinner_xs_large" value="16"/>
+    
     <!-- Spinner arc widths - proportional to size -->
     <px name="spinner_arc_lg_small" value="3"/>
     <px name="spinner_arc_lg_medium" value="4"/>
@@ -125,51 +129,32 @@
     <px name="keypad_display_height_medium" value="72"/>
     <px name="keypad_display_height_large" value="88"/>
 
-    
-    <!-- printer_img_size moved to home_panel.xml -->
-    <!-- accent_bar_width moved to home_panel.xml -->
-    <px name="accent_bar_height" value="28"/>
-    <!-- accent_bar_gap moved to home_panel.xml -->
-    <percentage name="card_width" value="45%"/>
-    <percentage name="card_height" value="80%"/>
     <!-- Preview/thumbnail vertical offset to account for metadata overlays -->
     <!-- Shifts content up to prevent overlap with bottom metadata areas -->
     <percentage name="preview_offset_y" value="-20%"/>
-    <!-- Print file card dimensions - responsive layouts for different screen sizes -->
-    <!-- Shared constants -->
-    <px name="print_file_card_padding" value="12"/>
-    <px name="print_file_card_spacing" value="8"/>
-    <!-- 5-column layout (1280 & 1024 screens) -->
-    <!-- Content: ~890-1146px, 5 cards with 20px gaps -->
-    <px name="print_file_card_width_5col" value="205"/>
-    <px name="print_file_card_height_5col" value="280"/>
-    <px name="print_file_card_thumb_5col" value="180"/>
-    <px name="print_file_card_gap_5col" value="20"/>
-    <!-- 4-column layout (800 screens) -->
-    <!-- Content: ~666px, 4 cards with 20px gaps -->
-    <px name="print_file_card_width_4col" value="151"/>
-    <px name="print_file_card_height_4col" value="280"/>
-    <px name="print_file_card_thumb_4col" value="127"/>
-    <px name="print_file_card_gap_4col" value="20"/>
-    <!-- 3-column layout (480 screens) -->
-    <!-- Content: ~346px, 3 cards with 12px gaps -->
-    <px name="print_file_card_width_3col" value="107"/>
-    <px name="print_file_card_height_3col" value="200"/>
-    <px name="print_file_card_thumb_3col" value="83"/>
-    <px name="print_file_card_gap_3col" value="12"/>
-    <!-- label_height_* moved to filament_panel.xml -->
-    <!-- Button dimensions -->
+    
+    <!-- Regular button dimensions -->
     <px name="button_height" value="50"/>
     <px name="button_height_small" value="48"/>
     <px name="button_height_medium" value="52"/>
     <px name="button_height_large" value="72"/>
     <px name="button_padding" value="12"/>
+    
     <!-- Icon buttons, back buttons -->
-    <px name="button_height_sm" value="40"/>
+    <px name="button_height_sm_small" value="36"/>
+    <px name="button_height_sm_medium" value="40"/>
+    <px name="button_height_sm_large" value="48"/>
+
     <px name="button_height_normal" value="56"/>
+
+    <px name="button_height_lg_small" value="64"/>
+    <px name="button_height_lg_medium" value="70"/>
+    <px name="button_height_lg_large" value="96"/>
+
+    <!-- Other component dimensions -->
+    <px name="header_height" value="60"/>    
+
     <!-- Primary action buttons -->
-    <px name="button_row_height" value="64"/>
-    <!-- Row height for button containers -->
     <px name="input_height" value="48"/>
     <!-- Standard height for all input fields (textareas, dropdowns, etc.) -->
     <px name="slider_height" value="8"/>
@@ -238,6 +223,7 @@
     <string name="icon_font_xl_medium" value="mdi_icons_64"/>
     <string name="icon_font_xl_large" value="mdi_icons_64"/>
     <!-- NO BASE icon_font_xl - registered at runtime -->
+    
     <!-- ===================================================================== -->
     <!-- Animation Timing Constants                                            -->
     <!-- ===================================================================== -->
@@ -256,9 +242,7 @@
     <px name="anim_press" value="80"/>
     <!-- anim_release: Button release with overshoot -->
     <px name="anim_release" value="120"/>
-    <!-- Theme colors (static - same in light/dark modes) -->
-    <color name="primary_color" value="#AD2724"/>
-    <color name="secondary_color" value="#D4A84B"/>
+    
     <!-- Graph/Visualization colors -->
     <color name="graph_line_primary" value="#AD2724"/>
     <color name="graph_line_secondary" value="#D4A84B"/>
@@ -318,16 +302,7 @@
     <color name="spool_body_shade" value="#444444"/>
     <color name="spool_hub_top" value="#050505"/>
     <color name="spool_hub_bottom" value="#404040"/>
-    <!-- Alternative secondary colors (uncomment to try):
-    <color name="secondary_color" value="#E67E7B"/>  Light red - monochromatic harmony
-    <color name="secondary_color" value="#607D8B"/>  Slate blue - cool professional
-    <color name="secondary_color" value="#37AEB3"/>  Original teal/cyan
-    -->
-    <!-- Semantic feedback colors (static - same in light/dark) -->
-    <color name="error_color" value="#AD2724"/>
-    <color name="warning_color" value="#FF9800"/>
-    <color name="success_color" value="#4CAF50"/>
-    <color name="info_color" value="#2196F3"/>
+    
     <!-- Light icon colors (static - same in light/dark) -->
     <color name="light_icon_off" value="#808080"/>
     <color name="light_icon_on" value="#FFD700"/>
@@ -343,6 +318,23 @@
     <color name="heating_color_dark" value="#FF6666"/>
     <color name="cooling_color_light" value="#00CED1"/>
     <color name="cooling_color_dark" value="#33E5E8"/>
+    
+    <!-- ===================================================================== -->
+    <!-- App-wide Theme Colors.                                                -->
+    <!-- ===================================================================== -->
+    <color name="primary_color" value="#AD2724"/>
+    <color name="secondary_color" value="#D4A84B"/>
+    <!-- Alternative secondary colors (uncomment to try):
+    <color name="secondary_color" value="#E67E7B"/>  Light red - monochromatic harmony
+    <color name="secondary_color" value="#607D8B"/>  Slate blue - cool professional
+    <color name="secondary_color" value="#37AEB3"/>  Original teal/cyan
+    -->
+    <!-- Semantic feedback colors (static - same in light/dark) -->
+    <color name="error_color" value="#AD2724"/>
+    <color name="warning_color" value="#FF9800"/>
+    <color name="success_color" value="#4CAF50"/>
+    <color name="info_color" value="#2196F3"/>
+
     <!-- App background colors (theme-aware) -->
     <color name="app_bg_color_light" value="#FFFFFF"/>
     <color name="app_bg_color_dark" value="#1F1F1F"/>
@@ -363,26 +355,14 @@
     <!-- Theme grey colors (theme-aware) -->
     <color name="theme_grey_light" value="#D0D0D0"/>
     <color name="theme_grey_dark" value="#505050"/>
+
     <!-- Keyboard key colors (theme-aware, iOS-style) -->
     <color name="keyboard_key_light" value="#FFFFFF"/>
     <color name="keyboard_key_dark" value="#636366"/>
     <!-- Special/modifier keys (shift, backspace, return, ?123) -->
     <color name="keyboard_key_special_light" value="#B8BCC4"/>
     <color name="keyboard_key_special_dark" value="#4A4A4C"/>
-    <!-- Component dimensions -->
-    <px name="header_height" value="60"/>
-    <!-- Standard header bar height -->
-    <px name="header_action_button_width" value="120"/>
-    <!-- Action button width -->
-    <px name="header_action_button_height" value="40"/>
-    <!-- Action button height -->
-    <!-- Motion panel dimensions (Z-axis controls) -->
-    <px name="z_button_width" value="140"/>
-    <!-- Increased from 120 to fit icon + "10mm" text -->
-    <px name="z_button_height" value="58"/>
-    <!-- Increased slightly for better proportions -->
-    <!-- Overlay/Modal Panel Dimensions -->
-    <!-- overlay_panel_width is registered at runtime (see top of file) -->
+    
     <!-- ===================================================================== -->
     <!-- Material Design Icon constants - MDI codepoints (U+F0000 range)       -->
     <!-- Source: https://pictogrammers.com/library/mdi/                        -->
