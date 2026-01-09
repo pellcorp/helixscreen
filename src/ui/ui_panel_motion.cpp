@@ -16,6 +16,7 @@
 
 #include "app_globals.h"
 #include "moonraker_api.h"
+#include "observer_factory.h"
 #include "printer_state.h"
 #include "subject_managed_panel.h"
 
@@ -276,66 +277,54 @@ void MotionPanel::setup_z_buttons() {
 
 void MotionPanel::register_position_observers() {
     // Subscribe to PrinterState position updates so UI reflects real printer position
-    // Using ObserverGuard for RAII - observers automatically removed on destruction
+    // Using observer factory for type-safe lambda-based observers with RAII cleanup
 
-    position_x_observer_ =
-        ObserverGuard(get_printer_state().get_position_x_subject(), on_position_x_changed, this);
+    using helix::ui::observe_int_sync;
 
-    position_y_observer_ =
-        ObserverGuard(get_printer_state().get_position_y_subject(), on_position_y_changed, this);
+    position_x_observer_ = observe_int_sync<MotionPanel>(
+        get_printer_state().get_position_x_subject(), this, [](MotionPanel* self, int x_int) {
+            if (!self->subjects_initialized_)
+                return;
+            float x = static_cast<float>(x_int);
+            self->current_x_ = x;
+            snprintf(self->pos_x_buf_, sizeof(self->pos_x_buf_), "X: %6.1f mm", x);
+            lv_subject_copy_string(&self->pos_x_subject_, self->pos_x_buf_);
+        });
 
-    position_z_observer_ =
-        ObserverGuard(get_printer_state().get_position_z_subject(), on_position_z_changed, this);
+    position_y_observer_ = observe_int_sync<MotionPanel>(
+        get_printer_state().get_position_y_subject(), this, [](MotionPanel* self, int y_int) {
+            if (!self->subjects_initialized_)
+                return;
+            float y = static_cast<float>(y_int);
+            self->current_y_ = y;
+            snprintf(self->pos_y_buf_, sizeof(self->pos_y_buf_), "Y: %6.1f mm", y);
+            lv_subject_copy_string(&self->pos_y_subject_, self->pos_y_buf_);
+        });
+
+    position_z_observer_ = observe_int_sync<MotionPanel>(
+        get_printer_state().get_position_z_subject(), this, [](MotionPanel* self, int z_int) {
+            if (!self->subjects_initialized_)
+                return;
+            float z = static_cast<float>(z_int);
+            self->current_z_ = z;
+            snprintf(self->pos_z_buf_, sizeof(self->pos_z_buf_), "Z: %6.1f mm", z);
+            lv_subject_copy_string(&self->pos_z_subject_, self->pos_z_buf_);
+        });
 
     // Watch for kinematics changes to update Z-axis label ("Bed" vs "Print Head")
-    bed_moves_observer_ = ObserverGuard(get_printer_state().get_printer_bed_moves_subject(),
-                                        on_bed_moves_changed, this);
+    bed_moves_observer_ =
+        observe_int_sync<MotionPanel>(get_printer_state().get_printer_bed_moves_subject(), this,
+                                      [](MotionPanel* self, int bed_moves) {
+                                          if (!self->subjects_initialized_)
+                                              return;
+                                          self->update_z_axis_label(bed_moves != 0);
+                                      });
 
-    spdlog::debug("[{}] Position + kinematics observers registered (RAII ObserverGuard)",
-                  get_name());
+    spdlog::debug("[{}] Position + kinematics observers registered (observer factory)", get_name());
 }
 
-void MotionPanel::on_position_x_changed(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<MotionPanel*>(lv_observer_get_user_data(observer));
-    if (!self || !self->subjects_initialized_)
-        return;
-
-    float x = static_cast<float>(lv_subject_get_int(subject));
-    self->current_x_ = x;
-    snprintf(self->pos_x_buf_, sizeof(self->pos_x_buf_), "X: %6.1f mm", x);
-    lv_subject_copy_string(&self->pos_x_subject_, self->pos_x_buf_);
-}
-
-void MotionPanel::on_position_y_changed(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<MotionPanel*>(lv_observer_get_user_data(observer));
-    if (!self || !self->subjects_initialized_)
-        return;
-
-    float y = static_cast<float>(lv_subject_get_int(subject));
-    self->current_y_ = y;
-    snprintf(self->pos_y_buf_, sizeof(self->pos_y_buf_), "Y: %6.1f mm", y);
-    lv_subject_copy_string(&self->pos_y_subject_, self->pos_y_buf_);
-}
-
-void MotionPanel::on_position_z_changed(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<MotionPanel*>(lv_observer_get_user_data(observer));
-    if (!self || !self->subjects_initialized_)
-        return;
-
-    float z = static_cast<float>(lv_subject_get_int(subject));
-    self->current_z_ = z;
-    snprintf(self->pos_z_buf_, sizeof(self->pos_z_buf_), "Z: %6.1f mm", z);
-    lv_subject_copy_string(&self->pos_z_subject_, self->pos_z_buf_);
-}
-
-void MotionPanel::on_bed_moves_changed(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<MotionPanel*>(lv_observer_get_user_data(observer));
-    if (!self || !self->subjects_initialized_)
-        return;
-
-    bool bed_moves = lv_subject_get_int(subject) != 0;
-    self->update_z_axis_label(bed_moves);
-}
+// Observer callbacks migrated to lambda-based observer factory pattern
+// See register_position_observers() for inline observers
 
 void MotionPanel::update_z_axis_label(bool bed_moves) {
     bed_moves_ = bed_moves; // Store for Z button direction inversion

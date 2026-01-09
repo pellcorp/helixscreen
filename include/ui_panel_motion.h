@@ -100,10 +100,7 @@ class MotionPanel : public OverlayBase {
 
     static void jog_pad_jog_cb(jog_direction_t direction, float distance_mm, void* user_data);
     static void jog_pad_home_cb(void* user_data);
-    static void on_position_x_changed(lv_observer_t* observer, lv_subject_t* subject);
-    static void on_position_y_changed(lv_observer_t* observer, lv_subject_t* subject);
-    static void on_position_z_changed(lv_observer_t* observer, lv_subject_t* subject);
-    static void on_bed_moves_changed(lv_observer_t* observer, lv_subject_t* subject);
+    // Position observers use lambda-based observer factory (no static callbacks needed)
 
     void update_z_axis_label(bool bed_moves);
 };
