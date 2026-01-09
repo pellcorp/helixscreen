@@ -1396,11 +1396,18 @@ void PrintStatusPanel::on_print_state_changed(PrintJobState job_state) {
     if (new_state != current_state_) {
         PrintState old_state = current_state_;
 
-        // Clear thumbnail and G-code tracking when print ends (Complete/Cancelled/Error/Idle)
+        // Clear thumbnail and G-code tracking when print ends (Complete/Cancelled/Error)
         // This ensures they're available during the entire print but cleared for the next one
+        // NOTE: Don't clear on Idle if coming from active state (Printing/Paused/Preparing)
+        // This preserves thumbnail/metadata after abort→firmware_restart sequence, where
+        // Klipper reports "standby" (Idle) instead of "cancelled"
+        bool was_active =
+            (current_state_ == PrintState::Printing || current_state_ == PrintState::Paused ||
+             current_state_ == PrintState::Preparing);
+        bool going_idle = (new_state == PrintState::Idle);
         bool print_ended =
             (new_state == PrintState::Complete || new_state == PrintState::Cancelled ||
-             new_state == PrintState::Error || new_state == PrintState::Idle);
+             new_state == PrintState::Error || (going_idle && !was_active));
         if (print_ended) {
             if (!thumbnail_source_filename_.empty() || !loaded_thumbnail_filename_.empty() ||
                 gcode_loaded_ || !temp_gcode_path_.empty() || !pending_gcode_filename_.empty()) {
@@ -2203,6 +2210,22 @@ void PrintStatusPanel::load_thumbnail_for_file(const std::string& filename) {
     // Increment generation to invalidate any in-flight async operations
     ++thumbnail_load_generation_;
     uint32_t current_gen = thumbnail_load_generation_;
+
+    // If we already have a directly-set thumbnail path, don't overwrite it.
+    // This happens when PrintStartController sets the path from a pre-extracted
+    // USB thumbnail before the filename observer fires.
+    const char* current_thumb =
+        lv_subject_get_string(get_printer_state().get_print_thumbnail_path_subject());
+    if (current_thumb && current_thumb[0] != '\0') {
+        spdlog::debug("[{}] Thumbnail already set ({}), skipping API lookup", get_name(),
+                      current_thumb);
+        // Update local cache so on_activate() can restore it
+        cached_thumbnail_path_ = current_thumb;
+        if (print_thumbnail_) {
+            lv_image_set_src(print_thumbnail_, current_thumb);
+        }
+        return;
+    }
 
     // Skip if no API available (e.g., in mock mode)
     if (!api_) {

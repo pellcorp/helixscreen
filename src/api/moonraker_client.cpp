@@ -16,6 +16,7 @@
 
 #include "ui_error_reporting.h"
 
+#include "abort_manager.h"
 #include "app_globals.h"
 #include "helix_version.h"
 #include "printer_state.h"
@@ -346,7 +347,11 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
 
                 // Invoke callbacks outside the lock to avoid deadlock
                 if (has_error) {
-                    if (!is_silent) {
+                    // Suppress toast notifications during shutdown handling to avoid
+                    // confusing errors appearing behind the abort modal
+                    bool suppress_toast = helix::AbortManager::instance().is_handling_shutdown();
+
+                    if (!is_silent && !suppress_toast) {
                         spdlog::error("[Moonraker Client] Request {} failed: {}", method_name,
                                       error.message);
 
@@ -355,6 +360,10 @@ int MoonrakerClient::connect(const char* url, std::function<void()> on_connected
                                    fmt::format("Printer command '{}' failed: {}", method_name,
                                                error.message),
                                    true, method_name);
+                    } else if (suppress_toast) {
+                        spdlog::debug(
+                            "[Moonraker Client] Request {} failed during shutdown (suppressed): {}",
+                            method_name, error.message);
                     } else {
                         spdlog::debug("[Moonraker Client] Silent request {} failed: {}",
                                       method_name, error.message);

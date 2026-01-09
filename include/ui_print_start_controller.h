@@ -74,9 +74,11 @@ class PrintStartController {
      * @param filename Raw filename (e.g., "benchy.gcode")
      * @param path Directory path relative to gcodes root
      * @param filament_colors Hex colors per tool for AMS matching
+     * @param thumbnail_path Extracted thumbnail path (for USB/embedded thumbnails)
      */
     void set_file(const std::string& filename, const std::string& path,
-                  const std::vector<std::string>& filament_colors);
+                  const std::vector<std::string>& filament_colors,
+                  const std::string& thumbnail_path = "");
 
     /**
      * @brief Initiate print workflow
@@ -175,6 +177,7 @@ class PrintStartController {
     std::string filename_;
     std::string path_;
     std::vector<std::string> filament_colors_;
+    std::string thumbnail_path_; ///< Pre-extracted thumbnail for USB/embedded files
 
     // === Modal References ===
     lv_obj_t* filament_warning_modal_ = nullptr;

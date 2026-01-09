@@ -67,6 +67,17 @@ class ActivePrintMediaManager {
      */
     void clear_thumbnail_source();
 
+    /**
+     * @brief Set the thumbnail path directly (bypasses Moonraker API lookup)
+     *
+     * Call this when starting a print with a pre-extracted thumbnail
+     * (e.g., from USB drive or embedded in G-code). This sets the thumbnail
+     * path subject directly without going through the Moonraker metadata API.
+     *
+     * @param path Path to the thumbnail file (e.g., "/tmp/helix/thumbnails/extracted.png")
+     */
+    void set_thumbnail_path(const std::string& path);
+
   private:
     static void on_print_filename_changed(lv_observer_t* observer, lv_subject_t* subject);
     void process_filename(const char* raw_filename);

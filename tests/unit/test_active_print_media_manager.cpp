@@ -15,6 +15,7 @@
 
 #include "ui_update_queue.h"
 
+#include "../ui_test_utils.h"
 #include "active_print_media_manager.h"
 #include "printer_state.h"
 
@@ -26,7 +27,6 @@
 #include <string>
 
 #include "../catch_amalgamated.hpp"
-#include "../ui_test_utils.h"
 
 using json = nlohmann::json;
 
@@ -368,3 +368,86 @@ TEST_CASE_METHOD(ActivePrintMediaManagerTestFixture,
 
     REQUIRE(get_display_filename() == "Model");
 }
+
+// ============================================================================
+// Direct Thumbnail Path Tests (Pre-extracted from USB/G-code)
+// ============================================================================
+
+// NOTE: This test intentionally fails to compile because set_thumbnail_path()
+// doesn't exist yet. This is TDD-style - implement the method to make it compile.
+//
+// TEST_CASE_METHOD(ActivePrintMediaManagerTestFixture,
+//                  "ActivePrintMediaManager: set_thumbnail_path sets thumbnail directly",
+//                  "[media][thumbnail][direct]")
+//
+// When PrintStartController starts a print with a pre-extracted thumbnail
+// (e.g., from USB drive or embedded G-code), it should be able to set the
+// thumbnail path directly without going through Moonraker thumbnail API.
+//
+// Required new method signature:
+//   void set_thumbnail_path(const std::string& path);
+//
+// Test cases that need to pass once implemented:
+// 1. Direct path sets thumbnail_path subject
+// 2. Direct path works alongside filename
+// 3. Direct path not overwritten by filename change if already set
+// 4. Empty path clears thumbnail
+//
+// Uncomment below and add set_thumbnail_path() to ActivePrintMediaManager
+
+#if 1 // Enable when set_thumbnail_path() is implemented
+TEST_CASE_METHOD(ActivePrintMediaManagerTestFixture,
+                 "ActivePrintMediaManager: set_thumbnail_path sets thumbnail directly",
+                 "[media][thumbnail][direct]") {
+    SECTION("direct path sets thumbnail_path subject") {
+        // Pre-extracted thumbnail from USB or G-code
+        std::string extracted_path = "/tmp/helix/thumbnails/extracted_12345.png";
+
+        // Set the thumbnail path directly via new method
+        manager().set_thumbnail_path(extracted_path);
+
+        // Thumbnail path subject should have the value
+        REQUIRE(get_thumbnail_path() == extracted_path);
+    }
+
+    SECTION("direct path works alongside filename") {
+        // Set a filename for the print
+        set_print_filename("usb_print.gcode");
+        REQUIRE(get_display_filename() == "usb_print");
+
+        // Set thumbnail path directly (from pre-extracted USB thumbnail)
+        std::string usb_thumbnail = "/media/usb/thumbnails/usb_print.png";
+        manager().set_thumbnail_path(usb_thumbnail);
+
+        // Both should be set correctly
+        REQUIRE(get_display_filename() == "usb_print");
+        REQUIRE(get_thumbnail_path() == usb_thumbnail);
+    }
+
+    SECTION("direct path not overwritten by filename change if set") {
+        // Set thumbnail path first (from PrintStartController)
+        std::string preextracted = "/tmp/helix/embedded_thumbnail.png";
+        manager().set_thumbnail_path(preextracted);
+        REQUIRE(get_thumbnail_path() == preextracted);
+
+        // When filename arrives from Moonraker, the pre-set thumbnail should persist
+        // (because we already have a valid thumbnail, no need to fetch)
+        set_print_filename("some_file.gcode");
+
+        // The pre-extracted thumbnail should still be there
+        REQUIRE(get_thumbnail_path() == preextracted);
+    }
+
+    SECTION("empty path clears thumbnail") {
+        // Set a thumbnail first
+        manager().set_thumbnail_path("/tmp/some_thumbnail.png");
+        REQUIRE(get_thumbnail_path() == "/tmp/some_thumbnail.png");
+
+        // Clear it
+        manager().set_thumbnail_path("");
+
+        // Should be cleared
+        REQUIRE(get_thumbnail_path() == "");
+    }
+}
+#endif

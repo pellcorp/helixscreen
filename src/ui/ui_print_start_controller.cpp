@@ -19,6 +19,7 @@
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
+#include "active_print_media_manager.h"
 #include "ams_state.h"
 #include "filament_sensor_manager.h"
 #include "moonraker_api.h"
@@ -66,10 +67,12 @@ void PrintStartController::set_detail_view(PrintSelectDetailView* detail_view) {
 }
 
 void PrintStartController::set_file(const std::string& filename, const std::string& path,
-                                    const std::vector<std::string>& filament_colors) {
+                                    const std::vector<std::string>& filament_colors,
+                                    const std::string& thumbnail_path) {
     filename_ = filename;
     path_ = path;
     filament_colors_ = filament_colors;
+    thumbnail_path_ = thumbnail_path;
 }
 
 bool PrintStartController::is_ready() const {
@@ -181,19 +184,34 @@ void PrintStartController::execute_print_start() {
     auto update_button = update_print_button_;
     auto show_detail = show_detail_view_;
 
+    // Capture thumbnail path for lambda
+    std::string thumbnail_path = thumbnail_path_;
+
     // Delegate to PrintPreparationManager
     prep_manager->start_print(
         filename_to_print, path_,
         // Navigation callback - called when Moonraker confirms print start
         // Sets thumbnail source so PrintStatusPanel loads the correct thumbnail
         // NOTE: Called from background HTTP thread - must defer LVGL calls to main thread
-        [filename_to_print, on_started]() {
-            ui_queue_update([filename_to_print, on_started]() {
+        [filename_to_print, path = path_, thumbnail_path, on_started]() {
+            // Construct full path for metadata lookup (e.g., usb/flowrate_0.gcode)
+            std::string full_path =
+                path.empty() ? filename_to_print : path + "/" + filename_to_print;
+            ui_queue_update([full_path, thumbnail_path, on_started]() {
                 auto& status_panel = get_global_print_status_panel();
-                status_panel.set_thumbnail_source(filename_to_print);
+                status_panel.set_thumbnail_source(full_path);
+
+                // If we have a pre-extracted thumbnail (USB/embedded), set it directly
+                // This bypasses Moonraker metadata lookup which doesn't have USB file info
+                if (!thumbnail_path.empty()) {
+                    helix::get_active_print_media_manager().set_thumbnail_path(thumbnail_path);
+                    spdlog::info("[PrintStartController] Set extracted thumbnail path: {}",
+                                 thumbnail_path);
+                }
+
                 spdlog::debug(
                     "[PrintStartController] Print start confirmed, thumbnail source set: {}",
-                    filename_to_print);
+                    full_path);
                 if (on_started) {
                     on_started();
                 }

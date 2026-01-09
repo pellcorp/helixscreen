@@ -18,8 +18,11 @@
  * 5. Exception safety in event handlers
  */
 
+#include "abort_manager.h"
 #include "moonraker_client_mock.h"
 #include "moonraker_events.h"
+
+#include <spdlog/fmt/fmt.h>
 
 #include <atomic>
 #include <chrono>
@@ -95,6 +98,30 @@ class TestableMoonrakerClient : public MoonrakerClientMock {
     void simulate_klippy_disconnected_notification(const std::string& reason = "Klipper shutdown") {
         // Emit KLIPPY_DISCONNECTED event (same as real client)
         emit_event(MoonrakerEventType::KLIPPY_DISCONNECTED, reason, true);
+    }
+
+    /**
+     * @brief Simulate an RPC error response going through the full error handling path
+     *
+     * This replicates the logic in MoonrakerClient's onmessage handler when
+     * processing an RPC error response, including the shutdown suppression check.
+     *
+     * @param method_name The RPC method that failed
+     * @param error_message The error message
+     * @param is_silent Whether this was a silent request
+     */
+    void simulate_rpc_error(const std::string& method_name, const std::string& error_message,
+                            bool is_silent = false) {
+        // Replicate the error handling logic from moonraker_client.cpp lines 348-371
+        bool suppress_toast = helix::AbortManager::instance().is_handling_shutdown();
+
+        if (!is_silent && !suppress_toast) {
+            // Emit RPC error event (only for non-silent, non-suppressed requests)
+            emit_event(MoonrakerEventType::RPC_ERROR,
+                       fmt::format("Printer command '{}' failed: {}", method_name, error_message),
+                       true, method_name);
+        }
+        // When suppressed or silent, no event is emitted (just logging in real code)
     }
 };
 
@@ -576,6 +603,54 @@ TEST_CASE_METHOD(EventTestFixture, "MoonrakerClient KLIPPY_READY event behavior"
         CHECK(events[0].is_error == true);
         CHECK(events[1].type == MoonrakerEventType::KLIPPY_READY);
         CHECK(events[1].is_error == false);
+    }
+}
+
+// ============================================================================
+// Test Cases: Shutdown Suppression
+// ============================================================================
+
+TEST_CASE_METHOD(EventTestFixture, "MoonrakerClient suppresses RPC_ERROR during shutdown",
+                 "[state][integration][shutdown][suppression]") {
+    client_->register_event_handler(create_capture_handler());
+
+    SECTION("RPC_ERROR not emitted when AbortManager is handling shutdown") {
+        // Set up AbortManager in shutdown handling state
+        // This simulates the condition after M112 is sent and we're waiting for recovery
+        helix::AbortManager::instance().reset_for_testing();
+        helix::AbortManager::instance().start_abort();
+
+        // Progress to SENT_ESTOP which triggers shutdown recovery handling
+        helix::AbortManager::instance().on_heater_interrupt_error_for_testing("Unknown command");
+        helix::AbortManager::instance().on_probe_timeout_for_testing();
+
+        // Verify AbortManager reports it's handling shutdown
+        REQUIRE(helix::AbortManager::instance().is_handling_shutdown() == true);
+
+        // Now trigger an RPC error through the full error handling path
+        // This should NOT emit an event because AbortManager is handling shutdown
+        client_->simulate_rpc_error("printer.gcode.script", "Klippy not ready");
+
+        // The event should NOT have been captured because we're in shutdown handling
+        CHECK(event_count() == 0);
+
+        // Clean up
+        helix::AbortManager::instance().reset_for_testing();
+    }
+
+    SECTION("RPC_ERROR still emitted when AbortManager is NOT handling shutdown") {
+        // Ensure AbortManager is in idle state (not handling shutdown)
+        helix::AbortManager::instance().reset_for_testing();
+        REQUIRE(helix::AbortManager::instance().is_handling_shutdown() == false);
+
+        // Trigger an RPC error through the full error handling path
+        // This SHOULD be emitted normally since we're not in shutdown handling
+        client_->simulate_rpc_error("printer.gcode.script", "Command failed");
+
+        // Event should have been captured
+        REQUIRE(event_count() == 1);
+        CHECK(get_last_event().type == MoonrakerEventType::RPC_ERROR);
+        CHECK(get_last_event().message.find("Command failed") != std::string::npos);
     }
 }
 

@@ -2066,8 +2066,9 @@ void PrintSelectPanel::start_print() {
     }
 
     // Set the file to print in the controller
-    print_controller_->set_file(selected_filename_buffer_, current_path_,
-                                selected_filament_colors_);
+    // Pass extracted thumbnail path so USB/embedded thumbnails propagate to print status
+    print_controller_->set_file(selected_filename_buffer_, current_path_, selected_filament_colors_,
+                                selected_detail_thumbnail_buffer_);
 
     // Delegate to the print start controller
     print_controller_->initiate();

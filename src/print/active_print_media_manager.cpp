@@ -76,6 +76,12 @@ void ActivePrintMediaManager::clear_thumbnail_source() {
     spdlog::debug("[ActivePrintMediaManager] Thumbnail source cleared");
 }
 
+void ActivePrintMediaManager::set_thumbnail_path(const std::string& path) {
+    // Set the thumbnail path directly (bypasses Moonraker API lookup)
+    printer_state_.set_print_thumbnail_path(path);
+    spdlog::debug("[ActivePrintMediaManager] Thumbnail path set directly: {}", path);
+}
+
 void ActivePrintMediaManager::on_print_filename_changed(lv_observer_t* observer,
                                                         lv_subject_t* subject) {
     auto* self = static_cast<ActivePrintMediaManager*>(lv_observer_get_user_data(observer));
@@ -89,13 +95,12 @@ void ActivePrintMediaManager::on_print_filename_changed(lv_observer_t* observer,
 }
 
 void ActivePrintMediaManager::process_filename(const char* raw_filename) {
-    // Empty filename means print ended or idle
+    // Empty filename means print ended or idle - DON'T clear immediately
+    // The thumbnail/metadata should persist so the user can see what was printing
+    // (especially after cancel→firmware_restart where Klipper reports empty filename)
+    // Clearing will happen naturally when a NEW print starts with a different filename
     if (!raw_filename || raw_filename[0] == '\0') {
-        // Only clear if we actually had something
-        if (!last_effective_filename_.empty()) {
-            spdlog::debug("[ActivePrintMediaManager] Filename cleared, clearing print info");
-            clear_print_info();
-        }
+        spdlog::debug("[ActivePrintMediaManager] Filename empty - preserving current display");
         return;
     }
 
@@ -141,6 +146,17 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
     // Increment generation to invalidate any in-flight async operations
     ++thumbnail_load_generation_;
     uint32_t current_gen = thumbnail_load_generation_;
+
+    // If we already have a directly-set thumbnail path, don't overwrite it.
+    // This happens when PrintStartController sets the path from a pre-extracted
+    // USB thumbnail before the filename observer fires.
+    const char* current_thumb =
+        lv_subject_get_string(printer_state_.get_print_thumbnail_path_subject());
+    if (current_thumb && current_thumb[0] != '\0') {
+        spdlog::debug("[ActivePrintMediaManager] Thumbnail already set ({}), skipping API lookup",
+                      current_thumb);
+        return;
+    }
 
     // Skip if no API available
     if (!api_) {
