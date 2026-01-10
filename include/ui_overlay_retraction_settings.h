@@ -6,6 +6,7 @@
 #include "lvgl.h"
 #include "moonraker_client.h"
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 /**
  * @file ui_overlay_retraction_settings.h
@@ -132,6 +133,9 @@ class RetractionSettingsOverlay : public OverlayBase {
     lv_obj_t* retract_speed_slider_ = nullptr;
     lv_obj_t* unretract_extra_slider_ = nullptr;
     lv_obj_t* unretract_speed_slider_ = nullptr;
+
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // Display label subjects
     lv_subject_t retract_length_display_;

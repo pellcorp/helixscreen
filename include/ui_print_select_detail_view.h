@@ -7,6 +7,7 @@
 
 #include "overlay_base.h"
 #include "print_file_data.h" // For FileHistoryStatus
+#include "subject_managed_panel.h"
 
 #include <atomic>
 #include <functional>
@@ -306,6 +307,7 @@ class PrintSelectDetailView : public OverlayBase {
     lv_subject_t preprint_nozzle_clean_{};
     lv_subject_t preprint_purge_line_{};
     lv_subject_t preprint_timelapse_{};
+    SubjectManager subjects_; // RAII manager for subject cleanup
     // Note: subjects_initialized_ inherited from OverlayBase
 
     // Print preparation manager (owns it)

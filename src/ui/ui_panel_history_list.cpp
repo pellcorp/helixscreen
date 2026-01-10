@@ -78,18 +78,13 @@ void HistoryListPanel::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
     // Initialize subject for panel state binding (0=LOADING, 1=EMPTY, 2=HAS_JOBS)
-    lv_subject_init_int(&subject_panel_state_, 0);
-    lv_xml_register_subject(nullptr, "history_list_panel_state", &subject_panel_state_);
+    UI_MANAGED_SUBJECT_INT(subject_panel_state_, 0, "history_list_panel_state", subjects_);
 
-    // Initialize empty state message subjects (5-parameter signature)
-    lv_subject_init_string(&subject_empty_message_, empty_message_buf_, nullptr,
-                           sizeof(empty_message_buf_), "No print history found");
-    lv_subject_init_string(&subject_empty_hint_, empty_hint_buf_, nullptr, sizeof(empty_hint_buf_),
-                           "Completed prints will appear here");
-
-    // Register empty state message subjects for XML binding
-    lv_xml_register_subject(nullptr, "history_empty_message", &subject_empty_message_);
-    lv_xml_register_subject(nullptr, "history_empty_hint", &subject_empty_hint_);
+    // Initialize empty state message subjects
+    UI_MANAGED_SUBJECT_STRING(subject_empty_message_, empty_message_buf_, "No print history found",
+                              "history_empty_message", subjects_);
+    UI_MANAGED_SUBJECT_STRING(subject_empty_hint_, empty_hint_buf_,
+                              "Completed prints will appear here", "history_empty_hint", subjects_);
 
     // Initialize detail overlay subjects
     init_detail_subjects();
@@ -103,30 +98,8 @@ void HistoryListPanel::deinit_subjects() {
         return;
     }
 
-    // Panel state subjects
-    lv_subject_deinit(&subject_panel_state_);
-    lv_subject_deinit(&subject_empty_message_);
-    lv_subject_deinit(&subject_empty_hint_);
-
-    // Detail overlay subjects - string subjects
-    lv_subject_deinit(&detail_filename_);
-    lv_subject_deinit(&detail_status_);
-    lv_subject_deinit(&detail_status_icon_);
-    lv_subject_deinit(&detail_status_variant_);
-    lv_subject_deinit(&detail_start_time_);
-    lv_subject_deinit(&detail_end_time_);
-    lv_subject_deinit(&detail_duration_);
-    lv_subject_deinit(&detail_layers_);
-    lv_subject_deinit(&detail_layer_height_);
-    lv_subject_deinit(&detail_nozzle_temp_);
-    lv_subject_deinit(&detail_bed_temp_);
-    lv_subject_deinit(&detail_filament_);
-    lv_subject_deinit(&detail_filament_type_);
-
-    // Detail overlay subjects - int subjects
-    lv_subject_deinit(&detail_can_reprint_);
-    lv_subject_deinit(&detail_status_code_);
-    lv_subject_deinit(&detail_has_timelapse_);
+    // SubjectManager handles all subject cleanup via RAII
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[HistoryListPanel] Subjects deinitialized");
@@ -957,55 +930,38 @@ void HistoryListPanel::on_sort_changed(int index) {
 // ============================================================================
 
 void HistoryListPanel::init_detail_subjects() {
-    // Initialize all string subjects with buffers (LVGL 9.4 API)
-    lv_subject_init_string(&detail_filename_, detail_filename_buf_, nullptr,
-                           sizeof(detail_filename_buf_), "");
-    lv_subject_init_string(&detail_status_, detail_status_buf_, nullptr, sizeof(detail_status_buf_),
-                           "");
-    lv_subject_init_string(&detail_status_icon_, detail_status_icon_buf_, nullptr,
-                           sizeof(detail_status_icon_buf_), "help_circle");
-    lv_subject_init_string(&detail_status_variant_, detail_status_variant_buf_, nullptr,
-                           sizeof(detail_status_variant_buf_), "secondary");
-    lv_subject_init_string(&detail_start_time_, detail_start_time_buf_, nullptr,
-                           sizeof(detail_start_time_buf_), "");
-    lv_subject_init_string(&detail_end_time_, detail_end_time_buf_, nullptr,
-                           sizeof(detail_end_time_buf_), "");
-    lv_subject_init_string(&detail_duration_, detail_duration_buf_, nullptr,
-                           sizeof(detail_duration_buf_), "");
-    lv_subject_init_string(&detail_layers_, detail_layers_buf_, nullptr, sizeof(detail_layers_buf_),
-                           "");
-    lv_subject_init_string(&detail_layer_height_, detail_layer_height_buf_, nullptr,
-                           sizeof(detail_layer_height_buf_), "");
-    lv_subject_init_string(&detail_nozzle_temp_, detail_nozzle_temp_buf_, nullptr,
-                           sizeof(detail_nozzle_temp_buf_), "");
-    lv_subject_init_string(&detail_bed_temp_, detail_bed_temp_buf_, nullptr,
-                           sizeof(detail_bed_temp_buf_), "");
-    lv_subject_init_string(&detail_filament_, detail_filament_buf_, nullptr,
-                           sizeof(detail_filament_buf_), "");
-    lv_subject_init_string(&detail_filament_type_, detail_filament_type_buf_, nullptr,
-                           sizeof(detail_filament_type_buf_), "");
-    lv_subject_init_int(&detail_can_reprint_, 1);
-    lv_subject_init_int(&detail_status_code_,
-                        0); // 0=completed, 1=cancelled, 2=error, 3=in_progress
-    lv_subject_init_int(&detail_has_timelapse_, 0); // 0=no timelapse, 1=timelapse available
+    // Initialize all string subjects with buffers using managed macros
+    UI_MANAGED_SUBJECT_STRING(detail_filename_, detail_filename_buf_, "", "history_detail_filename",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_status_, detail_status_buf_, "", "history_detail_status",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_status_icon_, detail_status_icon_buf_, "help_circle",
+                              "history_detail_status_icon", subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_status_variant_, detail_status_variant_buf_, "secondary",
+                              "history_detail_status_variant", subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_start_time_, detail_start_time_buf_, "",
+                              "history_detail_start_time", subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_end_time_, detail_end_time_buf_, "", "history_detail_end_time",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_duration_, detail_duration_buf_, "", "history_detail_duration",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_layers_, detail_layers_buf_, "", "history_detail_layers",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_layer_height_, detail_layer_height_buf_, "",
+                              "history_detail_layer_height", subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_nozzle_temp_, detail_nozzle_temp_buf_, "",
+                              "history_detail_nozzle_temp", subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_bed_temp_, detail_bed_temp_buf_, "", "history_detail_bed_temp",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_filament_, detail_filament_buf_, "", "history_detail_filament",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(detail_filament_type_, detail_filament_type_buf_, "",
+                              "history_detail_filament_type", subjects_);
 
-    // Register subjects for XML binding
-    lv_xml_register_subject(nullptr, "history_detail_filename", &detail_filename_);
-    lv_xml_register_subject(nullptr, "history_detail_status", &detail_status_);
-    lv_xml_register_subject(nullptr, "history_detail_status_icon", &detail_status_icon_);
-    lv_xml_register_subject(nullptr, "history_detail_status_variant", &detail_status_variant_);
-    lv_xml_register_subject(nullptr, "history_detail_start_time", &detail_start_time_);
-    lv_xml_register_subject(nullptr, "history_detail_end_time", &detail_end_time_);
-    lv_xml_register_subject(nullptr, "history_detail_duration", &detail_duration_);
-    lv_xml_register_subject(nullptr, "history_detail_layers", &detail_layers_);
-    lv_xml_register_subject(nullptr, "history_detail_layer_height", &detail_layer_height_);
-    lv_xml_register_subject(nullptr, "history_detail_nozzle_temp", &detail_nozzle_temp_);
-    lv_xml_register_subject(nullptr, "history_detail_bed_temp", &detail_bed_temp_);
-    lv_xml_register_subject(nullptr, "history_detail_filament", &detail_filament_);
-    lv_xml_register_subject(nullptr, "history_detail_filament_type", &detail_filament_type_);
-    lv_xml_register_subject(nullptr, "history_detail_can_reprint", &detail_can_reprint_);
-    lv_xml_register_subject(nullptr, "history_detail_status_code", &detail_status_code_);
-    lv_xml_register_subject(nullptr, "history_detail_has_timelapse", &detail_has_timelapse_);
+    // Initialize int subjects
+    UI_MANAGED_SUBJECT_INT(detail_can_reprint_, 1, "history_detail_can_reprint", subjects_);
+    UI_MANAGED_SUBJECT_INT(detail_status_code_, 0, "history_detail_status_code", subjects_);
+    UI_MANAGED_SUBJECT_INT(detail_has_timelapse_, 0, "history_detail_has_timelapse", subjects_);
 
     spdlog::debug("[{}] Detail overlay subjects initialized", get_name());
 }

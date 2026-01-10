@@ -68,12 +68,7 @@ PrintSelectDetailView::~PrintSelectDetailView() {
     // Deinitialize subjects to disconnect observers before widgets are deleted
     // This prevents dangling pointers and frees observer linked lists
     if (subjects_initialized_) {
-        lv_subject_deinit(&preprint_bed_mesh_);
-        lv_subject_deinit(&preprint_qgl_);
-        lv_subject_deinit(&preprint_z_tilt_);
-        lv_subject_deinit(&preprint_nozzle_clean_);
-        lv_subject_deinit(&preprint_purge_line_);
-        lv_subject_deinit(&preprint_timelapse_);
+        subjects_.deinit_all();
         subjects_initialized_ = false;
     }
 
@@ -122,22 +117,14 @@ void PrintSelectDetailView::init_subjects() {
 
     // Enable switches default ON (1) - "perform this operation"
     // Subject=1 means switch is checked, operation is enabled
-    lv_subject_init_int(&preprint_bed_mesh_, 1);
-    lv_subject_init_int(&preprint_qgl_, 1);
-    lv_subject_init_int(&preprint_z_tilt_, 1);
-    lv_subject_init_int(&preprint_nozzle_clean_, 1);
-    lv_subject_init_int(&preprint_purge_line_, 1);
+    UI_MANAGED_SUBJECT_INT(preprint_bed_mesh_, 1, "preprint_bed_mesh", subjects_);
+    UI_MANAGED_SUBJECT_INT(preprint_qgl_, 1, "preprint_qgl", subjects_);
+    UI_MANAGED_SUBJECT_INT(preprint_z_tilt_, 1, "preprint_z_tilt", subjects_);
+    UI_MANAGED_SUBJECT_INT(preprint_nozzle_clean_, 1, "preprint_nozzle_clean", subjects_);
+    UI_MANAGED_SUBJECT_INT(preprint_purge_line_, 1, "preprint_purge_line", subjects_);
 
     // Add-on switches default OFF (0) - "don't add extras by default"
-    lv_subject_init_int(&preprint_timelapse_, 0);
-
-    // Register subjects with XML system so bindings can find them
-    lv_xml_register_subject(nullptr, "preprint_bed_mesh", &preprint_bed_mesh_);
-    lv_xml_register_subject(nullptr, "preprint_qgl", &preprint_qgl_);
-    lv_xml_register_subject(nullptr, "preprint_z_tilt", &preprint_z_tilt_);
-    lv_xml_register_subject(nullptr, "preprint_nozzle_clean", &preprint_nozzle_clean_);
-    lv_xml_register_subject(nullptr, "preprint_purge_line", &preprint_purge_line_);
-    lv_xml_register_subject(nullptr, "preprint_timelapse", &preprint_timelapse_);
+    UI_MANAGED_SUBJECT_INT(preprint_timelapse_, 0, "preprint_timelapse", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[DetailView] Initialized pre-print option subjects");
@@ -344,12 +331,7 @@ void PrintSelectDetailView::cleanup() {
 
     // Deinitialize subjects to disconnect observers
     if (subjects_initialized_) {
-        lv_subject_deinit(&preprint_bed_mesh_);
-        lv_subject_deinit(&preprint_qgl_);
-        lv_subject_deinit(&preprint_z_tilt_);
-        lv_subject_deinit(&preprint_nozzle_clean_);
-        lv_subject_deinit(&preprint_purge_line_);
-        lv_subject_deinit(&preprint_timelapse_);
+        subjects_.deinit_all();
         subjects_initialized_ = false;
     }
 

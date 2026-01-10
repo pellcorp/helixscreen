@@ -77,16 +77,15 @@ void ExtrusionPanel::init_subjects() {
 
     spdlog::debug("[{}] Initializing subjects", get_name());
 
-    // Initialize subjects with default values
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(temp_status_subject_, temp_status_buf_, temp_status_buf_,
-                                        "extrusion_temp_status");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(warning_temps_subject_, warning_temps_buf_,
-                                        warning_temps_buf_, "extrusion_warning_temps");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(
-        safety_warning_visible_subject_, 1,
-        "extrusion_safety_warning_visible"); // 1=visible (cold at start)
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(speed_display_subject_, speed_display_buf_,
-                                        speed_display_buf_, "extrusion_speed_display");
+    // Initialize subjects with default values (SubjectManager handles cleanup)
+    UI_MANAGED_SUBJECT_STRING(temp_status_subject_, temp_status_buf_, temp_status_buf_,
+                              "extrusion_temp_status", subjects_);
+    UI_MANAGED_SUBJECT_STRING(warning_temps_subject_, warning_temps_buf_, warning_temps_buf_,
+                              "extrusion_warning_temps", subjects_);
+    UI_MANAGED_SUBJECT_INT(safety_warning_visible_subject_, 1, "extrusion_safety_warning_visible",
+                           subjects_); // 1=visible (cold at start)
+    UI_MANAGED_SUBJECT_STRING(speed_display_subject_, speed_display_buf_, speed_display_buf_,
+                              "extrusion_speed_display", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
@@ -99,11 +98,8 @@ void ExtrusionPanel::deinit_subjects() {
 
     spdlog::debug("[{}] Deinitializing subjects", get_name());
 
-    // Deinitialize all local lv_subject_t members (4 total)
-    lv_subject_deinit(&temp_status_subject_);
-    lv_subject_deinit(&warning_temps_subject_);
-    lv_subject_deinit(&safety_warning_visible_subject_);
-    lv_subject_deinit(&speed_display_subject_);
+    // SubjectManager handles all subject cleanup
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
 }

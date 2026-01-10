@@ -5,6 +5,7 @@
 
 #include "overlay_base.h"
 #include "spoolman_types.h" // For SpoolInfo
+#include "subject_managed_panel.h"
 
 #include <vector>
 
@@ -77,6 +78,7 @@ class SpoolmanPanel : public OverlayBase {
     int active_spool_id_ = -1;
 
     // ========== Subjects ==========
+    SubjectManager subjects_;          ///< RAII subject manager
     lv_subject_t panel_state_subject_; ///< Panel display state (loading/empty/spools)
     lv_subject_t spool_count_subject_;
     char spool_count_buf_[32];

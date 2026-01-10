@@ -73,34 +73,28 @@ void HistoryDashboardPanel::init_subjects() {
 
     // Initialize subject for empty state visibility binding
     // 0 = no history (show empty state), 1 = has history (show stats grid)
-    lv_subject_init_int(&history_has_jobs_subject_, 0);
-    lv_xml_register_subject(nullptr, "history_has_jobs", &history_has_jobs_subject_);
+    UI_MANAGED_SUBJECT_INT(history_has_jobs_subject_, 0, "history_has_jobs", subjects_);
 
     // Initialize subject for filter button state binding
     // Values: 0=Day, 1=Week, 2=Month, 3=Year, 4=All (matches HistoryTimeFilter enum)
-    lv_subject_init_int(&history_filter_subject_, 4); // Default to ALL_TIME
-    lv_xml_register_subject(nullptr, "history_filter", &history_filter_subject_);
+    UI_MANAGED_SUBJECT_INT(history_filter_subject_, 4, "history_filter",
+                           subjects_); // Default to ALL_TIME
 
     // Initialize string subjects for stat labels
-    lv_subject_init_string(&stat_total_prints_subject_, stat_total_prints_buf_, nullptr,
-                           sizeof(stat_total_prints_buf_), "0");
-    lv_xml_register_subject(nullptr, "stat_total_prints", &stat_total_prints_subject_);
+    UI_MANAGED_SUBJECT_STRING(stat_total_prints_subject_, stat_total_prints_buf_, "0",
+                              "stat_total_prints", subjects_);
 
-    lv_subject_init_string(&stat_print_time_subject_, stat_print_time_buf_, nullptr,
-                           sizeof(stat_print_time_buf_), "0h");
-    lv_xml_register_subject(nullptr, "stat_print_time", &stat_print_time_subject_);
+    UI_MANAGED_SUBJECT_STRING(stat_print_time_subject_, stat_print_time_buf_, "0h",
+                              "stat_print_time", subjects_);
 
-    lv_subject_init_string(&stat_filament_subject_, stat_filament_buf_, nullptr,
-                           sizeof(stat_filament_buf_), "0m");
-    lv_xml_register_subject(nullptr, "stat_filament", &stat_filament_subject_);
+    UI_MANAGED_SUBJECT_STRING(stat_filament_subject_, stat_filament_buf_, "0m", "stat_filament",
+                              subjects_);
 
-    lv_subject_init_string(&stat_success_rate_subject_, stat_success_rate_buf_, nullptr,
-                           sizeof(stat_success_rate_buf_), "0%");
-    lv_xml_register_subject(nullptr, "stat_success_rate", &stat_success_rate_subject_);
+    UI_MANAGED_SUBJECT_STRING(stat_success_rate_subject_, stat_success_rate_buf_, "0%",
+                              "stat_success_rate", subjects_);
 
-    lv_subject_init_string(&trend_period_subject_, trend_period_buf_, nullptr,
-                           sizeof(trend_period_buf_), "Last 7 days");
-    lv_xml_register_subject(nullptr, "trend_period", &trend_period_subject_);
+    UI_MANAGED_SUBJECT_STRING(trend_period_subject_, trend_period_buf_, "Last 7 days",
+                              "trend_period", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
@@ -111,16 +105,8 @@ void HistoryDashboardPanel::deinit_subjects() {
         return;
     }
 
-    // Integer subjects for state binding
-    lv_subject_deinit(&history_has_jobs_subject_);
-    lv_subject_deinit(&history_filter_subject_);
-
-    // String subjects for stat labels
-    lv_subject_deinit(&stat_total_prints_subject_);
-    lv_subject_deinit(&stat_print_time_subject_);
-    lv_subject_deinit(&stat_filament_subject_);
-    lv_subject_deinit(&stat_success_rate_subject_);
-    lv_subject_deinit(&trend_period_subject_);
+    // SubjectManager handles all subject cleanup via RAII
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());

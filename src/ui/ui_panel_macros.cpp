@@ -79,7 +79,8 @@ void MacrosPanel::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
     // Initialize status subject for reactive binding
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(status_subject_, status_buf_, status_buf_, "macros_status");
+    UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, status_buf_, "macros_status",
+                              subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized: macros_status", get_name());
@@ -89,7 +90,7 @@ void MacrosPanel::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&status_subject_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());
 }

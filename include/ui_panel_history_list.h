@@ -8,6 +8,7 @@
 #include "overlay_base.h"
 #include "print_history_data.h"
 #include "print_history_manager.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 #include <vector>
@@ -241,6 +242,12 @@ class HistoryListPanel : public OverlayBase {
 
     // Search debounce timer
     lv_timer_t* search_timer_ = nullptr; ///< Timer for debounced search (300ms)
+
+    //
+    // === Subject Manager for RAII cleanup ===
+    //
+
+    SubjectManager subjects_; ///< RAII manager for automatic subject cleanup
 
     //
     // === Subject for panel state binding ===

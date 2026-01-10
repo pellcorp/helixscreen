@@ -5,6 +5,7 @@
 
 #include "calibration_types.h" // For ScrewTiltResult
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <array>
 #include <atomic>
@@ -231,6 +232,9 @@ class ScrewsTiltPanel : public OverlayBase {
 
     // Tracking
     int probe_count_ = 0;
+
+    // RAII subject manager for automatic cleanup
+    SubjectManager subjects_;
 };
 
 // Global instance accessor

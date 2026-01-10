@@ -4,6 +4,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <memory>
 #include <string>
@@ -163,6 +164,9 @@ class WizardWifiStep {
     // State tracking
     bool subjects_initialized_ = false;
     bool cleanup_called_ = false; // Set true in cleanup() to invalidate pending callbacks
+
+    // Subject manager for RAII cleanup
+    SubjectManager subjects_;
 
     // Cached networks for async UI update
     std::vector<WiFiNetwork> cached_networks_;

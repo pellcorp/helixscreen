@@ -52,16 +52,16 @@ void SettingsManager::init_subjects() {
 
     // Dark mode (default: true = dark)
     bool dark_mode = config->get<bool>("/dark_mode", true);
-    lv_subject_init_int(&dark_mode_subject_, dark_mode ? 1 : 0);
+    UI_MANAGED_SUBJECT_INT(dark_mode_subject_, dark_mode ? 1 : 0, "settings_dark_mode", subjects_);
 
     // Display sleep (default: 1800 seconds = 30 minutes)
     int sleep_sec = config->get<int>("/display_sleep_sec", 1800);
-    lv_subject_init_int(&display_sleep_subject_, sleep_sec);
+    UI_MANAGED_SUBJECT_INT(display_sleep_subject_, sleep_sec, "settings_display_sleep", subjects_);
 
     // Brightness: Read from config (DisplayManager handles hardware)
     int brightness = config->get<int>("/brightness", 50);
     brightness = std::clamp(brightness, 10, 100);
-    lv_subject_init_int(&brightness_subject_, brightness);
+    UI_MANAGED_SUBJECT_INT(brightness_subject_, brightness, "settings_brightness", subjects_);
     spdlog::info("[SettingsManager] Brightness initialized to {}%", brightness);
 
     // Has backlight control subject (for UI visibility) - check DisplayManager
@@ -69,74 +69,64 @@ void SettingsManager::init_subjects() {
     if (auto* dm = DisplayManager::instance()) {
         has_backlight = dm->has_backlight_control();
     }
-    lv_subject_init_int(&has_backlight_subject_, has_backlight ? 1 : 0);
+    UI_MANAGED_SUBJECT_INT(has_backlight_subject_, has_backlight ? 1 : 0, "settings_has_backlight",
+                           subjects_);
 
     // LED state (ephemeral, not persisted - start as off)
-    lv_subject_init_int(&led_enabled_subject_, 0);
+    UI_MANAGED_SUBJECT_INT(led_enabled_subject_, 0, "settings_led_enabled", subjects_);
 
     // Sounds (default: true)
     bool sounds = config->get<bool>("/sounds_enabled", true);
-    lv_subject_init_int(&sounds_enabled_subject_, sounds ? 1 : 0);
+    UI_MANAGED_SUBJECT_INT(sounds_enabled_subject_, sounds ? 1 : 0, "settings_sounds_enabled",
+                           subjects_);
 
     // Completion alert mode (default: NOTIFICATION=1, handles old bool migration)
     int completion_mode = config->get<int>("/completion_alert", 1);
     completion_mode = std::max(0, std::min(2, completion_mode));
-    lv_subject_init_int(&completion_alert_subject_, completion_mode);
+    UI_MANAGED_SUBJECT_INT(completion_alert_subject_, completion_mode, "settings_completion_alert",
+                           subjects_);
 
     // E-Stop confirmation (default: false = immediate action)
     bool estop_confirm = config->get<bool>("/safety/estop_require_confirmation", false);
-    lv_subject_init_int(&estop_require_confirmation_subject_, estop_confirm ? 1 : 0);
+    UI_MANAGED_SUBJECT_INT(estop_require_confirmation_subject_, estop_confirm ? 1 : 0,
+                           "settings_estop_confirm", subjects_);
 
     // Scroll throw (default: 25, range 5-50)
     int scroll_throw = config->get<int>("/input/scroll_throw", 25);
     scroll_throw = std::max(5, std::min(50, scroll_throw));
-    lv_subject_init_int(&scroll_throw_subject_, scroll_throw);
+    UI_MANAGED_SUBJECT_INT(scroll_throw_subject_, scroll_throw, "settings_scroll_throw", subjects_);
 
     // Scroll limit (default: 5, range 1-20)
     int scroll_limit = config->get<int>("/input/scroll_limit", 5);
     scroll_limit = std::max(1, std::min(20, scroll_limit));
-    lv_subject_init_int(&scroll_limit_subject_, scroll_limit);
+    UI_MANAGED_SUBJECT_INT(scroll_limit_subject_, scroll_limit, "settings_scroll_limit", subjects_);
 
     // Animations enabled (default: true)
     bool animations = config->get<bool>("/animations_enabled", true);
-    lv_subject_init_int(&animations_enabled_subject_, animations ? 1 : 0);
+    UI_MANAGED_SUBJECT_INT(animations_enabled_subject_, animations ? 1 : 0,
+                           "settings_animations_enabled", subjects_);
 
     // G-code 3D preview enabled (default: true)
     bool gcode_3d = config->get<bool>("/display/gcode_3d_enabled", true);
-    lv_subject_init_int(&gcode_3d_enabled_subject_, gcode_3d ? 1 : 0);
+    UI_MANAGED_SUBJECT_INT(gcode_3d_enabled_subject_, gcode_3d ? 1 : 0, "settings_gcode_3d_enabled",
+                           subjects_);
 
     // Bed mesh render mode (default: 0 = Auto)
     int bed_mesh_mode = config->get<int>("/display/bed_mesh_render_mode", 0);
     bed_mesh_mode = std::clamp(bed_mesh_mode, 0, 2);
-    lv_subject_init_int(&bed_mesh_render_mode_subject_, bed_mesh_mode);
+    UI_MANAGED_SUBJECT_INT(bed_mesh_render_mode_subject_, bed_mesh_mode,
+                           "settings_bed_mesh_render_mode", subjects_);
 
+    // G-code render mode (default: 0 = Auto)
     int gcode_mode = config->get<int>("/display/gcode_render_mode", 0);
     gcode_mode = std::clamp(gcode_mode, 0, 2);
-    lv_subject_init_int(&gcode_render_mode_subject_, gcode_mode);
+    UI_MANAGED_SUBJECT_INT(gcode_render_mode_subject_, gcode_mode, "settings_gcode_render_mode",
+                           subjects_);
 
     // Time format (default: 0 = 12-hour)
     int time_format = config->get<int>("/time_format", 0);
     time_format = std::clamp(time_format, 0, 1);
-    lv_subject_init_int(&time_format_subject_, time_format);
-
-    // Register subjects with LVGL XML system for data binding
-    lv_xml_register_subject(nullptr, "settings_dark_mode", &dark_mode_subject_);
-    lv_xml_register_subject(nullptr, "settings_display_sleep", &display_sleep_subject_);
-    lv_xml_register_subject(nullptr, "settings_brightness", &brightness_subject_);
-    lv_xml_register_subject(nullptr, "settings_has_backlight", &has_backlight_subject_);
-    lv_xml_register_subject(nullptr, "settings_led_enabled", &led_enabled_subject_);
-    lv_xml_register_subject(nullptr, "settings_sounds_enabled", &sounds_enabled_subject_);
-    lv_xml_register_subject(nullptr, "settings_completion_alert", &completion_alert_subject_);
-    lv_xml_register_subject(nullptr, "settings_estop_confirm",
-                            &estop_require_confirmation_subject_);
-    lv_xml_register_subject(nullptr, "settings_scroll_throw", &scroll_throw_subject_);
-    lv_xml_register_subject(nullptr, "settings_scroll_limit", &scroll_limit_subject_);
-    lv_xml_register_subject(nullptr, "settings_animations_enabled", &animations_enabled_subject_);
-    lv_xml_register_subject(nullptr, "settings_gcode_3d_enabled", &gcode_3d_enabled_subject_);
-    lv_xml_register_subject(nullptr, "settings_bed_mesh_render_mode",
-                            &bed_mesh_render_mode_subject_);
-    lv_xml_register_subject(nullptr, "settings_gcode_render_mode", &gcode_render_mode_subject_);
-    lv_xml_register_subject(nullptr, "settings_time_format", &time_format_subject_);
+    UI_MANAGED_SUBJECT_INT(time_format_subject_, time_format, "settings_time_format", subjects_);
 
     subjects_initialized_ = true;
     spdlog::info("[SettingsManager] Subjects initialized: dark_mode={}, sleep={}s, sounds={}, "
@@ -152,22 +142,8 @@ void SettingsManager::deinit_subjects() {
 
     spdlog::debug("[SettingsManager] Deinitializing subjects");
 
-    // Deinitialize all subjects to disconnect observers before lv_deinit()
-    lv_subject_deinit(&dark_mode_subject_);
-    lv_subject_deinit(&display_sleep_subject_);
-    lv_subject_deinit(&brightness_subject_);
-    lv_subject_deinit(&has_backlight_subject_);
-    lv_subject_deinit(&animations_enabled_subject_);
-    lv_subject_deinit(&gcode_3d_enabled_subject_);
-    lv_subject_deinit(&bed_mesh_render_mode_subject_);
-    lv_subject_deinit(&gcode_render_mode_subject_);
-    lv_subject_deinit(&time_format_subject_);
-    lv_subject_deinit(&led_enabled_subject_);
-    lv_subject_deinit(&sounds_enabled_subject_);
-    lv_subject_deinit(&completion_alert_subject_);
-    lv_subject_deinit(&estop_require_confirmation_subject_);
-    lv_subject_deinit(&scroll_throw_subject_);
-    lv_subject_deinit(&scroll_limit_subject_);
+    // Use SubjectManager for RAII cleanup of all registered subjects
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[SettingsManager] Subjects deinitialized");

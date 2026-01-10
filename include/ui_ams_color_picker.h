@@ -5,6 +5,8 @@
 
 #include "ui_modal.h"
 
+#include "subject_managed_panel.h"
+
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -95,6 +97,7 @@ class AmsColorPicker : public Modal {
     ColorCallback color_callback_;
 
     // === Subjects for XML binding ===
+    SubjectManager subjects_;
     lv_subject_t hex_subject_;
     lv_subject_t name_subject_;
     char hex_buf_[16] = {0};

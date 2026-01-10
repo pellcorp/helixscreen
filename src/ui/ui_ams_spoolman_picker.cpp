@@ -180,13 +180,14 @@ void AmsSpoolmanPicker::init_subjects() {
         return;
     }
 
+    // Initialize slot indicator string subject (local binding only, not XML registered)
     slot_indicator_buf_[0] = '\0';
     lv_subject_init_string(&slot_indicator_subject_, slot_indicator_buf_, nullptr,
                            sizeof(slot_indicator_buf_), "Assigning to Slot 1");
+    subjects_.register_subject(&slot_indicator_subject_);
 
     // Initialize picker state subject (0=LOADING, 1=EMPTY, 2=CONTENT)
-    lv_subject_init_int(&picker_state_subject_, 0);
-    lv_xml_register_subject(nullptr, "ams_picker_state", &picker_state_subject_);
+    UI_MANAGED_SUBJECT_INT(picker_state_subject_, 0, "ams_picker_state", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[AmsSpoolmanPicker] Subjects initialized");
@@ -196,8 +197,8 @@ void AmsSpoolmanPicker::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&slot_indicator_subject_);
-    lv_subject_deinit(&picker_state_subject_);
+    // SubjectManager handles all lv_subject_deinit() calls via RAII
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[AmsSpoolmanPicker] Subjects deinitialized");
 }

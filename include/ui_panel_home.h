@@ -8,6 +8,7 @@
 #include "ui_panel_base.h"
 #include "ui_panel_print_status.h" // For RunoutGuidanceModal
 
+#include "subject_managed_panel.h"
 #include "tips_manager.h"
 
 #include <memory>
@@ -94,6 +95,7 @@ class HomePanel : public PanelBase {
     void set_temp_control_panel(TempControlPanel* temp_panel);
 
   private:
+    SubjectManager subjects_;
     TempControlPanel* temp_control_panel_ = nullptr;
     lv_subject_t status_subject_;
     lv_subject_t temp_subject_;

@@ -538,8 +538,7 @@ void NavigationManager::init() {
 
     spdlog::debug("[NavigationManager] Initializing navigation reactive subjects...");
 
-    lv_subject_init_int(&active_panel_subject_, UI_PANEL_HOME);
-    lv_xml_register_subject(NULL, "active_panel", &active_panel_subject_);
+    UI_MANAGED_SUBJECT_INT(active_panel_subject_, UI_PANEL_HOME, "active_panel", subjects_);
 
     active_panel_observer_ =
         ObserverGuard(&active_panel_subject_, active_panel_observer_cb, nullptr);
@@ -1023,7 +1022,7 @@ void NavigationManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&active_panel_subject_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[NavigationManager] Subjects deinitialized");
 }

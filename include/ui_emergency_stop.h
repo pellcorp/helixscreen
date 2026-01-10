@@ -8,6 +8,7 @@
 #include "lvgl.h"
 #include "moonraker_api.h"
 #include "printer_state.h"
+#include "subject_managed_panel.h"
 
 /**
  * @brief Emergency stop visibility coordinator
@@ -122,6 +123,9 @@ class EmergencyStopOverlay {
     // Visibility subject (1=visible, 0=hidden) - drives XML bindings
     lv_subject_t estop_visible_;
     bool subjects_initialized_ = false;
+
+    // RAII subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // State observers
     ObserverGuard print_state_observer_;

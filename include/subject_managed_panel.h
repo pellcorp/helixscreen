@@ -237,6 +237,29 @@ class SubjectManager {
 /**
  * @brief Helper macro to init, register with XML system, AND register with SubjectManager
  *
+ * Variant with explicit size for use with std::array<char, N>::data() where sizeof
+ * would return pointer size instead of buffer size.
+ *
+ * @param subject lv_subject_t member variable
+ * @param buffer Character buffer pointer (e.g., buf.data())
+ * @param size Buffer size in bytes (e.g., buf.size())
+ * @param initial_value Initial string value
+ * @param xml_name String name for XML binding
+ * @param manager SubjectManager instance
+ */
+#define UI_MANAGED_SUBJECT_STRING_N(subject, buffer, size, initial_value, xml_name, manager)       \
+    do {                                                                                           \
+        snprintf((buffer), (size), "%s", (initial_value));                                         \
+        lv_subject_init_string(&(subject), (buffer), nullptr, (size), (buffer));                   \
+        lv_xml_register_subject(nullptr, (xml_name), &(subject));                                  \
+        (manager).register_subject(&(subject));                                                    \
+        SubjectDebugRegistry::instance().register_subject(                                         \
+            &(subject), (xml_name), LV_SUBJECT_TYPE_STRING, __FILE__, __LINE__);                   \
+    } while (0)
+
+/**
+ * @brief Helper macro to init, register with XML system, AND register with SubjectManager
+ *
  * Combines UI_SUBJECT_INIT_AND_REGISTER_POINTER with SubjectManager registration.
  *
  * @param subject lv_subject_t member variable

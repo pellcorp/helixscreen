@@ -7,6 +7,7 @@
 #include "ui_panel_base.h"
 
 #include "moonraker_api.h" // Need full definition for PowerDevice
+#include "subject_managed_panel.h"
 
 #include <map>
 #include <string>
@@ -36,6 +37,9 @@ class PowerPanel : public PanelBase {
     }
 
   private:
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
+
     // Subjects for reactive binding
     lv_subject_t status_subject_;
     char status_buf_[128] = "Loading devices...";

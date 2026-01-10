@@ -6,6 +6,7 @@
 #include "ui_observer_guard.h"
 
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 /**
  * @file ui_panel_extrusion.h
@@ -51,6 +52,9 @@ class ExtrusionPanel : public OverlayBase {
     void set_limits(int min_temp, int max_temp);
 
   private:
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
+
     // Reactive subjects for UI bindings
     lv_subject_t temp_status_subject_;
     lv_subject_t warning_temps_subject_;

@@ -9,6 +9,7 @@
 #include "ui_temp_graph.h"
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <array>
 #include <functional>
@@ -213,6 +214,9 @@ class TempControlPanel {
 
     heater_config_t nozzle_config_;
     heater_config_t bed_config_;
+
+    // Subject manager for RAII cleanup
+    SubjectManager subjects_;
 
     // Subjects initialized flag
     bool subjects_initialized_ = false;

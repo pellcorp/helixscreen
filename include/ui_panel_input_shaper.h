@@ -5,6 +5,7 @@
 
 #include "calibration_types.h" // For InputShaperResult
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <array>
 #include <atomic>
@@ -163,6 +164,9 @@ class InputShaperPanel : public OverlayBase {
     void handle_help_clicked();
 
   private:
+    // Subject manager for RAII cleanup
+    SubjectManager subjects_;
+
     // State management
     State state_ = State::IDLE;
     void set_state(State new_state);

@@ -327,18 +327,15 @@ void SettingsPanel::init_subjects() {
     SettingsManager::instance().init_subjects();
 
     // Initialize slider value subjects (for reactive binding)
-    lv_subject_init_string(&brightness_value_subject_, brightness_value_buf_, nullptr,
-                           sizeof(brightness_value_buf_), "100%");
-    lv_xml_register_subject(nullptr, "brightness_value", &brightness_value_subject_);
+    UI_MANAGED_SUBJECT_STRING(brightness_value_subject_, brightness_value_buf_, "100%",
+                              "brightness_value", subjects_);
 
     // Initialize info row subjects (for reactive binding)
-    lv_subject_init_string(&version_value_subject_, version_value_buf_, nullptr,
-                           sizeof(version_value_buf_), "—");
-    lv_xml_register_subject(nullptr, "version_value", &version_value_subject_);
+    UI_MANAGED_SUBJECT_STRING(version_value_subject_, version_value_buf_, "—", "version_value",
+                              subjects_);
 
-    lv_subject_init_string(&printer_value_subject_, printer_value_buf_, nullptr,
-                           sizeof(printer_value_buf_), "—");
-    lv_xml_register_subject(nullptr, "printer_value", &printer_value_subject_);
+    UI_MANAGED_SUBJECT_STRING(printer_value_subject_, printer_value_buf_, "—", "printer_value",
+                              subjects_);
 
     // Register XML event callbacks for dropdowns (already in XML)
     lv_xml_register_event_cb(nullptr, "on_completion_alert_changed",
@@ -392,24 +389,18 @@ void SettingsPanel::init_subjects() {
     lv_xml_register_event_cb(nullptr, "on_limits_apply", on_limits_apply);
 
     // Initialize machine limits display subjects
-    lv_subject_init_string(&max_velocity_display_subject_, max_velocity_display_buf_, nullptr,
-                           sizeof(max_velocity_display_buf_), "-- mm/s");
-    lv_xml_register_subject(nullptr, "max_velocity_display", &max_velocity_display_subject_);
+    UI_MANAGED_SUBJECT_STRING(max_velocity_display_subject_, max_velocity_display_buf_, "-- mm/s",
+                              "max_velocity_display", subjects_);
 
-    lv_subject_init_string(&max_accel_display_subject_, max_accel_display_buf_, nullptr,
-                           sizeof(max_accel_display_buf_), "-- mm/s²");
-    lv_xml_register_subject(nullptr, "max_accel_display", &max_accel_display_subject_);
+    UI_MANAGED_SUBJECT_STRING(max_accel_display_subject_, max_accel_display_buf_, "-- mm/s²",
+                              "max_accel_display", subjects_);
 
-    lv_subject_init_string(&accel_to_decel_display_subject_, accel_to_decel_display_buf_, nullptr,
-                           sizeof(accel_to_decel_display_buf_), "-- mm/s²");
-    lv_xml_register_subject(nullptr, "accel_to_decel_display", &accel_to_decel_display_subject_);
+    UI_MANAGED_SUBJECT_STRING(accel_to_decel_display_subject_, accel_to_decel_display_buf_,
+                              "-- mm/s²", "accel_to_decel_display", subjects_);
 
-    lv_subject_init_string(&square_corner_velocity_display_subject_,
-                           square_corner_velocity_display_buf_, nullptr,
-                           sizeof(square_corner_velocity_display_buf_), "-- mm/s");
-    lv_xml_register_subject(nullptr, "square_corner_velocity_display",
-                            &square_corner_velocity_display_subject_);
-    machine_limits_subjects_initialized_ = true;
+    UI_MANAGED_SUBJECT_STRING(square_corner_velocity_display_subject_,
+                              square_corner_velocity_display_buf_, "-- mm/s",
+                              "square_corner_velocity_display", subjects_);
 
     lv_xml_register_event_cb(nullptr, "on_network_clicked", on_network_clicked);
     lv_xml_register_event_cb(nullptr, "on_factory_reset_clicked", on_factory_reset_clicked);
@@ -441,19 +432,8 @@ void SettingsPanel::deinit_subjects() {
 
     spdlog::debug("[{}] Deinitializing subjects", get_name());
 
-    // Deinit local subjects (3 string subjects)
-    lv_subject_deinit(&brightness_value_subject_);
-    lv_subject_deinit(&version_value_subject_);
-    lv_subject_deinit(&printer_value_subject_);
-
-    // Deinit machine limits display subjects
-    if (machine_limits_subjects_initialized_) {
-        lv_subject_deinit(&max_velocity_display_subject_);
-        lv_subject_deinit(&max_accel_display_subject_);
-        lv_subject_deinit(&accel_to_decel_display_subject_);
-        lv_subject_deinit(&square_corner_velocity_display_subject_);
-        machine_limits_subjects_initialized_ = false;
-    }
+    // Deinit all subjects via SubjectManager (handles 7 string subjects)
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());

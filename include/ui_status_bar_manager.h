@@ -7,6 +7,7 @@
 
 #include "lvgl.h"
 #include "printer_state.h" // For PrinterStatus and NetworkStatus enums
+#include "subject_managed_panel.h"
 
 /**
  * @brief Active notification status
@@ -144,6 +145,9 @@ class StatusBarManager {
     // ============================================================================
     // Status Icon State Subjects (drive XML reactive bindings)
     // ============================================================================
+
+    // RAII subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // Printer icon state: 0=ready(green), 1=warning(orange), 2=error(red), 3=disconnected(gray)
     lv_subject_t printer_icon_state_subject_{};

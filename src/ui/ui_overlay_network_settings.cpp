@@ -109,23 +109,7 @@ NetworkSettingsOverlay::~NetworkSettingsOverlay() {
 
     // Deinitialize subjects to disconnect observers
     if (subjects_initialized_) {
-        lv_subject_deinit(&wifi_hardware_available_);
-        lv_subject_deinit(&wifi_enabled_);
-        lv_subject_deinit(&wifi_connected_);
-        lv_subject_deinit(&wifi_only_24ghz_);
-        lv_subject_deinit(&connected_ssid_);
-        lv_subject_deinit(&ip_address_);
-        lv_subject_deinit(&mac_address_);
-        lv_subject_deinit(&network_count_);
-        lv_subject_deinit(&wifi_scanning_);
-        lv_subject_deinit(&eth_connected_);
-        lv_subject_deinit(&eth_ip_address_);
-        lv_subject_deinit(&eth_mac_address_);
-        lv_subject_deinit(&any_network_connected_);
-        lv_subject_deinit(&test_running_);
-        lv_subject_deinit(&test_gateway_status_);
-        lv_subject_deinit(&test_internet_status_);
-        lv_subject_deinit(&test_complete_);
+        subjects_.deinit_all();
         subjects_initialized_ = false;
     }
 
@@ -149,32 +133,32 @@ void NetworkSettingsOverlay::init_subjects() {
     spdlog::debug("[NetworkSettingsOverlay] Initializing subjects");
 
     // WiFi subjects
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_hardware_available_, 1, "wifi_hardware_available");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_enabled_, 0, "wifi_enabled");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_connected_, 0, "wifi_connected");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_only_24ghz_, 1,
-                                     "wifi_only_24ghz"); // Default: assume 2.4GHz only
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_scanning_, 0, "wifi_scanning");
+    UI_MANAGED_SUBJECT_INT(wifi_hardware_available_, 1, "wifi_hardware_available", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_enabled_, 0, "wifi_enabled", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_connected_, 0, "wifi_connected", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_only_24ghz_, 1, "wifi_only_24ghz",
+                           subjects_); // Default: assume 2.4GHz only
+    UI_MANAGED_SUBJECT_INT(wifi_scanning_, 0, "wifi_scanning", subjects_);
 
     // WiFi string subjects
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(connected_ssid_, ssid_buffer_, "", "connected_ssid");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(ip_address_, ip_buffer_, "", "ip_address");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(mac_address_, mac_buffer_, "", "mac_address");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(network_count_, count_buffer_, "(0)", "network_count");
+    UI_MANAGED_SUBJECT_STRING(connected_ssid_, ssid_buffer_, "", "connected_ssid", subjects_);
+    UI_MANAGED_SUBJECT_STRING(ip_address_, ip_buffer_, "", "ip_address", subjects_);
+    UI_MANAGED_SUBJECT_STRING(mac_address_, mac_buffer_, "", "mac_address", subjects_);
+    UI_MANAGED_SUBJECT_STRING(network_count_, count_buffer_, "(0)", "network_count", subjects_);
 
     // Ethernet subjects
-    UI_SUBJECT_INIT_AND_REGISTER_INT(eth_connected_, 0, "eth_connected");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(eth_ip_address_, eth_ip_buffer_, "", "eth_ip_address");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(eth_mac_address_, eth_mac_buffer_, "", "eth_mac_address");
+    UI_MANAGED_SUBJECT_INT(eth_connected_, 0, "eth_connected", subjects_);
+    UI_MANAGED_SUBJECT_STRING(eth_ip_address_, eth_ip_buffer_, "", "eth_ip_address", subjects_);
+    UI_MANAGED_SUBJECT_STRING(eth_mac_address_, eth_mac_buffer_, "", "eth_mac_address", subjects_);
 
     // Network test subjects
-    UI_SUBJECT_INIT_AND_REGISTER_INT(any_network_connected_, 0, "any_network_connected");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(test_running_, 0, "test_running");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(test_gateway_status_, 0, "test_gateway_status");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(test_internet_status_, 0, "test_internet_status");
+    UI_MANAGED_SUBJECT_INT(any_network_connected_, 0, "any_network_connected", subjects_);
+    UI_MANAGED_SUBJECT_INT(test_running_, 0, "test_running", subjects_);
+    UI_MANAGED_SUBJECT_INT(test_gateway_status_, 0, "test_gateway_status", subjects_);
+    UI_MANAGED_SUBJECT_INT(test_internet_status_, 0, "test_internet_status", subjects_);
 
     // Network test modal subject (controls close button enabled state)
-    UI_SUBJECT_INIT_AND_REGISTER_INT(test_complete_, 0, "test_complete");
+    UI_MANAGED_SUBJECT_INT(test_complete_, 0, "test_complete", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[NetworkSettingsOverlay] Subjects initialized");

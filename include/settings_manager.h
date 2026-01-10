@@ -4,6 +4,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <functional>
 #include <memory>
@@ -468,6 +469,9 @@ class SettingsManager {
 
     // Apply immediate effects
     void send_led_command(bool enabled);
+
+    // Subject manager for RAII cleanup
+    SubjectManager subjects_;
 
     // LVGL subjects
     lv_subject_t dark_mode_subject_;

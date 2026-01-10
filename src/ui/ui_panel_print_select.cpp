@@ -238,59 +238,55 @@ void PrintSelectPanel::init_subjects() {
     }
 
     // Initialize selected file subjects
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_filename_subject_, selected_filename_buffer_, "",
-                                        "selected_filename");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_display_filename_subject_,
-                                        selected_display_filename_buffer_, "",
-                                        "selected_display_filename");
+    UI_MANAGED_SUBJECT_STRING(selected_filename_subject_, selected_filename_buffer_, "",
+                              "selected_filename", subjects_);
+    UI_MANAGED_SUBJECT_STRING(selected_display_filename_subject_, selected_display_filename_buffer_,
+                              "", "selected_display_filename", subjects_);
 
     // Thumbnail uses POINTER subject (required by lv_image_bind_src)
     // Use get_default_thumbnail() for pre-rendered .bin support
     std::string default_thumb = helix::ui::PrintSelectCardView::get_default_thumbnail();
     strncpy(selected_thumbnail_buffer_, default_thumb.c_str(),
             sizeof(selected_thumbnail_buffer_) - 1);
-    UI_SUBJECT_INIT_AND_REGISTER_POINTER(selected_thumbnail_subject_, selected_thumbnail_buffer_,
-                                         "selected_thumbnail");
+    UI_MANAGED_SUBJECT_POINTER(selected_thumbnail_subject_, selected_thumbnail_buffer_,
+                               "selected_thumbnail", subjects_);
 
     // Detail view thumbnail - uses cached PNG for better upscaling quality
     strncpy(selected_detail_thumbnail_buffer_, default_thumb.c_str(),
             sizeof(selected_detail_thumbnail_buffer_) - 1);
-    UI_SUBJECT_INIT_AND_REGISTER_POINTER(selected_detail_thumbnail_subject_,
-                                         selected_detail_thumbnail_buffer_,
-                                         "selected_detail_thumbnail");
+    UI_MANAGED_SUBJECT_POINTER(selected_detail_thumbnail_subject_,
+                               selected_detail_thumbnail_buffer_, "selected_detail_thumbnail",
+                               subjects_);
 
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_print_time_subject_, selected_print_time_buffer_,
-                                        "", "selected_print_time");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_filament_weight_subject_,
-                                        selected_filament_weight_buffer_, "",
-                                        "selected_filament_weight");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_layer_count_subject_, selected_layer_count_buffer_,
-                                        "", "selected_layer_count");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_print_height_subject_,
-                                        selected_print_height_buffer_, "", "selected_print_height");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_layer_height_subject_,
-                                        selected_layer_height_buffer_, "", "selected_layer_height");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_filament_type_subject_,
-                                        selected_filament_type_buffer_, "",
-                                        "selected_filament_type");
+    UI_MANAGED_SUBJECT_STRING(selected_print_time_subject_, selected_print_time_buffer_, "",
+                              "selected_print_time", subjects_);
+    UI_MANAGED_SUBJECT_STRING(selected_filament_weight_subject_, selected_filament_weight_buffer_,
+                              "", "selected_filament_weight", subjects_);
+    UI_MANAGED_SUBJECT_STRING(selected_layer_count_subject_, selected_layer_count_buffer_, "",
+                              "selected_layer_count", subjects_);
+    UI_MANAGED_SUBJECT_STRING(selected_print_height_subject_, selected_print_height_buffer_, "",
+                              "selected_print_height", subjects_);
+    UI_MANAGED_SUBJECT_STRING(selected_layer_height_subject_, selected_layer_height_buffer_, "",
+                              "selected_layer_height", subjects_);
+    UI_MANAGED_SUBJECT_STRING(selected_filament_type_subject_, selected_filament_type_buffer_, "",
+                              "selected_filament_type", subjects_);
     // Unified preprint steps (merged file + macro, bulleted list)
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(selected_preprint_steps_subject_,
-                                        selected_preprint_steps_buffer_, "",
-                                        "selected_preprint_steps");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(selected_preprint_steps_visible_subject_, 0,
-                                     "selected_preprint_steps_visible");
+    UI_MANAGED_SUBJECT_STRING(selected_preprint_steps_subject_, selected_preprint_steps_buffer_, "",
+                              "selected_preprint_steps", subjects_);
+    UI_MANAGED_SUBJECT_INT(selected_preprint_steps_visible_subject_, 0,
+                           "selected_preprint_steps_visible", subjects_);
 
     // Initialize detail view visibility subject (0 = hidden, 1 = visible)
-    UI_SUBJECT_INIT_AND_REGISTER_INT(detail_view_visible_subject_, 0, "detail_view_visible");
+    UI_MANAGED_SUBJECT_INT(detail_view_visible_subject_, 0, "detail_view_visible", subjects_);
 
     // Initialize view mode subject (0 = CARD, 1 = LIST) - XML bindings control container visibility
-    UI_SUBJECT_INIT_AND_REGISTER_INT(view_mode_subject_, 0, "print_select_view_mode");
+    UI_MANAGED_SUBJECT_INT(view_mode_subject_, 0, "print_select_view_mode", subjects_);
 
     // Initialize can print subject (1 = can print, 0 = print in progress)
     // XML binding disables print button when value is 0
     bool can_print = printer_state_.can_start_new_print();
-    UI_SUBJECT_INIT_AND_REGISTER_INT(can_print_subject_, can_print ? 1 : 0,
-                                     "print_select_can_print");
+    UI_MANAGED_SUBJECT_INT(can_print_subject_, can_print ? 1 : 0, "print_select_can_print",
+                           subjects_);
 
     // Register XML event callbacks (must be done BEFORE XML is created)
     lv_xml_register_event_cb(nullptr, "on_print_select_view_toggle", on_print_select_view_toggle);
@@ -324,22 +320,8 @@ void PrintSelectPanel::deinit_subjects() {
         return;
     }
 
-    // Deinitialize all 15 subjects in reverse order of initialization
-    lv_subject_deinit(&can_print_subject_);
-    lv_subject_deinit(&view_mode_subject_);
-    lv_subject_deinit(&detail_view_visible_subject_);
-    lv_subject_deinit(&selected_preprint_steps_visible_subject_);
-    lv_subject_deinit(&selected_preprint_steps_subject_);
-    lv_subject_deinit(&selected_filament_type_subject_);
-    lv_subject_deinit(&selected_layer_height_subject_);
-    lv_subject_deinit(&selected_print_height_subject_);
-    lv_subject_deinit(&selected_layer_count_subject_);
-    lv_subject_deinit(&selected_filament_weight_subject_);
-    lv_subject_deinit(&selected_print_time_subject_);
-    lv_subject_deinit(&selected_detail_thumbnail_subject_);
-    lv_subject_deinit(&selected_thumbnail_subject_);
-    lv_subject_deinit(&selected_display_filename_subject_);
-    lv_subject_deinit(&selected_filename_subject_);
+    // SubjectManager handles all subject cleanup via RAII
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[PrintSelectPanel] Subjects deinitialized");

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <lvgl.h>
 #include <memory>
@@ -185,6 +186,9 @@ class PIDCalibrationPanel : public OverlayBase {
     float result_kp_ = 0;
     float result_ki_ = 0;
     float result_kd_ = 0;
+
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // String subjects and buffers for reactive text updates
     lv_subject_t subj_temp_display_;

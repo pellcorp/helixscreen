@@ -13,6 +13,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <memory>
 #include <string>

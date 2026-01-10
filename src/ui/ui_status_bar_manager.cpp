@@ -152,28 +152,25 @@ void StatusBarManager::init_subjects() {
 
     spdlog::debug("[StatusBarManager] Initializing status bar subjects...");
 
-    // Initialize all subjects with default values
+    // Initialize all subjects with default values using managed macros
     // Printer starts disconnected (gray)
-    lv_subject_init_int(&printer_icon_state_subject_, PRINTER_STATE_DISCONNECTED);
+    UI_MANAGED_SUBJECT_INT(printer_icon_state_subject_, PRINTER_STATE_DISCONNECTED,
+                           "printer_icon_state", subjects_);
 
     // Network starts disconnected (gray)
-    lv_subject_init_int(&network_icon_state_subject_, 2); // DISCONNECTED
+    UI_MANAGED_SUBJECT_INT(network_icon_state_subject_, NETWORK_STATE_DISCONNECTED,
+                           "network_icon_state", subjects_);
 
     // Notification badge starts hidden (count = 0)
-    lv_subject_init_int(&notification_count_subject_, 0);
-    lv_subject_init_pointer(&notification_count_text_subject_, notification_count_text_buf_);
-    lv_subject_init_int(&notification_severity_subject_, 0); // INFO
+    UI_MANAGED_SUBJECT_INT(notification_count_subject_, 0, "notification_count", subjects_);
+    UI_MANAGED_SUBJECT_POINTER(notification_count_text_subject_, notification_count_text_buf_,
+                               "notification_count_text", subjects_);
+    UI_MANAGED_SUBJECT_INT(notification_severity_subject_, NOTIFICATION_SEVERITY_INFO,
+                           "notification_severity", subjects_);
 
     // Overlay backdrop starts hidden
-    lv_subject_init_int(&overlay_backdrop_visible_subject_, 0);
-
-    // Register subjects for XML binding
-    lv_xml_register_subject(NULL, "printer_icon_state", &printer_icon_state_subject_);
-    lv_xml_register_subject(NULL, "network_icon_state", &network_icon_state_subject_);
-    lv_xml_register_subject(NULL, "notification_count", &notification_count_subject_);
-    lv_xml_register_subject(NULL, "notification_count_text", &notification_count_text_subject_);
-    lv_xml_register_subject(NULL, "notification_severity", &notification_severity_subject_);
-    lv_xml_register_subject(NULL, "overlay_backdrop_visible", &overlay_backdrop_visible_subject_);
+    UI_MANAGED_SUBJECT_INT(overlay_backdrop_visible_subject_, 0, "overlay_backdrop_visible",
+                           subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[StatusBarManager] Subjects initialized and registered");
@@ -440,12 +437,7 @@ void StatusBarManager::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&printer_icon_state_subject_);
-    lv_subject_deinit(&network_icon_state_subject_);
-    lv_subject_deinit(&notification_count_subject_);
-    lv_subject_deinit(&notification_count_text_subject_);
-    lv_subject_deinit(&notification_severity_subject_);
-    lv_subject_deinit(&overlay_backdrop_visible_subject_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[StatusBarManager] Subjects deinitialized");
 }

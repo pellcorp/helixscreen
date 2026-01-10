@@ -77,38 +77,30 @@ void PIDCalibrationPanel::init_subjects() {
     spdlog::debug("[PIDCal] Initializing subjects");
 
     // Register state subject (shared across all instances)
-    lv_subject_init_int(&s_pid_cal_state, 0);
-    lv_xml_register_subject(nullptr, "pid_cal_state", &s_pid_cal_state);
+    UI_MANAGED_SUBJECT_INT(s_pid_cal_state, 0, "pid_cal_state", subjects_);
 
     // Initialize string subjects with initial values
-    lv_subject_init_string(&subj_temp_display_, buf_temp_display_, nullptr,
-                           sizeof(buf_temp_display_), "200°C");
-    lv_xml_register_subject(nullptr, "pid_temp_display", &subj_temp_display_);
+    UI_MANAGED_SUBJECT_STRING(subj_temp_display_, buf_temp_display_, "200°C", "pid_temp_display",
+                              subjects_);
 
-    lv_subject_init_string(&subj_temp_hint_, buf_temp_hint_, nullptr, sizeof(buf_temp_hint_),
-                           "Recommended: 200°C for extruder");
-    lv_xml_register_subject(nullptr, "pid_temp_hint", &subj_temp_hint_);
+    UI_MANAGED_SUBJECT_STRING(subj_temp_hint_, buf_temp_hint_, "Recommended: 200°C for extruder",
+                              "pid_temp_hint", subjects_);
 
-    lv_subject_init_string(&subj_current_temp_display_, buf_current_temp_display_, nullptr,
-                           sizeof(buf_current_temp_display_), "0.0°C / 0°C");
-    lv_xml_register_subject(nullptr, "pid_current_temp", &subj_current_temp_display_);
+    UI_MANAGED_SUBJECT_STRING(subj_current_temp_display_, buf_current_temp_display_, "0.0°C / 0°C",
+                              "pid_current_temp", subjects_);
 
-    lv_subject_init_string(&subj_calibrating_heater_, buf_calibrating_heater_, nullptr,
-                           sizeof(buf_calibrating_heater_), "Extruder PID Tuning");
-    lv_xml_register_subject(nullptr, "pid_calibrating_heater", &subj_calibrating_heater_);
+    UI_MANAGED_SUBJECT_STRING(subj_calibrating_heater_, buf_calibrating_heater_,
+                              "Extruder PID Tuning", "pid_calibrating_heater", subjects_);
 
-    lv_subject_init_string(&subj_pid_kp_, buf_pid_kp_, nullptr, sizeof(buf_pid_kp_), "0.000");
-    lv_xml_register_subject(nullptr, "pid_kp", &subj_pid_kp_);
+    UI_MANAGED_SUBJECT_STRING(subj_pid_kp_, buf_pid_kp_, "0.000", "pid_kp", subjects_);
 
-    lv_subject_init_string(&subj_pid_ki_, buf_pid_ki_, nullptr, sizeof(buf_pid_ki_), "0.000");
-    lv_xml_register_subject(nullptr, "pid_ki", &subj_pid_ki_);
+    UI_MANAGED_SUBJECT_STRING(subj_pid_ki_, buf_pid_ki_, "0.000", "pid_ki", subjects_);
 
-    lv_subject_init_string(&subj_pid_kd_, buf_pid_kd_, nullptr, sizeof(buf_pid_kd_), "0.000");
-    lv_xml_register_subject(nullptr, "pid_kd", &subj_pid_kd_);
+    UI_MANAGED_SUBJECT_STRING(subj_pid_kd_, buf_pid_kd_, "0.000", "pid_kd", subjects_);
 
-    lv_subject_init_string(&subj_error_message_, buf_error_message_, nullptr,
-                           sizeof(buf_error_message_), "An error occurred during calibration.");
-    lv_xml_register_subject(nullptr, "pid_error_message", &subj_error_message_);
+    UI_MANAGED_SUBJECT_STRING(subj_error_message_, buf_error_message_,
+                              "An error occurred during calibration.", "pid_error_message",
+                              subjects_);
 
     subjects_initialized_ = true;
 
@@ -133,16 +125,8 @@ void PIDCalibrationPanel::deinit_subjects() {
         return;
     }
 
-    // Deinitialize subjects to disconnect observers (Applying [L041])
-    lv_subject_deinit(&s_pid_cal_state); // File-static state machine subject
-    lv_subject_deinit(&subj_temp_display_);
-    lv_subject_deinit(&subj_temp_hint_);
-    lv_subject_deinit(&subj_current_temp_display_);
-    lv_subject_deinit(&subj_calibrating_heater_);
-    lv_subject_deinit(&subj_pid_kp_);
-    lv_subject_deinit(&subj_pid_ki_);
-    lv_subject_deinit(&subj_pid_kd_);
-    lv_subject_deinit(&subj_error_message_);
+    // Deinitialize all subjects via SubjectManager (Applying [L041])
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[PIDCal] Subjects deinitialized");

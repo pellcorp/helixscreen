@@ -47,13 +47,7 @@ InputShaperPanel::~InputShaperPanel() {
     // Deinitialize subjects to disconnect observers before we're destroyed
     // This prevents use-after-free when lv_deinit() later deletes widgets
     if (subjects_initialized_) {
-        lv_subject_deinit(&s_input_shaper_state);
-        for (size_t i = 0; i < MAX_SHAPERS; i++) {
-            lv_subject_deinit(&shaper_visible_subjects_[i]);
-            lv_subject_deinit(&shaper_type_subjects_[i]);
-            lv_subject_deinit(&shaper_freq_subjects_[i]);
-            lv_subject_deinit(&shaper_vib_subjects_[i]);
-        }
+        subjects_.deinit_all();
         subjects_initialized_ = false;
     }
 
@@ -164,8 +158,7 @@ void InputShaperPanel::init_subjects() {
     }
 
     // Initialize state subject for state machine visibility
-    lv_subject_init_int(&s_input_shaper_state, 0);
-    lv_xml_register_subject(nullptr, "input_shaper_state", &s_input_shaper_state);
+    UI_MANAGED_SUBJECT_INT(s_input_shaper_state, 0, "input_shaper_state", subjects_);
 
     // Initialize subjects for reactive results rows (5 shaper types max)
     for (size_t i = 0; i < MAX_SHAPERS; i++) {
@@ -174,28 +167,24 @@ void InputShaperPanel::init_subjects() {
         shaper_freq_bufs_[i][0] = '\0';
         shaper_vib_bufs_[i][0] = '\0';
 
-        // Init subjects - visible defaults to 0 (hidden)
-        lv_subject_init_int(&shaper_visible_subjects_[i], 0);
-        lv_subject_init_string(&shaper_type_subjects_[i], shaper_type_bufs_[i], nullptr,
-                               SHAPER_TYPE_BUF_SIZE, "");
-        lv_subject_init_string(&shaper_freq_subjects_[i], shaper_freq_bufs_[i], nullptr,
-                               SHAPER_VALUE_BUF_SIZE, "");
-        lv_subject_init_string(&shaper_vib_subjects_[i], shaper_vib_bufs_[i], nullptr,
-                               SHAPER_VALUE_BUF_SIZE, "");
+        // Register names for XML bindings
+        char visible_name[48];
+        char type_name[48];
+        char freq_name[48];
+        char vib_name[48];
+        snprintf(visible_name, sizeof(visible_name), "shaper_%zu_visible", i);
+        snprintf(type_name, sizeof(type_name), "shaper_%zu_type", i);
+        snprintf(freq_name, sizeof(freq_name), "shaper_%zu_freq", i);
+        snprintf(vib_name, sizeof(vib_name), "shaper_%zu_vib", i);
 
-        // Register subjects with XML system
-        char reg_name[48];
-        snprintf(reg_name, sizeof(reg_name), "shaper_%zu_visible", i);
-        lv_xml_register_subject(nullptr, reg_name, &shaper_visible_subjects_[i]);
-
-        snprintf(reg_name, sizeof(reg_name), "shaper_%zu_type", i);
-        lv_xml_register_subject(nullptr, reg_name, &shaper_type_subjects_[i]);
-
-        snprintf(reg_name, sizeof(reg_name), "shaper_%zu_freq", i);
-        lv_xml_register_subject(nullptr, reg_name, &shaper_freq_subjects_[i]);
-
-        snprintf(reg_name, sizeof(reg_name), "shaper_%zu_vib", i);
-        lv_xml_register_subject(nullptr, reg_name, &shaper_vib_subjects_[i]);
+        // Init and register subjects with manager - visible defaults to 0 (hidden)
+        UI_MANAGED_SUBJECT_INT(shaper_visible_subjects_[i], 0, visible_name, subjects_);
+        UI_MANAGED_SUBJECT_STRING_N(shaper_type_subjects_[i], shaper_type_bufs_[i],
+                                    SHAPER_TYPE_BUF_SIZE, "", type_name, subjects_);
+        UI_MANAGED_SUBJECT_STRING_N(shaper_freq_subjects_[i], shaper_freq_bufs_[i],
+                                    SHAPER_VALUE_BUF_SIZE, "", freq_name, subjects_);
+        UI_MANAGED_SUBJECT_STRING_N(shaper_vib_subjects_[i], shaper_vib_bufs_[i],
+                                    SHAPER_VALUE_BUF_SIZE, "", vib_name, subjects_);
     }
 
     subjects_initialized_ = true;

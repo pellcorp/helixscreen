@@ -5,6 +5,7 @@
 
 #include "lvgl.h"
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <deque>
 #include <string>
@@ -212,6 +213,7 @@ class ConsolePanel : public OverlayBase {
     bool filter_temps_ = true;       ///< Filter out temperature status messages
 
     // Subjects
+    SubjectManager subjects_;
     char status_buf_[128] = {};
     lv_subject_t status_subject_{};
 
