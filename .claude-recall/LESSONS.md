@@ -15,12 +15,12 @@
 
 
 ### [L004] [****-|-----] Subject init before create
-- **Uses**: 16 | **Velocity**: 0.13 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: pattern | **Type**: informational
+- **Uses**: 16 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: pattern | **Type**: informational
 > Initialize and register subjects BEFORE lv_xml_create(). Order: fonts, images, components, init subjects, register subjects, create UI
 
 
 ### [L007] [***--|-----] XML event callbacks only
-- **Uses**: 8 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-07 | **Category**: correction | **Type**: constraint
+- **Uses**: 10 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-09 | **Category**: correction | **Type**: constraint
 > Never use lv_obj_add_event_cb() in C++. Always use XML event_cb trigger and register with lv_xml_register_event_cb()
 
 
@@ -40,7 +40,7 @@
 
 
 ### [L013] [****-|-----] Callbacks before XML creation
-- **Uses**: 13 | **Velocity**: 0.13 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: correction | **Type**: constraint
+- **Uses**: 13 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-08 | **Category**: correction | **Type**: constraint
 > Register event callbacks with lv_xml_register_event_cb() BEFORE calling lv_xml_create(). XML parser needs callbacks available during creation
 
 
@@ -65,7 +65,7 @@
 
 
 ### [L027] [***--|-----] Worktree initialization
-- **Uses**: 7 | **Velocity**: 0.01 | **Learned**: 2025-12-24 | **Last**: 2026-01-01 | **Category**: pattern | **Type**: constraint
+- **Uses**: 8 | **Velocity**: 0.13 | **Learned**: 2025-12-24 | **Last**: 2026-01-09 | **Category**: pattern | **Type**: constraint
 > When creating a git worktree, ALWAYS run ./scripts/init-worktree.sh BEFORE any commits. Worktrees don't auto-initialize submodules - uninitialized submodules appear as deletions and will be silently removed from git's tree on your next commit.
 
 
@@ -74,13 +74,13 @@
 > LVGL observer callbacks use C-style function signatures (lv_observer_t*, lv_subject_t*) - NOT lambdas. Must pass user_data via lv_observer_get_user_data(observer). Also: lv_subject_set_*() from non-main threads must use ui_async_call() to avoid render-phase assertions.
 
 
-### [L031] [****-|+----] XML no recompile
-- **Uses**: 13 | **Velocity**: 0.51 | **Learned**: 2025-12-27 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
+### [L031] [****-|-----] XML no recompile
+- **Uses**: 14 | **Velocity**: 0.01 | **Learned**: 2025-12-27 | **Last**: 2026-01-09 | **Category**: gotcha | **Type**: constraint
 > XML layout changes (ui_xml/*.xml) don't require recompilation - just restart the app. Only C++ changes need make.
 
 
 ### [L032] [*****|+----] Re-stage after pre-commit format
-- **Uses**: 70 | **Velocity**: 1.08 | **Learned**: 2025-12-27 | **Last**: 2026-01-08 | **Category**: correction | **Type**: constraint
+- **Uses**: 81 | **Velocity**: 1.02 | **Learned**: 2025-12-27 | **Last**: 2026-01-09 | **Category**: correction | **Type**: constraint
 > When pre-commit hook auto-formats files, they are NOT automatically re-staged. Always check git status after a commit and amend if the hook formatted files. Look for 'Auto-formatted: <file>' messages and run 'git add -u && git commit --amend --no-edit'.
 
 
@@ -94,13 +94,8 @@
 > Important files have documentation in their header files (include/*.h). Check the header file first when trying to understand a class or module - it often contains usage examples, design rationale, and API documentation.
 
 
-### [L038] [**---|-----] bind_flag_if_not_eq NOT ne
-- **Uses**: 3 | **Velocity**: 0.01 | **Learned**: 2025-12-29 | **Last**: 2025-12-29 | **Category**: correction | **Type**: constraint
-> LVGL XML uses bind_flag_if_not_eq (NOT bind_flag_if_ne). This typo has caused layout corruption multiple times. The 'ne' abbreviation does NOT exist - always use the full 'not_eq' suffix.
-
-
 ### [L039] [**---|-----] Unique XML callback names
-- **Uses**: 3 | **Velocity**: 0.01 | **Learned**: 2025-12-30 | **Last**: 2025-12-30 | **Category**: pattern | **Type**: constraint
+- **Uses**: 4 | **Velocity**: 0.01 | **Learned**: 2025-12-30 | **Last**: 2026-01-09 | **Category**: pattern | **Type**: constraint
 > All XML event_cb callback names must be globally unique using on_<component>_<action> pattern. LVGL's XML callback registry is a flat global namespace with no scoping. Generic names like on_modal_ok_clicked cause collisions when multiple components register handlers.
 
 
@@ -110,7 +105,7 @@
 
 
 ### [L041] [***--|-----] Subject init/deinit symmetry
-- **Uses**: 9 | **Velocity**: 0.13 | **Learned**: 2025-12-31 | **Last**: 2026-01-08 | **Category**: pattern | **Type**: constraint
+- **Uses**: 9 | **Velocity**: 0.01 | **Learned**: 2025-12-31 | **Last**: 2026-01-08 | **Category**: pattern | **Type**: constraint
 > Every init_subjects() must have a corresponding deinit_subjects() that calls lv_subject_deinit() on each subject. This applies to singletons AND panel classes with local lv_subject_t members.
 
 
@@ -125,7 +120,7 @@
 
 
 ### [L044] [***--|-----] Targeted tests during development
-- **Uses**: 6 | **Velocity**: 0.13 | **Learned**: 2026-01-04 | **Last**: 2026-01-08 | **Category**: preference | **Type**: informational
+- **Uses**: 6 | **Velocity**: 0.01 | **Learned**: 2026-01-04 | **Last**: 2026-01-08 | **Category**: preference | **Type**: informational
 > Run targeted tests with specific tags during implementation (e.g., ./build/bin/helix-tests "[tag]"). Only run full test suite (make test-run) at the end of a feature or phase. Full suite is SLOW - save it for final verification.
 
 
@@ -150,7 +145,7 @@
 
 
 ### [L049] [**---|-----] Test fixture LVGL cleanup
-- **Uses**: 3 | **Velocity**: 0.01 | **Learned**: 2026-01-08 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
+- **Uses**: 4 | **Velocity**: 0.13 | **Learned**: 2026-01-08 | **Last**: 2026-01-09 | **Category**: gotcha | **Type**: constraint
 > Test fixtures using LVGL subjects must: 1) Remove observers before local user_data goes out of scope (lv_observer_remove), 2) Call deinit_subjects() in fixture destructor BEFORE base LVGLTestFixture tears down LVGL. Dangling pointers cause SIGSEGV on test cleanup.
 
 
@@ -159,6 +154,11 @@
 > When context compacts mid-session, agent outputs are summarized away but full content is preserved in the session JSONL. To recover: 1) Find current session file in ~/.claude/projects/<project>/<session-id>.jsonl (use ls -lt to find most recent), 2) Search for agent outputs: grep "tool_result.*agentId" <file>.jsonl, 3) Search for distinctive keywords from lost work to extract full analysis. The JSONL is append-only so nothing is truly lost - compaction only affects Claude's active context window.
 
 
-### [L051] [*----|+----] LVGL timer lifetime safety
-- **Uses**: 2 | **Velocity**: 1.0 | **Learned**: 2026-01-08 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
+### [L051] [*----|-----] LVGL timer lifetime safety
+- **Uses**: 2 | **Velocity**: 0.01 | **Learned**: 2026-01-08 | **Last**: 2026-01-08 | **Category**: gotcha | **Type**: constraint
 > When using lv_timer_create with object pointer as user_data, wrap in struct that captures alive_guard. Check alive_guard BEFORE dereferencing object pointer to prevent use-after-free if object destroyed during timer delay.
+
+
+### [L052] [**---|*----] Tag hv::EventLoop tests as slow
+- **Uses**: 3 | **Velocity**: 2.0 | **Learned**: 2026-01-09 | **Last**: 2026-01-09 | **Category**: gotcha | **Type**: constraint
+> Tests using hv::EventLoop (libhv network operations) MUST be tagged [slow] or they cause parallel test shards to hang indefinitely. This includes fixtures like MoonrakerRobustnessFixture, MoonrakerClientSecurityFixture, NewFeaturesTestFixture, EventTestFixture. The [slow] tag excludes them from default `make test-run` which uses filter `~[.] ~[slow]`.

@@ -1,7 +1,7 @@
 # Testing Infrastructure
 
 **Status:** Active
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-09
 
 ---
 
@@ -31,7 +31,7 @@ Tests are tagged by **feature/importance**, not layer/speed. This enables runnin
 | Tag | Count | Purpose |
 |-----|-------|---------|
 | `[core]` | ~18 | Critical tests - if these fail, the app is fundamentally broken |
-| `[slow]` | ~137 | Tests >500ms - excluded from `test-fast` |
+| `[slow]` | ~185 | Tests with network/timing - excluded from `test-run` |
 
 ### Feature Tags
 
@@ -152,6 +152,87 @@ wait
 | 14 cores | ~100s | ~12s | ~9x |
 
 Use `make test-serial` when debugging failures or reading output.
+
+---
+
+## Excluded Tests Breakdown
+
+The default `make test-run` uses filter `~[.] ~[slow]` to exclude tests that would slow down fast iteration. Here's what's excluded:
+
+### Test Count Summary
+
+| Category | Count | % of Total |
+|----------|------:|------------|
+| **Total tests** | ~1,441 | 100% |
+| **Fast tests** (default run) | ~1,263 | 87.6% |
+| **Slow tests** `[slow]` | ~185 | 12.8% |
+| **Hidden tests** `[.]` | ~57 | 4.0% |
+
+*Note: Some overlap exists between [slow] and [.]*
+
+### Hidden Tests `[.]` (~57 tests)
+
+Hidden tests never run automatically. They require explicit invocation.
+
+| Category | Count | Purpose |
+|----------|------:|---------|
+| `[.][application][integration]` | ~15 | Full app integration tests |
+| `[.][xml_required]` | ~25 | UI tests needing XML components |
+| `[.][ui_integration]` | ~6 | Full LVGL UI integration |
+| `[.][disabled]` | ~4 | Known broken (macOS WiFi, etc.) |
+| `[.][stress]` | ~2 | Stress/threading tests |
+
+### Slow Tests `[slow]` (~185 tests)
+
+Slow tests are excluded from `test-run` but can be run with `make test-slow`.
+
+| File | Count | Why Slow |
+|------|------:|----------|
+| `test_print_history_api.cpp` | 18 | History database operations |
+| `test_moonraker_client_subscription_cancel.cpp` | 17 | WebSocket event loops |
+| `test_moonraker_client_security.cpp` | 14 | Security test fixtures |
+| `test_moonraker_client_robustness.cpp` | 14 | Concurrent access tests |
+| `test_notification_history.cpp` | 13 | History/persistence |
+| `test_moonraker_mock_behavior.cpp` | 12 | Mock client simulation |
+| `test_gcode_streaming_controller.cpp` | 12 | Layer processing loops |
+| `test_moonraker_events.cpp` | 11 | Event dispatch timing |
+| `test_printer_hardware.cpp` | 10 | Hardware detection |
+| `test_spoolman.cpp` | 9 | Spoolman API calls |
+| Other (16 files) | ~55 | Various timing/network tests |
+
+**When to add `[slow]`:**
+- Test creates `hv::EventLoop` (network operations)
+- Test uses `std::this_thread::sleep_for()` for timing
+- Test uses fixtures with network clients (e.g., `MoonrakerClientSecurityFixture`)
+- Test takes >500ms to complete
+
+### Disabled Tests (#if 0)
+
+These tests are completely disabled due to known issues:
+
+| File | Line | Reason |
+|------|------|--------|
+| `test_moonraker_client_robustness.cpp` | 555 | `send_jsonrpc` returns -1 instead of 0 when disconnected |
+| `test_moonraker_client_security.cpp` | 690 | Segmentation fault (object lifetime issues) |
+
+### Running Excluded Tests
+
+```bash
+# Run slow tests only
+make test-slow
+
+# Run all tests (slow + fast, but not hidden)
+make test-all
+
+# Run specific hidden tests
+./build/bin/helix-tests "[.][application][integration]"
+
+# List all hidden tests
+./build/bin/helix-tests "[.]" --list-tests
+
+# List all slow tests
+./build/bin/helix-tests "[slow]" --list-tests
+```
 
 ---
 
