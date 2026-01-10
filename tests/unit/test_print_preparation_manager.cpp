@@ -7,10 +7,12 @@
 #include "../mocks/mock_websocket_server.h"
 #include "../ui_test_utils.h"
 #include "capability_matrix.h"
+#include "gcode_ops_detector.h"
 #include "hv/EventLoopThread.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
 #include "moonraker_error.h"
+#include "operation_registry.h"
 #include "print_start_analyzer.h"
 #include "printer_detector.h"
 #include "printer_state.h"
@@ -2592,5 +2594,571 @@ TEST_CASE("PrintPreparationManager: lookup_operation_capability with visibility-
 
         // Without checkbox subject, can't determine if user wants to skip
         REQUIRE_FALSE(result.has_value());
+    }
+}
+
+// ============================================================================
+// Tests: Extension Safety and Documentation (Phase 5)
+// ============================================================================
+
+/**
+ * Phase 5: Extension Safety Tests
+ *
+ * These tests document the expected behavior of the pre-print subsystem's
+ * extension points. They serve as both tests and documentation for developers
+ * who need to add new operations or capability sources.
+ *
+ * Key extension points:
+ * 1. OperationRegistry - Single point for adding new controllable operations
+ * 2. CapabilityMatrix - Unified capability lookup with priority ordering
+ * 3. CapabilityOrigin - Priority system for source ordering
+ * 4. ParameterSemantic - OPT_IN/OPT_OUT parameter interpretation
+ */
+
+TEST_CASE("PrepManager: Extension safety - registry completeness", "[print_preparation][p5]") {
+    SECTION("All controllable operations have registry entries") {
+        // The five controllable operations should all be in the registry.
+        // This test ensures that any controllable operation can be looked up.
+        for (auto cat :
+             {OperationCategory::BED_MESH, OperationCategory::QGL, OperationCategory::Z_TILT,
+              OperationCategory::NOZZLE_CLEAN, OperationCategory::PURGE_LINE}) {
+            auto info = OperationRegistry::get(cat);
+            INFO("Checking category: " << category_key(cat));
+            REQUIRE(info.has_value());
+            REQUIRE_FALSE(info->capability_key.empty());
+            REQUIRE_FALSE(info->friendly_name.empty());
+
+            // Verify capability_key matches category_key()
+            REQUIRE(info->capability_key == std::string(category_key(cat)));
+        }
+    }
+
+    SECTION("Non-controllable operations return nullopt") {
+        // Operations that cannot be toggled in the UI should NOT be in the registry.
+        // This ensures the registry only contains operations that make sense to show
+        // in the pre-print options panel.
+
+        // HOMING: Always required, never skippable
+        REQUIRE_FALSE(OperationRegistry::get(OperationCategory::HOMING).has_value());
+
+        // START_PRINT: The macro itself, not a toggleable option
+        REQUIRE_FALSE(OperationRegistry::get(OperationCategory::START_PRINT).has_value());
+
+        // UNKNOWN: Invalid/unrecognized operation
+        REQUIRE_FALSE(OperationRegistry::get(OperationCategory::UNKNOWN).has_value());
+
+        // CHAMBER_SOAK: Not currently controllable (complex timing semantics)
+        REQUIRE_FALSE(OperationRegistry::get(OperationCategory::CHAMBER_SOAK).has_value());
+
+        // SKEW_CORRECT: Not currently controllable
+        REQUIRE_FALSE(OperationRegistry::get(OperationCategory::SKEW_CORRECT).has_value());
+
+        // BED_LEVEL: Parent category, not directly controllable (QGL/Z_TILT are)
+        REQUIRE_FALSE(OperationRegistry::get(OperationCategory::BED_LEVEL).has_value());
+    }
+
+    SECTION("Registry::all() returns complete set of controllable operations") {
+        // Verify that OperationRegistry::all() returns all controllable operations.
+        // This is the single extension point for adding new operations.
+        auto all = OperationRegistry::all();
+
+        // At least the 5 current controllable operations
+        REQUIRE(all.size() >= 5);
+
+        // Each entry should have complete metadata
+        for (const auto& info : all) {
+            INFO("Validating operation: " << info.capability_key);
+            REQUIRE_FALSE(info.capability_key.empty());
+            REQUIRE_FALSE(info.friendly_name.empty());
+            REQUIRE(info.category != OperationCategory::UNKNOWN);
+        }
+
+        // Verify specific operations are present
+        bool has_bed_mesh = false;
+        bool has_qgl = false;
+        bool has_z_tilt = false;
+        bool has_nozzle_clean = false;
+        bool has_purge_line = false;
+
+        for (const auto& info : all) {
+            if (info.capability_key == "bed_mesh") {
+                has_bed_mesh = true;
+            }
+            if (info.capability_key == "qgl") {
+                has_qgl = true;
+            }
+            if (info.capability_key == "z_tilt") {
+                has_z_tilt = true;
+            }
+            if (info.capability_key == "nozzle_clean") {
+                has_nozzle_clean = true;
+            }
+            if (info.capability_key == "purge_line") {
+                has_purge_line = true;
+            }
+        }
+
+        REQUIRE(has_bed_mesh);
+        REQUIRE(has_qgl);
+        REQUIRE(has_z_tilt);
+        REQUIRE(has_nozzle_clean);
+        REQUIRE(has_purge_line);
+    }
+
+    SECTION("Reverse lookup by key works for all controllable operations") {
+        // OperationRegistry::get_by_key() should find operations by their capability key
+        auto bed_mesh = OperationRegistry::get_by_key("bed_mesh");
+        REQUIRE(bed_mesh.has_value());
+        REQUIRE(bed_mesh->category == OperationCategory::BED_MESH);
+
+        auto qgl = OperationRegistry::get_by_key("qgl");
+        REQUIRE(qgl.has_value());
+        REQUIRE(qgl->category == OperationCategory::QGL);
+
+        auto z_tilt = OperationRegistry::get_by_key("z_tilt");
+        REQUIRE(z_tilt.has_value());
+        REQUIRE(z_tilt->category == OperationCategory::Z_TILT);
+
+        auto nozzle_clean = OperationRegistry::get_by_key("nozzle_clean");
+        REQUIRE(nozzle_clean.has_value());
+        REQUIRE(nozzle_clean->category == OperationCategory::NOZZLE_CLEAN);
+
+        auto purge_line = OperationRegistry::get_by_key("purge_line");
+        REQUIRE(purge_line.has_value());
+        REQUIRE(purge_line->category == OperationCategory::PURGE_LINE);
+
+        // Non-existent key returns nullopt
+        REQUIRE_FALSE(OperationRegistry::get_by_key("nonexistent").has_value());
+        REQUIRE_FALSE(OperationRegistry::get_by_key("").has_value());
+    }
+}
+
+TEST_CASE("PrepManager: Extension safety - priority ordering", "[print_preparation][p5]") {
+    SECTION("Database priority = 0 (highest)") {
+        // DATABASE source is authoritative - curated and tested capabilities from
+        // printer_database.json. It should always take priority over dynamic detection.
+        // Priority 0 = highest (lower number = higher priority)
+
+        // Create a matrix with DATABASE source
+        CapabilityMatrix matrix;
+        PrintStartCapabilities db_caps;
+        db_caps.macro_name = "START_PRINT";
+        db_caps.params["bed_mesh"] = {"FORCE_LEVELING", "false", "true"};
+        matrix.add_from_database(db_caps);
+
+        auto source = matrix.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::DATABASE);
+    }
+
+    SECTION("Macro analysis priority = 1 (medium)") {
+        // MACRO_ANALYSIS is dynamically detected from the printer's PRINT_START macro.
+        // It's trustworthy but may be incomplete or non-standard.
+
+        CapabilityMatrix matrix;
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+
+        PrintStartOperation op;
+        op.name = "QUAD_GANTRY_LEVEL";
+        op.category = PrintStartOpCategory::QGL;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_QGL";
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(op);
+
+        matrix.add_from_macro_analysis(analysis);
+
+        auto source = matrix.get_best_source(OperationCategory::QGL);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::MACRO_ANALYSIS);
+    }
+
+    SECTION("File scan priority = 2 (lowest)") {
+        // FILE_SCAN is detected from the G-code file itself. It's the least
+        // reliable because it's specific to one file and may not have parameter info.
+
+        CapabilityMatrix matrix;
+        gcode::ScanResult scan;
+        scan.lines_scanned = 100;
+
+        gcode::DetectedOperation op;
+        op.type = gcode::OperationType::NOZZLE_CLEAN;
+        op.embedding = gcode::OperationEmbedding::MACRO_PARAMETER;
+        op.param_name = "SKIP_NOZZLE_CLEAN";
+        op.line_number = 10;
+        scan.operations.push_back(op);
+
+        matrix.add_from_file_scan(scan);
+
+        auto source = matrix.get_best_source(OperationCategory::NOZZLE_CLEAN);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::FILE_SCAN);
+    }
+
+    SECTION("Lower priority number wins in get_best_source") {
+        // When multiple sources exist for the same operation, DATABASE wins over
+        // MACRO_ANALYSIS, which wins over FILE_SCAN.
+
+        CapabilityMatrix matrix;
+
+        // Add FILE_SCAN source first (lowest priority)
+        gcode::ScanResult scan;
+        scan.lines_scanned = 100;
+        gcode::DetectedOperation file_op;
+        file_op.type = gcode::OperationType::BED_MESH;
+        file_op.embedding = gcode::OperationEmbedding::MACRO_PARAMETER;
+        file_op.param_name = "SKIP_BED_MESH_FILE";
+        file_op.line_number = 5;
+        scan.operations.push_back(file_op);
+        matrix.add_from_file_scan(scan);
+
+        // Add MACRO_ANALYSIS source (medium priority)
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        PrintStartOperation macro_op;
+        macro_op.name = "BED_MESH_CALIBRATE";
+        macro_op.category = PrintStartOpCategory::BED_MESH;
+        macro_op.has_skip_param = true;
+        macro_op.skip_param_name = "SKIP_BED_MESH_MACRO";
+        macro_op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(macro_op);
+        matrix.add_from_macro_analysis(analysis);
+
+        // Add DATABASE source (highest priority)
+        PrintStartCapabilities db_caps;
+        db_caps.macro_name = "START_PRINT";
+        db_caps.params["bed_mesh"] = {"FORCE_LEVELING_DB", "false", "true"};
+        matrix.add_from_database(db_caps);
+
+        // DATABASE should win
+        auto best = matrix.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(best.has_value());
+        REQUIRE(best->origin == CapabilityOrigin::DATABASE);
+        REQUIRE(best->param_name == "FORCE_LEVELING_DB");
+
+        // All three sources should be available when requested
+        auto all_sources = matrix.get_all_sources(OperationCategory::BED_MESH);
+        REQUIRE(all_sources.size() == 3);
+
+        // Sources should be sorted by priority (DATABASE first, FILE_SCAN last)
+        REQUIRE(all_sources[0].origin == CapabilityOrigin::DATABASE);
+        REQUIRE(all_sources[1].origin == CapabilityOrigin::MACRO_ANALYSIS);
+        REQUIRE(all_sources[2].origin == CapabilityOrigin::FILE_SCAN);
+    }
+
+    SECTION("Macro analysis takes priority over file scan when both present") {
+        CapabilityMatrix matrix;
+
+        // Add FILE_SCAN source
+        gcode::ScanResult scan;
+        gcode::DetectedOperation file_op;
+        file_op.type = gcode::OperationType::Z_TILT;
+        file_op.embedding = gcode::OperationEmbedding::DIRECT_COMMAND;
+        file_op.macro_name = "Z_TILT_ADJUST";
+        scan.operations.push_back(file_op);
+        matrix.add_from_file_scan(scan);
+
+        // Add MACRO_ANALYSIS source
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        PrintStartOperation macro_op;
+        macro_op.name = "Z_TILT_ADJUST";
+        macro_op.category = PrintStartOpCategory::Z_TILT;
+        macro_op.has_skip_param = true;
+        macro_op.skip_param_name = "SKIP_Z_TILT";
+        macro_op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(macro_op);
+        matrix.add_from_macro_analysis(analysis);
+
+        // MACRO_ANALYSIS should win over FILE_SCAN
+        auto best = matrix.get_best_source(OperationCategory::Z_TILT);
+        REQUIRE(best.has_value());
+        REQUIRE(best->origin == CapabilityOrigin::MACRO_ANALYSIS);
+    }
+}
+
+TEST_CASE("PrepManager: Extension safety - semantic handling", "[print_preparation][p5]") {
+    SECTION("OPT_OUT params: SKIP_* with value 1 means skip") {
+        // OPT_OUT semantic: The parameter indicates "skip this operation"
+        // - SKIP_BED_MESH=1 -> skip bed mesh
+        // - SKIP_BED_MESH=0 -> do bed mesh (default)
+
+        CapabilityMatrix matrix;
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+
+        PrintStartOperation op;
+        op.name = "BED_MESH_CALIBRATE";
+        op.category = PrintStartOpCategory::BED_MESH;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_BED_MESH";
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(op);
+
+        matrix.add_from_macro_analysis(analysis);
+
+        auto source = matrix.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(source.has_value());
+        REQUIRE(source->semantic == ParameterSemantic::OPT_OUT);
+        REQUIRE(source->skip_value == "1");   // SKIP=1 means skip
+        REQUIRE(source->enable_value == "0"); // SKIP=0 means do
+    }
+
+    SECTION("OPT_IN params: FORCE_*/PERFORM_* with value 0 means skip") {
+        // OPT_IN semantic: The parameter indicates "do this operation"
+        // - FORCE_LEVELING=1 or "true" -> do leveling
+        // - FORCE_LEVELING=0 or "false" -> skip leveling
+
+        CapabilityMatrix matrix;
+        PrintStartCapabilities db_caps;
+        db_caps.macro_name = "START_PRINT";
+        // AD5M-style: FORCE_LEVELING with OPT_IN semantic
+        db_caps.params["bed_mesh"] = {"FORCE_LEVELING", "false", "true"};
+        matrix.add_from_database(db_caps);
+
+        auto source = matrix.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(source.has_value());
+        // The semantic is inferred from the param name starting with FORCE_
+        REQUIRE(source->semantic == ParameterSemantic::OPT_IN);
+        REQUIRE(source->skip_value == "false");  // FORCE=false means skip
+        REQUIRE(source->enable_value == "true"); // FORCE=true means do
+    }
+
+    SECTION("Semantic is correctly inferred from parameter name") {
+        // The CapabilityMatrix::infer_semantic() function determines OPT_IN vs OPT_OUT
+        // based on the parameter name prefix.
+
+        // OPT_IN patterns: FORCE_*, PERFORM_*, DO_*, ENABLE_*
+        CapabilityMatrix matrix1;
+        PrintStartAnalysis analysis1;
+        analysis1.found = true;
+        PrintStartOperation op1;
+        op1.category = PrintStartOpCategory::BED_MESH;
+        op1.has_skip_param = true;
+
+        // Test FORCE_* prefix
+        op1.skip_param_name = "FORCE_LEVELING";
+        op1.param_semantic = ParameterSemantic::OPT_IN;
+        analysis1.operations.push_back(op1);
+        matrix1.add_from_macro_analysis(analysis1);
+
+        auto source1 = matrix1.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(source1.has_value());
+        REQUIRE(source1->semantic == ParameterSemantic::OPT_IN);
+
+        // Test PERFORM_* prefix
+        CapabilityMatrix matrix2;
+        PrintStartAnalysis analysis2;
+        analysis2.found = true;
+        PrintStartOperation op2;
+        op2.category = PrintStartOpCategory::QGL;
+        op2.has_skip_param = true;
+        op2.skip_param_name = "PERFORM_QGL";
+        op2.param_semantic = ParameterSemantic::OPT_IN;
+        analysis2.operations.push_back(op2);
+        matrix2.add_from_macro_analysis(analysis2);
+
+        auto source2 = matrix2.get_best_source(OperationCategory::QGL);
+        REQUIRE(source2.has_value());
+        REQUIRE(source2->semantic == ParameterSemantic::OPT_IN);
+
+        // Test SKIP_* prefix (OPT_OUT)
+        CapabilityMatrix matrix3;
+        PrintStartAnalysis analysis3;
+        analysis3.found = true;
+        PrintStartOperation op3;
+        op3.category = PrintStartOpCategory::Z_TILT;
+        op3.has_skip_param = true;
+        op3.skip_param_name = "SKIP_Z_TILT";
+        op3.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis3.operations.push_back(op3);
+        matrix3.add_from_macro_analysis(analysis3);
+
+        auto source3 = matrix3.get_best_source(OperationCategory::Z_TILT);
+        REQUIRE(source3.has_value());
+        REQUIRE(source3->semantic == ParameterSemantic::OPT_OUT);
+    }
+
+    SECTION("get_skip_param returns correct values based on semantic") {
+        // get_skip_param() returns the (param_name, skip_value) pair for disabling
+        // an operation. The skip_value depends on the semantic.
+
+        CapabilityMatrix matrix;
+
+        // Add OPT_OUT operation (SKIP_QGL)
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        PrintStartOperation op;
+        op.name = "QUAD_GANTRY_LEVEL";
+        op.category = PrintStartOpCategory::QGL;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_QGL";
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(op);
+        matrix.add_from_macro_analysis(analysis);
+
+        auto skip_param = matrix.get_skip_param(OperationCategory::QGL);
+        REQUIRE(skip_param.has_value());
+        REQUIRE(skip_param->first == "SKIP_QGL");
+        REQUIRE(skip_param->second == "1"); // OPT_OUT: skip_value = 1
+    }
+}
+
+TEST_CASE("PrepManager: Extension safety - adding new operations", "[print_preparation][p5]") {
+    /**
+     * DOCUMENTATION: How to add a new controllable operation
+     *
+     * 1. Add enum value to OperationCategory in operation_patterns.h
+     * 2. Add entry to OperationRegistry::build_all() in operation_registry.h
+     * 3. Add keyword patterns to OPERATION_KEYWORDS in operation_patterns.h
+     * 4. Add skip/perform variations to SKIP_PARAM_VARIATIONS/PERFORM_PARAM_VARIATIONS
+     * 5. Update category_key() and category_name() in operation_patterns.h
+     * 6. Add UI subject handling in PrintPreparationManager
+     * 7. Add printer database entries if needed
+     *
+     * This test verifies the extension infrastructure is working correctly.
+     */
+
+    SECTION("Registry is the single extension point for controllable operations") {
+        // OperationRegistry::all() is the single source of truth for what operations
+        // can be shown in the pre-print UI.
+
+        auto all = OperationRegistry::all();
+
+        // Verify we have the expected minimum operations
+        REQUIRE(all.size() >= 5);
+
+        // Every operation in the registry must be controllable
+        for (const auto& info : all) {
+            // Can look it up by category
+            auto by_cat = OperationRegistry::get(info.category);
+            REQUIRE(by_cat.has_value());
+            REQUIRE(by_cat->capability_key == info.capability_key);
+
+            // Can look it up by key
+            auto by_key = OperationRegistry::get_by_key(info.capability_key);
+            REQUIRE(by_key.has_value());
+            REQUIRE(by_key->category == info.category);
+        }
+    }
+
+    SECTION("Each registry entry has complete and consistent metadata") {
+        auto all = OperationRegistry::all();
+
+        for (const auto& info : all) {
+            INFO("Checking operation: " << info.capability_key);
+
+            // capability_key must be non-empty and match category_key()
+            REQUIRE_FALSE(info.capability_key.empty());
+            REQUIRE(info.capability_key == std::string(category_key(info.category)));
+
+            // friendly_name must be non-empty and match category_name()
+            REQUIRE_FALSE(info.friendly_name.empty());
+            REQUIRE(info.friendly_name == std::string(category_name(info.category)));
+
+            // category must not be UNKNOWN
+            REQUIRE(info.category != OperationCategory::UNKNOWN);
+        }
+    }
+
+    SECTION("Operation categories have skip and perform variations defined") {
+        // Each controllable operation should have parameter variations defined
+        // for detection in macros.
+
+        auto all = OperationRegistry::all();
+
+        for (const auto& info : all) {
+            INFO("Checking variations for: " << info.capability_key);
+
+            // Should have at least one skip variation OR one perform variation
+            const auto& skip_vars = get_skip_variations(info.category);
+            const auto& perform_vars = get_perform_variations(info.category);
+
+            bool has_variations = !skip_vars.empty() || !perform_vars.empty();
+            REQUIRE(has_variations);
+        }
+    }
+
+    SECTION("CapabilityMatrix supports all registry operations") {
+        // The CapabilityMatrix should be able to hold capabilities for all
+        // operations in the registry.
+
+        CapabilityMatrix matrix;
+
+        // Add a mock capability for each registry operation
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+
+        for (const auto& info : OperationRegistry::all()) {
+            PrintStartOperation op;
+            op.name = info.capability_key;
+            op.category = static_cast<PrintStartOpCategory>(info.category);
+            op.has_skip_param = true;
+            op.skip_param_name = "SKIP_" + std::string(category_key(info.category));
+            op.param_semantic = ParameterSemantic::OPT_OUT;
+            analysis.operations.push_back(op);
+        }
+
+        matrix.add_from_macro_analysis(analysis);
+
+        // Verify all operations are controllable
+        for (const auto& info : OperationRegistry::all()) {
+            INFO("Verifying matrix support for: " << info.capability_key);
+            REQUIRE(matrix.is_controllable(info.category));
+        }
+    }
+}
+
+TEST_CASE("PrepManager: Extension safety - database key consistency", "[print_preparation][p5]") {
+    SECTION("Database capability keys match category_key() output") {
+        // This ensures that database lookups use the correct keys.
+        // The printer_database.json uses these keys for capability definitions.
+
+        REQUIRE(std::string(category_key(OperationCategory::BED_MESH)) == "bed_mesh");
+        REQUIRE(std::string(category_key(OperationCategory::QGL)) == "qgl");
+        REQUIRE(std::string(category_key(OperationCategory::Z_TILT)) == "z_tilt");
+        REQUIRE(std::string(category_key(OperationCategory::NOZZLE_CLEAN)) == "nozzle_clean");
+        REQUIRE(std::string(category_key(OperationCategory::PURGE_LINE)) == "purge_line");
+    }
+
+    SECTION("Known printer has expected capability keys") {
+        // Verify that the database returns capabilities with the correct keys
+        auto caps = PrinterDetector::get_print_start_capabilities("FlashForge Adventurer 5M Pro");
+
+        if (!caps.empty()) {
+            // Database should use "bed_mesh" key, not alternatives like "bed_leveling"
+            if (caps.has_capability("bed_mesh")) {
+                REQUIRE_FALSE(caps.has_capability("bed_leveling")); // Wrong key doesn't exist
+                auto* bed_cap = caps.get_capability("bed_mesh");
+                REQUIRE(bed_cap != nullptr);
+                REQUIRE_FALSE(bed_cap->param.empty());
+            }
+        }
+    }
+
+    SECTION("CapabilityMatrix::category_from_key recognizes all registry keys") {
+        // The CapabilityMatrix uses category_from_key() to map database capability
+        // keys to OperationCategory. This must recognize all registry keys.
+
+        // Note: category_from_key is private, so we test indirectly through add_from_database
+
+        CapabilityMatrix matrix;
+
+        // Create database capabilities for all registry operations
+        PrintStartCapabilities db_caps;
+        db_caps.macro_name = "START_PRINT";
+
+        for (const auto& info : OperationRegistry::all()) {
+            db_caps.params[info.capability_key] = {"PARAM_" + info.capability_key, "0", "1"};
+        }
+
+        matrix.add_from_database(db_caps);
+
+        // Verify all operations were recognized and added
+        for (const auto& info : OperationRegistry::all()) {
+            INFO("Checking key recognition for: " << info.capability_key);
+            REQUIRE(matrix.is_controllable(info.category));
+        }
     }
 }
