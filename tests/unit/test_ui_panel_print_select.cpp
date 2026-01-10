@@ -525,8 +525,6 @@ TEST_CASE("Print Select: Metadata - file size formatting", "[ui][metadata]") {
 }
 
 TEST_CASE("Print Select: Metadata - modified date formatting", "[ui][metadata]") {
-    time_t now = time(nullptr);
-
     SECTION("Recent file") {
         PrintFileData file = create_test_file("test.gcode", 1024, 1, 100, 50.0f);
         REQUIRE(!file.modified_str.empty());

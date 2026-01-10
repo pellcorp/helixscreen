@@ -4,10 +4,9 @@
 #include "ui_print_preparation_manager.h"
 #include "ui_update_queue.h"
 
-#include "capability_matrix.h"
-
 #include "../mocks/mock_websocket_server.h"
 #include "../ui_test_utils.h"
+#include "capability_matrix.h"
 #include "hv/EventLoopThread.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
@@ -1239,6 +1238,7 @@ class MacroAnalysisRetryFixture {
 
         // Handler that fails N times, then succeeds
         server_->on_method("server.files.list", [this](const json& params) -> json {
+            (void)params;
             list_files_call_count_++;
             {
                 std::lock_guard<std::mutex> lock(call_times_mutex_);
@@ -1937,5 +1937,312 @@ TEST_CASE("PrintPreparationManager: collect_ops_to_disable uses subjects exclusi
         REQUIRE(options.qgl == false);          // hidden
         REQUIRE(options.z_tilt == true);        // visible + checked
         REQUIRE(options.nozzle_clean == false); // hidden
+    }
+}
+
+// ============================================================================
+// Tests: CapabilityMatrix Integration (P3)
+// ============================================================================
+
+/**
+ * @brief Phase 3 Tests: CapabilityMatrix integration into PrintPreparationManager
+ *
+ * TDD Approach: These tests are written BEFORE implementation.
+ * They will FAIL to compile initially because build_capability_matrix() doesn't exist.
+ */
+
+TEST_CASE("PrintPreparationManager: build_capability_matrix", "[print_preparation][p3]") {
+    lv_init_safe();
+    PrintPreparationManager manager;
+
+    SECTION("Returns empty matrix when no data available") {
+        // Without any dependencies set, matrix should be empty
+        auto matrix = manager.build_capability_matrix();
+        REQUIRE_FALSE(matrix.has_any_controllable());
+        REQUIRE(matrix.get_controllable_operations().empty());
+    }
+
+    SECTION("Includes database capabilities when printer detected") {
+        // Set up manager with PrinterState that has a known printer type
+        PrinterState printer_state;
+        printer_state.init_subjects(false); // No XML registration for tests
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+
+        manager.set_dependencies(nullptr, &printer_state);
+
+        auto matrix = manager.build_capability_matrix();
+
+        // AD5M Pro has bed_mesh capability in database
+        REQUIRE(matrix.has_any_controllable());
+        REQUIRE(matrix.is_controllable(OperationCategory::BED_MESH));
+
+        // Verify source is from DATABASE
+        auto source = matrix.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::DATABASE);
+        REQUIRE(source->param_name == "FORCE_LEVELING");
+    }
+
+    SECTION("Includes macro analysis when available") {
+        // Create and set a mock macro analysis
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+
+        // Add a controllable operation (QGL with SKIP_QGL param)
+        PrintStartOperation op;
+        op.name = "QUAD_GANTRY_LEVEL";
+        op.category = PrintStartOpCategory::QGL;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_QGL";
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        op.line_number = 15;
+        analysis.operations.push_back(op);
+        analysis.controllable_count = 1;
+        analysis.is_controllable = true;
+
+        // Use set_macro_analysis to inject the analysis (new method needed)
+        manager.set_macro_analysis(analysis);
+
+        auto matrix = manager.build_capability_matrix();
+
+        // QGL should be controllable from macro analysis
+        REQUIRE(matrix.is_controllable(OperationCategory::QGL));
+
+        auto source = matrix.get_best_source(OperationCategory::QGL);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::MACRO_ANALYSIS);
+        REQUIRE(source->param_name == "SKIP_QGL");
+    }
+
+    SECTION("Includes file scan when available") {
+        // Create and set a mock scan result
+        gcode::ScanResult scan;
+        scan.lines_scanned = 100;
+        scan.bytes_scanned = 5000;
+
+        // Add a detected operation (direct command)
+        gcode::DetectedOperation op;
+        op.type = gcode::OperationType::NOZZLE_CLEAN;
+        op.embedding = gcode::OperationEmbedding::MACRO_CALL;
+        op.macro_name = "CLEAN_NOZZLE";
+        op.line_number = 25;
+        scan.operations.push_back(op);
+
+        // Use set_cached_scan_result to inject (new method or use existing mechanism)
+        manager.set_cached_scan_result(scan, "test_file.gcode");
+
+        auto matrix = manager.build_capability_matrix();
+
+        // NOZZLE_CLEAN should be controllable from file scan
+        REQUIRE(matrix.is_controllable(OperationCategory::NOZZLE_CLEAN));
+
+        auto source = matrix.get_best_source(OperationCategory::NOZZLE_CLEAN);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::FILE_SCAN);
+        REQUIRE(source->line_number == 25);
+    }
+}
+
+TEST_CASE("PrintPreparationManager: capability priority ordering", "[print_preparation][p3]") {
+    lv_init_safe();
+    PrintPreparationManager manager;
+
+    SECTION("Database takes priority over macro analysis") {
+        // Set up PrinterState with AD5M Pro (has database bed_mesh capability)
+        PrinterState printer_state;
+        printer_state.init_subjects(false);
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+        manager.set_dependencies(nullptr, &printer_state);
+
+        // Also add a macro analysis for the same operation (BED_MESH)
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+
+        PrintStartOperation op;
+        op.name = "BED_MESH_CALIBRATE";
+        op.category = PrintStartOpCategory::BED_MESH;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_BED_MESH"; // Different param than database
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(op);
+        analysis.controllable_count = 1;
+        analysis.is_controllable = true;
+
+        manager.set_macro_analysis(analysis);
+
+        auto matrix = manager.build_capability_matrix();
+
+        // Database should win - FORCE_LEVELING, not SKIP_BED_MESH
+        auto source = matrix.get_best_source(OperationCategory::BED_MESH);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::DATABASE);
+        REQUIRE(source->param_name == "FORCE_LEVELING");
+
+        // But both sources should exist
+        auto all_sources = matrix.get_all_sources(OperationCategory::BED_MESH);
+        REQUIRE(all_sources.size() == 2);
+        REQUIRE(all_sources[0].origin == CapabilityOrigin::DATABASE); // First = best
+        REQUIRE(all_sources[1].origin == CapabilityOrigin::MACRO_ANALYSIS);
+    }
+
+    SECTION("Macro analysis takes priority over file scan") {
+        // Set up macro analysis for QGL
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+
+        PrintStartOperation op;
+        op.name = "QUAD_GANTRY_LEVEL";
+        op.category = PrintStartOpCategory::QGL;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_QGL";
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(op);
+
+        manager.set_macro_analysis(analysis);
+
+        // Also add a file scan for the same operation
+        gcode::ScanResult scan;
+        scan.lines_scanned = 100;
+        gcode::DetectedOperation file_op;
+        file_op.type = gcode::OperationType::QGL;
+        file_op.embedding = gcode::OperationEmbedding::DIRECT_COMMAND;
+        file_op.macro_name = "QUAD_GANTRY_LEVEL";
+        file_op.line_number = 50;
+        scan.operations.push_back(file_op);
+
+        manager.set_cached_scan_result(scan, "test.gcode");
+
+        auto matrix = manager.build_capability_matrix();
+
+        // Macro analysis should win
+        auto source = matrix.get_best_source(OperationCategory::QGL);
+        REQUIRE(source.has_value());
+        REQUIRE(source->origin == CapabilityOrigin::MACRO_ANALYSIS);
+
+        // Both sources exist
+        auto all_sources = matrix.get_all_sources(OperationCategory::QGL);
+        REQUIRE(all_sources.size() == 2);
+        REQUIRE(all_sources[0].origin == CapabilityOrigin::MACRO_ANALYSIS);
+        REQUIRE(all_sources[1].origin == CapabilityOrigin::FILE_SCAN);
+    }
+}
+
+TEST_CASE("PrintPreparationManager: collect_macro_skip_params with matrix",
+          "[print_preparation][p3]") {
+    lv_init_safe();
+    PrintPreparationManager manager;
+    PreprintSubjectsFixture subjects;
+    subjects.init_all_subjects();
+
+    // Set up manager with subjects
+    manager.set_preprint_subjects(&subjects.preprint_bed_mesh, &subjects.preprint_qgl,
+                                  &subjects.preprint_z_tilt, &subjects.preprint_nozzle_clean,
+                                  &subjects.preprint_purge_line, &subjects.preprint_timelapse);
+    manager.set_preprint_visibility_subjects(
+        &subjects.can_show_bed_mesh, &subjects.can_show_qgl, &subjects.can_show_z_tilt,
+        &subjects.can_show_nozzle_clean, &subjects.can_show_purge_line,
+        &subjects.can_show_timelapse);
+
+    SECTION("Returns skip params from best source") {
+        // Set up PrinterState with AD5M Pro (database source)
+        PrinterState printer_state;
+        printer_state.init_subjects(false);
+        printer_state.set_printer_type_sync("FlashForge Adventurer 5M Pro");
+        manager.set_dependencies(nullptr, &printer_state);
+
+        // Make bed_mesh visible but UNCHECKED (user wants to disable)
+        lv_subject_set_int(&subjects.can_show_bed_mesh, 1); // visible
+        lv_subject_set_int(&subjects.preprint_bed_mesh, 0); // unchecked = skip
+
+        // NOTE: collect_macro_skip_params() is private. This test uses the new
+        // public test accessor method: get_skip_params_for_testing()
+        // Implementation should add this method or make collect_macro_skip_params public.
+        auto skip_params = manager.get_skip_params_for_testing();
+
+        // Should have one param for bed_mesh using database source
+        REQUIRE(skip_params.size() >= 1);
+
+        // Find the bed_mesh param
+        bool found_force_leveling = false;
+        for (const auto& [param, value] : skip_params) {
+            if (param == "FORCE_LEVELING") {
+                found_force_leveling = true;
+                // AD5M uses FORCE_LEVELING which is OPT_IN semantic
+                // When user unchecks, we need to set to skip_value ("false")
+                REQUIRE(value == "false");
+            }
+        }
+        REQUIRE(found_force_leveling);
+    }
+
+    SECTION("Handles OPT_IN semantic correctly") {
+        // Set up macro analysis with OPT_IN semantic (FORCE_LEVELING style)
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+
+        PrintStartOperation op;
+        op.name = "BED_MESH_CALIBRATE";
+        op.category = PrintStartOpCategory::BED_MESH;
+        op.has_skip_param = true;
+        op.skip_param_name = "FORCE_BED_MESH"; // OPT_IN: force=1 means do, force=0 means skip
+        op.param_semantic = ParameterSemantic::OPT_IN;
+        analysis.operations.push_back(op);
+
+        manager.set_macro_analysis(analysis);
+
+        // Make bed_mesh visible but UNCHECKED (user wants to skip)
+        lv_subject_set_int(&subjects.can_show_bed_mesh, 1);
+        lv_subject_set_int(&subjects.preprint_bed_mesh, 0); // unchecked
+
+        auto skip_params = manager.get_skip_params_for_testing();
+
+        // Find the param
+        bool found_force_bed_mesh = false;
+        for (const auto& [param, value] : skip_params) {
+            if (param == "FORCE_BED_MESH") {
+                found_force_bed_mesh = true;
+                // OPT_IN: skip_value is "0" (param=0 means don't do it)
+                REQUIRE(value == "0");
+            }
+        }
+        REQUIRE(found_force_bed_mesh);
+    }
+
+    SECTION("Handles OPT_OUT semantic correctly") {
+        // Set up macro analysis with OPT_OUT semantic (SKIP_BED_MESH style)
+        PrintStartAnalysis analysis;
+        analysis.found = true;
+        analysis.macro_name = "PRINT_START";
+
+        PrintStartOperation op;
+        op.name = "BED_MESH_CALIBRATE";
+        op.category = PrintStartOpCategory::BED_MESH;
+        op.has_skip_param = true;
+        op.skip_param_name = "SKIP_BED_MESH"; // OPT_OUT: skip=1 means skip, skip=0 means do
+        op.param_semantic = ParameterSemantic::OPT_OUT;
+        analysis.operations.push_back(op);
+
+        manager.set_macro_analysis(analysis);
+
+        // Make bed_mesh visible but UNCHECKED (user wants to skip)
+        lv_subject_set_int(&subjects.can_show_bed_mesh, 1);
+        lv_subject_set_int(&subjects.preprint_bed_mesh, 0); // unchecked
+
+        auto skip_params = manager.get_skip_params_for_testing();
+
+        // Find the param
+        bool found_skip_bed_mesh = false;
+        for (const auto& [param, value] : skip_params) {
+            if (param == "SKIP_BED_MESH") {
+                found_skip_bed_mesh = true;
+                // OPT_OUT: skip_value is "1" (param=1 means skip it)
+                REQUIRE(value == "1");
+            }
+        }
+        REQUIRE(found_skip_bed_mesh);
     }
 }

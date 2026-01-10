@@ -54,9 +54,9 @@ TEST_CASE_METHOD(LVGLTestFixture, "CHAR: Observer callback triggered on subject 
     lv_subject_init_int(&subject, 0);
 
     int callback_count = 0;
-    int last_value = -1;
 
     auto cb = [](lv_observer_t* obs, lv_subject_t* subj) {
+        (void)subj;
         auto* count = static_cast<int*>(lv_observer_get_user_data(obs));
         (*count)++;
     };
