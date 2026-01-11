@@ -297,7 +297,7 @@ static const char* REAL_MOONRAKER_HISTORY_RESPONSE = R"({
     }
 })";
 
-TEST_CASE("Parse real Moonraker history response with nulls", "[slow][history][parsing]") {
+TEST_CASE("Parse real Moonraker history response with nulls", "[history][parsing]") {
     // This tests that our JSON parsing handles real-world responses
     // including null values in auxiliary_data
 
@@ -311,7 +311,7 @@ TEST_CASE("Parse real Moonraker history response with nulls", "[slow][history][p
     REQUIRE(j["result"]["jobs"].size() == 3);
 }
 
-TEST_CASE("Parse history job with null auxiliary_data values", "[slow][history][parsing]") {
+TEST_CASE("Parse history job with null auxiliary_data values", "[history][parsing]") {
     auto j = nlohmann::json::parse(REAL_MOONRAKER_HISTORY_RESPONSE);
     const auto& jobs = j["result"]["jobs"];
 
@@ -328,7 +328,7 @@ TEST_CASE("Parse history job with null auxiliary_data values", "[slow][history][
     REQUIRE(job0["filament_used"].get<double>() > 6000.0);
 }
 
-TEST_CASE("Parse history job with empty metadata", "[slow][history][parsing]") {
+TEST_CASE("Parse history job with empty metadata", "[history][parsing]") {
     auto j = nlohmann::json::parse(REAL_MOONRAKER_HISTORY_RESPONSE);
     const auto& jobs = j["result"]["jobs"];
 
@@ -341,7 +341,7 @@ TEST_CASE("Parse history job with empty metadata", "[slow][history][parsing]") {
     REQUIRE(job1["print_duration"].get<double>() > 200.0);
 }
 
-TEST_CASE("Parse history job with klippy_shutdown status", "[slow][history][parsing]") {
+TEST_CASE("Parse history job with klippy_shutdown status", "[history][parsing]") {
     auto j = nlohmann::json::parse(REAL_MOONRAKER_HISTORY_RESPONSE);
     const auto& jobs = j["result"]["jobs"];
 
@@ -434,7 +434,7 @@ static PrintHistoryJob parse_history_job(const nlohmann::json& job_json) {
     return job;
 }
 
-TEST_CASE("Parse completed job correctly", "[slow][history][parsing]") {
+TEST_CASE("Parse completed job correctly", "[history][parsing]") {
     auto job_json = nlohmann::json::parse(R"({
         "job_id": "000313",
         "filename": "Body744_ASA_1h40m.gcode",
@@ -470,7 +470,7 @@ TEST_CASE("Parse completed job correctly", "[slow][history][parsing]") {
     REQUIRE(job.exists == true);
 }
 
-TEST_CASE("Parse cancelled job correctly", "[slow][history][parsing]") {
+TEST_CASE("Parse cancelled job correctly", "[history][parsing]") {
     auto job_json = nlohmann::json::parse(R"({
         "job_id": "000312",
         "filename": "Body744_ASA_1h40m.gcode",
@@ -493,7 +493,7 @@ TEST_CASE("Parse cancelled job correctly", "[slow][history][parsing]") {
     REQUIRE(job.layer_count == 0);
 }
 
-TEST_CASE("Parse klippy_shutdown as error status", "[slow][history][parsing]") {
+TEST_CASE("Parse klippy_shutdown as error status", "[history][parsing]") {
     auto job_json = nlohmann::json::parse(R"({
         "job_id": "000311",
         "filename": "Belt_bracket.gcode",
@@ -521,7 +521,7 @@ TEST_CASE("Parse klippy_shutdown as error status", "[slow][history][parsing]") {
     REQUIRE(job.filament_type == "ASA");
 }
 
-TEST_CASE("Parse job with missing optional fields", "[slow][history][parsing]") {
+TEST_CASE("Parse job with missing optional fields", "[history][parsing]") {
     // Minimal job - only required fields
     auto job_json = nlohmann::json::parse(R"({
         "job_id": "000001",
@@ -544,7 +544,7 @@ TEST_CASE("Parse job with missing optional fields", "[slow][history][parsing]") 
     REQUIRE(job.exists == false); // No metadata means file might not exist
 }
 
-TEST_CASE("Parse job with null end_time (in-progress job)", "[slow][history][parsing]") {
+TEST_CASE("Parse job with null end_time (in-progress job)", "[history][parsing]") {
     // In-progress jobs have null end_time - this must not throw
     // Per Moonraker source: end_time is Optional[float] = None, other numeric fields init to 0.
     // This tests the null-safety fix for json::value() gotcha
@@ -624,7 +624,7 @@ static HistoryStats calculate_stats(const std::vector<PrintHistoryJob>& jobs) {
     return stats;
 }
 
-TEST_CASE("Calculate statistics from job list", "[slow][history][stats]") {
+TEST_CASE("Calculate statistics from job list", "[history][stats]") {
     std::vector<PrintHistoryJob> jobs;
 
     // 2 completed jobs
@@ -665,7 +665,7 @@ TEST_CASE("Calculate statistics from job list", "[slow][history][stats]") {
     REQUIRE(stats.success_rate == 50.0);        // 2/4 = 50%
 }
 
-TEST_CASE("Calculate statistics from empty job list", "[slow][history][stats]") {
+TEST_CASE("Calculate statistics from empty job list", "[history][stats]") {
     std::vector<PrintHistoryJob> jobs;
 
     HistoryStats stats = calculate_stats(jobs);
@@ -677,7 +677,7 @@ TEST_CASE("Calculate statistics from empty job list", "[slow][history][stats]") 
     REQUIRE(stats.total_filament == 0.0);
 }
 
-TEST_CASE("Success rate calculation with all completed", "[slow][history][stats]") {
+TEST_CASE("Success rate calculation with all completed", "[history][stats]") {
     std::vector<PrintHistoryJob> jobs;
 
     for (int i = 0; i < 10; i++) {
@@ -716,7 +716,7 @@ static std::vector<std::string> parse_filament_types(const std::string& filament
     return types;
 }
 
-TEST_CASE("Parse multi-extruder filament types", "[slow][history][parsing]") {
+TEST_CASE("Parse multi-extruder filament types", "[history][parsing]") {
     std::string filament_str = "ASA;ASA;ASA;ASA";
     auto types = parse_filament_types(filament_str);
 
@@ -726,7 +726,7 @@ TEST_CASE("Parse multi-extruder filament types", "[slow][history][parsing]") {
     }
 }
 
-TEST_CASE("Parse single filament type", "[slow][history][parsing]") {
+TEST_CASE("Parse single filament type", "[history][parsing]") {
     std::string filament_str = "PLA";
     auto types = parse_filament_types(filament_str);
 
@@ -734,14 +734,14 @@ TEST_CASE("Parse single filament type", "[slow][history][parsing]") {
     REQUIRE(types[0] == "PLA");
 }
 
-TEST_CASE("Parse empty filament type", "[slow][history][parsing]") {
+TEST_CASE("Parse empty filament type", "[history][parsing]") {
     std::string filament_str = "";
     auto types = parse_filament_types(filament_str);
 
     REQUIRE(types.empty());
 }
 
-TEST_CASE("Parse mixed filament types with whitespace", "[slow][history][parsing]") {
+TEST_CASE("Parse mixed filament types with whitespace", "[history][parsing]") {
     std::string filament_str = "PLA ; PETG ; ABS";
     auto types = parse_filament_types(filament_str);
 
@@ -828,7 +828,7 @@ static const char* REAL_VORON_HISTORY_5_JOBS = R"({
     }
 })";
 
-TEST_CASE("Parse real Voron printer history data", "[slow][history][parsing][voron]") {
+TEST_CASE("Parse real Voron printer history data", "[history][parsing][voron]") {
     auto j = nlohmann::json::parse(REAL_VORON_HISTORY_5_JOBS);
 
     REQUIRE(j["result"]["count"].get<int>() == 5);
@@ -868,7 +868,7 @@ TEST_CASE("Parse real Voron printer history data", "[slow][history][parsing][vor
     REQUIRE(jobs[4].filament_used > 63000.0); // 63m of filament!
 }
 
-TEST_CASE("Calculate stats from real Voron data", "[slow][history][stats][voron]") {
+TEST_CASE("Calculate stats from real Voron data", "[history][stats][voron]") {
     auto j = nlohmann::json::parse(REAL_VORON_HISTORY_5_JOBS);
 
     std::vector<PrintHistoryJob> jobs;

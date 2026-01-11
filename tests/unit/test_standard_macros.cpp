@@ -1,7 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "printer_capabilities.h"
+#include "printer_hardware_discovery.h"
 #include "standard_macros.h"
 
 #include "../catch_amalgamated.hpp"
@@ -161,12 +161,12 @@ TEST_CASE("StandardMacros - slot_from_name", "[standard_macros]") {
 // Auto-Detection Tests
 // ============================================================================
 
-TEST_CASE("StandardMacros - auto-detection", "[standard_macros][slow]") {
+TEST_CASE("StandardMacros - auto-detection", "[standard_macros]") {
     auto& macros = StandardMacros::instance();
     macros.reset();
 
     SECTION("Detects standard macro patterns") {
-        PrinterCapabilities caps;
+        helix::PrinterHardwareDiscovery hardware;
         json objects = {"extruder",
                         "heater_bed",
                         "gcode_macro LOAD_FILAMENT",
@@ -176,9 +176,9 @@ TEST_CASE("StandardMacros - auto-detection", "[standard_macros][slow]") {
                         "gcode_macro CANCEL_PRINT",
                         "gcode_macro BED_MESH_CALIBRATE",
                         "gcode_macro CLEAN_NOZZLE"};
-        caps.parse_objects(objects);
+        hardware.parse_objects(objects);
 
-        macros.init(caps);
+        macros.init(hardware);
 
         REQUIRE(macros.is_initialized());
 
@@ -198,12 +198,12 @@ TEST_CASE("StandardMacros - auto-detection", "[standard_macros][slow]") {
     }
 
     SECTION("Detects M-code variants") {
-        PrinterCapabilities caps;
+        helix::PrinterHardwareDiscovery hardware;
         json objects = {"extruder", "gcode_macro M701", "gcode_macro M702", "gcode_macro M601",
                         "gcode_macro M602"};
-        caps.parse_objects(objects);
+        hardware.parse_objects(objects);
 
-        macros.init(caps);
+        macros.init(hardware);
 
         REQUIRE(macros.get(StandardMacroSlot::LoadFilament).detected_macro == "M701");
         REQUIRE(macros.get(StandardMacroSlot::UnloadFilament).detected_macro == "M702");
@@ -212,105 +212,105 @@ TEST_CASE("StandardMacros - auto-detection", "[standard_macros][slow]") {
     }
 
     SECTION("Detects alternative bed level patterns") {
-        PrinterCapabilities caps;
+        helix::PrinterHardwareDiscovery hardware;
 
         SECTION("QUAD_GANTRY_LEVEL") {
             json objects = {"gcode_macro QUAD_GANTRY_LEVEL"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::BedLevel).detected_macro == "QUAD_GANTRY_LEVEL");
         }
 
         SECTION("Z_TILT_ADJUST") {
             json objects = {"gcode_macro Z_TILT_ADJUST"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::BedLevel).detected_macro == "Z_TILT_ADJUST");
         }
 
         SECTION("QGL shorthand") {
             json objects = {"gcode_macro QGL"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::BedLevel).detected_macro == "QGL");
         }
     }
 
     SECTION("Detects nozzle wipe variants") {
-        PrinterCapabilities caps;
+        helix::PrinterHardwareDiscovery hardware;
 
         SECTION("NOZZLE_WIPE") {
             json objects = {"gcode_macro NOZZLE_WIPE"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::CleanNozzle).detected_macro == "NOZZLE_WIPE");
         }
 
         SECTION("WIPE_NOZZLE") {
             json objects = {"gcode_macro WIPE_NOZZLE"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::CleanNozzle).detected_macro == "WIPE_NOZZLE");
         }
     }
 
     SECTION("Detects purge variants") {
-        PrinterCapabilities caps;
+        helix::PrinterHardwareDiscovery hardware;
 
         SECTION("PURGE") {
             json objects = {"gcode_macro PURGE"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::Purge).detected_macro == "PURGE");
         }
 
         SECTION("PURGE_LINE") {
             json objects = {"gcode_macro PURGE_LINE"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::Purge).detected_macro == "PURGE_LINE");
         }
 
         SECTION("PRIME_LINE") {
             json objects = {"gcode_macro PRIME_LINE"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::Purge).detected_macro == "PRIME_LINE");
         }
     }
 
     SECTION("Detects heat soak variants") {
-        PrinterCapabilities caps;
+        helix::PrinterHardwareDiscovery hardware;
 
         SECTION("HEAT_SOAK") {
             json objects = {"gcode_macro HEAT_SOAK"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::HeatSoak).detected_macro == "HEAT_SOAK");
         }
 
         SECTION("CHAMBER_SOAK") {
             json objects = {"gcode_macro CHAMBER_SOAK"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::HeatSoak).detected_macro == "CHAMBER_SOAK");
         }
 
         SECTION("SOAK") {
             json objects = {"gcode_macro SOAK"};
-            caps.parse_objects(objects);
+            hardware.parse_objects(objects);
             macros.reset();
-            macros.init(caps);
+            macros.init(hardware);
             REQUIRE(macros.get(StandardMacroSlot::HeatSoak).detected_macro == "SOAK");
         }
     }
@@ -320,16 +320,16 @@ TEST_CASE("StandardMacros - auto-detection", "[standard_macros][slow]") {
 // HELIX Fallback Tests
 // ============================================================================
 
-TEST_CASE("StandardMacros - HELIX fallbacks", "[standard_macros][slow]") {
+TEST_CASE("StandardMacros - HELIX fallbacks", "[standard_macros]") {
     auto& macros = StandardMacros::instance();
     macros.reset();
 
-    PrinterCapabilities caps;
+    helix::PrinterHardwareDiscovery hardware;
     json objects = {"extruder", "gcode_macro HELIX_BED_LEVEL_IF_NEEDED",
                     "gcode_macro HELIX_CLEAN_NOZZLE"};
-    caps.parse_objects(objects);
+    hardware.parse_objects(objects);
 
-    macros.init(caps);
+    macros.init(hardware);
 
     SECTION("BedLevel has no fallback (removed in favor of BedMesh slot)") {
         // BedLevel no longer uses HELIX_BED_LEVEL_IF_NEEDED as a fallback.
@@ -366,15 +366,15 @@ TEST_CASE("StandardMacros - HELIX fallbacks", "[standard_macros][slow]") {
 // Reset and Initialization State Tests
 // ============================================================================
 
-TEST_CASE("StandardMacros - reset clears detection", "[standard_macros][slow]") {
+TEST_CASE("StandardMacros - reset clears detection", "[standard_macros]") {
     auto& macros = StandardMacros::instance();
     macros.reset();
 
     // Initialize with some macros
-    PrinterCapabilities caps;
+    helix::PrinterHardwareDiscovery hardware;
     json objects = {"gcode_macro LOAD_FILAMENT", "gcode_macro PAUSE"};
-    caps.parse_objects(objects);
-    macros.init(caps);
+    hardware.parse_objects(objects);
+    macros.init(hardware);
 
     REQUIRE(macros.is_initialized());
     REQUIRE_FALSE(macros.get(StandardMacroSlot::LoadFilament).detected_macro.empty());

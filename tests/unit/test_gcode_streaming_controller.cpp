@@ -83,7 +83,7 @@ G1 X100 Y100 E4
 
 } // namespace
 
-TEST_CASE("GCodeStreamingController basic operations", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController basic operations", "[gcode][streaming]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
 
     SECTION("opens and closes files correctly") {
@@ -115,7 +115,7 @@ TEST_CASE("GCodeStreamingController basic operations", "[slow][gcode][streaming]
     }
 }
 
-TEST_CASE("GCodeStreamingController layer access", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController layer access", "[gcode][streaming]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
     GCodeStreamingController controller;
     REQUIRE(controller.open_file(temp_file.path()));
@@ -177,7 +177,7 @@ TEST_CASE("GCodeStreamingController layer access", "[slow][gcode][streaming]") {
     }
 }
 
-TEST_CASE("GCodeStreamingController cache management", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController cache management", "[gcode][streaming]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
 
     SECTION("cache budget can be set") {
@@ -225,7 +225,7 @@ TEST_CASE("GCodeStreamingController cache management", "[slow][gcode][streaming]
     }
 }
 
-TEST_CASE("GCodeStreamingController prefetch", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController prefetch", "[gcode][streaming]") {
     // Create a larger file with more layers
     std::string large_gcode = "; Test file\nG28\n";
     for (int layer = 0; layer < 20; ++layer) {
@@ -267,7 +267,7 @@ TEST_CASE("GCodeStreamingController prefetch", "[slow][gcode][streaming]") {
     }
 }
 
-TEST_CASE("GCodeStreamingController index stats", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController index stats", "[gcode][streaming]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
     GCodeStreamingController controller;
 
@@ -289,7 +289,7 @@ TEST_CASE("GCodeStreamingController index stats", "[slow][gcode][streaming]") {
     }
 }
 
-TEST_CASE("GCodeStreamingController async operations", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController async operations", "[gcode][streaming]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
 
     SECTION("async open completes") {
@@ -340,7 +340,7 @@ TEST_CASE("GCodeStreamingController async operations", "[slow][gcode][streaming]
     }
 }
 
-TEST_CASE("GCodeStreamingController memory pressure", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController memory pressure", "[gcode][streaming]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
     GCodeStreamingController controller;
     controller.open_file(temp_file.path());
@@ -369,7 +369,7 @@ TEST_CASE("GCodeStreamingController memory pressure", "[slow][gcode][streaming]"
     }
 }
 
-TEST_CASE("GCodeStreamingController error handling", "[slow][gcode][streaming]") {
+TEST_CASE("GCodeStreamingController error handling", "[gcode][streaming]") {
     SECTION("handles close when not open") {
         GCodeStreamingController controller;
         controller.close(); // Should not crash
@@ -401,7 +401,7 @@ TEST_CASE("GCodeStreamingController error handling", "[slow][gcode][streaming]")
 // BackgroundGhostBuilder Tests
 // =============================================================================
 
-TEST_CASE("BackgroundGhostBuilder basic operations", "[slow][gcode][streaming][ghost]") {
+TEST_CASE("BackgroundGhostBuilder basic operations", "[gcode][streaming][ghost]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
     GCodeStreamingController controller;
     REQUIRE(controller.open_file(temp_file.path()));
@@ -493,7 +493,7 @@ TEST_CASE("BackgroundGhostBuilder basic operations", "[slow][gcode][streaming][g
     }
 }
 
-TEST_CASE("BackgroundGhostBuilder cancellation", "[slow][gcode][streaming][ghost]") {
+TEST_CASE("BackgroundGhostBuilder cancellation", "[gcode][streaming][ghost]") {
     // Create larger file so we have time to cancel
     std::string large_gcode = "; Test file\nG28\n";
     for (int layer = 0; layer < 100; ++layer) {
@@ -557,7 +557,7 @@ TEST_CASE("BackgroundGhostBuilder cancellation", "[slow][gcode][streaming][ghost
     }
 }
 
-TEST_CASE("BackgroundGhostBuilder UI yielding", "[slow][gcode][streaming][ghost]") {
+TEST_CASE("BackgroundGhostBuilder UI yielding", "[gcode][streaming][ghost]") {
     TempGCodeFile temp_file(SIMPLE_3_LAYER_GCODE);
     GCodeStreamingController controller;
     REQUIRE(controller.open_file(temp_file.path()));
@@ -585,7 +585,7 @@ TEST_CASE("BackgroundGhostBuilder UI yielding", "[slow][gcode][streaming][ghost]
     }
 }
 
-TEST_CASE("BackgroundGhostBuilder error handling", "[slow][gcode][streaming][ghost]") {
+TEST_CASE("BackgroundGhostBuilder error handling", "[gcode][streaming][ghost]") {
     SECTION("start with closed controller does nothing") {
         GCodeStreamingController controller;
         BackgroundGhostBuilder builder;

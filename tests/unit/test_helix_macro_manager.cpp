@@ -4,6 +4,7 @@
 #include "macro_manager.h"
 #include "moonraker_api.h"
 #include "moonraker_client_mock.h"
+#include "printer_hardware_discovery.h"
 #include "printer_state.h"
 
 #include <thread>
@@ -22,7 +23,7 @@ using namespace helix;
 // PrinterState when init_subjects() isn't called. Pre-existing issue - needs investigation.
 class MacroManagerTestFixture {
   public:
-    MacroManagerTestFixture() : state_(), api_(client_, state_), manager_(api_, capabilities_) {}
+    MacroManagerTestFixture() : state_(), api_(client_, state_), manager_(api_, hardware_) {}
 
     void set_helix_macros_installed() {
         // Simulate printer with Helix macros (v2.0+)
@@ -30,27 +31,27 @@ class MacroManagerTestFixture {
             {"gcode_macro HELIX_READY", "gcode_macro HELIX_ENDED", "gcode_macro HELIX_RESET",
              "gcode_macro HELIX_START_PRINT", "gcode_macro HELIX_CLEAN_NOZZLE",
              "gcode_macro HELIX_BED_LEVEL_IF_NEEDED", "gcode_macro _HELIX_STATE", "bed_mesh"});
-        capabilities_.parse_objects(objects);
+        hardware_.parse_objects(objects);
     }
 
     void set_no_helix_macros() {
         // Simulate printer without Helix macros
         json objects =
             json::array({"gcode_macro START_PRINT", "gcode_macro CLEAN_NOZZLE", "bed_mesh"});
-        capabilities_.parse_objects(objects);
+        hardware_.parse_objects(objects);
     }
 
     void set_partial_helix_macros() {
         // Simulate printer with legacy v1.x macros (no HELIX_READY)
         json objects = json::array({"gcode_macro HELIX_START_PRINT", "bed_mesh"});
-        capabilities_.parse_objects(objects);
+        hardware_.parse_objects(objects);
     }
 
   protected:
     MoonrakerClientMock client_;
     PrinterState state_;
     MoonrakerAPI api_;
-    PrinterCapabilities capabilities_;
+    PrinterHardwareDiscovery hardware_;
     MacroManager manager_;
 };
 

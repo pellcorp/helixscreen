@@ -30,7 +30,7 @@
 // MockPrinterState Unit Tests
 // ============================================================================
 
-TEST_CASE("MockPrinterState basic operations", "[slow][mock][shared_state]") {
+TEST_CASE("MockPrinterState basic operations", "[mock][shared_state]") {
     MockPrinterState state;
 
     SECTION("Initial state has no excluded objects") {
@@ -104,7 +104,7 @@ TEST_CASE("MockPrinterState basic operations", "[slow][mock][shared_state]") {
     }
 }
 
-TEST_CASE("MockPrinterState thread safety", "[slow][mock][shared_state][threading]") {
+TEST_CASE("MockPrinterState thread safety", "[mock][shared_state][threading]") {
     MockPrinterState state;
 
     SECTION("Concurrent reads and writes to excluded objects") {
@@ -262,7 +262,7 @@ TEST_CASE_METHOD(SharedStateTestFixture, "FIRMWARE_RESTART clears excluded objec
 // ============================================================================
 
 TEST_CASE("MoonrakerClientMock works without shared state",
-          "[slow][mock][shared_state][backward_compat]") {
+          "[mock][shared_state][backward_compat]") {
     MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
     // Note: NOT setting shared state
 
@@ -326,7 +326,7 @@ TEST_CASE_METHOD(SharedStateTestFixture,
 // Temperature State Tests
 // ============================================================================
 
-TEST_CASE("MockPrinterState temperature state", "[slow][mock][shared_state]") {
+TEST_CASE("MockPrinterState temperature state", "[mock][shared_state]") {
     MockPrinterState state;
 
     SECTION("Default temperatures are room temperature") {

@@ -16,7 +16,7 @@
 
 #include "hardware_validator.h"
 #include "moonraker_client_mock.h"
-#include "printer_capabilities.h"
+#include "printer_hardware_discovery.h"
 
 #include <string>
 #include <vector>
@@ -266,14 +266,14 @@ TEST_CASE("HardwareValidationResult - Aggregation", "[hardware][validator]") {
 
 TEST_CASE("HardwareValidator - Critical hardware detection", "[hardware][validator]") {
     MoonrakerClientMock client;
-    PrinterCapabilities caps;
+    helix::PrinterHardwareDiscovery hardware;
 
     SECTION("Detects missing extruder as critical") {
         // Mock client with no extruder
         client.set_heaters({"heater_bed"});
 
         HardwareValidator validator;
-        auto result = validator.validate(nullptr, &client, caps);
+        auto result = validator.validate(nullptr, &client, hardware);
 
         REQUIRE(result.has_critical());
         REQUIRE(result.critical_missing.size() == 1);
@@ -284,7 +284,7 @@ TEST_CASE("HardwareValidator - Critical hardware detection", "[hardware][validat
         client.set_heaters({"extruder", "heater_bed"});
 
         HardwareValidator validator;
-        auto result = validator.validate(nullptr, &client, caps);
+        auto result = validator.validate(nullptr, &client, hardware);
 
         REQUIRE_FALSE(result.has_critical());
     }
@@ -293,7 +293,7 @@ TEST_CASE("HardwareValidator - Critical hardware detection", "[hardware][validat
         client.set_heaters({"extruder0", "heater_bed"});
 
         HardwareValidator validator;
-        auto result = validator.validate(nullptr, &client, caps);
+        auto result = validator.validate(nullptr, &client, hardware);
 
         REQUIRE_FALSE(result.has_critical());
     }
@@ -301,7 +301,7 @@ TEST_CASE("HardwareValidator - Critical hardware detection", "[hardware][validat
 
 TEST_CASE("HardwareValidator - New hardware discovery", "[hardware][validator]") {
     MoonrakerClientMock client;
-    PrinterCapabilities caps;
+    helix::PrinterHardwareDiscovery hardware;
 
     SECTION("Suggests LED when discovered but not configured") {
         client.set_heaters({"extruder", "heater_bed"});
@@ -309,7 +309,7 @@ TEST_CASE("HardwareValidator - New hardware discovery", "[hardware][validator]")
 
         HardwareValidator validator;
         // Pass nullptr for config = no configured LED
-        auto result = validator.validate(nullptr, &client, caps);
+        auto result = validator.validate(nullptr, &client, hardware);
 
         // Should suggest the LED
         bool found_led = false;
@@ -325,7 +325,7 @@ TEST_CASE("HardwareValidator - New hardware discovery", "[hardware][validator]")
 
 TEST_CASE("HardwareValidator - Session changes", "[hardware][validator]") {
     MoonrakerClientMock client;
-    PrinterCapabilities caps;
+    helix::PrinterHardwareDiscovery hardware;
 
     SECTION("Detects hardware removed since last session") {
         // Create a "previous" snapshot with LED
@@ -363,7 +363,7 @@ TEST_CASE("HardwareValidator - Helper functions", "[hardware][validator]") {
 
 TEST_CASE("HardwareValidator - Full validation scenario", "[hardware][validator]") {
     MoonrakerClientMock client;
-    PrinterCapabilities caps;
+    helix::PrinterHardwareDiscovery hardware;
 
     SECTION("Healthy printer with all expected hardware") {
         client.set_heaters({"extruder", "heater_bed"});
@@ -371,7 +371,7 @@ TEST_CASE("HardwareValidator - Full validation scenario", "[hardware][validator]
         client.set_leds({"neopixel chamber_light"});
 
         HardwareValidator validator;
-        auto result = validator.validate(nullptr, &client, caps);
+        auto result = validator.validate(nullptr, &client, hardware);
 
         // No critical issues (extruder present)
         REQUIRE_FALSE(result.has_critical());
@@ -386,7 +386,7 @@ TEST_CASE("HardwareValidator - Full validation scenario", "[hardware][validator]
         client.set_fans({"fan"});
 
         HardwareValidator validator;
-        auto result = validator.validate(nullptr, &client, caps);
+        auto result = validator.validate(nullptr, &client, hardware);
 
         REQUIRE(result.has_critical());
         REQUIRE(result.has_issues());
@@ -706,4 +706,3 @@ TEST_CASE_METHOD(HardwareValidatorConfigFixture,
     REQUIRE(hardware.contains("expected"));
     REQUIRE(hardware.contains("last_snapshot"));
 }
-

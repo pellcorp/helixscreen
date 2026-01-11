@@ -32,14 +32,14 @@ static NotificationHistoryEntry make_entry(ToastSeverity severity, const char* m
 // Basic Operations Tests
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Singleton returns same instance", "[slow][ui][singleton]") {
+TEST_CASE("NotificationHistory: Singleton returns same instance", "[ui][singleton]") {
     NotificationHistory& instance1 = NotificationHistory::instance();
     NotificationHistory& instance2 = NotificationHistory::instance();
 
     REQUIRE(&instance1 == &instance2);
 }
 
-TEST_CASE("NotificationHistory: Add and count entries", "[slow][ui][basic]") {
+TEST_CASE("NotificationHistory: Add and count entries", "[ui][basic]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -52,7 +52,7 @@ TEST_CASE("NotificationHistory: Add and count entries", "[slow][ui][basic]") {
     REQUIRE(history.count() == 2);
 }
 
-TEST_CASE("NotificationHistory: Clear removes all entries", "[slow][ui][basic]") {
+TEST_CASE("NotificationHistory: Clear removes all entries", "[ui][basic]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -66,7 +66,7 @@ TEST_CASE("NotificationHistory: Clear removes all entries", "[slow][ui][basic]")
     REQUIRE(history.count() == 0);
 }
 
-TEST_CASE("NotificationHistory: Get all returns entries newest first", "[slow][ui][basic]") {
+TEST_CASE("NotificationHistory: Get all returns entries newest first", "[ui][basic]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -85,7 +85,7 @@ TEST_CASE("NotificationHistory: Get all returns entries newest first", "[slow][u
 // Circular Buffer Tests
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Circular buffer caps at MAX_ENTRIES", "[slow][ui][circular]") {
+TEST_CASE("NotificationHistory: Circular buffer caps at MAX_ENTRIES", "[ui][circular]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -128,7 +128,7 @@ TEST_CASE("NotificationHistory: Circular buffer overwrites oldest entries", "[ui
 // Unread Count Tests
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Unread count tracks unread entries", "[slow][ui][unread]") {
+TEST_CASE("NotificationHistory: Unread count tracks unread entries", "[ui][unread]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -144,7 +144,7 @@ TEST_CASE("NotificationHistory: Unread count tracks unread entries", "[slow][ui]
     REQUIRE(history.get_unread_count() == 3);
 }
 
-TEST_CASE("NotificationHistory: Mark all read clears unread count", "[slow][ui][unread]") {
+TEST_CASE("NotificationHistory: Mark all read clears unread count", "[ui][unread]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -174,7 +174,7 @@ TEST_CASE("NotificationHistory: New entries after mark_all_read are unread", "[u
 // Severity Priority Tests
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Get highest unread severity", "[slow][ui][severity]") {
+TEST_CASE("NotificationHistory: Get highest unread severity", "[ui][severity]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -206,7 +206,7 @@ TEST_CASE("NotificationHistory: Get highest unread severity", "[slow][ui][severi
 // Filter Tests
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Filter by severity", "[slow][ui][filter]") {
+TEST_CASE("NotificationHistory: Filter by severity", "[ui][filter]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -238,7 +238,7 @@ TEST_CASE("NotificationHistory: Filter by severity", "[slow][ui][filter]") {
 // Thread Safety Tests
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Thread-safe concurrent adds", "[slow][ui][thread]") {
+TEST_CASE("NotificationHistory: Thread-safe concurrent adds", "[ui][thread]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -270,7 +270,7 @@ TEST_CASE("NotificationHistory: Thread-safe concurrent adds", "[slow][ui][thread
     REQUIRE(history.count() == expected);
 }
 
-TEST_CASE("NotificationHistory: Thread-safe concurrent read/write", "[slow][ui][thread]") {
+TEST_CASE("NotificationHistory: Thread-safe concurrent read/write", "[ui][thread]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -320,7 +320,7 @@ TEST_CASE("NotificationHistory: Thread-safe concurrent read/write", "[slow][ui][
 // Edge Cases
 // ============================================================================
 
-TEST_CASE("NotificationHistory: Message truncation", "[slow][ui][edge]") {
+TEST_CASE("NotificationHistory: Message truncation", "[ui][edge]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
@@ -336,7 +336,7 @@ TEST_CASE("NotificationHistory: Message truncation", "[slow][ui][edge]") {
     REQUIRE(strlen(entries[0].message) < 256);
 }
 
-TEST_CASE("NotificationHistory: Empty title and message handling", "[slow][ui][edge]") {
+TEST_CASE("NotificationHistory: Empty title and message handling", "[ui][edge]") {
     NotificationHistory& history = NotificationHistory::instance();
     history.clear();
 
