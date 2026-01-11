@@ -57,6 +57,7 @@
 #include "lvgl/lvgl.h"
 #include "network_tester.h"
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <memory>
 #include <string>
@@ -180,6 +181,9 @@ class NetworkSettingsOverlay : public OverlayBase {
     // Note: overlay_root_ inherited from OverlayBase
     lv_obj_t* parent_screen_ = nullptr;
     lv_obj_t* networks_list_ = nullptr;
+
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // WiFi subjects
     lv_subject_t wifi_hardware_available_; // 0=unavailable, 1=available

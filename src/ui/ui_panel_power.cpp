@@ -41,7 +41,7 @@ void PowerPanel::init_subjects() {
     }
 
     // Initialize status subject for reactive binding
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(status_subject_, status_buf_, status_buf_, "power_status");
+    UI_MANAGED_SUBJECT_STRING(status_subject_, status_buf_, status_buf_, "power_status", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized: power_status", get_name());
@@ -51,7 +51,7 @@ void PowerPanel::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&status_subject_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[PowerPanel] Subjects deinitialized");
 }

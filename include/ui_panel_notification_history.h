@@ -6,6 +6,8 @@
 #include "ui_notification_history.h"
 #include "ui_panel_base.h"
 
+#include "subject_managed_panel.h"
+
 #include <lvgl.h>
 
 /**
@@ -102,6 +104,9 @@ class NotificationHistoryPanel : public PanelBase {
     //
     // === Subjects ===
     //
+
+    /// RAII subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     /// Has entries subject (1 = has entries, 0 = empty)
     lv_subject_t has_entries_subject_;

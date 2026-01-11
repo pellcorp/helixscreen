@@ -17,6 +17,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 /**
  * @brief Callback for keypad value confirmation

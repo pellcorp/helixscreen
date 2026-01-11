@@ -45,41 +45,21 @@ RetractionSettingsOverlay::RetractionSettingsOverlay(MoonrakerClient* client) : 
 }
 
 RetractionSettingsOverlay::~RetractionSettingsOverlay() {
-    // LVGL may already be destroyed during static destruction
-    if (!lv_is_initialized()) {
-        spdlog::debug("[RetractionSettings] Destroyed (LVGL already deinit)");
-        return;
-    }
-
-    lv_subject_deinit(&retract_length_display_);
-    lv_subject_deinit(&retract_speed_display_);
-    lv_subject_deinit(&unretract_extra_display_);
-    lv_subject_deinit(&unretract_speed_display_);
-
+    // SubjectManager handles LVGL initialization check and cleanup
+    subjects_.deinit_all();
     spdlog::debug("[RetractionSettings] Destroyed");
 }
 
 void RetractionSettingsOverlay::init_subjects() {
-    // Initialize display label subjects
-    snprintf(retract_length_buf_, sizeof(retract_length_buf_), "0.0mm");
-    lv_subject_init_string(&retract_length_display_, retract_length_buf_, nullptr,
-                           sizeof(retract_length_buf_), "0.0mm");
-    lv_xml_register_subject(nullptr, "retract_length_display", &retract_length_display_);
-
-    snprintf(retract_speed_buf_, sizeof(retract_speed_buf_), "35mm/s");
-    lv_subject_init_string(&retract_speed_display_, retract_speed_buf_, nullptr,
-                           sizeof(retract_speed_buf_), "35mm/s");
-    lv_xml_register_subject(nullptr, "retract_speed_display", &retract_speed_display_);
-
-    snprintf(unretract_extra_buf_, sizeof(unretract_extra_buf_), "0.0mm");
-    lv_subject_init_string(&unretract_extra_display_, unretract_extra_buf_, nullptr,
-                           sizeof(unretract_extra_buf_), "0.0mm");
-    lv_xml_register_subject(nullptr, "unretract_extra_display", &unretract_extra_display_);
-
-    snprintf(unretract_speed_buf_, sizeof(unretract_speed_buf_), "35mm/s");
-    lv_subject_init_string(&unretract_speed_display_, unretract_speed_buf_, nullptr,
-                           sizeof(unretract_speed_buf_), "35mm/s");
-    lv_xml_register_subject(nullptr, "unretract_speed_display", &unretract_speed_display_);
+    // Initialize display label subjects using managed macros for automatic cleanup
+    UI_MANAGED_SUBJECT_STRING(retract_length_display_, retract_length_buf_, "0.0mm",
+                              "retract_length_display", subjects_);
+    UI_MANAGED_SUBJECT_STRING(retract_speed_display_, retract_speed_buf_, "35mm/s",
+                              "retract_speed_display", subjects_);
+    UI_MANAGED_SUBJECT_STRING(unretract_extra_display_, unretract_extra_buf_, "0.0mm",
+                              "unretract_extra_display", subjects_);
+    UI_MANAGED_SUBJECT_STRING(unretract_speed_display_, unretract_speed_buf_, "35mm/s",
+                              "unretract_speed_display", subjects_);
 
     // Register the row click callback for opening this overlay from settings panel
     spdlog::debug("[RetractionSettings] Registering callbacks");

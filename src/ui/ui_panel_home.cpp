@@ -136,26 +136,24 @@ void HomePanel::init_subjects() {
 
     // Initialize subjects with default values
     // Note: LED state (led_state) is managed by PrinterState and already registered
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(status_subject_, status_buffer_, "Welcome to HelixScreen",
-                                        "status_text");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(temp_subject_, temp_buffer_, "-- °C", "temp_text");
+    UI_MANAGED_SUBJECT_STRING(status_subject_, status_buffer_, "Welcome to HelixScreen",
+                              "status_text", subjects_);
+    UI_MANAGED_SUBJECT_STRING(temp_subject_, temp_buffer_, "-- °C", "temp_text", subjects_);
 
     // Network icon state: integer 0-5 for conditional icon visibility
     // 0=disconnected, 1-4=wifi strength, 5=ethernet
     // Note: Uses unique name to avoid conflict with navigation_bar's network_icon_state
-    lv_subject_init_int(&network_icon_state_, 0); // Default: disconnected
-    lv_xml_register_subject(nullptr, "home_network_icon_state", &network_icon_state_);
+    UI_MANAGED_SUBJECT_INT(network_icon_state_, 0, "home_network_icon_state", subjects_);
 
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(network_label_subject_, network_label_buffer_, "WiFi",
-                                        "network_label");
+    UI_MANAGED_SUBJECT_STRING(network_label_subject_, network_label_buffer_, "WiFi",
+                              "network_label", subjects_);
 
     // Printer type and host - two subjects for flexible XML layout
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(printer_type_subject_, printer_type_buffer_, "",
-                                        "printer_type_text");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(printer_host_subject_, printer_host_buffer_, "",
-                                        "printer_host_text");
-    lv_subject_init_int(&printer_info_visible_, 0);
-    lv_xml_register_subject(nullptr, "printer_info_visible", &printer_info_visible_);
+    UI_MANAGED_SUBJECT_STRING(printer_type_subject_, printer_type_buffer_, "", "printer_type_text",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(printer_host_subject_, printer_host_buffer_, "", "printer_host_text",
+                              subjects_);
+    UI_MANAGED_SUBJECT_INT(printer_info_visible_, 0, "printer_info_visible", subjects_);
 
     // Register event callbacks BEFORE loading XML
     // Note: These use static trampolines that will look up the global instance
@@ -171,8 +169,7 @@ void HomePanel::init_subjects() {
     // Show when sensors exist AND (no AMS OR bypass active)
     // NOTE: Must be initialized BEFORE creating observers that call
     // update_filament_status_visibility()
-    lv_subject_init_int(&show_filament_status_, 0);
-    lv_xml_register_subject(nullptr, "show_filament_status", &show_filament_status_);
+    UI_MANAGED_SUBJECT_INT(show_filament_status_, 0, "show_filament_status", subjects_);
 
     // Subscribe to AmsState slot_count to show/hide AMS indicator
     // AmsState::init_subjects() is called in main.cpp before us
@@ -203,16 +200,8 @@ void HomePanel::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    // Applying [L041]: Subject init/deinit symmetry
-    // Disconnect all observers before subject memory becomes invalid
-    lv_subject_deinit(&status_subject_);
-    lv_subject_deinit(&temp_subject_);
-    lv_subject_deinit(&network_icon_state_);
-    lv_subject_deinit(&network_label_subject_);
-    lv_subject_deinit(&printer_type_subject_);
-    lv_subject_deinit(&printer_host_subject_);
-    lv_subject_deinit(&printer_info_visible_);
-    lv_subject_deinit(&show_filament_status_);
+    // SubjectManager handles all lv_subject_deinit() calls via RAII
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());
 }

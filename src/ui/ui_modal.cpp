@@ -36,6 +36,7 @@ static constexpr int32_t MODAL_SCALE_END = 256;   // 100% scale
 // ============================================================================
 namespace {
 bool g_subjects_initialized = false;
+SubjectManager g_subjects;
 lv_subject_t g_dialog_severity{};
 lv_subject_t g_dialog_show_cancel{};
 lv_subject_t g_dialog_primary_text{};
@@ -828,19 +829,14 @@ void modal_init_subjects() {
 
     spdlog::debug("[Modal] Initializing modal dialog subjects");
 
-    // Initialize integer subjects
-    lv_subject_init_int(&g_dialog_severity, static_cast<int>(ModalSeverity::Info));
-    lv_subject_init_int(&g_dialog_show_cancel, 0);
-
-    // Initialize string subjects (pointer type)
-    lv_subject_init_pointer(&g_dialog_primary_text, const_cast<char*>(DEFAULT_PRIMARY_TEXT));
-    lv_subject_init_pointer(&g_dialog_cancel_text, const_cast<char*>(DEFAULT_CANCEL_TEXT));
-
-    // Register with LVGL XML system for binding
-    lv_xml_register_subject(nullptr, "dialog_severity", &g_dialog_severity);
-    lv_xml_register_subject(nullptr, "dialog_show_cancel", &g_dialog_show_cancel);
-    lv_xml_register_subject(nullptr, "dialog_primary_text", &g_dialog_primary_text);
-    lv_xml_register_subject(nullptr, "dialog_cancel_text", &g_dialog_cancel_text);
+    // Initialize and register subjects with SubjectManager for automatic cleanup
+    UI_MANAGED_SUBJECT_INT(g_dialog_severity, static_cast<int>(ModalSeverity::Info),
+                           "dialog_severity", g_subjects);
+    UI_MANAGED_SUBJECT_INT(g_dialog_show_cancel, 0, "dialog_show_cancel", g_subjects);
+    UI_MANAGED_SUBJECT_POINTER(g_dialog_primary_text, const_cast<char*>(DEFAULT_PRIMARY_TEXT),
+                               "dialog_primary_text", g_subjects);
+    UI_MANAGED_SUBJECT_POINTER(g_dialog_cancel_text, const_cast<char*>(DEFAULT_CANCEL_TEXT),
+                               "dialog_cancel_text", g_subjects);
 
     // Register event callbacks for modals using static Modal::show() API
     // These modals need unique callback names to avoid conflicts
@@ -854,10 +850,7 @@ void ui_modal_deinit_subjects() {
     if (!g_subjects_initialized) {
         return;
     }
-    lv_subject_deinit(&g_dialog_severity);
-    lv_subject_deinit(&g_dialog_show_cancel);
-    lv_subject_deinit(&g_dialog_primary_text);
-    lv_subject_deinit(&g_dialog_cancel_text);
+    g_subjects.deinit_all();
     g_subjects_initialized = false;
     spdlog::debug("[Modal] Modal dialog subjects deinitialized");
 }

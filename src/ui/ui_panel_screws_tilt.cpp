@@ -137,8 +137,8 @@ void ScrewsTiltPanel::init_subjects() {
     }
 
     // Initialize state subject for state machine visibility
-    lv_subject_init_int(&s_screws_tilt_state, 0);
-    lv_xml_register_subject(nullptr, "screws_tilt_state", &s_screws_tilt_state);
+    // Note: s_screws_tilt_state is file-static, managed separately
+    UI_MANAGED_SUBJECT_INT(s_screws_tilt_state, 0, "screws_tilt_state", subjects_);
 
     // Initialize subjects for reactive list rows (4 slots max)
     for (size_t i = 0; i < MAX_SCREWS; i++) {
@@ -146,34 +146,27 @@ void ScrewsTiltPanel::init_subjects() {
         screw_name_bufs_[i][0] = '\0';
         screw_adj_bufs_[i][0] = '\0';
 
-        // Init subjects - visible defaults to 0 (hidden)
-        lv_subject_init_int(&screw_visible_subjects_[i], 0);
-        lv_subject_init_string(&screw_name_subjects_[i], screw_name_bufs_[i], nullptr,
-                               SCREW_NAME_BUF_SIZE, "");
-        lv_subject_init_string(&screw_adjustment_subjects_[i], screw_adj_bufs_[i], nullptr,
-                               SCREW_ADJ_BUF_SIZE, "");
+        // Build registration names
+        char visible_name[32];
+        char name_name[32];
+        char adj_name[32];
+        snprintf(visible_name, sizeof(visible_name), "screw_%zu_visible", i);
+        snprintf(name_name, sizeof(name_name), "screw_%zu_name", i);
+        snprintf(adj_name, sizeof(adj_name), "screw_%zu_adjustment", i);
 
-        // Register subjects with XML system
-        char reg_name[32];
-        snprintf(reg_name, sizeof(reg_name), "screw_%zu_visible", i);
-        lv_xml_register_subject(nullptr, reg_name, &screw_visible_subjects_[i]);
-
-        snprintf(reg_name, sizeof(reg_name), "screw_%zu_name", i);
-        lv_xml_register_subject(nullptr, reg_name, &screw_name_subjects_[i]);
-
-        snprintf(reg_name, sizeof(reg_name), "screw_%zu_adjustment", i);
-        lv_xml_register_subject(nullptr, reg_name, &screw_adjustment_subjects_[i]);
+        // Init subjects using managed macros - visible defaults to 0 (hidden)
+        UI_MANAGED_SUBJECT_INT(screw_visible_subjects_[i], 0, visible_name, subjects_);
+        UI_MANAGED_SUBJECT_STRING_N(screw_name_subjects_[i], screw_name_bufs_[i],
+                                    SCREW_NAME_BUF_SIZE, "", name_name, subjects_);
+        UI_MANAGED_SUBJECT_STRING_N(screw_adjustment_subjects_[i], screw_adj_bufs_[i],
+                                    SCREW_ADJ_BUF_SIZE, "", adj_name, subjects_);
     }
 
     // Initialize status label subjects
-    probe_count_buf_[0] = '\0';
-    error_message_buf_[0] = '\0';
-    lv_subject_init_string(&probe_count_subject_, probe_count_buf_, nullptr, PROBE_COUNT_BUF_SIZE,
-                           "");
-    lv_subject_init_string(&error_message_subject_, error_message_buf_, nullptr, ERROR_MSG_BUF_SIZE,
-                           "");
-    lv_xml_register_subject(nullptr, "probe_count_text", &probe_count_subject_);
-    lv_xml_register_subject(nullptr, "error_message_text", &error_message_subject_);
+    UI_MANAGED_SUBJECT_STRING(probe_count_subject_, probe_count_buf_, "", "probe_count_text",
+                              subjects_);
+    UI_MANAGED_SUBJECT_STRING(error_message_subject_, error_message_buf_, "", "error_message_text",
+                              subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[ScrewsTilt] Subjects initialized and registered");
@@ -184,19 +177,8 @@ void ScrewsTiltPanel::deinit_subjects() {
         return;
     }
 
-    // Deinit file-static state machine subject
-    lv_subject_deinit(&s_screws_tilt_state);
-
-    // Deinit screw array subjects
-    for (size_t i = 0; i < MAX_SCREWS; i++) {
-        lv_subject_deinit(&screw_visible_subjects_[i]);
-        lv_subject_deinit(&screw_name_subjects_[i]);
-        lv_subject_deinit(&screw_adjustment_subjects_[i]);
-    }
-
-    // Deinit status label subjects
-    lv_subject_deinit(&probe_count_subject_);
-    lv_subject_deinit(&error_message_subject_);
+    // SubjectManager handles all subject cleanup via RAII
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[ScrewsTiltPanel] Subjects deinitialized");

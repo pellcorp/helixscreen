@@ -6,6 +6,7 @@
 
 #include "lvgl/lvgl.h"
 #include "printer_state.h"
+#include "subject_managed_panel.h"
 
 #include <atomic>
 #include <mutex>
@@ -337,6 +338,9 @@ class AbortManager {
 
     // Observer for klippy state changes during WAITING_RECONNECT
     ObserverGuard klippy_observer_;
+
+    // RAII subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // Persistent flag: set when M112 sent, cleared when klippy returns to READY
     // Used to suppress "Printer Shutdown" dialog even after state machine completes

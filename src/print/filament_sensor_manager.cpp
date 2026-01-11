@@ -54,24 +54,16 @@ void FilamentSensorManager::init_subjects() {
 
     spdlog::debug("[FilamentSensorManager] Initializing subjects");
 
-    // Initialize all subjects
+    // Initialize all subjects with SubjectManager for automatic cleanup
     // -1 = no sensor, 0 = no filament, 1 = filament detected
-    lv_subject_init_int(&runout_detected_, -1);
-    lv_subject_init_int(&toolhead_detected_, -1);
-    lv_subject_init_int(&entry_detected_, -1);
-    lv_subject_init_int(&any_runout_, 0);
-    lv_subject_init_int(&motion_active_, 0);
-    lv_subject_init_int(&master_enabled_subject_, master_enabled_ ? 1 : 0);
-    lv_subject_init_int(&sensor_count_, 0);
-
-    // Register subjects for XML binding
-    lv_xml_register_subject(nullptr, "filament_runout_detected", &runout_detected_);
-    lv_xml_register_subject(nullptr, "filament_toolhead_detected", &toolhead_detected_);
-    lv_xml_register_subject(nullptr, "filament_entry_detected", &entry_detected_);
-    lv_xml_register_subject(nullptr, "filament_any_runout", &any_runout_);
-    lv_xml_register_subject(nullptr, "filament_motion_active", &motion_active_);
-    lv_xml_register_subject(nullptr, "filament_master_enabled", &master_enabled_subject_);
-    lv_xml_register_subject(nullptr, "filament_sensor_count", &sensor_count_);
+    UI_MANAGED_SUBJECT_INT(runout_detected_, -1, "filament_runout_detected", subjects_);
+    UI_MANAGED_SUBJECT_INT(toolhead_detected_, -1, "filament_toolhead_detected", subjects_);
+    UI_MANAGED_SUBJECT_INT(entry_detected_, -1, "filament_entry_detected", subjects_);
+    UI_MANAGED_SUBJECT_INT(any_runout_, 0, "filament_any_runout", subjects_);
+    UI_MANAGED_SUBJECT_INT(motion_active_, 0, "filament_motion_active", subjects_);
+    UI_MANAGED_SUBJECT_INT(master_enabled_subject_, master_enabled_ ? 1 : 0,
+                           "filament_master_enabled", subjects_);
+    UI_MANAGED_SUBJECT_INT(sensor_count_, 0, "filament_sensor_count", subjects_);
 
     subjects_initialized_ = true;
     spdlog::info("[FilamentSensorManager] Subjects initialized");
@@ -85,13 +77,7 @@ void FilamentSensorManager::deinit_subjects() {
     spdlog::debug("[FilamentSensorManager] Deinitializing subjects");
 
     // Deinitialize all subjects to disconnect observers before lv_deinit()
-    lv_subject_deinit(&runout_detected_);
-    lv_subject_deinit(&toolhead_detected_);
-    lv_subject_deinit(&entry_detected_);
-    lv_subject_deinit(&any_runout_);
-    lv_subject_deinit(&motion_active_);
-    lv_subject_deinit(&master_enabled_subject_);
-    lv_subject_deinit(&sensor_count_);
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[FilamentSensorManager] Subjects deinitialized");

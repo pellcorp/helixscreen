@@ -123,14 +123,7 @@ WizardWifiStep::~WizardWifiStep() {
     // This disconnects any LVGL observers still bound to them, preventing
     // use-after-free when lv_deinit() later deletes widgets with bindings.
     if (subjects_initialized_) {
-        lv_subject_deinit(&wifi_enabled_);
-        lv_subject_deinit(&wifi_status_);
-        lv_subject_deinit(&wifi_ip_);
-        lv_subject_deinit(&ethernet_status_);
-        lv_subject_deinit(&wifi_scanning_);
-        lv_subject_deinit(&wifi_password_modal_ssid_);
-        lv_subject_deinit(&wifi_connecting_);
-        lv_subject_deinit(&wifi_hardware_available_);
+        subjects_.deinit_all();
         subjects_initialized_ = false;
     }
 
@@ -726,18 +719,18 @@ void WizardWifiStep::handle_modal_connect_clicked() {
 void WizardWifiStep::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_enabled_, 0, "wifi_enabled");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_scanning_, 0, "wifi_scanning");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_connecting_, 0, "wifi_connecting");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(wifi_hardware_available_, 1, "wifi_hardware_available");
+    UI_MANAGED_SUBJECT_INT(wifi_enabled_, 0, "wifi_enabled", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_scanning_, 0, "wifi_scanning", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_connecting_, 0, "wifi_connecting", subjects_);
+    UI_MANAGED_SUBJECT_INT(wifi_hardware_available_, 1, "wifi_hardware_available", subjects_);
 
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wifi_password_modal_ssid_, wifi_password_modal_ssid_buffer_,
-                                        "", "wifi_password_modal_ssid");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wifi_status_, wifi_status_buffer_,
-                                        get_status_text("disabled"), "wifi_status");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wifi_ip_, wifi_ip_buffer_, "", "wifi_ip");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(ethernet_status_, ethernet_status_buffer_, "Checking...",
-                                        "ethernet_status");
+    UI_MANAGED_SUBJECT_STRING(wifi_password_modal_ssid_, wifi_password_modal_ssid_buffer_, "",
+                              "wifi_password_modal_ssid", subjects_);
+    UI_MANAGED_SUBJECT_STRING(wifi_status_, wifi_status_buffer_, get_status_text("disabled"),
+                              "wifi_status", subjects_);
+    UI_MANAGED_SUBJECT_STRING(wifi_ip_, wifi_ip_buffer_, "", "wifi_ip", subjects_);
+    UI_MANAGED_SUBJECT_STRING(ethernet_status_, ethernet_status_buffer_, "Checking...",
+                              "ethernet_status", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());

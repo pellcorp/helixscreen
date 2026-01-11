@@ -8,6 +8,7 @@
 #include "overlay_base.h"
 #include "print_history_data.h"
 #include "print_history_manager.h"
+#include "subject_managed_panel.h"
 
 #include <vector>
 
@@ -205,6 +206,9 @@ class HistoryDashboardPanel : public OverlayBase {
 
     /// Observer callback for history manager changes
     HistoryChangedCallback history_observer_;
+
+    // SubjectManager for automatic subject cleanup (RAII)
+    SubjectManager subjects_;
 
     // Subject for empty state binding (must persist for LVGL binding lifetime)
     lv_subject_t history_has_jobs_subject_;

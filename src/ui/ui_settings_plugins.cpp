@@ -58,26 +58,16 @@ void SettingsPluginsOverlay::init_subjects() {
     }
 
     // Initialize string subjects
-    lv_subject_init_string(&plugins_status_title_subject_, status_title_buf_, nullptr,
-                           sizeof(status_title_buf_), "No plugins");
-    lv_xml_register_subject(nullptr, "plugins_status_title", &plugins_status_title_subject_);
-
-    lv_subject_init_string(&plugins_status_detail_subject_, status_detail_buf_, nullptr,
-                           sizeof(status_detail_buf_), "");
-    lv_xml_register_subject(nullptr, "plugins_status_detail", &plugins_status_detail_subject_);
+    UI_MANAGED_SUBJECT_STRING(plugins_status_title_subject_, status_title_buf_, "No plugins",
+                              "plugins_status_title", subjects_);
+    UI_MANAGED_SUBJECT_STRING(plugins_status_detail_subject_, status_detail_buf_, "",
+                              "plugins_status_detail", subjects_);
 
     // Initialize integer subjects for section visibility
-    lv_subject_init_int(&plugins_total_count_subject_, 0);
-    lv_xml_register_subject(nullptr, "plugins_total_count", &plugins_total_count_subject_);
-
-    lv_subject_init_int(&plugins_loaded_count_subject_, 0);
-    lv_xml_register_subject(nullptr, "plugins_loaded_count", &plugins_loaded_count_subject_);
-
-    lv_subject_init_int(&plugins_disabled_count_subject_, 0);
-    lv_xml_register_subject(nullptr, "plugins_disabled_count", &plugins_disabled_count_subject_);
-
-    lv_subject_init_int(&plugins_failed_count_subject_, 0);
-    lv_xml_register_subject(nullptr, "plugins_failed_count", &plugins_failed_count_subject_);
+    UI_MANAGED_SUBJECT_INT(plugins_total_count_subject_, 0, "plugins_total_count", subjects_);
+    UI_MANAGED_SUBJECT_INT(plugins_loaded_count_subject_, 0, "plugins_loaded_count", subjects_);
+    UI_MANAGED_SUBJECT_INT(plugins_disabled_count_subject_, 0, "plugins_disabled_count", subjects_);
+    UI_MANAGED_SUBJECT_INT(plugins_failed_count_subject_, 0, "plugins_failed_count", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
@@ -275,13 +265,7 @@ void SettingsPluginsOverlay::deinit_subjects() {
 
     spdlog::debug("[{}] Deinitializing subjects", get_name());
 
-    // Deinit all subjects
-    lv_subject_deinit(&plugins_status_title_subject_);
-    lv_subject_deinit(&plugins_status_detail_subject_);
-    lv_subject_deinit(&plugins_total_count_subject_);
-    lv_subject_deinit(&plugins_loaded_count_subject_);
-    lv_subject_deinit(&plugins_disabled_count_subject_);
-    lv_subject_deinit(&plugins_failed_count_subject_);
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());

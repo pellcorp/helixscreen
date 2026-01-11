@@ -5,7 +5,8 @@
 
 #include "ui_panel_base.h"
 
-#include "calibration_types.h" // For MachineLimits
+#include "calibration_types.h"     // For MachineLimits
+#include "subject_managed_panel.h" // For SubjectManager
 
 /**
  * @file ui_panel_settings.h
@@ -117,6 +118,9 @@ class SettingsPanel : public PanelBase {
     // === Reactive Subjects ===
     //
 
+    /// RAII manager for automatic subject cleanup
+    SubjectManager subjects_;
+
     // Slider value subjects
     lv_subject_t brightness_value_subject_;
 
@@ -157,7 +161,6 @@ class SettingsPanel : public PanelBase {
     char accel_to_decel_display_buf_[16];
     lv_subject_t square_corner_velocity_display_subject_;
     char square_corner_velocity_display_buf_[16];
-    bool machine_limits_subjects_initialized_ = false;
 
     //
     // === Setup Helpers ===

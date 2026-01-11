@@ -173,11 +173,15 @@ void AmsColorPicker::init_subjects() {
         return;
     }
 
-    // Initialize string subjects with empty buffers
+    // Initialize string subjects with empty buffers (local binding only, not XML registered)
     hex_buf_[0] = '\0';
     name_buf_[0] = '\0';
+
     lv_subject_init_string(&hex_subject_, hex_buf_, nullptr, sizeof(hex_buf_), "");
+    subjects_.register_subject(&hex_subject_);
+
     lv_subject_init_string(&name_subject_, name_buf_, nullptr, sizeof(name_buf_), "");
+    subjects_.register_subject(&name_subject_);
 
     subjects_initialized_ = true;
     spdlog::debug("[AmsColorPicker] Subjects initialized");
@@ -187,8 +191,8 @@ void AmsColorPicker::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&hex_subject_);
-    lv_subject_deinit(&name_subject_);
+    // SubjectManager handles all lv_subject_deinit() calls via RAII
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[AmsColorPicker] Subjects deinitialized");
 }

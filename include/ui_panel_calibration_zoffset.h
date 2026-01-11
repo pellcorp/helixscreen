@@ -5,6 +5,7 @@
 
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 
@@ -193,6 +194,9 @@ class ZOffsetCalibrationPanel : public OverlayBase {
     // Current Z position during calibration
     float current_z_ = 0.0f;
     float final_offset_ = 0.0f;
+
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // Observer for manual_probe state changes (for real Klipper integration)
     lv_observer_t* manual_probe_active_observer_ = nullptr;

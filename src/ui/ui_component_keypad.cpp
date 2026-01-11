@@ -31,6 +31,7 @@
 static lv_subject_t keypad_display_subject;
 static char keypad_display_buf[16] = "";
 static bool subjects_initialized = false;
+static SubjectManager subjects_;
 
 // Widget reference (for showing/hiding via nav system)
 static lv_obj_t* keypad_widget = nullptr;
@@ -57,9 +58,8 @@ void ui_keypad_init_subjects() {
     }
 
     // Initialize display subject for reactive binding (starts empty)
-    lv_subject_init_string(&keypad_display_subject, keypad_display_buf, nullptr,
-                           sizeof(keypad_display_buf), "");
-    lv_xml_register_subject(nullptr, "keypad_display", &keypad_display_subject);
+    UI_MANAGED_SUBJECT_STRING(keypad_display_subject, keypad_display_buf, "", "keypad_display",
+                              subjects_);
 
     subjects_initialized = true;
     spdlog::debug("[Keypad] Subjects initialized");
@@ -69,7 +69,7 @@ void ui_keypad_deinit_subjects() {
     if (!subjects_initialized) {
         return;
     }
-    lv_subject_deinit(&keypad_display_subject);
+    subjects_.deinit_all();
     subjects_initialized = false;
     spdlog::debug("[Keypad] Subjects deinitialized");
 }

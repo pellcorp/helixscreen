@@ -28,6 +28,7 @@
 #include "moonraker_client.h"
 #include "printer_capabilities.h"
 #include "runtime_config.h"
+#include "subject_managed_panel.h"
 #include "wizard_config_paths.h"
 
 #include <spdlog/spdlog.h>
@@ -44,6 +45,9 @@ static lv_subject_t wizard_subtitle;
 
 // Non-static: accessible from ui_wizard_connection.cpp
 lv_subject_t connection_test_passed; // Global: 0=connection not validated, 1=validated or N/A
+
+// SubjectManager for RAII cleanup of wizard subjects
+static SubjectManager wizard_subjects_;
 
 // String buffers (must be persistent)
 static char wizard_title_buffer[64];
@@ -157,40 +161,36 @@ static bool wizard_subjects_initialized = false;
 void ui_wizard_init_subjects() {
     spdlog::debug("[Wizard] Initializing subjects");
 
-    // Initialize subjects with defaults
-    UI_SUBJECT_INIT_AND_REGISTER_INT(current_step, 1, "current_step");
-    UI_SUBJECT_INIT_AND_REGISTER_INT(total_steps, 9,
-                                     "total_steps"); // 9 steps: WiFi, Connection, Printer, Heater,
-                                                     // Fan, AMS, LED, Filament, Summary
+    // Initialize subjects with defaults using managed macros for RAII cleanup
+    UI_MANAGED_SUBJECT_INT(current_step, 1, "current_step", wizard_subjects_);
+    UI_MANAGED_SUBJECT_INT(total_steps, 9, "total_steps",
+                           wizard_subjects_); // 9 steps: WiFi, Connection, Printer, Heater,
+                                              // Fan, AMS, LED, Filament, Summary
 
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wizard_title, wizard_title_buffer, "Welcome",
-                                        "wizard_title");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wizard_progress, wizard_progress_buffer, "Step 1 of 9",
-                                        "wizard_progress");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wizard_next_button_text, wizard_next_button_text_buffer,
-                                        "Next", "wizard_next_button_text");
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(wizard_subtitle, wizard_subtitle_buffer, "",
-                                        "wizard_subtitle");
+    UI_MANAGED_SUBJECT_STRING(wizard_title, wizard_title_buffer, "Welcome", "wizard_title",
+                              wizard_subjects_);
+    UI_MANAGED_SUBJECT_STRING(wizard_progress, wizard_progress_buffer, "Step 1 of 9",
+                              "wizard_progress", wizard_subjects_);
+    UI_MANAGED_SUBJECT_STRING(wizard_next_button_text, wizard_next_button_text_buffer, "Next",
+                              "wizard_next_button_text", wizard_subjects_);
+    UI_MANAGED_SUBJECT_STRING(wizard_subtitle, wizard_subtitle_buffer, "", "wizard_subtitle",
+                              wizard_subjects_);
 
     // Initialize connection_test_passed to 1 (enabled by default for all steps)
     // Step 2 (connection) will set it to 0 until test passes
-    UI_SUBJECT_INIT_AND_REGISTER_INT(connection_test_passed, 1, "connection_test_passed");
+    UI_MANAGED_SUBJECT_INT(connection_test_passed, 1, "connection_test_passed", wizard_subjects_);
 
     wizard_subjects_initialized = true;
-    spdlog::debug("[Wizard] Subjects initialized");
+    spdlog::debug("[Wizard] Subjects initialized ({} subjects registered)",
+                  wizard_subjects_.count());
 }
 
 void ui_wizard_deinit_subjects() {
     if (!wizard_subjects_initialized) {
         return;
     }
-    lv_subject_deinit(&current_step);
-    lv_subject_deinit(&total_steps);
-    lv_subject_deinit(&wizard_title);
-    lv_subject_deinit(&wizard_progress);
-    lv_subject_deinit(&wizard_next_button_text);
-    lv_subject_deinit(&wizard_subtitle);
-    lv_subject_deinit(&connection_test_passed);
+    // Use SubjectManager for RAII cleanup - handles all registered subjects
+    wizard_subjects_.deinit_all();
     wizard_subjects_initialized = false;
     spdlog::debug("[Wizard] Subjects deinitialized");
 }

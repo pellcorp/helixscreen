@@ -64,13 +64,12 @@ void SpoolmanPanel::init_subjects() {
     spdlog::debug("[{}] Initializing subjects", get_name());
 
     // Initialize panel state subject (starts in LOADING state)
-    UI_SUBJECT_INIT_AND_REGISTER_INT(panel_state_subject_,
-                                     static_cast<int32_t>(SpoolmanPanelState::LOADING),
-                                     "spoolman_panel_state");
+    UI_MANAGED_SUBJECT_INT(panel_state_subject_, static_cast<int32_t>(SpoolmanPanelState::LOADING),
+                           "spoolman_panel_state", subjects_);
 
     // Initialize spool count subject
-    UI_SUBJECT_INIT_AND_REGISTER_STRING(spool_count_subject_, spool_count_buf_, "",
-                                        "spoolman_spool_count");
+    UI_MANAGED_SUBJECT_STRING(spool_count_subject_, spool_count_buf_, "", "spoolman_spool_count",
+                              subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized: spoolman_panel_state, spoolman_spool_count",
@@ -81,8 +80,7 @@ void SpoolmanPanel::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&panel_state_subject_);
-    lv_subject_deinit(&spool_count_subject_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[SpoolmanPanel] Subjects deinitialized");
 }

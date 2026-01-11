@@ -8,6 +8,7 @@
 #include "lvgl/lvgl.h"
 #include "printer_detector.h"
 #include "spdlog/spdlog.h"
+#include "subject_managed_panel.h"
 
 #include <memory>
 #include <mutex>
@@ -1205,6 +1206,9 @@ class PrinterState {
     const PrintStartCapabilities& get_print_start_capabilities() const;
 
   private:
+    /// RAII manager for automatic subject cleanup - deinits all subjects on destruction
+    SubjectManager subjects_;
+
     // Temperature subjects
     lv_subject_t extruder_temp_;
     lv_subject_t extruder_target_;

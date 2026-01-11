@@ -33,8 +33,7 @@ void EmergencyStopOverlay::init_subjects() {
     }
 
     // Initialize visibility subject (default hidden)
-    lv_subject_init_int(&estop_visible_, 0);
-    lv_xml_register_subject(nullptr, "estop_visible", &estop_visible_);
+    UI_MANAGED_SUBJECT_INT(estop_visible_, 0, "estop_visible", subjects_);
 
     // Register click callbacks for XML event binding
     lv_xml_register_event_cb(nullptr, "emergency_stop_clicked", emergency_stop_clicked);
@@ -64,7 +63,7 @@ void EmergencyStopOverlay::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&estop_visible_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[EmergencyStop] Subjects deinitialized");
 }

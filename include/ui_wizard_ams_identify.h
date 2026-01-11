@@ -4,6 +4,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 
@@ -90,6 +91,9 @@ class WizardAmsIdentifyStep {
 
   private:
     lv_obj_t* screen_root_{nullptr};
+
+    // RAII subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // Subjects for reactive XML binding
     lv_subject_t wizard_ams_type_{};

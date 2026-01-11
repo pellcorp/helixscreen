@@ -5,6 +5,7 @@
 
 #include "lvgl.h"
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 #include <unordered_set>
@@ -130,6 +131,7 @@ class MacrosPanel : public OverlayBase {
     bool show_system_macros_ = false;       ///< Whether to show _* macros
 
     // Subjects
+    SubjectManager subjects_;
     char status_buf_[64] = {};
     lv_subject_t status_subject_{};
 };

@@ -209,7 +209,8 @@ void AmsEditModal::init_subjects() {
         return;
     }
 
-    // Initialize string subjects with empty/default buffers
+    // Initialize string subjects with empty/default buffers (local binding only, not XML
+    // registered)
     slot_indicator_buf_[0] = '-';
     slot_indicator_buf_[1] = '-';
     slot_indicator_buf_[2] = '\0';
@@ -220,20 +221,26 @@ void AmsEditModal::init_subjects() {
 
     lv_subject_init_string(&slot_indicator_subject_, slot_indicator_buf_, nullptr,
                            sizeof(slot_indicator_buf_), "--");
+    subjects_.register_subject(&slot_indicator_subject_);
+
     lv_subject_init_string(&color_name_subject_, color_name_buf_, nullptr, sizeof(color_name_buf_),
                            "");
+    subjects_.register_subject(&color_name_subject_);
+
     lv_subject_init_string(&temp_nozzle_subject_, temp_nozzle_buf_, nullptr,
                            sizeof(temp_nozzle_buf_), "200-230°C");
+    subjects_.register_subject(&temp_nozzle_subject_);
+
     lv_subject_init_string(&temp_bed_subject_, temp_bed_buf_, nullptr, sizeof(temp_bed_buf_),
                            "60°C");
+    subjects_.register_subject(&temp_bed_subject_);
+
     lv_subject_init_string(&remaining_pct_subject_, remaining_pct_buf_, nullptr,
                            sizeof(remaining_pct_buf_), "75%");
+    subjects_.register_subject(&remaining_pct_subject_);
 
-    // Initialize remaining mode subject (0=view, 1=edit)
-    lv_subject_init_int(&remaining_mode_subject_, 0);
-
-    // Register remaining mode subject globally for XML binding
-    lv_xml_register_subject(nullptr, "edit_remaining_mode", &remaining_mode_subject_);
+    // Initialize remaining mode subject (0=view, 1=edit) - registered globally for XML binding
+    UI_MANAGED_SUBJECT_INT(remaining_mode_subject_, 0, "edit_remaining_mode", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[AmsEditModal] Subjects initialized");
@@ -244,14 +251,8 @@ void AmsEditModal::deinit_subjects() {
         return;
     }
 
-    // Applying [L041]: Subject init/deinit symmetry
-    // Disconnect all observers before subject memory becomes invalid
-    lv_subject_deinit(&slot_indicator_subject_);
-    lv_subject_deinit(&color_name_subject_);
-    lv_subject_deinit(&temp_nozzle_subject_);
-    lv_subject_deinit(&temp_bed_subject_);
-    lv_subject_deinit(&remaining_pct_subject_);
-    lv_subject_deinit(&remaining_mode_subject_);
+    // SubjectManager handles all lv_subject_deinit() calls via RAII
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[AmsEditModal] Subjects deinitialized");

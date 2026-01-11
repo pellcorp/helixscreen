@@ -44,7 +44,7 @@ void NotificationHistoryPanel::init_subjects() {
     }
 
     // Has entries subject: 1 = has entries (show content), 0 = empty (show empty state)
-    UI_SUBJECT_INIT_AND_REGISTER_INT(has_entries_subject_, 0, "notification_has_entries");
+    UI_MANAGED_SUBJECT_INT(has_entries_subject_, 0, "notification_has_entries", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized (1 subject)", get_name());
@@ -54,7 +54,7 @@ void NotificationHistoryPanel::deinit_subjects() {
     if (!subjects_initialized_) {
         return;
     }
-    lv_subject_deinit(&has_entries_subject_);
+    subjects_.deinit_all();
     subjects_initialized_ = false;
     spdlog::debug("[{}] Subjects deinitialized", get_name());
 }

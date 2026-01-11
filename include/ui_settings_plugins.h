@@ -20,6 +20,7 @@
 #pragma once
 
 #include "overlay_base.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 
@@ -165,6 +166,12 @@ class SettingsPluginsOverlay : public OverlayBase {
     //
 
     helix::plugin::PluginManager* plugin_manager_ = nullptr;
+
+    //
+    // === Subject Management ===
+    //
+
+    SubjectManager subjects_;
 
     //
     // === LVGL Subjects ===

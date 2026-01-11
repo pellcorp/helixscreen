@@ -3,6 +3,10 @@
 
 #pragma once
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
+
+// Forward declaration: SubjectManager for wizard subjects (defined in ui_wizard.cpp)
+// Wizard is function-based rather than class-based, so we use a static manager
 
 /**
  * Wizard Container - Responsive Multi-Step UI Component

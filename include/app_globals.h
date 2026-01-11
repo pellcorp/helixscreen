@@ -4,6 +4,7 @@
 #pragma once
 
 #include "lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <string>
 

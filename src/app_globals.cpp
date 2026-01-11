@@ -42,7 +42,8 @@ static MoonrakerManager* g_moonraker_manager = nullptr;
 static PrintHistoryManager* g_print_history_manager = nullptr;
 static TemperatureHistoryManager* g_temp_history_manager = nullptr;
 
-// Global reactive subjects
+// Global reactive subjects with RAII cleanup
+static SubjectManager g_subjects;
 static lv_subject_t g_notification_subject;
 
 // Application quit flag
@@ -110,7 +111,10 @@ static bool g_subjects_initialized = false;
 
 void app_globals_init_subjects() {
     // Initialize notification subject (stores NotificationData pointer)
+    // Note: Not using UI_MANAGED_SUBJECT_POINTER because this subject is accessed
+    // programmatically via get_notification_subject(), not through XML bindings
     lv_subject_init_pointer(&g_notification_subject, nullptr);
+    g_subjects.register_subject(&g_notification_subject);
 
     // Initialize modal dialog subjects (for modal_dialog.xml binding)
     ui_modal_init_subjects();
@@ -123,7 +127,7 @@ void app_globals_deinit_subjects() {
     if (!g_subjects_initialized) {
         return;
     }
-    lv_subject_deinit(&g_notification_subject);
+    g_subjects.deinit_all();
     ui_modal_deinit_subjects(); // Clean up modal subjects
     g_subjects_initialized = false;
     spdlog::debug("[App Globals] Global subjects deinitialized");

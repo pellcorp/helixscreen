@@ -5,6 +5,7 @@
 
 #include "filament_sensor_types.h"
 #include "lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <atomic>
 #include <chrono>
@@ -365,6 +366,7 @@ class FilamentSensorManager {
 
     // LVGL subjects
     bool subjects_initialized_ = false;
+    SubjectManager subjects_;
     lv_subject_t runout_detected_;
     lv_subject_t toolhead_detected_;
     lv_subject_t entry_detected_;

@@ -16,6 +16,7 @@
 #include "helix_plugin_installer.h"
 #include "print_file_data.h"
 #include "print_history_manager.h"
+#include "subject_managed_panel.h"
 #include "usb_backend.h"
 
 #include <atomic>
@@ -393,6 +394,8 @@ class PrintSelectPanel : public PanelBase {
     //
     // === Subject Buffers ===
     //
+
+    SubjectManager subjects_; ///< RAII manager for automatic subject cleanup
 
     lv_subject_t selected_filename_subject_; ///< Raw filename (for API/lookups)
     char selected_filename_buffer_[128];

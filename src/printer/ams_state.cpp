@@ -142,124 +142,182 @@ void AmsState::init_subjects(bool register_xml) {
 
     spdlog::debug("[AMS State] Initializing subjects");
 
-    // System-level subjects
-    lv_subject_init_int(&ams_type_, static_cast<int>(AmsType::NONE));
-    lv_subject_init_int(&ams_action_, static_cast<int>(AmsAction::IDLE));
-    lv_subject_init_int(&current_slot_, -1);
-    lv_subject_init_int(&current_tool_, -1);
-    lv_subject_init_int(&filament_loaded_, 0);
-    lv_subject_init_int(&bypass_active_, 0);
-    lv_subject_init_int(&supports_bypass_, 0);
-    lv_subject_init_int(&slot_count_, 0);
-    lv_subject_init_int(&slots_version_, 0);
-
-    // String subjects
-    lv_subject_init_string(&ams_action_detail_, action_detail_buf_, nullptr,
-                           sizeof(action_detail_buf_), "");
-    lv_subject_init_string(&ams_system_name_, system_name_buf_, nullptr, sizeof(system_name_buf_),
-                           "");
-    lv_subject_init_string(&current_tool_text_, current_tool_text_buf_, nullptr,
-                           sizeof(current_tool_text_buf_), "---");
-
-    // Filament path visualization subjects
-    lv_subject_init_int(&path_topology_, static_cast<int>(PathTopology::HUB));
-    lv_subject_init_int(&path_active_slot_, -1);
-    lv_subject_init_int(&path_filament_segment_, static_cast<int>(PathSegment::NONE));
-    lv_subject_init_int(&path_error_segment_, static_cast<int>(PathSegment::NONE));
-    lv_subject_init_int(&path_anim_progress_, 0);
-
-    // Dryer subjects (for AMS systems with integrated drying)
-    lv_subject_init_int(&dryer_supported_, 0);
-    lv_subject_init_int(&dryer_active_, 0);
-    lv_subject_init_int(&dryer_current_temp_, 0);
-    lv_subject_init_int(&dryer_target_temp_, 0);
-    lv_subject_init_int(&dryer_remaining_min_, 0);
-    lv_subject_init_int(&dryer_progress_pct_, -1);
-    lv_subject_init_string(&dryer_current_temp_text_, dryer_current_temp_text_buf_, nullptr,
-                           sizeof(dryer_current_temp_text_buf_), "---");
-    lv_subject_init_string(&dryer_target_temp_text_, dryer_target_temp_text_buf_, nullptr,
-                           sizeof(dryer_target_temp_text_buf_), "---");
-    lv_subject_init_string(&dryer_time_text_, dryer_time_text_buf_, nullptr,
-                           sizeof(dryer_time_text_buf_), "");
-
-    // Dryer modal editing subjects
-    lv_subject_init_string(&dryer_modal_temp_text_, dryer_modal_temp_text_buf_, nullptr,
-                           sizeof(dryer_modal_temp_text_buf_), "55°C");
-    lv_subject_init_string(&dryer_modal_duration_text_, dryer_modal_duration_text_buf_, nullptr,
-                           sizeof(dryer_modal_duration_text_buf_), "4h");
-
-    // Currently Loaded display subjects (for reactive UI binding)
-    lv_subject_init_string(&current_material_text_, current_material_text_buf_, nullptr,
-                           sizeof(current_material_text_buf_), "---");
-    lv_subject_init_string(&current_slot_text_, current_slot_text_buf_, nullptr,
-                           sizeof(current_slot_text_buf_), "None");
-    lv_subject_init_string(&current_weight_text_, current_weight_text_buf_, nullptr,
-                           sizeof(current_weight_text_buf_), "");
-    lv_subject_init_int(&current_has_weight_, 0);
-    lv_subject_init_int(&current_color_, 0x505050); // Default gray
-
-    // Per-slot subjects
-    for (int i = 0; i < MAX_SLOTS; ++i) {
-        lv_subject_init_int(&slot_colors_[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
-        lv_subject_init_int(&slot_statuses_[i], static_cast<int>(SlotStatus::UNKNOWN));
-    }
-
-    // Register with XML system if requested
     if (register_xml) {
-        lv_xml_register_subject(NULL, "ams_type", &ams_type_);
-        lv_xml_register_subject(NULL, "ams_action", &ams_action_);
-        lv_xml_register_subject(NULL, "ams_action_detail", &ams_action_detail_);
-        lv_xml_register_subject(NULL, "ams_system_name", &ams_system_name_);
-        lv_xml_register_subject(NULL, "ams_current_slot", &current_slot_);
-        lv_xml_register_subject(NULL, "ams_current_tool", &current_tool_);
-        lv_xml_register_subject(NULL, "ams_current_tool_text", &current_tool_text_);
-        lv_xml_register_subject(NULL, "ams_filament_loaded", &filament_loaded_);
-        lv_xml_register_subject(NULL, "ams_bypass_active", &bypass_active_);
-        lv_xml_register_subject(NULL, "ams_supports_bypass", &supports_bypass_);
-        lv_xml_register_subject(NULL, "ams_slot_count", &slot_count_);
-        lv_xml_register_subject(NULL, "ams_slots_version", &slots_version_);
+        // System-level subjects - using managed macros when registering with XML
+        UI_MANAGED_SUBJECT_INT(ams_type_, static_cast<int>(AmsType::NONE), "ams_type", subjects_);
+        UI_MANAGED_SUBJECT_INT(ams_action_, static_cast<int>(AmsAction::IDLE), "ams_action",
+                               subjects_);
+        UI_MANAGED_SUBJECT_INT(current_slot_, -1, "ams_current_slot", subjects_);
+        UI_MANAGED_SUBJECT_INT(current_tool_, -1, "ams_current_tool", subjects_);
+        UI_MANAGED_SUBJECT_INT(filament_loaded_, 0, "ams_filament_loaded", subjects_);
+        UI_MANAGED_SUBJECT_INT(bypass_active_, 0, "ams_bypass_active", subjects_);
+        UI_MANAGED_SUBJECT_INT(supports_bypass_, 0, "ams_supports_bypass", subjects_);
+        UI_MANAGED_SUBJECT_INT(slot_count_, 0, "ams_slot_count", subjects_);
+        UI_MANAGED_SUBJECT_INT(slots_version_, 0, "ams_slots_version", subjects_);
+
+        // String subjects
+        UI_MANAGED_SUBJECT_STRING(ams_action_detail_, action_detail_buf_, "", "ams_action_detail",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(ams_system_name_, system_name_buf_, "", "ams_system_name",
+                                  subjects_);
+        UI_MANAGED_SUBJECT_STRING(current_tool_text_, current_tool_text_buf_, "---",
+                                  "ams_current_tool_text", subjects_);
 
         // Filament path visualization subjects
-        lv_xml_register_subject(NULL, "ams_path_topology", &path_topology_);
-        lv_xml_register_subject(NULL, "ams_path_active_slot", &path_active_slot_);
-        lv_xml_register_subject(NULL, "ams_path_filament_segment", &path_filament_segment_);
-        lv_xml_register_subject(NULL, "ams_path_error_segment", &path_error_segment_);
-        lv_xml_register_subject(NULL, "ams_path_anim_progress", &path_anim_progress_);
+        UI_MANAGED_SUBJECT_INT(path_topology_, static_cast<int>(PathTopology::HUB),
+                               "ams_path_topology", subjects_);
+        UI_MANAGED_SUBJECT_INT(path_active_slot_, -1, "ams_path_active_slot", subjects_);
+        UI_MANAGED_SUBJECT_INT(path_filament_segment_, static_cast<int>(PathSegment::NONE),
+                               "ams_path_filament_segment", subjects_);
+        UI_MANAGED_SUBJECT_INT(path_error_segment_, static_cast<int>(PathSegment::NONE),
+                               "ams_path_error_segment", subjects_);
+        UI_MANAGED_SUBJECT_INT(path_anim_progress_, 0, "ams_path_anim_progress", subjects_);
 
-        // Dryer subjects (for binding in ams_dryer_card.xml)
-        lv_xml_register_subject(NULL, "dryer_supported", &dryer_supported_);
-        lv_xml_register_subject(NULL, "dryer_active", &dryer_active_);
-        lv_xml_register_subject(NULL, "dryer_current_temp", &dryer_current_temp_);
-        lv_xml_register_subject(NULL, "dryer_target_temp", &dryer_target_temp_);
-        lv_xml_register_subject(NULL, "dryer_remaining_min", &dryer_remaining_min_);
-        lv_xml_register_subject(NULL, "dryer_progress_pct", &dryer_progress_pct_);
-        lv_xml_register_subject(NULL, "dryer_current_temp_text", &dryer_current_temp_text_);
-        lv_xml_register_subject(NULL, "dryer_target_temp_text", &dryer_target_temp_text_);
-        lv_xml_register_subject(NULL, "dryer_time_text", &dryer_time_text_);
-        lv_xml_register_subject(NULL, "dryer_modal_temp_text", &dryer_modal_temp_text_);
-        lv_xml_register_subject(NULL, "dryer_modal_duration_text", &dryer_modal_duration_text_);
+        // Dryer subjects (for AMS systems with integrated drying)
+        UI_MANAGED_SUBJECT_INT(dryer_supported_, 0, "dryer_supported", subjects_);
+        UI_MANAGED_SUBJECT_INT(dryer_active_, 0, "dryer_active", subjects_);
+        UI_MANAGED_SUBJECT_INT(dryer_current_temp_, 0, "dryer_current_temp", subjects_);
+        UI_MANAGED_SUBJECT_INT(dryer_target_temp_, 0, "dryer_target_temp", subjects_);
+        UI_MANAGED_SUBJECT_INT(dryer_remaining_min_, 0, "dryer_remaining_min", subjects_);
+        UI_MANAGED_SUBJECT_INT(dryer_progress_pct_, -1, "dryer_progress_pct", subjects_);
+        UI_MANAGED_SUBJECT_STRING(dryer_current_temp_text_, dryer_current_temp_text_buf_, "---",
+                                  "dryer_current_temp_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(dryer_target_temp_text_, dryer_target_temp_text_buf_, "---",
+                                  "dryer_target_temp_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(dryer_time_text_, dryer_time_text_buf_, "", "dryer_time_text",
+                                  subjects_);
 
-        // Currently Loaded display subjects (for binding in ams_panel.xml)
-        lv_xml_register_subject(NULL, "ams_current_material_text", &current_material_text_);
-        lv_xml_register_subject(NULL, "ams_current_slot_text", &current_slot_text_);
-        lv_xml_register_subject(NULL, "ams_current_weight_text", &current_weight_text_);
-        lv_xml_register_subject(NULL, "ams_current_has_weight", &current_has_weight_);
-        lv_xml_register_subject(NULL, "ams_current_color", &current_color_);
+        // Dryer modal editing subjects
+        UI_MANAGED_SUBJECT_STRING(dryer_modal_temp_text_, dryer_modal_temp_text_buf_, "55°C",
+                                  "dryer_modal_temp_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(dryer_modal_duration_text_, dryer_modal_duration_text_buf_, "4h",
+                                  "dryer_modal_duration_text", subjects_);
 
-        // Register per-slot subjects with indexed names
+        // Currently Loaded display subjects (for reactive UI binding)
+        UI_MANAGED_SUBJECT_STRING(current_material_text_, current_material_text_buf_, "---",
+                                  "ams_current_material_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(current_slot_text_, current_slot_text_buf_, "None",
+                                  "ams_current_slot_text", subjects_);
+        UI_MANAGED_SUBJECT_STRING(current_weight_text_, current_weight_text_buf_, "",
+                                  "ams_current_weight_text", subjects_);
+        UI_MANAGED_SUBJECT_INT(current_has_weight_, 0, "ams_current_has_weight", subjects_);
+        UI_MANAGED_SUBJECT_INT(current_color_, 0x505050, "ams_current_color", subjects_);
+
+        // Per-slot subjects - manual init + XML registration + manager registration
         char name_buf[32];
         for (int i = 0; i < MAX_SLOTS; ++i) {
+            lv_subject_init_int(&slot_colors_[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
             snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_color", i);
-            lv_xml_register_subject(NULL, name_buf, &slot_colors_[i]);
+            lv_xml_register_subject(nullptr, name_buf, &slot_colors_[i]);
+            subjects_.register_subject(&slot_colors_[i]);
 
+            lv_subject_init_int(&slot_statuses_[i], static_cast<int>(SlotStatus::UNKNOWN));
             snprintf(name_buf, sizeof(name_buf), "ams_slot_%d_status", i);
-            lv_xml_register_subject(NULL, name_buf, &slot_statuses_[i]);
+            lv_xml_register_subject(nullptr, name_buf, &slot_statuses_[i]);
+            subjects_.register_subject(&slot_statuses_[i]);
         }
 
         spdlog::info(
             "[AMS State] Registered {} system subjects, {} path subjects, {} dryer subjects, "
             "{} current-loaded subjects, {} per-slot subjects",
-            10, 5, 10, 5, MAX_SLOTS * 2);
+            10, 5, 11, 5, MAX_SLOTS * 2);
+    } else {
+        // Test mode: init subjects without XML registration
+        lv_subject_init_int(&ams_type_, static_cast<int>(AmsType::NONE));
+        subjects_.register_subject(&ams_type_);
+        lv_subject_init_int(&ams_action_, static_cast<int>(AmsAction::IDLE));
+        subjects_.register_subject(&ams_action_);
+        lv_subject_init_int(&current_slot_, -1);
+        subjects_.register_subject(&current_slot_);
+        lv_subject_init_int(&current_tool_, -1);
+        subjects_.register_subject(&current_tool_);
+        lv_subject_init_int(&filament_loaded_, 0);
+        subjects_.register_subject(&filament_loaded_);
+        lv_subject_init_int(&bypass_active_, 0);
+        subjects_.register_subject(&bypass_active_);
+        lv_subject_init_int(&supports_bypass_, 0);
+        subjects_.register_subject(&supports_bypass_);
+        lv_subject_init_int(&slot_count_, 0);
+        subjects_.register_subject(&slot_count_);
+        lv_subject_init_int(&slots_version_, 0);
+        subjects_.register_subject(&slots_version_);
+
+        // String subjects
+        lv_subject_init_string(&ams_action_detail_, action_detail_buf_, nullptr,
+                               sizeof(action_detail_buf_), "");
+        subjects_.register_subject(&ams_action_detail_);
+        lv_subject_init_string(&ams_system_name_, system_name_buf_, nullptr,
+                               sizeof(system_name_buf_), "");
+        subjects_.register_subject(&ams_system_name_);
+        lv_subject_init_string(&current_tool_text_, current_tool_text_buf_, nullptr,
+                               sizeof(current_tool_text_buf_), "---");
+        subjects_.register_subject(&current_tool_text_);
+
+        // Filament path visualization subjects
+        lv_subject_init_int(&path_topology_, static_cast<int>(PathTopology::HUB));
+        subjects_.register_subject(&path_topology_);
+        lv_subject_init_int(&path_active_slot_, -1);
+        subjects_.register_subject(&path_active_slot_);
+        lv_subject_init_int(&path_filament_segment_, static_cast<int>(PathSegment::NONE));
+        subjects_.register_subject(&path_filament_segment_);
+        lv_subject_init_int(&path_error_segment_, static_cast<int>(PathSegment::NONE));
+        subjects_.register_subject(&path_error_segment_);
+        lv_subject_init_int(&path_anim_progress_, 0);
+        subjects_.register_subject(&path_anim_progress_);
+
+        // Dryer subjects
+        lv_subject_init_int(&dryer_supported_, 0);
+        subjects_.register_subject(&dryer_supported_);
+        lv_subject_init_int(&dryer_active_, 0);
+        subjects_.register_subject(&dryer_active_);
+        lv_subject_init_int(&dryer_current_temp_, 0);
+        subjects_.register_subject(&dryer_current_temp_);
+        lv_subject_init_int(&dryer_target_temp_, 0);
+        subjects_.register_subject(&dryer_target_temp_);
+        lv_subject_init_int(&dryer_remaining_min_, 0);
+        subjects_.register_subject(&dryer_remaining_min_);
+        lv_subject_init_int(&dryer_progress_pct_, -1);
+        subjects_.register_subject(&dryer_progress_pct_);
+        lv_subject_init_string(&dryer_current_temp_text_, dryer_current_temp_text_buf_, nullptr,
+                               sizeof(dryer_current_temp_text_buf_), "---");
+        subjects_.register_subject(&dryer_current_temp_text_);
+        lv_subject_init_string(&dryer_target_temp_text_, dryer_target_temp_text_buf_, nullptr,
+                               sizeof(dryer_target_temp_text_buf_), "---");
+        subjects_.register_subject(&dryer_target_temp_text_);
+        lv_subject_init_string(&dryer_time_text_, dryer_time_text_buf_, nullptr,
+                               sizeof(dryer_time_text_buf_), "");
+        subjects_.register_subject(&dryer_time_text_);
+
+        // Dryer modal editing subjects
+        lv_subject_init_string(&dryer_modal_temp_text_, dryer_modal_temp_text_buf_, nullptr,
+                               sizeof(dryer_modal_temp_text_buf_), "55°C");
+        subjects_.register_subject(&dryer_modal_temp_text_);
+        lv_subject_init_string(&dryer_modal_duration_text_, dryer_modal_duration_text_buf_, nullptr,
+                               sizeof(dryer_modal_duration_text_buf_), "4h");
+        subjects_.register_subject(&dryer_modal_duration_text_);
+
+        // Currently Loaded display subjects
+        lv_subject_init_string(&current_material_text_, current_material_text_buf_, nullptr,
+                               sizeof(current_material_text_buf_), "---");
+        subjects_.register_subject(&current_material_text_);
+        lv_subject_init_string(&current_slot_text_, current_slot_text_buf_, nullptr,
+                               sizeof(current_slot_text_buf_), "None");
+        subjects_.register_subject(&current_slot_text_);
+        lv_subject_init_string(&current_weight_text_, current_weight_text_buf_, nullptr,
+                               sizeof(current_weight_text_buf_), "");
+        subjects_.register_subject(&current_weight_text_);
+        lv_subject_init_int(&current_has_weight_, 0);
+        subjects_.register_subject(&current_has_weight_);
+        lv_subject_init_int(&current_color_, 0x505050);
+        subjects_.register_subject(&current_color_);
+
+        // Per-slot subjects
+        for (int i = 0; i < MAX_SLOTS; ++i) {
+            lv_subject_init_int(&slot_colors_[i], static_cast<int>(AMS_DEFAULT_SLOT_COLOR));
+            subjects_.register_subject(&slot_colors_[i]);
+            lv_subject_init_int(&slot_statuses_[i], static_cast<int>(SlotStatus::UNKNOWN));
+            subjects_.register_subject(&slot_statuses_[i]);
+        }
     }
 
     // Ask the factory for a backend. In mock mode, it returns a mock backend.
@@ -294,54 +352,8 @@ void AmsState::deinit_subjects() {
 
     spdlog::debug("[AMS State] Deinitializing subjects");
 
-    // System-level subjects
-    lv_subject_deinit(&ams_type_);
-    lv_subject_deinit(&ams_action_);
-    lv_subject_deinit(&current_slot_);
-    lv_subject_deinit(&current_tool_);
-    lv_subject_deinit(&filament_loaded_);
-    lv_subject_deinit(&bypass_active_);
-    lv_subject_deinit(&supports_bypass_);
-    lv_subject_deinit(&slot_count_);
-    lv_subject_deinit(&slots_version_);
-
-    // String subjects
-    lv_subject_deinit(&ams_action_detail_);
-    lv_subject_deinit(&ams_system_name_);
-    lv_subject_deinit(&current_tool_text_);
-
-    // Filament path visualization subjects
-    lv_subject_deinit(&path_topology_);
-    lv_subject_deinit(&path_active_slot_);
-    lv_subject_deinit(&path_filament_segment_);
-    lv_subject_deinit(&path_error_segment_);
-    lv_subject_deinit(&path_anim_progress_);
-
-    // Dryer subjects
-    lv_subject_deinit(&dryer_supported_);
-    lv_subject_deinit(&dryer_active_);
-    lv_subject_deinit(&dryer_current_temp_);
-    lv_subject_deinit(&dryer_target_temp_);
-    lv_subject_deinit(&dryer_remaining_min_);
-    lv_subject_deinit(&dryer_progress_pct_);
-    lv_subject_deinit(&dryer_current_temp_text_);
-    lv_subject_deinit(&dryer_target_temp_text_);
-    lv_subject_deinit(&dryer_time_text_);
-    lv_subject_deinit(&dryer_modal_temp_text_);
-    lv_subject_deinit(&dryer_modal_duration_text_);
-
-    // Currently Loaded display subjects
-    lv_subject_deinit(&current_material_text_);
-    lv_subject_deinit(&current_slot_text_);
-    lv_subject_deinit(&current_weight_text_);
-    lv_subject_deinit(&current_has_weight_);
-    lv_subject_deinit(&current_color_);
-
-    // Per-slot subjects
-    for (int i = 0; i < MAX_SLOTS; ++i) {
-        lv_subject_deinit(&slot_colors_[i]);
-        lv_subject_deinit(&slot_statuses_[i]);
-    }
+    // Use SubjectManager for automatic cleanup of all registered subjects
+    subjects_.deinit_all();
 
     initialized_ = false;
     spdlog::debug("[AMS State] Subjects deinitialized");

@@ -38,7 +38,7 @@ ZOffsetCalibrationPanel::~ZOffsetCalibrationPanel() {
 
     // Deinitialize subjects to disconnect observers before we're destroyed
     if (subjects_initialized_) {
-        lv_subject_deinit(&s_zoffset_cal_state);
+        subjects_.deinit_all();
         subjects_initialized_ = false;
     }
 
@@ -78,8 +78,7 @@ void ZOffsetCalibrationPanel::init_subjects() {
     spdlog::debug("[ZOffsetCal] Initializing subjects");
 
     // Register state subject (shared across all instances)
-    lv_subject_init_int(&s_zoffset_cal_state, 0);
-    lv_xml_register_subject(nullptr, "zoffset_cal_state", &s_zoffset_cal_state);
+    UI_MANAGED_SUBJECT_INT(s_zoffset_cal_state, 0, "zoffset_cal_state", subjects_);
 
     subjects_initialized_ = true;
 

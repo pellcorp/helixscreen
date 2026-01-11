@@ -4,6 +4,7 @@
 #pragma once
 
 #include "spoolman_types.h"
+#include "subject_managed_panel.h"
 
 #include <functional>
 #include <lvgl.h>
@@ -105,6 +106,7 @@ class AmsSpoolmanPicker {
     std::shared_ptr<bool> callback_guard_;
 
     // === Subjects for XML binding ===
+    SubjectManager subjects_;
     lv_subject_t slot_indicator_subject_;
     lv_subject_t picker_state_subject_; ///< 0=LOADING, 1=EMPTY, 2=CONTENT
     char slot_indicator_buf_[48] = {0};

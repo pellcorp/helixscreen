@@ -6,6 +6,7 @@
 #include "ams_backend.h"
 #include "ams_types.h"
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <memory>
 #include <mutex>
@@ -603,6 +604,9 @@ class AmsState {
     // Moonraker API for Spoolman integration
     MoonrakerAPI* api_ = nullptr;
     int last_synced_spoolman_id_ = 0; ///< Track to avoid duplicate set_active_spool calls
+
+    // Subject manager for automatic cleanup
+    SubjectManager subjects_;
 
     // System-level subjects
     lv_subject_t ams_type_;

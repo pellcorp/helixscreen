@@ -115,84 +115,18 @@ void PrinterState::reset_for_testing() {
     }
 
     spdlog::info("[PrinterState] reset_for_testing: Deinitializing subjects to clear observers");
-    // Deinitialize all subjects to clear observers
-    lv_subject_deinit(&extruder_temp_);
-    lv_subject_deinit(&extruder_target_);
-    lv_subject_deinit(&bed_temp_);
-    lv_subject_deinit(&bed_target_);
-    lv_subject_deinit(&print_progress_);
-    lv_subject_deinit(&print_filename_);
-    lv_subject_deinit(&print_state_);
-    lv_subject_deinit(&print_state_enum_);
-    lv_subject_deinit(&print_active_);
-    lv_subject_deinit(&print_show_progress_);
-    lv_subject_deinit(&print_display_filename_);
-    lv_subject_deinit(&print_thumbnail_path_);
-    lv_subject_deinit(&print_layer_current_);
-    lv_subject_deinit(&print_layer_total_);
-    lv_subject_deinit(&print_start_phase_);
-    lv_subject_deinit(&print_start_message_);
-    lv_subject_deinit(&print_start_progress_);
-    lv_subject_deinit(&print_in_progress_);
-    lv_subject_deinit(&position_x_);
-    lv_subject_deinit(&position_y_);
-    lv_subject_deinit(&position_z_);
-    lv_subject_deinit(&homed_axes_);
-    lv_subject_deinit(&speed_factor_);
-    lv_subject_deinit(&flow_factor_);
-    lv_subject_deinit(&gcode_z_offset_);
-    lv_subject_deinit(&pending_z_offset_delta_);
-    lv_subject_deinit(&fan_speed_);
-    lv_subject_deinit(&fans_version_);
+
+    // Use SubjectManager for automatic subject cleanup
+    subjects_.deinit_all();
+
     // Deinit per-fan speed subjects (unique_ptr handles memory, we just need to deinit)
+    // These are dynamically created so not tracked by SubjectManager
     for (auto& [name, subject_ptr] : fan_speed_subjects_) {
         if (subject_ptr) {
             lv_subject_deinit(subject_ptr.get());
         }
     }
     fan_speed_subjects_.clear();
-    lv_subject_deinit(&printer_connection_state_);
-    lv_subject_deinit(&printer_connection_message_);
-    lv_subject_deinit(&network_status_);
-    lv_subject_deinit(&klippy_state_);
-    lv_subject_deinit(&nav_buttons_enabled_);
-    lv_subject_deinit(&led_state_);
-    lv_subject_deinit(&led_r_);
-    lv_subject_deinit(&led_g_);
-    lv_subject_deinit(&led_b_);
-    lv_subject_deinit(&led_w_);
-    lv_subject_deinit(&led_brightness_);
-    lv_subject_deinit(&excluded_objects_version_);
-    lv_subject_deinit(&printer_has_qgl_);
-    lv_subject_deinit(&printer_has_z_tilt_);
-    lv_subject_deinit(&printer_has_bed_mesh_);
-    lv_subject_deinit(&printer_has_nozzle_clean_);
-    lv_subject_deinit(&printer_has_probe_);
-    lv_subject_deinit(&printer_has_heater_bed_);
-    lv_subject_deinit(&printer_has_led_);
-    lv_subject_deinit(&printer_has_accelerometer_);
-    lv_subject_deinit(&printer_has_spoolman_);
-    lv_subject_deinit(&printer_has_speaker_);
-    lv_subject_deinit(&printer_has_timelapse_);
-    lv_subject_deinit(&printer_has_purge_line_);
-    lv_subject_deinit(&helix_plugin_installed_);
-    lv_subject_deinit(&phase_tracking_enabled_);
-    lv_subject_deinit(&printer_has_firmware_retraction_);
-    lv_subject_deinit(&printer_bed_moves_);
-    lv_subject_deinit(&can_show_bed_mesh_);
-    lv_subject_deinit(&can_show_qgl_);
-    lv_subject_deinit(&can_show_z_tilt_);
-    lv_subject_deinit(&can_show_nozzle_clean_);
-    lv_subject_deinit(&can_show_purge_line_);
-    lv_subject_deinit(&retract_length_);
-    lv_subject_deinit(&retract_speed_);
-    lv_subject_deinit(&unretract_extra_length_);
-    lv_subject_deinit(&unretract_speed_);
-    lv_subject_deinit(&manual_probe_active_);
-    lv_subject_deinit(&manual_probe_z_position_);
-    lv_subject_deinit(&motors_enabled_);
-    lv_subject_deinit(&klipper_version_);
-    lv_subject_deinit(&moonraker_version_);
 
     // Reset printer type and capabilities to initial empty state
     printer_type_.clear();
@@ -364,6 +298,111 @@ void PrinterState::init_subjects(bool register_xml) {
                            sizeof(klipper_version_buf_), "—");
     lv_subject_init_string(&moonraker_version_, moonraker_version_buf_, nullptr,
                            sizeof(moonraker_version_buf_), "—");
+
+    // Register all subjects with SubjectManager for automatic cleanup
+    // Temperature subjects
+    subjects_.register_subject(&extruder_temp_);
+    subjects_.register_subject(&extruder_target_);
+    subjects_.register_subject(&bed_temp_);
+    subjects_.register_subject(&bed_target_);
+    // Print progress subjects
+    subjects_.register_subject(&print_progress_);
+    subjects_.register_subject(&print_filename_);
+    subjects_.register_subject(&print_state_);
+    subjects_.register_subject(&print_state_enum_);
+    subjects_.register_subject(&print_outcome_);
+    subjects_.register_subject(&print_active_);
+    subjects_.register_subject(&print_show_progress_);
+    subjects_.register_subject(&print_display_filename_);
+    subjects_.register_subject(&print_thumbnail_path_);
+    // Layer tracking subjects
+    subjects_.register_subject(&print_layer_current_);
+    subjects_.register_subject(&print_layer_total_);
+    // Print time subjects
+    subjects_.register_subject(&print_duration_);
+    subjects_.register_subject(&print_time_left_);
+    // Print start progress subjects
+    subjects_.register_subject(&print_start_phase_);
+    subjects_.register_subject(&print_start_message_);
+    subjects_.register_subject(&print_start_progress_);
+    subjects_.register_subject(&print_in_progress_);
+    // Motion subjects
+    subjects_.register_subject(&position_x_);
+    subjects_.register_subject(&position_y_);
+    subjects_.register_subject(&position_z_);
+    subjects_.register_subject(&homed_axes_);
+    // Speed/Flow/Z-offset subjects
+    subjects_.register_subject(&speed_factor_);
+    subjects_.register_subject(&flow_factor_);
+    subjects_.register_subject(&gcode_z_offset_);
+    subjects_.register_subject(&pending_z_offset_delta_);
+    subjects_.register_subject(&fan_speed_);
+    subjects_.register_subject(&fans_version_);
+    // Printer connection subjects
+    subjects_.register_subject(&printer_connection_state_);
+    subjects_.register_subject(&printer_connection_message_);
+    subjects_.register_subject(&network_status_);
+    subjects_.register_subject(&klippy_state_);
+    subjects_.register_subject(&nav_buttons_enabled_);
+    // LED subjects
+    subjects_.register_subject(&led_state_);
+    subjects_.register_subject(&led_r_);
+    subjects_.register_subject(&led_g_);
+    subjects_.register_subject(&led_b_);
+    subjects_.register_subject(&led_w_);
+    subjects_.register_subject(&led_brightness_);
+    // Excluded objects
+    subjects_.register_subject(&excluded_objects_version_);
+    // Printer capability subjects
+    subjects_.register_subject(&printer_has_qgl_);
+    subjects_.register_subject(&printer_has_z_tilt_);
+    subjects_.register_subject(&printer_has_bed_mesh_);
+    subjects_.register_subject(&printer_has_nozzle_clean_);
+    subjects_.register_subject(&printer_has_probe_);
+    subjects_.register_subject(&printer_has_heater_bed_);
+    subjects_.register_subject(&printer_has_led_);
+    subjects_.register_subject(&printer_has_accelerometer_);
+    subjects_.register_subject(&printer_has_spoolman_);
+    subjects_.register_subject(&printer_has_speaker_);
+    subjects_.register_subject(&printer_has_timelapse_);
+    subjects_.register_subject(&printer_has_purge_line_);
+    subjects_.register_subject(&helix_plugin_installed_);
+    subjects_.register_subject(&phase_tracking_enabled_);
+    subjects_.register_subject(&printer_has_firmware_retraction_);
+    subjects_.register_subject(&printer_bed_moves_);
+    // Composite subjects for G-code modification visibility
+    subjects_.register_subject(&can_show_bed_mesh_);
+    subjects_.register_subject(&can_show_qgl_);
+    subjects_.register_subject(&can_show_z_tilt_);
+    subjects_.register_subject(&can_show_nozzle_clean_);
+    subjects_.register_subject(&can_show_purge_line_);
+    // Hardware validation subjects
+    subjects_.register_subject(&hardware_has_issues_);
+    subjects_.register_subject(&hardware_issue_count_);
+    subjects_.register_subject(&hardware_max_severity_);
+    subjects_.register_subject(&hardware_validation_version_);
+    subjects_.register_subject(&hardware_critical_count_);
+    subjects_.register_subject(&hardware_warning_count_);
+    subjects_.register_subject(&hardware_info_count_);
+    subjects_.register_subject(&hardware_session_count_);
+    subjects_.register_subject(&hardware_status_title_);
+    subjects_.register_subject(&hardware_status_detail_);
+    subjects_.register_subject(&hardware_issues_label_);
+    // Firmware retraction subjects
+    subjects_.register_subject(&retract_length_);
+    subjects_.register_subject(&retract_speed_);
+    subjects_.register_subject(&unretract_extra_length_);
+    subjects_.register_subject(&unretract_speed_);
+    // Manual probe subjects
+    subjects_.register_subject(&manual_probe_active_);
+    subjects_.register_subject(&manual_probe_z_position_);
+    // Motor enabled state
+    subjects_.register_subject(&motors_enabled_);
+    // Version subjects
+    subjects_.register_subject(&klipper_version_);
+    subjects_.register_subject(&moonraker_version_);
+
+    spdlog::debug("[PrinterState] Registered {} subjects with SubjectManager", subjects_.count());
 
     // Register all subjects with LVGL XML system (CRITICAL for XML bindings)
     if (register_xml) {

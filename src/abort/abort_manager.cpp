@@ -41,18 +41,15 @@ void AbortManager::init_subjects() {
     lv_xml_register_component_from_file("A:ui_xml/abort_progress_modal.xml");
 
     // Initialize state subject (default IDLE)
-    lv_subject_init_int(&abort_state_subject_, static_cast<int>(State::IDLE));
-    lv_xml_register_subject(nullptr, "abort_state", &abort_state_subject_);
+    UI_MANAGED_SUBJECT_INT(abort_state_subject_, static_cast<int>(State::IDLE), "abort_state",
+                           subjects_);
 
     // Initialize progress message subject
-    std::strncpy(progress_message_buf_, "", sizeof(progress_message_buf_));
-    lv_subject_init_string(&progress_message_subject_, progress_message_buf_, nullptr,
-                           sizeof(progress_message_buf_), progress_message_buf_);
-    lv_xml_register_subject(nullptr, "abort_progress_message", &progress_message_subject_);
+    UI_MANAGED_SUBJECT_STRING(progress_message_subject_, progress_message_buf_, "",
+                              "abort_progress_message", subjects_);
 
     // Initialize visibility subject (0 = hidden, 1 = visible)
-    lv_subject_init_int(&abort_progress_visible_subject_, 0);
-    lv_xml_register_subject(nullptr, "abort_progress_visible", &abort_progress_visible_subject_);
+    UI_MANAGED_SUBJECT_INT(abort_progress_visible_subject_, 0, "abort_progress_visible", subjects_);
 
     subjects_initialized_ = true;
     spdlog::debug("[AbortManager] Subjects initialized");
@@ -78,10 +75,8 @@ void AbortManager::deinit_subjects() {
         modal_ = nullptr;
     }
 
-    // Deinitialize subjects
-    lv_subject_deinit(&abort_state_subject_);
-    lv_subject_deinit(&progress_message_subject_);
-    lv_subject_deinit(&abort_progress_visible_subject_);
+    // Deinitialize all subjects via RAII manager
+    subjects_.deinit_all();
 
     subjects_initialized_ = false;
     spdlog::debug("[AbortManager] Subjects deinitialized");

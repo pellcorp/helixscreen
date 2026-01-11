@@ -6,6 +6,7 @@
 #include "ui_observer_guard.h"
 
 #include "lvgl/lvgl.h"
+#include "subject_managed_panel.h"
 
 #include <array>
 #include <functional>
@@ -328,6 +329,8 @@ class NavigationManager {
     static constexpr uint32_t OVERLAY_ANIM_DURATION_MS = 200;
     static constexpr int32_t OVERLAY_SLIDE_OFFSET = 400;
 
+    // Subject management via RAII
+    SubjectManager subjects_;
     bool subjects_initialized_ = false;
 };
 

@@ -7,6 +7,7 @@
 #include "ui_modal.h"
 
 #include "ams_types.h"
+#include "subject_managed_panel.h"
 
 #include <functional>
 #include <memory>
@@ -100,6 +101,7 @@ class AmsEditModal : public Modal {
     std::unique_ptr<AmsColorPicker> color_picker_;
 
     // === Subjects for XML binding ===
+    SubjectManager subjects_;
     lv_subject_t slot_indicator_subject_;
     lv_subject_t color_name_subject_;
     lv_subject_t temp_nozzle_subject_;
