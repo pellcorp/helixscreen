@@ -2,7 +2,7 @@
 
 **Created**: 2026-01-11
 **Last Updated**: 2026-01-12
-**Status**: IN PROGRESS - 6 domains extracted (Temperature, Motion, LED, Fan, Print, Capabilities)
+**Status**: IN PROGRESS - 7 domains extracted (Temperature, Motion, LED, Fan, Print, Capabilities, Plugin Status)
 
 ## Quick Resume
 
@@ -16,14 +16,14 @@ git fetch origin && git status
 # 3. Build
 make -j && make test-build
 
-# 4. Run characterization tests (should all pass - 134 tests, 1136 assertions)
+# 4. Run characterization tests (should all pass - 143 tests, 1173 assertions)
 ./build/bin/helix-tests "[characterization]"
 
 # 5. Continue with next domain extraction (see Remaining Domains section)
 ```
 
-### Recommended Next Domain: **Plugin Status** (2 subjects)
-Tri-state plugin subjects: `helix_plugin_installed_`, `phase_tracking_enabled_`. Simple extraction.
+### Recommended Next Domain: **Composite Visibility** (5 subjects)
+Derived visibility flags: `can_show_bed_mesh_`, `can_show_qgl_`, `can_show_z_tilt_`, `can_show_nozzle_clean_`, `can_show_purge_line_`. These combine `helix_plugin_installed` with printer capabilities.
 
 ---
 
@@ -51,15 +51,16 @@ Decompose the 2808-line `PrinterState` god class (86 subjects across 11+ domains
 | Fan | `PrinterFanState` | 2 static + dynamic | 26 | 118 | ee5ac704 |
 | Print | `PrinterPrintState` | 17 | 26 | 330 | 7dfd653d |
 | Capabilities | `PrinterCapabilitiesState` | 14 | 17 | 232 | 0c045f49 |
-| **Total** | | **51+** | **134** | **1136** | |
+| Plugin Status | `PrinterPluginStatusState` | 2 | 9 | 37 | TBD |
+| **Total** | | **53+** | **143** | **1173** | |
 
 ### Next Steps
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Write Capabilities characterization tests | ✅ DONE |
-| 2 | Extract PrinterCapabilitiesState class | ✅ DONE |
-| 3 | Continue with Plugin Status domain (2 subjects) | ⏳ NEXT |
+| 1 | Write Plugin Status characterization tests | ✅ DONE |
+| 2 | Extract PrinterPluginStatusState class | ✅ DONE |
+| 3 | Continue with Composite Visibility domain (5 subjects) | ⏳ NEXT |
 
 ---
 
@@ -157,14 +158,25 @@ Decompose the 2808-line `PrinterState` god class (86 subjects across 11+ domains
 
 **Key methods**: `set_hardware()`, `set_spoolman_available()` (async), `set_bed_moves()`, `set_purge_line()`, `has_probe()`
 
+### 7. PrinterPluginStatusState (2 subjects)
+**File**: `include/printer_plugin_status_state.h`, `src/printer/printer_plugin_status_state.cpp`
+
+| Subject | Type | Storage |
+|---------|------|---------|
+| `helix_plugin_installed_` | int | Tri-state: -1=unknown, 0=not installed, 1=installed |
+| `phase_tracking_enabled_` | int | Tri-state: -1=unknown, 0=disabled, 1=enabled |
+
+**Key methods**: `set_installed_sync()` (for PrinterState async wrapper), `set_phase_tracking_enabled()` (async), `service_has_helix_plugin()`, `is_phase_tracking_enabled()`
+
+**Note**: `set_helix_plugin_installed()` is still in PrinterState because it needs to call `update_gcode_modification_visibility()` after updating the subject. The component provides `set_installed_sync()` for PrinterState to use inside its async wrapper.
+
 ---
 
 ## Remaining Domains
 
 | Domain | Subjects | Complexity | Notes |
 |--------|----------|------------|-------|
-| **Plugin Status** | 2 | Low | Tri-state: `helix_plugin_installed_`, `phase_tracking_enabled_`. **Recommended next** |
-| **Composite Visibility** | 5 | Low | Derived flags: `can_show_bed_mesh_`, `can_show_qgl_`, etc. |
+| **Composite Visibility** | 5 | Low | Derived flags: `can_show_bed_mesh_`, `can_show_qgl_`, etc. **Recommended next** |
 | **Network/Connection** | 6 | Medium | State machine: `printer_connection_state_`, `klippy_state_`, etc. |
 | **Hardware Validation** | 11 | Medium | Validation logic: `hardware_has_issues_`, etc. |
 | **Calibration/Config** | 8 | Low | Simple values |
@@ -241,12 +253,13 @@ private:
 
 ### Extracted Components
 ```
-include/printer_temperature_state.h    src/printer/printer_temperature_state.cpp
-include/printer_motion_state.h         src/printer/printer_motion_state.cpp
-include/printer_led_state.h            src/printer/printer_led_state.cpp
-include/printer_fan_state.h            src/printer/printer_fan_state.cpp
-include/printer_print_state.h          src/printer/printer_print_state.cpp
-include/printer_capabilities_state.h   src/printer/printer_capabilities_state.cpp
+include/printer_temperature_state.h      src/printer/printer_temperature_state.cpp
+include/printer_motion_state.h           src/printer/printer_motion_state.cpp
+include/printer_led_state.h              src/printer/printer_led_state.cpp
+include/printer_fan_state.h              src/printer/printer_fan_state.cpp
+include/printer_print_state.h            src/printer/printer_print_state.cpp
+include/printer_capabilities_state.h     src/printer/printer_capabilities_state.cpp
+include/printer_plugin_status_state.h    src/printer/printer_plugin_status_state.cpp
 ```
 
 ### Test Files
@@ -257,6 +270,7 @@ tests/unit/test_printer_led_char.cpp           # 18 tests
 tests/unit/test_printer_fan_char.cpp           # 26 tests
 tests/unit/test_printer_print_char.cpp         # 26 tests
 tests/unit/test_printer_capabilities_char.cpp  # 17 tests
+tests/unit/test_printer_plugin_char.cpp        # 9 tests
 ```
 
 ---
@@ -401,11 +415,26 @@ git commit -m "refactor(printer): extract Printer<Domain>State from PrinterState
 4. All 134 characterization tests passing (1136 assertions)
 5. **DONE** - 6 domains now extracted
 
+### 2026-01-12 Session 6
+1. Wrote Plugin Status characterization tests (9 tests, 37 assertions)
+   - Tri-state semantics: -1=unknown, 0=no, 1=yes
+   - `helix_plugin_installed_`, `phase_tracking_enabled_`
+   - Tests for async updates and query methods
+2. Extracted PrinterPluginStatusState class (2 subjects)
+   - Created `include/printer_plugin_status_state.h` and `src/printer/printer_plugin_status_state.cpp`
+   - Updated PrinterState to delegate via `plugin_status_state_` member
+   - Note: `set_helix_plugin_installed()` remains in PrinterState to handle visibility update
+3. Code review found and fixed: missing `get_phase_tracking_enabled_subject()` getter
+4. All 143 characterization tests passing (1173 assertions)
+5. **DONE** - 7 domains now extracted
+
 ---
 
 ## Commits on Branch
 
 ```
+TBD      refactor(printer): extract PrinterPluginStatusState from PrinterState
+TBD      test(char): add plugin status characterization tests (2 subjects)
 0c045f49 refactor(printer): extract PrinterCapabilitiesState from PrinterState
 1da837bf test(char): add capabilities domain characterization tests (14 subjects)
 ebc1971c refactor(ui): migrate to hardware() API for macros and sensors
@@ -420,4 +449,4 @@ cf74706d test(char): add temperature domain characterization tests
 
 ---
 
-HANDOFF: PrinterState God Class Decomposition - 6 domains extracted (Temperature, Motion, LED, Fan, Print, Capabilities)
+HANDOFF: PrinterState God Class Decomposition - 7 domains extracted (Temperature, Motion, LED, Fan, Print, Capabilities, Plugin Status)
