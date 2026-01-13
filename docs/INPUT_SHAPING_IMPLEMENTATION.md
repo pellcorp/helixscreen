@@ -1,6 +1,6 @@
 # Input Shaping Panel/Wizard Implementation Plan
 
-**Status**: 🟡 In Progress - Phase 1 Complete
+**Status**: 🟡 In Progress - Phase 2 Complete
 **Created**: 2026-01-13
 **Last Updated**: 2026-01-13
 
@@ -8,12 +8,12 @@
 
 ## Progress Tracking
 
-### Overall Progress: Phase 1 of 7 Complete
+### Overall Progress: Phase 2 of 7 Complete
 
 | Phase | Status | Session | Notes |
 |-------|--------|---------|-------|
 | **Phase 1**: Core Types & API | ✅ Complete | 2 | ShaperOption, InputShaperConfig, NoiseCheckCollector, all_shapers |
-| **Phase 2**: InputShaperCalibrator | ⬜ Not Started | - | |
+| **Phase 2**: InputShaperCalibrator | ✅ Complete | 3 | State machine, API integration, 35 tests |
 | **Phase 3**: Platform Detection | ⬜ Not Started | - | |
 | **Phase 4**: UI Panel Rewrite | ⬜ Not Started | - | |
 | **Phase 5**: Frequency Chart | ⬜ Not Started | - | |
@@ -420,22 +420,22 @@ ui_xml/
 
 ### Phase 2: InputShaperCalibrator (Chunk C1)
 
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 
 #### Checkpoints:
-- [ ] Tests written for calibrator state machine
-- [ ] Tests written for check_accelerometer flow
-- [ ] Tests written for run_calibration flow
-- [ ] Tests written for apply_settings
-- [ ] Tests written for error handling
-- [ ] `InputShaperCalibrator` header created
-- [ ] State machine implemented
-- [ ] Accelerometer check flow implemented
-- [ ] Calibration run flow implemented
-- [ ] Apply settings implemented
-- [ ] Error handling implemented
-- [ ] All tests pass
-- [ ] Code reviewed
+- [x] Tests written for calibrator state machine
+- [x] Tests written for check_accelerometer flow
+- [x] Tests written for run_calibration flow
+- [x] Tests written for apply_settings
+- [x] Tests written for error handling
+- [x] `InputShaperCalibrator` header created
+- [x] State machine implemented
+- [x] Accelerometer check flow implemented
+- [x] Calibration run flow implemented
+- [x] Apply settings implemented
+- [x] Error handling implemented
+- [x] All tests pass (35 test cases, 65 assertions)
+- [x] Code reviewed
 
 **Files to create:**
 - `include/input_shaper_calibrator.h`
@@ -790,3 +790,23 @@ _Log each session here for continuity_
   - All 15 input shaper tests pass (75 assertions)
   - Code reviewed - no blocking issues
 - Next: Phase 2 - InputShaperCalibrator coordinator class
+
+### Session 3 (Phase 2 Implementation)
+- Date: 2026-01-13
+- Branch: `feature/input-shaping` in worktree `helixscreen-input-shaping`
+- Completed:
+  - Created `InputShaperCalibrator` class with state machine (IDLE, CHECKING_ADXL, TESTING_X, TESTING_Y, READY)
+  - Test-first: wrote 35 test cases before implementation
+  - Implemented `check_accelerometer()` using `api_->measure_axes_noise()`
+  - Implemented `run_calibration()` using `api_->start_resonance_test()`
+  - Implemented `apply_settings()` using `api_->set_input_shaper()`
+  - Implemented `save_to_config()` using `api_->save_config()`
+  - Input validation (axis, frequency, shaper_type)
+  - Concurrent run protection (guard against double calibration)
+  - All 35 calibrator tests pass (65 assertions)
+  - Code reviewed - clean implementation
+- Files created:
+  - `include/input_shaper_calibrator.h`
+  - `src/calibration/input_shaper_calibrator.cpp`
+  - `tests/unit/test_input_shaper_calibrator.cpp`
+- Next: Phase 3 - Platform Detection
