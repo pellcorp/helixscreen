@@ -10,6 +10,7 @@
 #include "ui_nav_manager.h"
 #include "ui_overlay_network_settings.h"
 #include "ui_panel_memory_stats.h"
+#include "ui_settings_machine_limits.h"
 #include "ui_settings_plugins.h"
 #include "ui_severity_card.h"
 #include "ui_theme.h"
@@ -379,28 +380,8 @@ void SettingsPanel::init_subjects() {
 
     lv_xml_register_event_cb(nullptr, "on_machine_limits_clicked", on_machine_limits_clicked);
 
-    // Register machine limits overlay callbacks
-    lv_xml_register_event_cb(nullptr, "on_max_velocity_changed", on_max_velocity_changed);
-    lv_xml_register_event_cb(nullptr, "on_max_accel_changed", on_max_accel_changed);
-    lv_xml_register_event_cb(nullptr, "on_accel_to_decel_changed", on_accel_to_decel_changed);
-    lv_xml_register_event_cb(nullptr, "on_square_corner_velocity_changed",
-                             on_square_corner_velocity_changed);
-    lv_xml_register_event_cb(nullptr, "on_limits_reset", on_limits_reset);
-    lv_xml_register_event_cb(nullptr, "on_limits_apply", on_limits_apply);
-
-    // Initialize machine limits display subjects
-    UI_MANAGED_SUBJECT_STRING(max_velocity_display_subject_, max_velocity_display_buf_, "-- mm/s",
-                              "max_velocity_display", subjects_);
-
-    UI_MANAGED_SUBJECT_STRING(max_accel_display_subject_, max_accel_display_buf_, "-- mm/s²",
-                              "max_accel_display", subjects_);
-
-    UI_MANAGED_SUBJECT_STRING(accel_to_decel_display_subject_, accel_to_decel_display_buf_,
-                              "-- mm/s²", "accel_to_decel_display", subjects_);
-
-    UI_MANAGED_SUBJECT_STRING(square_corner_velocity_display_subject_,
-                              square_corner_velocity_display_buf_, "-- mm/s",
-                              "square_corner_velocity_display", subjects_);
+    // Note: Machine limits overlay callbacks and subjects are now handled by MachineLimitsOverlay
+    // See ui_settings_machine_limits.h
 
     lv_xml_register_event_cb(nullptr, "on_network_clicked", on_network_clicked);
     lv_xml_register_event_cb(nullptr, "on_factory_reset_clicked", on_factory_reset_clicked);
@@ -1192,208 +1173,11 @@ void SettingsPanel::populate_sensor_list() {
 }
 
 void SettingsPanel::handle_machine_limits_clicked() {
-    spdlog::debug("[{}] Machine Limits clicked - opening overlay", get_name());
+    spdlog::debug("[{}] Machine Limits clicked - delegating to MachineLimitsOverlay", get_name());
 
-    // Create machine limits overlay on first access (lazy initialization)
-    if (!machine_limits_overlay_ && parent_screen_) {
-        spdlog::debug("[{}] Creating machine limits overlay...", get_name());
-
-        machine_limits_overlay_ = static_cast<lv_obj_t*>(
-            lv_xml_create(parent_screen_, "machine_limits_overlay", nullptr));
-
-        if (machine_limits_overlay_) {
-            // Initially hidden
-            lv_obj_add_flag(machine_limits_overlay_, LV_OBJ_FLAG_HIDDEN);
-            spdlog::info("[{}] Machine limits overlay created", get_name());
-        } else {
-            spdlog::error("[{}] Failed to create machine limits overlay from XML", get_name());
-            ui_toast_show(ToastSeverity::ERROR, "Failed to load overlay", 2000);
-            return;
-        }
-    }
-
-    // Query current limits from printer
-    if (api_) {
-        api_->get_machine_limits(
-            [this](const MachineLimits& limits) {
-                // Capture limits by value and defer to main thread for LVGL calls
-                ui_queue_update([this, limits]() {
-                    spdlog::info("[{}] Got machine limits: vel={}, accel={}, a2d={}, scv={}",
-                                 get_name(), limits.max_velocity, limits.max_accel,
-                                 limits.max_accel_to_decel, limits.square_corner_velocity);
-
-                    // Store both current and original for reset
-                    current_limits_ = limits;
-                    original_limits_ = limits;
-
-                    // Update display and sliders
-                    update_limits_display();
-                    update_limits_sliders();
-
-                    // Update read-only Z values
-                    if (machine_limits_overlay_) {
-                        lv_obj_t* z_vel_row =
-                            lv_obj_find_by_name(machine_limits_overlay_, "row_max_z_velocity");
-                        if (z_vel_row) {
-                            lv_obj_t* value = lv_obj_find_by_name(z_vel_row, "value");
-                            if (value) {
-                                char buf[32];
-                                snprintf(buf, sizeof(buf), "%.0f mm/s", limits.max_z_velocity);
-                                lv_label_set_text(value, buf);
-                            }
-                        }
-                        lv_obj_t* z_accel_row =
-                            lv_obj_find_by_name(machine_limits_overlay_, "row_max_z_accel");
-                        if (z_accel_row) {
-                            lv_obj_t* value = lv_obj_find_by_name(z_accel_row, "value");
-                            if (value) {
-                                char buf[32];
-                                snprintf(buf, sizeof(buf), "%.0f mm/s²", limits.max_z_accel);
-                                lv_label_set_text(value, buf);
-                            }
-                        }
-                    }
-
-                    // Push overlay onto navigation history and show it
-                    if (machine_limits_overlay_) {
-                        ui_nav_push_overlay(machine_limits_overlay_);
-                    }
-                });
-            },
-            [this](const MoonrakerError& err) {
-                // Capture error by value and defer to main thread for LVGL calls
-                ui_queue_update([this, err]() {
-                    spdlog::error("[{}] Failed to get machine limits: {}", get_name(), err.message);
-                    ui_toast_show(ToastSeverity::ERROR, "Failed to get limits", 2000);
-                });
-            });
-    } else {
-        // No API - show overlay with default values
-        spdlog::warn("[{}] No API available, showing defaults", get_name());
-        if (machine_limits_overlay_) {
-            ui_nav_push_overlay(machine_limits_overlay_);
-        }
-    }
-}
-
-void SettingsPanel::update_limits_display() {
-    // Update max velocity display
-    snprintf(max_velocity_display_buf_, sizeof(max_velocity_display_buf_), "%.0f mm/s",
-             current_limits_.max_velocity);
-    lv_subject_copy_string(&max_velocity_display_subject_, max_velocity_display_buf_);
-
-    // Update max accel display
-    snprintf(max_accel_display_buf_, sizeof(max_accel_display_buf_), "%.0f mm/s²",
-             current_limits_.max_accel);
-    lv_subject_copy_string(&max_accel_display_subject_, max_accel_display_buf_);
-
-    // Update accel to decel display
-    snprintf(accel_to_decel_display_buf_, sizeof(accel_to_decel_display_buf_), "%.0f mm/s²",
-             current_limits_.max_accel_to_decel);
-    lv_subject_copy_string(&accel_to_decel_display_subject_, accel_to_decel_display_buf_);
-
-    // Update square corner velocity display
-    snprintf(square_corner_velocity_display_buf_, sizeof(square_corner_velocity_display_buf_),
-             "%.0f mm/s", current_limits_.square_corner_velocity);
-    lv_subject_copy_string(&square_corner_velocity_display_subject_,
-                           square_corner_velocity_display_buf_);
-}
-
-void SettingsPanel::update_limits_sliders() {
-    if (!machine_limits_overlay_) {
-        return;
-    }
-
-    // Update max velocity slider
-    lv_obj_t* vel_slider = lv_obj_find_by_name(machine_limits_overlay_, "max_velocity_slider");
-    if (vel_slider) {
-        lv_slider_set_value(vel_slider, static_cast<int>(current_limits_.max_velocity),
-                            LV_ANIM_OFF);
-    }
-
-    // Update max accel slider
-    lv_obj_t* accel_slider = lv_obj_find_by_name(machine_limits_overlay_, "max_accel_slider");
-    if (accel_slider) {
-        lv_slider_set_value(accel_slider, static_cast<int>(current_limits_.max_accel), LV_ANIM_OFF);
-    }
-
-    // Update accel to decel slider
-    lv_obj_t* a2d_slider = lv_obj_find_by_name(machine_limits_overlay_, "accel_to_decel_slider");
-    if (a2d_slider) {
-        lv_slider_set_value(a2d_slider, static_cast<int>(current_limits_.max_accel_to_decel),
-                            LV_ANIM_OFF);
-    }
-
-    // Update square corner velocity slider
-    lv_obj_t* scv_slider =
-        lv_obj_find_by_name(machine_limits_overlay_, "square_corner_velocity_slider");
-    if (scv_slider) {
-        lv_slider_set_value(scv_slider, static_cast<int>(current_limits_.square_corner_velocity),
-                            LV_ANIM_OFF);
-    }
-}
-
-void SettingsPanel::handle_max_velocity_changed(int value) {
-    current_limits_.max_velocity = static_cast<double>(value);
-    snprintf(max_velocity_display_buf_, sizeof(max_velocity_display_buf_), "%d mm/s", value);
-    lv_subject_copy_string(&max_velocity_display_subject_, max_velocity_display_buf_);
-}
-
-void SettingsPanel::handle_max_accel_changed(int value) {
-    current_limits_.max_accel = static_cast<double>(value);
-    snprintf(max_accel_display_buf_, sizeof(max_accel_display_buf_), "%d mm/s²", value);
-    lv_subject_copy_string(&max_accel_display_subject_, max_accel_display_buf_);
-}
-
-void SettingsPanel::handle_accel_to_decel_changed(int value) {
-    current_limits_.max_accel_to_decel = static_cast<double>(value);
-    snprintf(accel_to_decel_display_buf_, sizeof(accel_to_decel_display_buf_), "%d mm/s²", value);
-    lv_subject_copy_string(&accel_to_decel_display_subject_, accel_to_decel_display_buf_);
-}
-
-void SettingsPanel::handle_square_corner_velocity_changed(int value) {
-    current_limits_.square_corner_velocity = static_cast<double>(value);
-    snprintf(square_corner_velocity_display_buf_, sizeof(square_corner_velocity_display_buf_),
-             "%d mm/s", value);
-    lv_subject_copy_string(&square_corner_velocity_display_subject_,
-                           square_corner_velocity_display_buf_);
-}
-
-void SettingsPanel::handle_limits_reset() {
-    spdlog::info("[{}] Resetting limits to original values", get_name());
-    current_limits_ = original_limits_;
-    update_limits_display();
-    update_limits_sliders();
-}
-
-void SettingsPanel::handle_limits_apply() {
-    spdlog::info("[{}] Applying machine limits: vel={}, accel={}, a2d={}, scv={}", get_name(),
-                 current_limits_.max_velocity, current_limits_.max_accel,
-                 current_limits_.max_accel_to_decel, current_limits_.square_corner_velocity);
-
-    if (!api_) {
-        ui_toast_show(ToastSeverity::ERROR, "No printer connection", 2000);
-        return;
-    }
-
-    api_->set_machine_limits(
-        current_limits_,
-        [this]() {
-            // Defer to main thread for LVGL calls
-            ui_queue_update([this]() {
-                spdlog::info("[{}] Machine limits applied successfully", get_name());
-                ui_toast_show(ToastSeverity::SUCCESS, "Limits applied", 2000);
-                // Update original to prevent reset from reverting
-                original_limits_ = current_limits_;
-            });
-        },
-        [this](const MoonrakerError& err) {
-            // Capture error by value and defer to main thread for LVGL calls
-            ui_queue_update([this, err]() {
-                spdlog::error("[{}] Failed to apply machine limits: {}", get_name(), err.message);
-                ui_toast_show(ToastSeverity::ERROR, "Failed to apply limits", 2000);
-            });
-        });
+    auto& overlay = helix::settings::get_machine_limits_overlay();
+    overlay.set_api(api_);
+    overlay.show(parent_screen_);
 }
 
 void SettingsPanel::handle_network_clicked() {
@@ -1842,56 +1626,11 @@ void SettingsPanel::on_plugins_clicked(lv_event_t* /*e*/) {
 }
 
 // ============================================================================
-// STATIC TRAMPOLINES - MACHINE LIMITS
-// ============================================================================
-
-void SettingsPanel::on_max_velocity_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_max_velocity_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = lv_slider_get_value(slider);
-    get_global_settings_panel().handle_max_velocity_changed(value);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_max_accel_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_max_accel_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = lv_slider_get_value(slider);
-    get_global_settings_panel().handle_max_accel_changed(value);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_accel_to_decel_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_accel_to_decel_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = lv_slider_get_value(slider);
-    get_global_settings_panel().handle_accel_to_decel_changed(value);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_square_corner_velocity_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_square_corner_velocity_changed");
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
-    int value = lv_slider_get_value(slider);
-    get_global_settings_panel().handle_square_corner_velocity_changed(value);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_limits_reset(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_limits_reset");
-    get_global_settings_panel().handle_limits_reset();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void SettingsPanel::on_limits_apply(lv_event_t* /*e*/) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_limits_apply");
-    get_global_settings_panel().handle_limits_apply();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
 // STATIC TRAMPOLINES - OVERLAYS
 // ============================================================================
+
+// Note: Machine limits overlay callbacks are now in MachineLimitsOverlay class
+// See ui_settings_machine_limits.cpp
 
 void SettingsPanel::on_restart_later_clicked(lv_event_t* /* e */) {
     LVGL_SAFE_EVENT_CB_BEGIN("[SettingsPanel] on_restart_later_clicked");

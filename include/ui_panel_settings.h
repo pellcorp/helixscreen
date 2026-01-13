@@ -5,7 +5,6 @@
 
 #include "ui_panel_base.h"
 
-#include "calibration_types.h"     // For MachineLimits
 #include "subject_managed_panel.h" // For SubjectManager
 
 /**
@@ -147,20 +146,8 @@ class SettingsPanel : public PanelBase {
     std::string pending_hardware_save_;
     lv_obj_t* hardware_save_dialog_ = nullptr;
 
-    // Machine Limits overlay
-    lv_obj_t* machine_limits_overlay_ = nullptr;
-    MachineLimits current_limits_;  ///< Live values from sliders
-    MachineLimits original_limits_; ///< Values when overlay opened
-
-    // Subjects for value display (bind_text in XML)
-    lv_subject_t max_velocity_display_subject_;
-    char max_velocity_display_buf_[16];
-    lv_subject_t max_accel_display_subject_;
-    char max_accel_display_buf_[16];
-    lv_subject_t accel_to_decel_display_subject_;
-    char accel_to_decel_display_buf_[16];
-    lv_subject_t square_corner_velocity_display_subject_;
-    char square_corner_velocity_display_buf_[16];
+    // Note: Machine Limits overlay is now managed by MachineLimitsOverlay class
+    // See ui_settings_machine_limits.h
 
     //
     // === Setup Helpers ===
@@ -249,27 +236,12 @@ class SettingsPanel : public PanelBase {
     static void on_hardware_save_confirm(lv_event_t* e);
     static void on_hardware_save_cancel(lv_event_t* e);
 
-    // Static callbacks for machine limits overlay
-    static void on_max_velocity_changed(lv_event_t* e);
-    static void on_max_accel_changed(lv_event_t* e);
-    static void on_accel_to_decel_changed(lv_event_t* e);
-    static void on_square_corner_velocity_changed(lv_event_t* e);
-    static void on_limits_reset(lv_event_t* e);
-    static void on_limits_apply(lv_event_t* e);
+    // Note: Machine limits overlay callbacks are now in MachineLimitsOverlay class
+    // See ui_settings_machine_limits.h
 
     // Instance methods called by static callbacks
     void handle_hardware_save_confirm();
     void handle_hardware_save_cancel();
-
-    // Machine limits instance handlers
-    void handle_max_velocity_changed(int value);
-    void handle_max_accel_changed(int value);
-    void handle_accel_to_decel_changed(int value);
-    void handle_square_corner_velocity_changed(int value);
-    void handle_limits_reset();
-    void handle_limits_apply();
-    void update_limits_display();
-    void update_limits_sliders();
 };
 
 // Global instance accessor (needed by main.cpp)
