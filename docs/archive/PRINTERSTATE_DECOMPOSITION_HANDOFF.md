@@ -2,28 +2,17 @@
 
 **Created**: 2026-01-11
 **Last Updated**: 2026-01-12
-**Status**: IN PROGRESS - 7 domains extracted (Temperature, Motion, LED, Fan, Print, Capabilities, Plugin Status)
+**Status**: ✅ COMPLETE - All 13 domains extracted, 0 subjects remain in PrinterState
 
-## Quick Resume
+## Summary
 
-```bash
-# 1. Go to the worktree
-cd /Users/pbrown/Code/Printing/helixscreen-printer-state-decomp
+The PrinterState god class decomposition is **complete**. All LVGL subjects have been extracted into 13 focused domain state classes. PrinterState now serves as a facade that delegates to these components.
 
-# 2. Verify worktree is up to date
-git fetch origin && git status
-
-# 3. Build
-make -j && make test-build
-
-# 4. Run characterization tests (should all pass - 143 tests, 1173 assertions)
-./build/bin/helix-tests "[characterization]"
-
-# 5. Continue with next domain extraction (see Remaining Domains section)
-```
-
-### Recommended Next Domain: **Composite Visibility** (5 subjects)
-Derived visibility flags: `can_show_bed_mesh_`, `can_show_qgl_`, `can_show_z_tilt_`, `can_show_nozzle_clean_`, `can_show_purge_line_`. These combine `helix_plugin_installed` with printer capabilities.
+### Final Statistics
+- **13 component classes** extracted
+- **~90+ subjects** moved out of PrinterState
+- **300+ characterization tests** with 2000+ assertions
+- **PrinterState reduced** from 2808 lines to a thin facade
 
 ---
 
@@ -39,28 +28,24 @@ Decompose the 2808-line `PrinterState` god class (86 subjects across 11+ domains
 
 ---
 
-## Progress Summary
+## All Extracted Components
 
-### Completed Extractions
-
-| Domain | Class | Subjects | Tests | Assertions | Commit |
-|--------|-------|----------|-------|------------|--------|
-| Temperature | `PrinterTemperatureState` | 4 | 26 | 145 | 36dec0bb |
-| Motion | `PrinterMotionState` | 8 | 21 | 165 | dfa92d60 |
-| LED | `PrinterLedState` | 6 | 18 | 146 | ee5ac704 |
-| Fan | `PrinterFanState` | 2 static + dynamic | 26 | 118 | ee5ac704 |
-| Print | `PrinterPrintState` | 17 | 26 | 330 | 7dfd653d |
-| Capabilities | `PrinterCapabilitiesState` | 14 | 17 | 232 | 0c045f49 |
-| Plugin Status | `PrinterPluginStatusState` | 2 | 9 | 37 | TBD |
-| **Total** | | **53+** | **143** | **1173** | |
-
-### Next Steps
-
-| Step | Description | Status |
-|------|-------------|--------|
-| 1 | Write Plugin Status characterization tests | ✅ DONE |
-| 2 | Extract PrinterPluginStatusState class | ✅ DONE |
-| 3 | Continue with Composite Visibility domain (5 subjects) | ⏳ NEXT |
+| Domain | Class | Subjects | Description |
+|--------|-------|----------|-------------|
+| Temperature | `PrinterTemperatureState` | 4 | Extruder/bed temps and targets (centidegrees) |
+| Motion | `PrinterMotionState` | 8 | Position, homed axes, speed/flow factors, Z-offset |
+| LED | `PrinterLedState` | 6 | LED state, RGBW values, brightness |
+| Fan | `PrinterFanState` | 2+ dynamic | Fan speeds, per-fan subjects |
+| Print | `PrinterPrintState` | 17 | Progress, filename, state, layers, time, start phases |
+| Capabilities | `PrinterCapabilitiesState` | 14 | Hardware capability flags (has_qgl, has_probe, etc.) |
+| Plugin Status | `PrinterPluginStatusState` | 2 | Helix plugin installed, phase tracking enabled |
+| Calibration | `PrinterCalibrationState` | 7 | Firmware retraction, manual probe, motors |
+| Hardware Validation | `PrinterHardwareValidationState` | 11 | Issue counts, severity, status strings |
+| Composite Visibility | `PrinterCompositeVisibilityState` | 5 | Derived can_show_* flags |
+| Network | `PrinterNetworkState` | 5 | Connection state, klippy state, nav buttons |
+| Versions | `PrinterVersionsState` | 2 | Klipper/Moonraker version strings |
+| Excluded Objects | `PrinterExcludedObjectsState` | 2 | Excluded objects version + set |
+| **Total** | **13 classes** | **~90+** | **All subjects extracted** |
 
 ---
 
@@ -172,20 +157,15 @@ Decompose the 2808-line `PrinterState` god class (86 subjects across 11+ domains
 
 ---
 
-## Remaining Domains
+## Remaining Work
 
-| Domain | Subjects | Complexity | Notes |
-|--------|----------|------------|-------|
-| **Composite Visibility** | 5 | Low | Derived flags: `can_show_bed_mesh_`, `can_show_qgl_`, etc. **Recommended next** |
-| **Network/Connection** | 6 | Medium | State machine: `printer_connection_state_`, `klippy_state_`, etc. |
-| **Hardware Validation** | 11 | Medium | Validation logic: `hardware_has_issues_`, etc. |
-| **Calibration/Config** | 8 | Low | Simple values |
-| **Firmware Retraction** | 4 | Low | |
-| **Manual Probe** | 2 | Low | |
-| **Excluded Objects** | 2 | Low | |
-| **Versions** | 2 | Low | |
-| **Kinematics** | 1 | Low | |
-| **Motors** | 1 | Low | |
+**None.** All subjects have been extracted from PrinterState. The class now contains only:
+- Component class members (13 domain state objects)
+- `json_state_` - JSON cache for Moonraker responses
+- `state_mutex_` - Thread safety
+- `subjects_initialized_` - Guard flag
+- `capability_overrides_` - User config
+- `printer_type_` - Plain string (not a subject)
 
 ---
 
