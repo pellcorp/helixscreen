@@ -305,8 +305,7 @@ TEST_CASE("Plugin status characterization: async update behavior",
 // XML Registration Tests - Verify subjects are available for XML binding
 // ============================================================================
 
-TEST_CASE("Plugin status characterization: XML registration",
-          "[characterization][plugin][xml]") {
+TEST_CASE("Plugin status characterization: XML registration", "[characterization][plugin][xml]") {
     lv_init_safe();
 
     PrinterState& state = get_printer_state();

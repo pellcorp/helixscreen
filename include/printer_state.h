@@ -6,13 +6,15 @@
 #include "capability_overrides.h"
 #include "hardware_validator.h"
 #include "lvgl/lvgl.h"
+#include "printer_calibration_state.h"
 #include "printer_capabilities_state.h"
 #include "printer_detector.h"
 #include "printer_fan_state.h"
-#include "printer_plugin_status_state.h"
 #include "printer_hardware_discovery.h"
+#include "printer_hardware_validation_state.h"
 #include "printer_led_state.h"
 #include "printer_motion_state.h"
+#include "printer_plugin_status_state.h"
 #include "printer_print_state.h"
 #include "printer_temperature_state.h"
 #include "spdlog/spdlog.h"
@@ -1034,7 +1036,7 @@ class PrinterState {
      * to transition from PROBING to ADJUSTING state.
      */
     lv_subject_t* get_manual_probe_active_subject() {
-        return &manual_probe_active_;
+        return calibration_state_.get_manual_probe_active_subject();
     }
 
     /**
@@ -1045,7 +1047,7 @@ class PrinterState {
      * commands are executed.
      */
     lv_subject_t* get_manual_probe_z_position_subject() {
-        return &manual_probe_z_position_;
+        return calibration_state_.get_manual_probe_z_position_subject();
     }
 
     /**
@@ -1056,7 +1058,7 @@ class PrinterState {
      * Used to reflect motor state in the UI (e.g., disable motion controls when motors off).
      */
     lv_subject_t* get_motors_enabled_subject() {
-        return &motors_enabled_;
+        return calibration_state_.get_motors_enabled_subject();
     }
 
     /**
@@ -1092,7 +1094,7 @@ class PrinterState {
      * Use with bind_flag_if_eq to show/hide Hardware Health section.
      */
     lv_subject_t* get_hardware_has_issues_subject() {
-        return &hardware_has_issues_;
+        return hardware_validation_state_.get_hardware_has_issues_subject();
     }
 
     /**
@@ -1101,7 +1103,7 @@ class PrinterState {
      * Integer subject with total number of validation issues.
      */
     lv_subject_t* get_hardware_issue_count_subject() {
-        return &hardware_issue_count_;
+        return hardware_validation_state_.get_hardware_issue_count_subject();
     }
 
     /**
@@ -1111,7 +1113,7 @@ class PrinterState {
      * Use for styling (color) based on severity.
      */
     lv_subject_t* get_hardware_max_severity_subject() {
-        return &hardware_max_severity_;
+        return hardware_validation_state_.get_hardware_max_severity_subject();
     }
 
     /**
@@ -1121,7 +1123,7 @@ class PrinterState {
      * UI should observe to refresh dynamic lists.
      */
     lv_subject_t* get_hardware_validation_version_subject() {
-        return &hardware_validation_version_;
+        return hardware_validation_state_.get_hardware_validation_version_subject();
     }
 
     /**
@@ -1131,14 +1133,14 @@ class PrinterState {
      * Used for settings panel row label binding.
      */
     lv_subject_t* get_hardware_issues_label_subject() {
-        return &hardware_issues_label_;
+        return hardware_validation_state_.get_hardware_issues_label_subject();
     }
 
     /**
      * @brief Check if hardware validation has any issues
      */
     bool has_hardware_issues() {
-        return lv_subject_get_int(&hardware_has_issues_) != 0;
+        return hardware_validation_state_.has_hardware_issues();
     }
 
     /**
@@ -1149,7 +1151,9 @@ class PrinterState {
      *
      * @return Reference to the stored validation result
      */
-    const HardwareValidationResult& get_hardware_validation_result() const;
+    const HardwareValidationResult& get_hardware_validation_result() const {
+        return hardware_validation_state_.get_hardware_validation_result();
+    }
 
     /**
      * @brief Remove a hardware issue from the cached validation result
@@ -1232,6 +1236,12 @@ class PrinterState {
     /// Plugin status component (helix_plugin_installed, phase_tracking_enabled)
     helix::PrinterPluginStatusState plugin_status_state_;
 
+    /// Calibration state component (firmware retraction, manual probe, motor state)
+    helix::PrinterCalibrationState calibration_state_;
+
+    /// Hardware validation state component (issue counts, severity, status text)
+    helix::PrinterHardwareValidationState hardware_validation_state_;
+
     // Note: Print subjects are now managed by print_domain_ component
     // (print_progress_, print_filename_, print_state_, print_state_enum_,
     //  print_outcome_, print_active_, print_show_progress_, print_display_filename_,
@@ -1286,49 +1296,30 @@ class PrinterState {
     lv_subject_t can_show_nozzle_clean_; // helix_plugin_installed && printer_has_nozzle_clean
     lv_subject_t can_show_purge_line_;   // helix_plugin_installed && printer_has_purge_line
 
-    // Firmware retraction settings (from firmware_retraction Klipper module)
-    // Lengths stored as centimillimeters (x100) to preserve 0.01mm precision with integers
-    lv_subject_t retract_length_;         // centimm (e.g., 80 = 0.8mm)
-    lv_subject_t retract_speed_;          // mm/s (integer, e.g., 35)
-    lv_subject_t unretract_extra_length_; // centimm (e.g., 0 = 0.0mm)
-    lv_subject_t unretract_speed_;        // mm/s (integer, e.g., 35)
-
-    // Manual probe subjects (for Z-offset calibration)
-    lv_subject_t manual_probe_active_; // Integer: 0=inactive, 1=active (PROBE_CALIBRATE running)
-    lv_subject_t manual_probe_z_position_; // Integer: Z position * 1000 (for 0.001mm resolution)
-
-    // Motor enabled state (from idle_timeout.state)
-    lv_subject_t motors_enabled_; // Integer: 0=disabled (Idle), 1=enabled (Ready/Printing)
+    // Note: Firmware retraction, manual probe, and motor state subjects
+    // (retract_length_, retract_speed_, unretract_extra_length_, unretract_speed_,
+    //  manual_probe_active_, manual_probe_z_position_, motors_enabled_)
+    // are now managed by calibration_state_ component
 
     // Version subjects (for About section)
     lv_subject_t klipper_version_;
     lv_subject_t moonraker_version_;
 
-    // Hardware validation subjects (for Hardware Health section in Settings)
-    lv_subject_t hardware_has_issues_;         // Integer: 0=no issues, 1=has issues
-    lv_subject_t hardware_issue_count_;        // Integer: total number of issues
-    lv_subject_t hardware_max_severity_;       // Integer: 0=info, 1=warning, 2=critical
-    lv_subject_t hardware_validation_version_; // Integer: incremented on validation change
-    lv_subject_t hardware_critical_count_;     // Integer: count of critical issues
-    lv_subject_t hardware_warning_count_;      // Integer: count of warning issues
-    lv_subject_t hardware_info_count_;         // Integer: count of info issues
-    lv_subject_t hardware_session_count_;      // Integer: count of session change issues
-    lv_subject_t hardware_status_title_;       // String: e.g., "All Healthy" or "3 Issues Detected"
-    lv_subject_t hardware_status_detail_;      // String: e.g., "1 critical, 2 warnings"
-    lv_subject_t hardware_issues_label_;       // String: "1 Hardware Issue" or "5 Hardware Issues"
-    HardwareValidationResult hardware_validation_result_; // Stored result for UI access
+    // Note: Hardware validation subjects (hardware_has_issues_, hardware_issue_count_,
+    // hardware_max_severity_, hardware_validation_version_, hardware_critical_count_,
+    // hardware_warning_count_, hardware_info_count_, hardware_session_count_,
+    // hardware_status_title_, hardware_status_detail_, hardware_issues_label_,
+    // hardware_validation_result_) are now managed by hardware_validation_state_ component
 
     // Note: tracked_led_name_ is now managed by led_state_component_
 
     // String buffers for subject storage
     // Note: homed_axes_buf_ is now in motion_state_ component
     // Note: print-related buffers are now in print_domain_ component
+    // Note: hardware validation buffers are now in hardware_validation_state_ component
     char printer_connection_message_buf_[128];
     char klipper_version_buf_[64];
     char moonraker_version_buf_[64];
-    char hardware_status_title_buf_[64];
-    char hardware_status_detail_buf_[128];
-    char hardware_issues_label_buf_[48]; // "1 Hardware Issue" / "5 Hardware Issues"
 
     // JSON cache for complex data
     json json_state_;

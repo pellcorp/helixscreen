@@ -132,6 +132,12 @@ void PrinterState::reset_for_testing() {
     // Reset plugin status state component
     plugin_status_state_.reset_for_testing();
 
+    // Reset calibration state component
+    calibration_state_.reset_for_testing();
+
+    // Reset hardware validation state component
+    hardware_validation_state_.reset_for_testing();
+
     // Use SubjectManager for automatic subject cleanup
     subjects_.deinit_all();
 
@@ -218,6 +224,12 @@ void PrinterState::init_subjects(bool register_xml) {
     // Plugin status subjects - delegated to plugin_status_state_ component
     plugin_status_state_.init_subjects(register_xml);
 
+    // Calibration state subjects (firmware retraction, manual probe, motor state)
+    calibration_state_.init_subjects(register_xml);
+
+    // Hardware validation subjects (for Hardware Health section in Settings)
+    hardware_validation_state_.init_subjects(register_xml);
+
     // Composite subjects for G-code modification option visibility
     // These are derived from helix_plugin_installed AND printer_has_* subjects
     lv_subject_init_int(&can_show_bed_mesh_, 0);
@@ -226,34 +238,11 @@ void PrinterState::init_subjects(bool register_xml) {
     lv_subject_init_int(&can_show_nozzle_clean_, 0);
     lv_subject_init_int(&can_show_purge_line_, 0);
 
-    // Hardware validation subjects (for Hardware Health section in Settings)
-    lv_subject_init_int(&hardware_has_issues_, 0);
-    lv_subject_init_int(&hardware_issue_count_, 0);
-    lv_subject_init_int(&hardware_max_severity_, 0);
-    lv_subject_init_int(&hardware_validation_version_, 0);
-    lv_subject_init_int(&hardware_critical_count_, 0);
-    lv_subject_init_int(&hardware_warning_count_, 0);
-    lv_subject_init_int(&hardware_info_count_, 0);
-    lv_subject_init_int(&hardware_session_count_, 0);
-    lv_subject_init_string(&hardware_status_title_, hardware_status_title_buf_, nullptr,
-                           sizeof(hardware_status_title_buf_), "Healthy");
-    lv_subject_init_string(&hardware_status_detail_, hardware_status_detail_buf_, nullptr,
-                           sizeof(hardware_status_detail_buf_), "");
-    lv_subject_init_string(&hardware_issues_label_, hardware_issues_label_buf_, nullptr,
-                           sizeof(hardware_issues_label_buf_), "No Hardware Issues");
+    // Note: Hardware validation subjects are now initialized by
+    // hardware_validation_state_.init_subjects() above
 
-    // Firmware retraction settings (defaults: disabled)
-    lv_subject_init_int(&retract_length_, 0);         // 0 = disabled
-    lv_subject_init_int(&retract_speed_, 20);         // 20 mm/s default
-    lv_subject_init_int(&unretract_extra_length_, 0); // 0mm extra
-    lv_subject_init_int(&unretract_speed_, 10);       // 10 mm/s default
-
-    // Manual probe subjects (for Z-offset calibration)
-    lv_subject_init_int(&manual_probe_active_, 0);     // 0=inactive, 1=active
-    lv_subject_init_int(&manual_probe_z_position_, 0); // Z position in microns
-
-    // Motor enabled state (from idle_timeout.state - defaults to enabled/Ready)
-    lv_subject_init_int(&motors_enabled_, 1); // 1=enabled (Ready/Printing), 0=disabled (Idle)
+    // Note: Firmware retraction, manual probe, and motor state subjects
+    // are now initialized by calibration_state_.init_subjects() above
 
     // Version subjects (for About section)
     lv_subject_init_string(&klipper_version_, klipper_version_buf_, nullptr,
@@ -283,28 +272,10 @@ void PrinterState::init_subjects(bool register_xml) {
     subjects_.register_subject(&can_show_z_tilt_);
     subjects_.register_subject(&can_show_nozzle_clean_);
     subjects_.register_subject(&can_show_purge_line_);
-    // Hardware validation subjects
-    subjects_.register_subject(&hardware_has_issues_);
-    subjects_.register_subject(&hardware_issue_count_);
-    subjects_.register_subject(&hardware_max_severity_);
-    subjects_.register_subject(&hardware_validation_version_);
-    subjects_.register_subject(&hardware_critical_count_);
-    subjects_.register_subject(&hardware_warning_count_);
-    subjects_.register_subject(&hardware_info_count_);
-    subjects_.register_subject(&hardware_session_count_);
-    subjects_.register_subject(&hardware_status_title_);
-    subjects_.register_subject(&hardware_status_detail_);
-    subjects_.register_subject(&hardware_issues_label_);
-    // Firmware retraction subjects
-    subjects_.register_subject(&retract_length_);
-    subjects_.register_subject(&retract_speed_);
-    subjects_.register_subject(&unretract_extra_length_);
-    subjects_.register_subject(&unretract_speed_);
-    // Manual probe subjects
-    subjects_.register_subject(&manual_probe_active_);
-    subjects_.register_subject(&manual_probe_z_position_);
-    // Motor enabled state
-    subjects_.register_subject(&motors_enabled_);
+    // Note: Hardware validation subjects are registered by
+    // hardware_validation_state_.init_subjects()
+    // Note: Firmware retraction, manual probe, and motor state subjects
+    // are registered by calibration_state_.init_subjects()
     // Version subjects
     subjects_.register_subject(&klipper_version_);
     subjects_.register_subject(&moonraker_version_);
@@ -333,24 +304,10 @@ void PrinterState::init_subjects(bool register_xml) {
         lv_xml_register_subject(NULL, "can_show_z_tilt", &can_show_z_tilt_);
         lv_xml_register_subject(NULL, "can_show_nozzle_clean", &can_show_nozzle_clean_);
         lv_xml_register_subject(NULL, "can_show_purge_line", &can_show_purge_line_);
-        lv_xml_register_subject(NULL, "hardware_has_issues", &hardware_has_issues_);
-        lv_xml_register_subject(NULL, "hardware_issue_count", &hardware_issue_count_);
-        lv_xml_register_subject(NULL, "hardware_max_severity", &hardware_max_severity_);
-        lv_xml_register_subject(NULL, "hardware_validation_version", &hardware_validation_version_);
-        lv_xml_register_subject(NULL, "hardware_critical_count", &hardware_critical_count_);
-        lv_xml_register_subject(NULL, "hardware_warning_count", &hardware_warning_count_);
-        lv_xml_register_subject(NULL, "hardware_info_count", &hardware_info_count_);
-        lv_xml_register_subject(NULL, "hardware_session_count", &hardware_session_count_);
-        lv_xml_register_subject(NULL, "hardware_status_title", &hardware_status_title_);
-        lv_xml_register_subject(NULL, "hardware_status_detail", &hardware_status_detail_);
-        lv_xml_register_subject(NULL, "hardware_issues_label", &hardware_issues_label_);
-        lv_xml_register_subject(NULL, "retract_length", &retract_length_);
-        lv_xml_register_subject(NULL, "retract_speed", &retract_speed_);
-        lv_xml_register_subject(NULL, "unretract_extra_length", &unretract_extra_length_);
-        lv_xml_register_subject(NULL, "unretract_speed", &unretract_speed_);
-        lv_xml_register_subject(NULL, "manual_probe_active", &manual_probe_active_);
-        lv_xml_register_subject(NULL, "manual_probe_z_position", &manual_probe_z_position_);
-        lv_xml_register_subject(NULL, "motors_enabled", &motors_enabled_);
+        // Note: Hardware validation subjects are registered by
+        // hardware_validation_state_.init_subjects()
+        // Note: Firmware retraction, manual probe, and motor state subjects
+        // are registered by calibration_state_.init_subjects()
         lv_xml_register_subject(NULL, "klipper_version", &klipper_version_);
         lv_xml_register_subject(NULL, "moonraker_version", &moonraker_version_);
     } else {
@@ -465,82 +422,9 @@ void PrinterState::update_from_status(const json& state) {
         }
     }
 
-    // Update manual probe state (for Z-offset calibration)
-    // Klipper's manual_probe object is active during PROBE_CALIBRATE and Z_ENDSTOP_CALIBRATE
-    if (state.contains("manual_probe")) {
-        const auto& mp = state["manual_probe"];
-
-        if (mp.contains("is_active") && mp["is_active"].is_boolean()) {
-            bool is_active = mp["is_active"].get<bool>();
-            int old_active = lv_subject_get_int(&manual_probe_active_);
-            int new_active = is_active ? 1 : 0;
-
-            if (old_active != new_active) {
-                lv_subject_set_int(&manual_probe_active_, new_active);
-                spdlog::info("[PrinterState] Manual probe active: {} -> {}", old_active != 0,
-                             is_active);
-            }
-        }
-
-        if (mp.contains("z_position") && mp["z_position"].is_number()) {
-            // Store as microns (multiply by 1000) for integer subject with 0.001mm resolution
-            double z_mm = mp["z_position"].get<double>();
-            int z_microns = static_cast<int>(z_mm * 1000.0);
-            lv_subject_set_int(&manual_probe_z_position_, z_microns);
-            spdlog::trace("[PrinterState] Manual probe Z: {:.3f}mm", z_mm);
-        }
-    }
-
-    // Update motor enabled state from idle_timeout
-    // idle_timeout.state: "Ready" or "Printing" = motors enabled, "Idle" = motors disabled
-    if (state.contains("idle_timeout")) {
-        const auto& it = state["idle_timeout"];
-
-        if (it.contains("state") && it["state"].is_string()) {
-            std::string timeout_state = it["state"].get<std::string>();
-            // Motors are enabled when state is "Ready" or "Printing", disabled when "Idle"
-            int new_enabled = (timeout_state == "Ready" || timeout_state == "Printing") ? 1 : 0;
-            int old_enabled = lv_subject_get_int(&motors_enabled_);
-
-            if (old_enabled != new_enabled) {
-                lv_subject_set_int(&motors_enabled_, new_enabled);
-                spdlog::info("[PrinterState] Motors {}: idle_timeout.state='{}'",
-                             new_enabled ? "enabled" : "disabled", timeout_state);
-            }
-        }
-    }
-
-    // Parse firmware_retraction settings (G10/G11 retraction parameters)
-    if (state.contains("firmware_retraction")) {
-        const auto& fr = state["firmware_retraction"];
-
-        if (fr.contains("retract_length") && fr["retract_length"].is_number()) {
-            // Store as centimillimeters (x100) to preserve 0.01mm precision
-            int centimm = helix::units::json_to_centimm(fr, "retract_length");
-            lv_subject_set_int(&retract_length_, centimm);
-            spdlog::trace("[PrinterState] Retract length: {:.2f}mm",
-                          helix::units::from_centimm(centimm));
-        }
-
-        if (fr.contains("retract_speed") && fr["retract_speed"].is_number()) {
-            int speed = static_cast<int>(fr["retract_speed"].get<double>());
-            lv_subject_set_int(&retract_speed_, speed);
-            spdlog::trace("[PrinterState] Retract speed: {}mm/s", speed);
-        }
-
-        if (fr.contains("unretract_extra_length") && fr["unretract_extra_length"].is_number()) {
-            int centimm = helix::units::json_to_centimm(fr, "unretract_extra_length");
-            lv_subject_set_int(&unretract_extra_length_, centimm);
-            spdlog::trace("[PrinterState] Unretract extra: {:.2f}mm",
-                          helix::units::from_centimm(centimm));
-        }
-
-        if (fr.contains("unretract_speed") && fr["unretract_speed"].is_number()) {
-            int speed = static_cast<int>(fr["unretract_speed"].get<double>());
-            lv_subject_set_int(&unretract_speed_, speed);
-            spdlog::trace("[PrinterState] Unretract speed: {}mm/s", speed);
-        }
-    }
+    // Delegate calibration updates (manual probe, motor state, firmware retraction)
+    // to calibration_state_ component
+    calibration_state_.update_from_status(state);
 
     // Forward filament sensor updates to FilamentSensorManager
     // The manager handles all sensor types: filament_switch_sensor and filament_motion_sensor
@@ -812,107 +696,15 @@ void PrinterState::set_print_display_filename(const std::string& name) {
 }
 
 // ============================================================================
-// HARDWARE VALIDATION
+// HARDWARE VALIDATION - Delegated to hardware_validation_state_
 // ============================================================================
 
 void PrinterState::set_hardware_validation_result(const HardwareValidationResult& result) {
-    // Store the full result for UI access
-    hardware_validation_result_ = result;
-
-    // Update summary subjects
-    lv_subject_set_int(&hardware_has_issues_, result.has_issues() ? 1 : 0);
-    lv_subject_set_int(&hardware_issue_count_, static_cast<int>(result.total_issue_count()));
-    lv_subject_set_int(&hardware_max_severity_, static_cast<int>(result.max_severity()));
-
-    // Update category counts
-    lv_subject_set_int(&hardware_critical_count_, static_cast<int>(result.critical_missing.size()));
-    lv_subject_set_int(&hardware_warning_count_, static_cast<int>(result.expected_missing.size()));
-    lv_subject_set_int(&hardware_info_count_, static_cast<int>(result.newly_discovered.size()));
-    lv_subject_set_int(&hardware_session_count_,
-                       static_cast<int>(result.changed_from_last_session.size()));
-
-    // Update status text
-    if (!result.has_issues()) {
-        snprintf(hardware_status_title_buf_, sizeof(hardware_status_title_buf_), "All Healthy");
-        snprintf(hardware_status_detail_buf_, sizeof(hardware_status_detail_buf_),
-                 "All configured hardware detected");
-    } else {
-        size_t total = result.total_issue_count();
-        snprintf(hardware_status_title_buf_, sizeof(hardware_status_title_buf_),
-                 "%zu Issue%s Detected", total, total == 1 ? "" : "s");
-
-        // Build detail string
-        std::string detail;
-        if (!result.critical_missing.empty()) {
-            detail += std::to_string(result.critical_missing.size()) + " critical";
-        }
-        if (!result.expected_missing.empty()) {
-            if (!detail.empty())
-                detail += ", ";
-            detail += std::to_string(result.expected_missing.size()) + " missing";
-        }
-        if (!result.newly_discovered.empty()) {
-            if (!detail.empty())
-                detail += ", ";
-            detail += std::to_string(result.newly_discovered.size()) + " new";
-        }
-        if (!result.changed_from_last_session.empty()) {
-            if (!detail.empty())
-                detail += ", ";
-            detail += std::to_string(result.changed_from_last_session.size()) + " changed";
-        }
-        snprintf(hardware_status_detail_buf_, sizeof(hardware_status_detail_buf_), "%s",
-                 detail.c_str());
-    }
-    lv_subject_copy_string(&hardware_status_title_, hardware_status_title_buf_);
-    lv_subject_copy_string(&hardware_status_detail_, hardware_status_detail_buf_);
-
-    // Update issues label for settings panel ("1 Hardware Issue" / "5 Hardware Issues")
-    size_t total = result.total_issue_count();
-    if (total == 0) {
-        snprintf(hardware_issues_label_buf_, sizeof(hardware_issues_label_buf_),
-                 "No Hardware Issues");
-    } else if (total == 1) {
-        snprintf(hardware_issues_label_buf_, sizeof(hardware_issues_label_buf_),
-                 "1 Hardware Issue");
-    } else {
-        snprintf(hardware_issues_label_buf_, sizeof(hardware_issues_label_buf_),
-                 "%zu Hardware Issues", total);
-    }
-    lv_subject_copy_string(&hardware_issues_label_, hardware_issues_label_buf_);
-
-    // Increment version to notify UI observers
-    int version = lv_subject_get_int(&hardware_validation_version_);
-    lv_subject_set_int(&hardware_validation_version_, version + 1);
-
-    spdlog::debug("[PrinterState] Hardware validation updated: {} issues, max_severity={}",
-                  result.total_issue_count(), static_cast<int>(result.max_severity()));
-}
-
-const HardwareValidationResult& PrinterState::get_hardware_validation_result() const {
-    return hardware_validation_result_;
+    hardware_validation_state_.set_hardware_validation_result(result);
 }
 
 void PrinterState::remove_hardware_issue(const std::string& hardware_name) {
-    // Helper lambda to remove an issue from a vector by hardware_name
-    auto remove_by_name = [&hardware_name](std::vector<HardwareIssue>& issues) {
-        issues.erase(std::remove_if(issues.begin(), issues.end(),
-                                    [&hardware_name](const HardwareIssue& issue) {
-                                        return issue.hardware_name == hardware_name;
-                                    }),
-                     issues.end());
-    };
-
-    // Remove from all issue lists
-    remove_by_name(hardware_validation_result_.critical_missing);
-    remove_by_name(hardware_validation_result_.expected_missing);
-    remove_by_name(hardware_validation_result_.newly_discovered);
-    remove_by_name(hardware_validation_result_.changed_from_last_session);
-
-    // Re-apply the updated result to refresh all subjects
-    set_hardware_validation_result(hardware_validation_result_);
-
-    spdlog::debug("[PrinterState] Removed hardware issue: {}", hardware_name);
+    hardware_validation_state_.remove_hardware_issue(hardware_name);
 }
 
 void PrinterState::set_print_outcome(PrintOutcome outcome) {
