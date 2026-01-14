@@ -512,15 +512,15 @@ deploy-ad5m:
 	fi
 	@# Transfer assets via tar (uses shared DEPLOY_TAR_EXCLUDES and DEPLOY_ASSET_DIRS)
 	@echo "$(DIM)Transferring assets...$(RESET)"
-	tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_ASSET_DIRS) | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xf -"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_ASSET_DIRS) | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xf -"
 	@# Transfer pre-rendered images
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
 		ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/assets/images/prerendered $(AD5M_DEPLOY_DIR)/assets/images/printers/prerendered"; \
-		tar -cf - -C build/assets/images prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images && tar -xf -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images && tar -xf -"; \
 	fi
 	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
-		tar -cf - -C build/assets/images/printers prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images/printers && tar -xf -"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR)/assets/images/printers && tar -xf -"; \
 	fi
 	@# AD5M-specific: Update init script in /etc/init.d/ if it differs
 	@echo "$(DIM)Checking init script...$(RESET)"
@@ -565,7 +565,7 @@ deploy-ad5m-legacy:
 	scp -O build/ad5m/bin/helix-screen build/ad5m/bin/helix-splash $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/
 	@if [ -f build/ad5m/bin/helix-watchdog ]; then scp -O build/ad5m/bin/helix-watchdog $(AD5M_SSH_TARGET):$(AD5M_DEPLOY_DIR)/; fi
 	@echo "$(DIM)Transferring assets (excluding test files)...$(RESET)"
-	tar -cf - --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_Store' --exclude='.claude-recall' ui_xml assets config | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xf -"
+	COPYFILE_DISABLE=1 tar -cf - --exclude='test_gcodes' --exclude='gcode' --exclude='.DS_Store' --exclude='.claude-recall' --exclude='._*' ui_xml assets config | ssh $(AD5M_SSH_TARGET) "cd $(AD5M_DEPLOY_DIR) && tar -xf -"
 	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
 		echo "$(DIM)Transferring pre-rendered splash images...$(RESET)"; \
 		ssh $(AD5M_SSH_TARGET) "mkdir -p $(AD5M_DEPLOY_DIR)/assets/images/prerendered"; \
