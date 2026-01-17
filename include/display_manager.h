@@ -5,6 +5,7 @@
 
 #include "backlight_backend.h"
 #include "display_backend.h"
+#include "touch_calibration.h"
 
 #include <lvgl.h>
 #include <memory>
@@ -216,6 +217,23 @@ class DisplayManager {
      * @return true if brightness can be controlled
      */
     bool has_backlight_control() const;
+
+    // ========================================================================
+    // Touch Calibration
+    // ========================================================================
+
+    /**
+     * @brief Apply touch calibration at runtime
+     *
+     * Called by calibration wizard after user accepts calibration.
+     * Immediately applies the affine transform to touch input without
+     * requiring a restart.
+     *
+     * @param cal Valid calibration coefficients
+     * @return true if applied successfully, false if backend doesn't support
+     *         calibration or validation failed
+     */
+    bool apply_touch_calibration(const helix::TouchCalibration& cal);
 
     // ========================================================================
     // Static Timing Functions (portable across platforms)

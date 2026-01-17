@@ -7,6 +7,9 @@
 
 #include "display_backend_fbdev.h"
 
+#include "config.h"
+#include "touch_calibration.h"
+
 #include <spdlog/spdlog.h>
 
 #include <lvgl.h>
@@ -118,6 +121,71 @@ bool is_known_touchscreen_name(const std::string& name) {
     return false;
 }
 
+/**
+ * @brief Load affine touch calibration coefficients from config
+ *
+ * Reads the calibration data saved by the touch calibration wizard.
+ * Returns an invalid calibration if no valid data is stored.
+ *
+ * @return Calibration coefficients (check .valid before use)
+ */
+helix::TouchCalibration load_touch_calibration() {
+    Config* cfg = Config::get_instance();
+    helix::TouchCalibration cal;
+
+    if (!cfg) {
+        spdlog::debug("[Fbdev Backend] Config not available for calibration load");
+        return cal;
+    }
+
+    cal.valid = cfg->get<bool>("/display/calibration/valid", false);
+    if (!cal.valid) {
+        spdlog::debug("[Fbdev Backend] No valid calibration in config");
+        return cal;
+    }
+
+    cal.a = static_cast<float>(cfg->get<double>("/display/calibration/a", 1.0));
+    cal.b = static_cast<float>(cfg->get<double>("/display/calibration/b", 0.0));
+    cal.c = static_cast<float>(cfg->get<double>("/display/calibration/c", 0.0));
+    cal.d = static_cast<float>(cfg->get<double>("/display/calibration/d", 0.0));
+    cal.e = static_cast<float>(cfg->get<double>("/display/calibration/e", 1.0));
+    cal.f = static_cast<float>(cfg->get<double>("/display/calibration/f", 0.0));
+
+    if (!helix::is_calibration_valid(cal)) {
+        spdlog::warn("[Fbdev Backend] Stored calibration failed validation");
+        cal.valid = false;
+    }
+
+    return cal;
+}
+
+/**
+ * @brief Custom read callback that applies affine calibration
+ *
+ * Wraps the original evdev read callback, applying the affine transform
+ * to touch coordinates after the linear calibration is done.
+ */
+void calibrated_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
+    auto* ctx = static_cast<CalibrationContext*>(lv_indev_get_user_data(indev));
+    if (!ctx) {
+        return;
+    }
+
+    // Call the original evdev read callback first
+    if (ctx->original_read_cb) {
+        ctx->original_read_cb(indev, data);
+    }
+
+    // Apply affine calibration if valid and touch is active
+    if (ctx->calibration.valid && data->state == LV_INDEV_STATE_PRESSED) {
+        helix::Point raw{static_cast<int>(data->point.x), static_cast<int>(data->point.y)};
+        helix::Point transformed = helix::transform_point(
+            ctx->calibration, raw, ctx->screen_width - 1, ctx->screen_height - 1);
+        data->point.x = transformed.x;
+        data->point.y = transformed.y;
+    }
+}
+
 } // anonymous namespace
 
 DisplayBackendFbdev::DisplayBackendFbdev() = default;
@@ -147,6 +215,10 @@ bool DisplayBackendFbdev::is_available() const {
 
 lv_display_t* DisplayBackendFbdev::create_display(int width, int height) {
     spdlog::info("[Fbdev Backend] Creating framebuffer display on {}", fb_device_);
+
+    // Store screen dimensions for touch coordinate clamping
+    screen_width_ = width;
+    screen_height_ = height;
 
     // LVGL's framebuffer driver
     // Note: LVGL 9.x uses lv_linux_fbdev_create()
@@ -192,6 +264,55 @@ lv_indev_t* DisplayBackendFbdev::create_input_pointer() {
     if (touch_ == nullptr) {
         spdlog::error("[Fbdev Backend] Failed to create evdev touch input on {}", touch_path);
         return nullptr;
+    }
+
+    // Check for touch axis configuration via environment variables
+    // HELIX_TOUCH_SWAP_AXES=1 - swap X and Y axes
+    const char* swap_axes = std::getenv("HELIX_TOUCH_SWAP_AXES");
+    if (swap_axes != nullptr && strcmp(swap_axes, "1") == 0) {
+        spdlog::info("[Fbdev Backend] Touch axes swapped (HELIX_TOUCH_SWAP_AXES=1)");
+        lv_evdev_set_swap_axes(touch_, true);
+    }
+
+    // Check for explicit touch calibration values
+    // These override the kernel-reported EVIOCGABS values which may be incorrect
+    // (e.g., kernel reports 0-4095 but actual hardware uses a subset)
+    // To invert an axis, swap min and max values (e.g., MIN_Y=3200, MAX_Y=900)
+    const char* env_min_x = std::getenv("HELIX_TOUCH_MIN_X");
+    const char* env_max_x = std::getenv("HELIX_TOUCH_MAX_X");
+    const char* env_min_y = std::getenv("HELIX_TOUCH_MIN_Y");
+    const char* env_max_y = std::getenv("HELIX_TOUCH_MAX_Y");
+
+    if (env_min_x && env_max_x && env_min_y && env_max_y) {
+        int min_x = std::atoi(env_min_x);
+        int max_x = std::atoi(env_max_x);
+        int min_y = std::atoi(env_min_y);
+        int max_y = std::atoi(env_max_y);
+
+        spdlog::info("[Fbdev Backend] Touch calibration from env: X({}->{}) Y({}->{})", min_x,
+                     max_x, min_y, max_y);
+        lv_evdev_set_calibration(touch_, min_x, min_y, max_x, max_y);
+    }
+
+    // Load affine calibration from config (saved by calibration wizard)
+    calibration_ = load_touch_calibration();
+    if (calibration_.valid) {
+        spdlog::info("[Fbdev Backend] Affine calibration loaded: "
+                     "a={:.4f} b={:.4f} c={:.4f} d={:.4f} e={:.4f} f={:.4f}",
+                     calibration_.a, calibration_.b, calibration_.c, calibration_.d, calibration_.e,
+                     calibration_.f);
+
+        // Set up the custom read callback to apply affine calibration
+        // We wrap the original evdev callback with our calibrated version
+        calibration_context_.calibration = calibration_;
+        calibration_context_.original_read_cb = lv_indev_get_read_cb(touch_);
+        calibration_context_.screen_width = screen_width_;
+        calibration_context_.screen_height = screen_height_;
+
+        lv_indev_set_user_data(touch_, &calibration_context_);
+        lv_indev_set_read_cb(touch_, calibrated_read_cb);
+
+        spdlog::info("[Fbdev Backend] Affine calibration callback installed");
     }
 
     spdlog::info("[Fbdev Backend] Evdev touch input created on {}", touch_path);
@@ -346,6 +467,43 @@ bool DisplayBackendFbdev::clear_framebuffer(uint32_t color) {
     // Unmap and close
     munmap(fbp, screensize);
     close(fd);
+
+    return true;
+}
+
+bool DisplayBackendFbdev::set_calibration(const helix::TouchCalibration& cal) {
+    if (!helix::is_calibration_valid(cal)) {
+        spdlog::warn("[Fbdev Backend] Invalid calibration rejected");
+        return false;
+    }
+
+    // Update stored calibration
+    calibration_ = cal;
+
+    // If touch input exists with our custom callback, update the context
+    if (touch_) {
+        auto* ctx = static_cast<CalibrationContext*>(lv_indev_get_user_data(touch_));
+        if (ctx) {
+            // Update existing context (points to our member variable)
+            ctx->calibration = cal;
+            spdlog::info("[Fbdev Backend] Calibration updated at runtime: "
+                         "a={:.4f} b={:.4f} c={:.4f} d={:.4f} e={:.4f} f={:.4f}",
+                         cal.a, cal.b, cal.c, cal.d, cal.e, cal.f);
+        } else {
+            // Need to install the callback wrapper for the first time
+            calibration_context_.calibration = cal;
+            calibration_context_.original_read_cb = lv_indev_get_read_cb(touch_);
+            calibration_context_.screen_width = screen_width_;
+            calibration_context_.screen_height = screen_height_;
+
+            lv_indev_set_user_data(touch_, &calibration_context_);
+            lv_indev_set_read_cb(touch_, calibrated_read_cb);
+
+            spdlog::info("[Fbdev Backend] Calibration callback installed at runtime: "
+                         "a={:.4f} b={:.4f} c={:.4f} d={:.4f} e={:.4f} f={:.4f}",
+                         cal.a, cal.b, cal.c, cal.d, cal.e, cal.f);
+        }
+    }
 
     return true;
 }

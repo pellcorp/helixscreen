@@ -11,8 +11,22 @@
 #ifdef HELIX_DISPLAY_FBDEV
 
 #include "display_backend.h"
+#include "touch_calibration.h"
 
 #include <string>
+
+/**
+ * @brief Calibration context stored in indev user_data
+ *
+ * Contains both the calibration coefficients and the original read callback
+ * so we can chain to it after applying our transform.
+ */
+struct CalibrationContext {
+    helix::TouchCalibration calibration;
+    lv_indev_read_cb_t original_read_cb = nullptr;
+    int screen_width = 800;
+    int screen_height = 480;
+};
 
 /**
  * @brief Linux framebuffer display backend for embedded systems
@@ -77,11 +91,41 @@ class DisplayBackendFbdev : public DisplayBackend {
         touch_device_ = path;
     }
 
+    /**
+     * @brief Apply touch calibration at runtime
+     *
+     * Sets the affine transform coefficients used to convert raw touch
+     * coordinates to screen coordinates. Called by the calibration wizard
+     * after the user accepts calibration.
+     *
+     * @param cal Valid calibration coefficients
+     * @return true if applied successfully, false if validation failed
+     */
+    bool set_calibration(const helix::TouchCalibration& cal);
+
+    /**
+     * @brief Get current touch calibration
+     * @return Current calibration coefficients (may be invalid if not calibrated)
+     */
+    const helix::TouchCalibration& get_calibration() const {
+        return calibration_;
+    }
+
   private:
     std::string fb_device_ = "/dev/fb0";
     std::string touch_device_; // Empty = auto-detect
     lv_display_t* display_ = nullptr;
     lv_indev_t* touch_ = nullptr;
+
+    /// Affine touch calibration coefficients
+    helix::TouchCalibration calibration_;
+
+    /// Screen dimensions for coordinate clamping
+    int screen_width_ = 800;
+    int screen_height_ = 480;
+
+    /// Calibration context for touch input (member to avoid memory leak)
+    CalibrationContext calibration_context_;
 
     /**
      * @brief Auto-detect touch input device

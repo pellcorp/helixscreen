@@ -55,7 +55,7 @@ void SettingsManager::init_subjects() {
     UI_MANAGED_SUBJECT_INT(dark_mode_subject_, dark_mode ? 1 : 0, "settings_dark_mode", subjects_);
 
     // Display sleep (default: 1800 seconds = 30 minutes)
-    int sleep_sec = config->get<int>("/display_sleep_sec", 1800);
+    int sleep_sec = config->get<int>("/display/sleep_sec", 1800);
     UI_MANAGED_SUBJECT_INT(display_sleep_subject_, sleep_sec, "settings_display_sleep", subjects_);
 
     // Brightness: Read from config (DisplayManager handles hardware)
@@ -189,7 +189,7 @@ void SettingsManager::set_display_sleep_sec(int seconds) {
 
     // 2. Persist
     Config* config = Config::get_instance();
-    config->set<int>("/display_sleep_sec", seconds);
+    config->set<int>("/display/sleep_sec", seconds);
     config->save();
 
     // Note: Actual display sleep is handled by the display driver reading this value

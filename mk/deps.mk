@@ -19,7 +19,11 @@ VENV_PIP := $(VENV)/bin/pip3
 #   - check_desktop_tools: SDL2, npm, python venv, clang-format (--minimal skips)
 #   - check_canvas_libs: cairo, pango, libpng (--minimal skips)
 #
+# Dependency check stamp file location (must match rules.mk)
+DEPS_CHECKED_MARKER := $(BUILD_DIR)/.deps-checked
+
 check-deps:
+	@mkdir -p $(BUILD_DIR)
 ifeq ($(SKIP_OPTIONAL_DEPS),1)
 	@CC="$(CC)" CXX="$(CXX)" ENABLE_SSL="$(ENABLE_SSL)" \
 		LVGL_DIR="$(LVGL_DIR)" SPDLOG_DIR="$(SPDLOG_DIR)" \
@@ -31,6 +35,7 @@ else
 		LIBHV_DIR="$(LIBHV_DIR)" WPA_DIR="$(WPA_DIR)" VENV="$(VENV)" \
 		./scripts/check-deps.sh
 endif
+	@touch "$(DEPS_CHECKED_MARKER)"
 	@# Auto-enable git hooks if not already set up
 	@if [ -f ".githooks/pre-commit" ] && [ "$$(git config core.hooksPath 2>/dev/null)" != ".githooks" ]; then \
 		git config core.hooksPath .githooks; \
@@ -280,8 +285,34 @@ libnl-clean:
 	$(Q)rm -f $(BUILD_DIR)/lib/libnl*.a 2>/dev/null || true
 	$(ECHO) "$(GREEN)✓ libnl cleaned$(RESET)"
 
+# Clean TinyGL build artifacts
+tinygl-clean:
+ifeq ($(ENABLE_TINYGL_3D),yes)
+	$(ECHO) "$(CYAN)Cleaning TinyGL build artifacts...$(RESET)"
+	$(Q)if [ -d "$(TINYGL_DIR)" ] && [ -f "$(TINYGL_DIR)/Makefile" ]; then \
+		cd $(TINYGL_DIR) && $(MAKE) clean 2>/dev/null || true; \
+	fi
+	$(Q)rm -f $(BUILD_DIR)/lib/libTinyGL.a 2>/dev/null || true
+	$(ECHO) "$(GREEN)✓ TinyGL cleaned$(RESET)"
+else
+	@echo "TinyGL not enabled (ENABLE_TINYGL_3D=no)"
+endif
+
+# Clean wpa_supplicant build artifacts (Linux only)
+wpa-clean:
+ifneq ($(UNAME_S),Darwin)
+	$(ECHO) "$(CYAN)Cleaning wpa_supplicant build artifacts...$(RESET)"
+	$(Q)if [ -d "$(WPA_DIR)/wpa_supplicant" ]; then \
+		$(MAKE) -C $(WPA_DIR)/wpa_supplicant clean 2>/dev/null || true; \
+	fi
+	$(Q)rm -f $(BUILD_DIR)/lib/libwpa_client.a 2>/dev/null || true
+	$(ECHO) "$(GREEN)✓ wpa_supplicant cleaned$(RESET)"
+else
+	@echo "wpa_supplicant not used on macOS"
+endif
+
 # Clean all submodule libraries
-libs-clean: libhv-clean sdl2-clean lvgl-clean libnl-clean
+libs-clean: libhv-clean sdl2-clean lvgl-clean libnl-clean tinygl-clean wpa-clean
 	$(ECHO) "$(GREEN)✓ All library artifacts cleaned$(RESET)"
 
 # =============================================================================
@@ -539,7 +570,7 @@ setup-hooks:
 # Build/Dependency Help
 # ============================================================================
 
-.PHONY: libhv-clean sdl2-clean lvgl-clean libs-clean help-build
+.PHONY: libhv-clean sdl2-clean lvgl-clean libnl-clean tinygl-clean wpa-clean libs-clean distclean help-build
 help-build:
 	@if [ -t 1 ] && [ -n "$(TERM)" ] && [ "$(TERM)" != "dumb" ]; then \
 		B='$(BOLD)'; G='$(GREEN)'; Y='$(YELLOW)'; C='$(CYAN)'; X='$(RESET)'; \
@@ -551,7 +582,8 @@ help-build:
 	echo "$${C}Core Build:$${X}"; \
 	echo "  $${G}all$${X}                 - Build main binary (default)"; \
 	echo "  $${G}build$${X}               - Clean build with progress"; \
-	echo "  $${G}clean$${X}               - Remove all build artifacts"; \
+	echo "  $${G}clean$${X}               - Remove build artifacts (keeps deps)"; \
+	echo "  $${G}distclean$${X}           - Deep clean (fresh checkout state)"; \
 	echo "  $${G}run$${X}                 - Build and run the UI"; \
 	echo ""; \
 	echo "$${C}Dependency Management:$${X}"; \

@@ -51,15 +51,117 @@ json get_default_printer_config(const std::string& moonraker_host) {
         {"default_macros", get_default_macros()}};
 }
 
+/// Default display configuration section
+/// Used for both new configs and ensuring display section exists with defaults
+json get_default_display_config() {
+    return {{"rotate", 0},
+            {"sleep_sec", 600},
+            {"dim_sec", 300},
+            {"dim_brightness", 30},
+            {"drm_device", ""},
+            {"touch_device", ""},
+            {"gcode_render_mode", 0},
+            {"gcode_3d_enabled", true},
+            {"bed_mesh_render_mode", 0},
+            {"calibration",
+             {{"valid", false},
+              {"a", 1.0},
+              {"b", 0.0},
+              {"c", 0.0},
+              {"d", 0.0},
+              {"e", 1.0},
+              {"f", 0.0}}}};
+}
+
+/// Migrate legacy display settings from root level to /display/ section
+/// @param data JSON config data to migrate (modified in place)
+/// @return true if migration occurred, false if no migration needed
+bool migrate_display_config(json& data) {
+    // Check for root-level display_rotate as indicator of old format
+    if (!data.contains("display_rotate")) {
+        return false; // Already migrated or new config
+    }
+
+    spdlog::info("[Config] Migrating display settings to /display/ section");
+
+    // Ensure display section exists
+    if (!data.contains("display")) {
+        data["display"] = json::object();
+    }
+
+    // Migrate root-level display settings (only if target key doesn't already exist)
+    if (data.contains("display_rotate")) {
+        if (!data["display"].contains("rotate")) {
+            data["display"]["rotate"] = data["display_rotate"];
+            spdlog::info("[Config] Migrated display_rotate -> /display/rotate");
+        }
+        data.erase("display_rotate");
+    }
+
+    if (data.contains("display_sleep_sec")) {
+        if (!data["display"].contains("sleep_sec")) {
+            data["display"]["sleep_sec"] = data["display_sleep_sec"];
+            spdlog::info("[Config] Migrated display_sleep_sec -> /display/sleep_sec");
+        }
+        data.erase("display_sleep_sec");
+    }
+
+    if (data.contains("display_dim_sec")) {
+        if (!data["display"].contains("dim_sec")) {
+            data["display"]["dim_sec"] = data["display_dim_sec"];
+            spdlog::info("[Config] Migrated display_dim_sec -> /display/dim_sec");
+        }
+        data.erase("display_dim_sec");
+    }
+
+    if (data.contains("display_dim_brightness")) {
+        if (!data["display"].contains("dim_brightness")) {
+            data["display"]["dim_brightness"] = data["display_dim_brightness"];
+            spdlog::info("[Config] Migrated display_dim_brightness -> /display/dim_brightness");
+        }
+        data.erase("display_dim_brightness");
+    }
+
+    // Migrate touch calibration settings (only if target keys don't already exist)
+    if (data.contains("touch_calibrated") || data.contains("touch_calibration")) {
+        // Ensure calibration subsection exists
+        if (!data["display"].contains("calibration")) {
+            data["display"]["calibration"] = json::object();
+        }
+
+        if (data.contains("touch_calibrated")) {
+            if (!data["display"]["calibration"].contains("valid")) {
+                data["display"]["calibration"]["valid"] = data["touch_calibrated"];
+                spdlog::info("[Config] Migrated touch_calibrated -> /display/calibration/valid");
+            }
+            data.erase("touch_calibrated");
+        }
+
+        if (data.contains("touch_calibration")) {
+            const auto& cal = data["touch_calibration"];
+            for (const auto& key : {"a", "b", "c", "d", "e", "f"}) {
+                if (cal.contains(key) && !data["display"]["calibration"].contains(key)) {
+                    data["display"]["calibration"][key] = cal[key];
+                }
+            }
+            data.erase("touch_calibration");
+            spdlog::info(
+                "[Config] Migrated touch_calibration/{{a-f}} -> /display/calibration/{{a-f}}");
+        }
+    }
+
+    spdlog::info("[Config] Display settings migration complete");
+    return true;
+}
+
 /// Default root-level config - shared between init() and reset_to_defaults()
 /// @param moonraker_host Host address for printer
 /// @param include_user_prefs Include user preference fields (brightness, sounds, etc.)
 json get_default_config(const std::string& moonraker_host, bool include_user_prefs) {
     json config = {{"log_path", "/tmp/helixscreen.log"},
                    {"log_level", "warn"},
-                   {"display_sleep_sec", 600},
-                   {"display_rotate", 0},
                    {"dark_mode", true},
+                   {"display", get_default_display_config()},
                    {"gcode_viewer", {{"shading_model", "phong"}, {"tube_sides", 4}}},
                    {"input", {{"scroll_throw", 25}, {"scroll_limit", 5}}},
                    {"printer", get_default_printer_config(moonraker_host)}};
@@ -126,26 +228,36 @@ void Config::init(const std::string& config_path) {
         }
     }
 
+    bool config_modified = false;
+
     if (stat(config_path.c_str(), &buffer) == 0) {
         // Load existing config
         spdlog::info("[Config] Loading config from {}", config_path);
         data = json::parse(std::fstream(config_path));
+
+        // Run display config migration (moves root-level display_* to /display/)
+        if (migrate_display_config(data)) {
+            config_modified = true;
+        }
     } else {
         // Create default config
         spdlog::info("[Config] Creating default config at {}", config_path);
         data = get_default_config("127.0.0.1", false);
+        config_modified = true;
     }
 
     // Ensure printer section exists with required fields
     auto& printer = data["/printer"_json_pointer];
     if (printer.is_null()) {
         data["/printer"_json_pointer] = get_default_printer_config("127.0.0.1");
+        config_modified = true;
     } else {
         // Ensure heaters exists with defaults
         auto& heaters = data[json::json_pointer(df() + "heaters")];
         if (heaters.is_null()) {
             data[json::json_pointer(df() + "heaters")] = {{"bed", "heater_bed"},
                                                           {"hotend", "extruder"}};
+            config_modified = true;
         }
 
         // Ensure temp_sensors exists with defaults
@@ -153,6 +265,7 @@ void Config::init(const std::string& config_path) {
         if (temp_sensors.is_null()) {
             data[json::json_pointer(df() + "temp_sensors")] = {{"bed", "heater_bed"},
                                                                {"hotend", "extruder"}};
+            config_modified = true;
         }
 
         // Ensure fans exists with defaults
@@ -160,18 +273,21 @@ void Config::init(const std::string& config_path) {
         if (fans.is_null()) {
             data[json::json_pointer(df() + "fans")] = {{"part", "fan"},
                                                        {"hotend", "heater_fan hotend_fan"}};
+            config_modified = true;
         }
 
         // Ensure leds exists with defaults
         auto& leds = data[json::json_pointer(df() + "leds")];
         if (leds.is_null()) {
             data[json::json_pointer(df() + "leds")] = {{"strip", "neopixel chamber_light"}};
+            config_modified = true;
         }
 
         // Ensure extra_sensors exists (empty object for user additions)
         auto& extra_sensors = data[json::json_pointer(df() + "extra_sensors")];
         if (extra_sensors.is_null()) {
             data[json::json_pointer(df() + "extra_sensors")] = json::object();
+            config_modified = true;
         }
 
         // Ensure hardware section exists
@@ -180,12 +296,14 @@ void Config::init(const std::string& config_path) {
             data[json::json_pointer(df() + "hardware")] = {{"optional", json::array()},
                                                            {"expected", json::array()},
                                                            {"last_snapshot", json::object()}};
+            config_modified = true;
         }
 
         // Ensure default_macros exists
         auto& default_macros = data[json::json_pointer(df() + "default_macros")];
         if (default_macros.is_null()) {
             data[json::json_pointer(df() + "default_macros")] = get_default_macros();
+            config_modified = true;
         }
     }
 
@@ -193,23 +311,44 @@ void Config::init(const std::string& config_path) {
     auto& ll = data["/log_level"_json_pointer];
     if (ll.is_null()) {
         data["/log_level"_json_pointer] = "warn";
+        config_modified = true;
     }
 
-    // Ensure display_rotate exists
-    auto& rotate = data["/display_rotate"_json_pointer];
-    if (rotate.is_null()) {
-        data["/display_rotate"_json_pointer] = 0; // LV_DISP_ROT_0
+    // Ensure display section exists with defaults
+    if (!data.contains("display")) {
+        data["display"] = get_default_display_config();
+        config_modified = true;
+    } else {
+        // Ensure all display subsections exist with defaults
+        auto defaults = get_default_display_config();
+        auto& display = data["display"];
+
+        for (auto& [key, value] : defaults.items()) {
+            if (!display.contains(key)) {
+                display[key] = value;
+                config_modified = true;
+            }
+        }
+
+        // Ensure calibration subsection has all required fields
+        if (display.contains("calibration")) {
+            auto& cal = display["calibration"];
+            auto& cal_defaults = defaults["calibration"];
+            for (auto& [key, value] : cal_defaults.items()) {
+                if (!cal.contains(key)) {
+                    cal[key] = value;
+                    config_modified = true;
+                }
+            }
+        }
     }
 
-    // Ensure display_sleep_sec exists
-    auto& display_sleep = data["/display_sleep_sec"_json_pointer];
-    if (display_sleep.is_null()) {
-        data["/display_sleep_sec"_json_pointer] = 600;
+    // Save updated config with any new defaults or migrations
+    if (config_modified) {
+        std::ofstream o(config_path);
+        o << std::setw(2) << data << std::endl;
+        spdlog::debug("[Config] Saved updated config to {}", config_path);
     }
-
-    // Save updated config with any new defaults
-    std::ofstream o(config_path);
-    o << std::setw(2) << data << std::endl;
 
     spdlog::debug("[Config] initialized: moonraker={}:{}",
                   get<std::string>(df() + "moonraker_host"), get<int>(df() + "moonraker_port"));

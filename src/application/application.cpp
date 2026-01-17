@@ -1639,20 +1639,21 @@ void Application::shutdown() {
     m_panels.reset();
     m_subjects.reset();
 
-    // Destroy ALL static panel/overlay globals via self-registration pattern.
-    // This runs BEFORE spdlog's registry is destroyed during static destruction,
-    // ensuring panel destructors can safely log.
-    StaticPanelRegistry::instance().destroy_all();
-
     // Deinitialize core singleton subjects (PrinterState, AmsState, SettingsManager, etc.)
-    // This MUST happen AFTER panels are destroyed (panels have observers on these subjects)
-    // but BEFORE lv_deinit() which will delete any remaining widgets
+    // This disconnects observers from subjects. Must happen before lv_deinit().
     StaticSubjectRegistry::instance().deinit_all();
 
     // Restore display backlight (guard for early exit paths like --help)
     if (m_display) {
         m_display->restore_display_on_shutdown();
     }
+
+    // Destroy ALL static panel/overlay globals via self-registration pattern.
+    // This is done RIGHT BEFORE lv_deinit() to avoid panels being recreated by
+    // async callbacks (e.g., timer callbacks, discovery callbacks) that might fire
+    // between destroy_all() and lv_deinit(). By destroying panels last, we ensure
+    // no code path can recreate them before LVGL shuts down.
+    StaticPanelRegistry::instance().destroy_all();
 
     // Shutdown display (calls lv_deinit)
     m_display.reset();

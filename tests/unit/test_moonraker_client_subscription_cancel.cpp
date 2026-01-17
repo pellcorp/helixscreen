@@ -140,7 +140,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
 }
 
 TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
-                 "MoonrakerClient unsubscribe_notify_update removes callback", "[connection][eventloop][slow]") {
+                 "MoonrakerClient unsubscribe_notify_update removes callback",
+                 "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient client(loop);
 
@@ -354,7 +355,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
 // Request Cancellation API Tests
 // ============================================================================
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient send_jsonrpc returns valid RequestId",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient send_jsonrpc returns valid RequestId",
                  "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient client(loop);
@@ -386,7 +388,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient send_jsonrpc 
     }
 }
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient cancel_request removes pending request",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient cancel_request removes pending request",
                  "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient client(loop);
@@ -410,7 +413,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient cancel_reques
     }
 }
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient cancelled request callback not invoked",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient cancelled request callback not invoked",
                  "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     auto loop_thread = std::make_shared<hv::EventLoopThread>();
@@ -439,7 +443,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient cancelled req
 // Mock Client Request ID Tests
 // ============================================================================
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClientMock send_jsonrpc returns valid RequestId",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClientMock send_jsonrpc returns valid RequestId",
                  "[connection][mock][eventloop][slow]") {
     MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
     mock.connect("ws://mock/websocket", []() {}, []() {});
@@ -478,7 +483,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClientMock send_json
 // force_reconnect() Method Tests
 // ============================================================================
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient force_reconnect when not connected",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient force_reconnect when not connected",
                  "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient client(loop);
@@ -537,7 +543,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClientMock force_rec
     }
 }
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient force_reconnect state transitions",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient force_reconnect state transitions",
                  "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     auto loop_thread = std::make_shared<hv::EventLoopThread>();
@@ -631,7 +638,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
     }
 }
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient concurrent subscribe/unsubscribe is safe",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient concurrent subscribe/unsubscribe is safe",
                  "[connection][thread_safety][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient client(loop);
@@ -693,7 +701,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient concurrent su
 // ============================================================================
 
 TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
-                 "MoonrakerClientMock subscription API matches MoonrakerClient", "[connection][eventloop][slow]") {
+                 "MoonrakerClientMock subscription API matches MoonrakerClient",
+                 "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient real_client(loop);
     MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
@@ -747,7 +756,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
 }
 
 TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
-                 "MoonrakerClientMock cancel_request API matches MoonrakerClient", "[connection][eventloop][slow]") {
+                 "MoonrakerClientMock cancel_request API matches MoonrakerClient",
+                 "[connection][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient real_client(loop);
     MoonrakerClientMock mock_client(MoonrakerClientMock::PrinterType::VORON_24);
@@ -815,7 +825,8 @@ TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient handles subsc
     }
 }
 
-TEST_CASE_METHOD(MoonrakerClientLifecycleFixture, "MoonrakerClient handles method callback edge cases",
+TEST_CASE_METHOD(MoonrakerClientLifecycleFixture,
+                 "MoonrakerClient handles method callback edge cases",
                  "[connection][edge_cases][eventloop][slow]") {
     auto loop = std::make_shared<hv::EventLoop>();
     MoonrakerClient client(loop);

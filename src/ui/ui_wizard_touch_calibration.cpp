@@ -176,7 +176,7 @@ bool WizardTouchCalibrationStep::should_skip() const {
 
     // Skip if already calibrated
     Config* config = Config::get_instance();
-    if (config && config->get<bool>("/touch_calibrated", false)) {
+    if (config && config->get<bool>("/display/calibration/valid", false)) {
         spdlog::debug("[{}] Skipping: already calibrated", get_name());
         return true;
     }
@@ -292,15 +292,24 @@ void WizardTouchCalibrationStep::on_calibration_complete(const helix::TouchCalib
         // Save calibration to config
         Config* config = Config::get_instance();
         if (config) {
-            config->set<bool>("/touch_calibrated", true);
-            config->set<double>("/touch_calibration/a", static_cast<double>(cal->a));
-            config->set<double>("/touch_calibration/b", static_cast<double>(cal->b));
-            config->set<double>("/touch_calibration/c", static_cast<double>(cal->c));
-            config->set<double>("/touch_calibration/d", static_cast<double>(cal->d));
-            config->set<double>("/touch_calibration/e", static_cast<double>(cal->e));
-            config->set<double>("/touch_calibration/f", static_cast<double>(cal->f));
+            config->set<bool>("/display/calibration/valid", true);
+            config->set<double>("/display/calibration/a", static_cast<double>(cal->a));
+            config->set<double>("/display/calibration/b", static_cast<double>(cal->b));
+            config->set<double>("/display/calibration/c", static_cast<double>(cal->c));
+            config->set<double>("/display/calibration/d", static_cast<double>(cal->d));
+            config->set<double>("/display/calibration/e", static_cast<double>(cal->e));
+            config->set<double>("/display/calibration/f", static_cast<double>(cal->f));
             config->save();
             spdlog::info("[{}] Calibration saved to config", get_name());
+        }
+
+        // Apply calibration immediately (no restart required)
+        DisplayManager* dm = DisplayManager::instance();
+        if (dm && dm->apply_touch_calibration(*cal)) {
+            spdlog::info("[{}] Calibration applied to touch input", get_name());
+        } else {
+            spdlog::debug("[{}] Could not apply calibration immediately (may require restart)",
+                          get_name());
         }
 
         lv_subject_set_int(&calibration_valid_, 1);

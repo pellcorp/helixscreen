@@ -1,13 +1,6 @@
 {
   "animations_enabled": true,
   "dark_mode": false,
-  "display_rotate": 0,
-  "display_sleep_sec": 1800,
-  "_display_sleep_sec_comment": "Seconds of inactivity before display turns OFF (0 = never). Default: 1800 (30 minutes).",
-  "display_dim_sec": 300,
-  "_display_dim_sec_comment": "Seconds of inactivity before display dims (0 = no dimming). Default: 300 (5 minutes). Must be less than display_sleep_sec.",
-  "display_dim_brightness": 30,
-  "_display_dim_brightness_comment": "Brightness percentage when dimmed (1-100). Default: 30%.",
   "time_format": 0,
   "_time_format_comment": "Time display format. 0 = 12-hour (2:30 PM), 1 = 24-hour (14:30). Default is 12-hour.",
   "log_dest": "auto",
@@ -105,12 +98,23 @@
     "_scroll_limit_comment": "Pixels of movement before scrolling starts. Lower = more responsive. Default LVGL is 10, we use 5."
   },
   "display": {
+    "rotate": 0,
+    "sleep_sec": 1800,
+    "_sleep_sec_comment": "Seconds of inactivity before display turns OFF (0 = never). Default: 1800 (30 minutes).",
+    "dim_sec": 300,
+    "_dim_sec_comment": "Seconds of inactivity before display dims (0 = no dimming). Default: 300 (5 minutes). Must be less than sleep_sec.",
+    "dim_brightness": 30,
+    "_dim_brightness_comment": "Brightness percentage when dimmed (1-100). Default: 30%.",
     "drm_device": "",
     "_drm_device_comment": "Override DRM device path (e.g., '/dev/dri/card1'). Empty string enables auto-detection. Pi 5 has multiple DRM cards: card0 (v3d, 3D only), card1 (DSI touchscreen), card2 (vc4/HDMI). Auto-detection finds the first with dumb buffer support and a connected display.",
     "touch_device": "",
     "_touch_device_comment": "Override touch/pointer input device (e.g., '/dev/input/event1'). Empty string enables auto-detection. Auto-detection uses libinput to find touch or pointer capable devices.",
     "gcode_render_mode": 2,
-    "_gcode_render_mode_comment": "G-code visualization mode. 0=Auto (2D), 1=3D TinyGL (dev only, ~3FPS), 2=2D Layer (default). Can also be overridden via HELIX_GCODE_MODE env var (3D/2D)."
+    "_gcode_render_mode_comment": "G-code visualization mode. 0=Auto (2D), 1=3D TinyGL (dev only, ~3FPS), 2=2D Layer (default). Can also be overridden via HELIX_GCODE_MODE env var (3D/2D).",
+    "calibration": {
+      "valid": false,
+      "_comment": "Touch calibration coefficients. Set by calibration wizard or manually."
+    }
   },
   "ams": {
     "spool_style": "3d",

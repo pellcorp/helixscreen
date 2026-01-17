@@ -123,10 +123,17 @@ bool DisplayManager::init(const Config& config) {
     spdlog::info("[DisplayManager] Backlight: {} (available: {})", m_backlight->name(),
                  m_backlight->is_available());
 
+    // Force backlight ON at startup - ensures display is visible even if
+    // previous instance left it off or in an unknown state
+    if (m_backlight && m_backlight->is_available()) {
+        m_backlight->set_brightness(100);
+        spdlog::info("[DisplayManager] Backlight forced ON at 100% for startup");
+    }
+
     // Load dim settings from config
     ::Config* cfg = ::Config::get_instance();
-    m_dim_timeout_sec = cfg->get<int>("/display_dim_sec", 300);
-    m_dim_brightness_percent = std::clamp(cfg->get<int>("/display_dim_brightness", 30), 1, 100);
+    m_dim_timeout_sec = cfg->get<int>("/display/dim_sec", 300);
+    m_dim_brightness_percent = std::clamp(cfg->get<int>("/display/dim_brightness", 30), 1, 100);
     spdlog::info("[DisplayManager] Display dim: {}s timeout, {}% brightness", m_dim_timeout_sec,
                  m_dim_brightness_percent);
 
@@ -346,6 +353,27 @@ void DisplayManager::set_backlight_brightness(int percent) {
 
 bool DisplayManager::has_backlight_control() const {
     return m_backlight && m_backlight->is_available();
+}
+
+// ============================================================================
+// Touch Calibration
+// ============================================================================
+
+bool DisplayManager::apply_touch_calibration(const helix::TouchCalibration& cal) {
+    if (!cal.valid) {
+        spdlog::warn("[DisplayManager] Invalid calibration");
+        return false;
+    }
+
+#ifdef HELIX_DISPLAY_FBDEV
+    if (m_backend && m_backend->type() == DisplayBackendType::FBDEV) {
+        auto* fbdev = static_cast<DisplayBackendFbdev*>(m_backend.get());
+        return fbdev->set_calibration(cal);
+    }
+#endif
+
+    spdlog::debug("[DisplayManager] Touch calibration not applicable to current backend");
+    return false;
 }
 
 // ============================================================================

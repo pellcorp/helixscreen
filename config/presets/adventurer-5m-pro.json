@@ -3,8 +3,16 @@
   "brightness": 100,
   "config_path": "helixconfig.json",
   "dark_mode": true,
-  "display_rotate": 0,
-  "display_sleep_sec": 600,
+  "display": {
+    "rotate": 0,
+    "sleep_sec": 600,
+    "dim_sec": 180,
+    "dim_brightness": 20,
+    "gcode_render_mode": 2,
+    "calibration": {
+      "valid": false
+    }
+  },
   "gcode_viewer": {
     "shading_model": "phong",
     "tube_sides": 4

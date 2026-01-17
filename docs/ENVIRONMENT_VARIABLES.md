@@ -7,6 +7,7 @@ This document provides a comprehensive reference for all environment variables u
 | Category | Count | Prefix |
 |----------|-------|--------|
 | [Display & Backend](#display--backend-configuration) | 7 | `HELIX_` |
+| [Touch Calibration](#touch-calibration) | 5 | `HELIX_TOUCH_*` |
 | [G-Code Viewer](#g-code-viewer) | 3 | `HELIX_` |
 | [Bed Mesh](#bed-mesh) | 1 | `HELIX_` |
 | [Mock & Testing](#mock--testing) | 10 | `HELIX_MOCK_*` |
@@ -116,6 +117,51 @@ Position the SDL window at exact screen coordinates.
 # Position window at specific coordinates
 HELIX_SDL_XPOS=100 HELIX_SDL_YPOS=200 ./build/bin/helix-screen
 ```
+
+---
+
+## Touch Calibration
+
+### Linear Calibration (env vars)
+
+Simple axis range mapping via LVGL's built-in calibration. Use for devices with known linear offset/scale.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `HELIX_TOUCH_MIN_X` | Minimum raw X value (maps to screen left) | Auto-detect |
+| `HELIX_TOUCH_MAX_X` | Maximum raw X value (maps to screen right) | Auto-detect |
+| `HELIX_TOUCH_MIN_Y` | Minimum raw Y value (maps to screen top) | Auto-detect |
+| `HELIX_TOUCH_MAX_Y` | Maximum raw Y value (maps to screen bottom) | Auto-detect |
+| `HELIX_TOUCH_SWAP_AXES` | Swap X/Y axes (set to "1" to enable) | Disabled |
+
+**Usage Notes:**
+- All four min/max variables must be set together for calibration to apply
+- To invert an axis, swap the min/max values (e.g., `MIN_Y=3200 MAX_Y=900` inverts Y)
+- These values override the kernel-reported axis ranges from `EVIOCGABS`
+
+**Example:**
+```bash
+# AD5M resistive touchscreen with inverted Y axis
+export HELIX_TOUCH_MIN_X=500
+export HELIX_TOUCH_MAX_X=3580
+export HELIX_TOUCH_MIN_Y=3200  # Higher value = screen top (inverted)
+export HELIX_TOUCH_MAX_Y=900
+./build/bin/helix-screen
+```
+
+### Affine Calibration (config file)
+
+For precise calibration including rotation and skew correction, use the touch calibration wizard. The wizard computes a 6-coefficient affine transform and saves it to the config file at `display.calibration.{a,b,c,d,e,f}`.
+
+**Affine transform formula:**
+```
+screen_x = a * touch_x + b * touch_y + c
+screen_y = d * touch_x + e * touch_y + f
+```
+
+The calibration wizard is automatically presented during first-run setup on framebuffer devices. It can also be triggered manually from Settings.
+
+**Note:** There are no environment variable overrides for affine calibration. Edit the config file directly or use the calibration wizard.
 
 ---
 

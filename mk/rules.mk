@@ -46,6 +46,9 @@ define check-arch-change
 	@echo "$(CURRENT_TARGET)" > "$(ARCH_MARKER)"
 endef
 
+# Dependency check stamp file - created by check-deps, prevents re-checking
+DEPS_CHECKED_MARKER := $(BUILD_DIR)/.deps-checked
+
 # Phase 1: Check for unlimited -j AND architecture changes, then re-invoke if needed
 # This target has NO dependencies, so it runs alone even with unlimited -j
 .PHONY: all
@@ -65,6 +68,15 @@ ifndef _PARALLEL_CHECKED
 		fi; \
 	fi
 	@echo "$(CURRENT_TARGET)" > "$(ARCH_MARKER)"
+	@# Check dependencies BEFORE parallel build starts (prevents confusing errors)
+	@# Only run if marker is missing or older than check script
+	@if [ ! -f "$(DEPS_CHECKED_MARKER)" ] || [ "scripts/check-deps.sh" -nt "$(DEPS_CHECKED_MARKER)" ]; then \
+		CC="$(CC)" CXX="$(CXX)" ENABLE_SSL="$(ENABLE_SSL)" \
+			LVGL_DIR="$(LVGL_DIR)" SPDLOG_DIR="$(SPDLOG_DIR)" \
+			LIBHV_DIR="$(LIBHV_DIR)" WPA_DIR="$(WPA_DIR)" VENV="$(VENV)" \
+			./scripts/check-deps.sh || exit 1; \
+		touch "$(DEPS_CHECKED_MARKER)"; \
+	fi
 	@# Auto-parallelize: add -j$(NPROC) unless bounded -jN already set
 	@if echo "$(MAKEFLAGS)" | grep -q 'jobserver'; then \
 		exec $(MAKE) _PARALLEL_CHECKED=1 $(MAKECMDGOALS); \
@@ -78,7 +90,7 @@ ifndef _PARALLEL_CHECKED
 	fi
 else
 # Phase 2: Actual build (only runs when _PARALLEL_CHECKED is set)
-all: check-deps apply-patches generate-fonts splash watchdog $(TARGET)
+all: apply-patches generate-fonts splash watchdog $(TARGET)
 	$(ECHO) "$(GREEN)$(BOLD)✓ Build complete!$(RESET)"
 	$(ECHO) "$(CYAN)Run with: $(YELLOW)./$(TARGET)$(RESET)"
 endif
@@ -264,6 +276,49 @@ ifneq ($(UNAME_S),Darwin)
 		$(MAKE) -C $(WPA_DIR)/wpa_supplicant clean; \
 	fi
 endif
+
+# Deep clean - reset to fresh checkout state
+# Removes everything including dependencies (node_modules, .venv, all library builds)
+# Use this when you want a completely fresh start
+distclean: clean
+	$(ECHO) "$(YELLOW)Deep cleaning (fresh checkout state)...$(RESET)"
+	@# Clean all submodule library builds
+	$(Q)if [ -d "$(LIBHV_DIR)" ]; then \
+		echo "$(YELLOW)→ Cleaning libhv...$(RESET)"; \
+		find $(LIBHV_DIR) -type f \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.dylib' \) -delete 2>/dev/null || true; \
+		rm -rf $(LIBHV_DIR)/build 2>/dev/null || true; \
+	fi
+	$(Q)if [ -d "lib/libnl" ]; then \
+		echo "$(YELLOW)→ Cleaning libnl...$(RESET)"; \
+		if [ -f "lib/libnl/Makefile" ]; then $(MAKE) -C lib/libnl distclean 2>/dev/null || true; fi; \
+	fi
+	$(Q)if [ -d "lib/sdl2/build" ]; then \
+		echo "$(YELLOW)→ Cleaning SDL2 submodule build...$(RESET)"; \
+		rm -rf lib/sdl2/build; \
+	fi
+ifeq ($(ENABLE_TINYGL_3D),yes)
+	$(Q)if [ -d "$(TINYGL_DIR)" ] && [ -f "$(TINYGL_DIR)/Makefile" ]; then \
+		echo "$(YELLOW)→ Cleaning TinyGL...$(RESET)"; \
+		cd $(TINYGL_DIR) && $(MAKE) clean 2>/dev/null || true; \
+	fi
+endif
+ifneq ($(UNAME_S),Darwin)
+	$(Q)if [ -d "$(WPA_DIR)/wpa_supplicant" ]; then \
+		echo "$(YELLOW)→ Cleaning wpa_supplicant...$(RESET)"; \
+		$(MAKE) -C $(WPA_DIR)/wpa_supplicant clean 2>/dev/null || true; \
+	fi
+endif
+	@# Clean installed dependencies
+	$(Q)if [ -d "node_modules" ]; then \
+		echo "$(YELLOW)→ Removing node_modules/...$(RESET)"; \
+		rm -rf node_modules; \
+	fi
+	$(Q)if [ -d ".venv" ]; then \
+		echo "$(YELLOW)→ Removing .venv/...$(RESET)"; \
+		rm -rf .venv; \
+	fi
+	$(Q)rm -f package-lock.json 2>/dev/null || true
+	$(ECHO) "$(GREEN)$(BOLD)✓ Deep clean complete (run 'make install-deps' to reinstall)$(RESET)"
 
 # Parallel build target with progress
 build:

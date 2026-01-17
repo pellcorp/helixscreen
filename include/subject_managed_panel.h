@@ -68,6 +68,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <string>
+#include <string_view>
 #include <vector>
 
 /**
@@ -76,6 +78,11 @@
  *
  * Tracks registered lv_subject_t pointers and deinitializes them all in destructor.
  * Guards against double-deinit by clearing the list after deinitialization.
+ *
+ * The manager tracks whether subjects were properly deinitialized during application
+ * shutdown (when LVGL is still running). If so, any remaining subjects during static
+ * destruction are silently cleared without warning, as they represent benign re-use
+ * of the manager rather than a cleanup failure.
  */
 class SubjectManager {
   public:
@@ -96,15 +103,20 @@ class SubjectManager {
     SubjectManager& operator=(const SubjectManager&) = delete;
 
     // Movable (transfers subject ownership)
-    SubjectManager(SubjectManager&& other) noexcept : subjects_(std::move(other.subjects_)) {
+    SubjectManager(SubjectManager&& other) noexcept
+        : subjects_(std::move(other.subjects_)),
+          properly_deinitialized_(other.properly_deinitialized_) {
         other.subjects_.clear();
+        other.properly_deinitialized_ = false;
     }
 
     SubjectManager& operator=(SubjectManager&& other) noexcept {
         if (this != &other) {
             deinit_all();
             subjects_ = std::move(other.subjects_);
+            properly_deinitialized_ = other.properly_deinitialized_;
             other.subjects_.clear();
+            other.properly_deinitialized_ = false;
         }
         return *this;
     }
@@ -158,8 +170,38 @@ class SubjectManager {
 
         // Check if LVGL is still initialized (static destruction order safety)
         if (!lv_is_initialized()) {
-            spdlog::warn("[SubjectManager] LVGL not initialized, skipping {} subject deinits",
-                         subjects_.size());
+            // If we were properly deinitialized during shutdown, subjects being present
+            // here means they were re-added after deinit (e.g., by a re-initialization
+            // path). This is benign - silently clear without warning.
+            if (properly_deinitialized_) {
+                spdlog::debug(
+                    "[SubjectManager] Skipping {} subjects during static destruction (already "
+                    "deinitialized during shutdown)",
+                    subjects_.size());
+                subjects_.clear();
+                return;
+            }
+
+            // This is a benign condition during static destruction - LVGL is already gone
+            // but the subjects will be freed with the SubjectManager anyway. Log at debug
+            // level for diagnostics only.
+            if (spdlog::get_level() <= spdlog::level::debug) {
+                std::string owner_info = "unknown";
+                const auto* info = SubjectDebugRegistry::instance().lookup(subjects_.front());
+                if (info) {
+                    // Extract just filename from full path
+                    std::string_view file_path = info->file;
+                    auto last_slash = file_path.find_last_of('/');
+                    if (last_slash != std::string_view::npos) {
+                        file_path = file_path.substr(last_slash + 1);
+                    }
+                    owner_info = std::string(file_path) + ":" + std::to_string(info->line) + " (" +
+                                 info->name + ")";
+                }
+                spdlog::debug(
+                    "[SubjectManager] LVGL not initialized, skipping {} subject deinits from {}",
+                    subjects_.size(), owner_info);
+            }
             subjects_.clear();
             return;
         }
@@ -173,6 +215,10 @@ class SubjectManager {
         }
 
         subjects_.clear();
+
+        // Mark as properly deinitialized - future calls during static destruction
+        // won't warn if subjects were re-added after this point
+        properly_deinitialized_ = true;
     }
 
     /**
@@ -193,6 +239,7 @@ class SubjectManager {
 
   private:
     std::vector<lv_subject_t*> subjects_;
+    bool properly_deinitialized_ = false; ///< Set when deinit_all() completes with LVGL running
 };
 
 /**
