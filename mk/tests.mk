@@ -148,7 +148,7 @@ test: test-build
 # Uses Catch2 sharding across multiple processes for ~4-8x speedup
 # Use 'make test-serial' for sequential execution (debugging, clean output)
 # Use 'make test-all' to run everything including slow tests
-test-run: $(TEST_BIN)
+test-run: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running unit tests in parallel (excluding slow)...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(call run_tests_parallel,"~[.] ~[slow]"); \
@@ -158,7 +158,7 @@ test-run: $(TEST_BIN)
 
 # Run unit tests SEQUENTIALLY (for debugging or clean output)
 # Slower but useful when you need to see exact test ordering or debug failures
-test-serial: $(TEST_BIN)
+test-serial: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running unit tests sequentially (excluding slow)...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "~[.] ~[slow]" && \
@@ -167,7 +167,7 @@ test-serial: $(TEST_BIN)
 	echo "$(GREEN)$(BOLD)✓ Tests passed in $${DURATION}s$(RESET)"
 
 # Run ALL tests including slow ones in PARALLEL (for thorough validation)
-test-all: $(TEST_BIN)
+test-all: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running ALL tests in parallel (including slow)...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(call run_tests_parallel,"~[.]"); \
@@ -183,12 +183,12 @@ tests: test-run
 # ============================================================================
 
 # Run tests with per-test timing (shows slow tests)
-test-verbose: $(TEST_BIN)
+test-verbose: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running tests with timing...$(RESET)"
 	$(Q)$(TEST_BIN) --durations yes --use-colour yes
 
 # Run G-code related tests
-test-gcode: $(TEST_BIN)
+test-gcode: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running G-code tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[gcode]" && \
@@ -197,7 +197,7 @@ test-gcode: $(TEST_BIN)
 	echo "$(GREEN)✓ G-code tests passed in $${DURATION}s$(RESET)"
 
 # Run UI-related tests
-test-ui: $(TEST_BIN)
+test-ui: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running UI tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[navigation],[theme],[wizard]" && \
@@ -206,7 +206,7 @@ test-ui: $(TEST_BIN)
 	echo "$(GREEN)✓ UI tests passed in $${DURATION}s$(RESET)"
 
 # Run Moonraker/mock-related tests
-test-moonraker: $(TEST_BIN)
+test-moonraker: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running Moonraker tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[mock],[sequencer],[capabilities]" && \
@@ -215,7 +215,7 @@ test-moonraker: $(TEST_BIN)
 	echo "$(GREEN)✓ Moonraker tests passed in $${DURATION}s$(RESET)"
 
 # Run network-related tests (WiFi, Ethernet)
-test-network: $(TEST_BIN)
+test-network: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running network tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[network],[scan],[connect]" && \
@@ -224,7 +224,7 @@ test-network: $(TEST_BIN)
 	echo "$(GREEN)✓ Network tests passed in $${DURATION}s$(RESET)"
 
 # Run security-related tests
-test-security: $(TEST_BIN)
+test-security: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running security tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[security],[injection],[safety]" && \
@@ -233,12 +233,12 @@ test-security: $(TEST_BIN)
 	echo "$(GREEN)✓ Security tests passed in $${DURATION}s$(RESET)"
 
 # List all available test tags
-test-list-tags: $(TEST_BIN)
+test-list-tags: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Available test tags:$(RESET)"
 	$(Q)$(TEST_BIN) --list-tags
 
 # List all test cases
-test-list: $(TEST_BIN)
+test-list: test-build
 	$(Q)$(TEST_BIN) --list-tests
 
 # Backwards compatibility alias
@@ -251,13 +251,13 @@ test-wizard: test
 # Tests tagged [slow] are excluded from test-fast for quick iteration.
 
 # Show slowest tests (top 20) - useful for identifying optimization targets
-test-timing: $(TEST_BIN)
+test-timing: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Slowest tests (top 20):$(RESET)"
 	@$(TEST_BIN) "~[.]" --durations yes 2>&1 | grep -E "^[0-9]+\.[0-9]+ s:" | sort -rn | head -20
 
 # Run only fast tests in PARALLEL (skip hidden and slow tests) - for quick iteration
 # Target: <15s total runtime for rapid development feedback with parallelism
-test-fast: $(TEST_BIN)
+test-fast: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running fast tests in parallel (skipping [slow] and hidden)...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(call run_tests_parallel,"~[.] ~[slow]"); \
@@ -266,7 +266,7 @@ test-fast: $(TEST_BIN)
 	echo "$(GREEN)$(BOLD)✓ Fast tests passed in $${DURATION}s$(RESET)"
 
 # Run only slow tests - for thorough validation before commit
-test-slow: $(TEST_BIN)
+test-slow: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running slow tests only...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[slow]" && \
@@ -276,7 +276,7 @@ test-slow: $(TEST_BIN)
 
 # Run only eventloop tests - hv::EventLoop network tests (very slow, 5-10 min)
 # These are the slowest tests due to WebSocket connection/disconnection cycles
-test-eventloop: $(TEST_BIN)
+test-eventloop: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running eventloop tests only (this will take 5-10 minutes)...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[eventloop]" "~[.]" && \
@@ -286,7 +286,7 @@ test-eventloop: $(TEST_BIN)
 
 # Smoke test - minimal critical tests for quick validation (<30s)
 # Use during rapid iteration to catch obvious regressions
-test-smoke: $(TEST_BIN)
+test-smoke: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running smoke tests (minimal critical subset)...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[config],[navigation],[ui_theme],[parser]" "~[slow]" "~[.]" && \
@@ -295,7 +295,7 @@ test-smoke: $(TEST_BIN)
 	echo "$(GREEN)$(BOLD)✓ Smoke tests passed in $${DURATION}s$(RESET)"
 
 # Show test coverage summary by tag area
-test-summary: $(TEST_BIN)
+test-summary: test-build
 	$(ECHO) "$(CYAN)$(BOLD)=== Test Coverage by Tag (top 25) ===$(RESET)"
 	@$(TEST_BIN) --list-tags 2>&1 | grep -E "^\s+[0-9]+" | sort -rn | head -25
 	$(ECHO) ""
@@ -304,7 +304,7 @@ test-summary: $(TEST_BIN)
 
 # Generate timing report for major test categories
 # Updates docs/TEST_TIMING.md with current timings
-test-timing-report: $(TEST_BIN)
+test-timing-report: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Generating test timing report...$(RESET)"
 	@echo "| Tag | Tests | Time |" > /tmp/test_timing.md
 	@echo "|-----|-------|------|" >> /tmp/test_timing.md
@@ -336,7 +336,7 @@ test-timing-report: $(TEST_BIN)
 # ============================================================================
 
 # Run only config tests
-test-config: $(TEST_BIN)
+test-config: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running config tests...$(RESET)"
 	$(Q)$(TEST_BIN) "[config]" || { \
 		echo "$(RED)$(BOLD)✗ Config tests failed!$(RESET)"; \
@@ -352,7 +352,7 @@ test-config: $(TEST_BIN)
 
 # CORE tests - Critical functionality that MUST work (<15s, ~18 tests)
 # If these fail, the app is fundamentally broken.
-test-core: $(TEST_BIN)
+test-core: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running core tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[core]" && \
@@ -361,7 +361,7 @@ test-core: $(TEST_BIN)
 	echo "$(GREEN)$(BOLD)✓ Core tests passed in $${DURATION}s$(RESET)"
 
 # CONNECTION tests - Moonraker connection lifecycle, retry, robustness
-test-connection: $(TEST_BIN)
+test-connection: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running connection tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[connection]" "~[slow]" && \
@@ -370,7 +370,7 @@ test-connection: $(TEST_BIN)
 	echo "$(GREEN)✓ Connection tests passed in $${DURATION}s$(RESET)"
 
 # STATE tests - PrinterState, subjects, observers
-test-state: $(TEST_BIN)
+test-state: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running state tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[state]" && \
@@ -379,7 +379,7 @@ test-state: $(TEST_BIN)
 	echo "$(GREEN)✓ State tests passed in $${DURATION}s$(RESET)"
 
 # PRINT tests - Print workflow, start/pause/cancel, exclude object
-test-print: $(TEST_BIN)
+test-print: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running print tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[print]" "~[slow]" && \
@@ -388,7 +388,7 @@ test-print: $(TEST_BIN)
 	echo "$(GREEN)✓ Print tests passed in $${DURATION}s$(RESET)"
 
 # CALIBRATION tests - Bed mesh, input shaper
-test-calibration: $(TEST_BIN)
+test-calibration: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running calibration tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[calibration]" && \
@@ -397,7 +397,7 @@ test-calibration: $(TEST_BIN)
 	echo "$(GREEN)✓ Calibration tests passed in $${DURATION}s$(RESET)"
 
 # PRINTER tests - Printer detection, capabilities, hardware
-test-printer: $(TEST_BIN)
+test-printer: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running printer tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[printer]" && \
@@ -406,7 +406,7 @@ test-printer: $(TEST_BIN)
 	echo "$(GREEN)✓ Printer tests passed in $${DURATION}s$(RESET)"
 
 # AMS tests - All AMS/MMU backends (includes [afc], [valgace])
-test-ams: $(TEST_BIN)
+test-ams: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running AMS tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[ams]" && \
@@ -415,7 +415,7 @@ test-ams: $(TEST_BIN)
 	echo "$(GREEN)✓ AMS tests passed in $${DURATION}s$(RESET)"
 
 # FILAMENT tests - Spoolman, filament sensors
-test-filament: $(TEST_BIN)
+test-filament: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running filament tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[filament]" && \
@@ -424,7 +424,7 @@ test-filament: $(TEST_BIN)
 	echo "$(GREEN)✓ Filament tests passed in $${DURATION}s$(RESET)"
 
 # ASSETS tests - Thumbnails, prerendered images
-test-assets: $(TEST_BIN)
+test-assets: test-build
 	$(ECHO) "$(CYAN)$(BOLD)Running assets tests...$(RESET)"
 	@START_TIME=$$(date +%s); \
 	$(TEST_BIN) "[assets]" && \
