@@ -55,6 +55,7 @@ struct ListRowWidgetData {
     lv_obj_t* status_success_container = nullptr;
     lv_obj_t* status_success_count = nullptr;
     lv_obj_t* status_failed_icon = nullptr;
+    lv_obj_t* status_cancelled_icon = nullptr;
 };
 
 /**

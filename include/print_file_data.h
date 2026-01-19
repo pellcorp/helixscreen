@@ -17,14 +17,16 @@ struct UsbGcodeFile;
  * Status values in priority order (for display):
  * - CURRENTLY_PRINTING: Active print (blue clock icon)
  * - COMPLETED: Last print succeeded (green checkmark with count)
- * - FAILED: Last print failed or cancelled (orange warning triangle)
+ * - FAILED: Last print failed (red error icon)
+ * - CANCELLED: Last print was cancelled by user (orange warning icon)
  * - NEVER_PRINTED: No history record (empty/blank)
  */
 enum class FileHistoryStatus {
     NEVER_PRINTED = 0,  ///< No history record
     CURRENTLY_PRINTING, ///< Matches active print filename
     COMPLETED,          ///< Last print completed successfully
-    FAILED              ///< Last print failed or cancelled
+    FAILED,             ///< Last print failed (error)
+    CANCELLED           ///< Last print was cancelled by user
 };
 
 /**

@@ -505,8 +505,15 @@ void PrintSelectDetailView::update_history_status(FileHistoryStatus status, int 
     case FileHistoryStatus::FAILED:
         lv_obj_remove_flag(history_status_row_, LV_OBJ_FLAG_HIDDEN);
         ui_icon_set_source(history_status_icon_, "alert");
-        ui_icon_set_variant(history_status_icon_, "warning");
+        ui_icon_set_variant(history_status_icon_, "error");
         lv_label_set_text(history_status_label_, "Last print failed");
+        break;
+
+    case FileHistoryStatus::CANCELLED:
+        lv_obj_remove_flag(history_status_row_, LV_OBJ_FLAG_HIDDEN);
+        ui_icon_set_source(history_status_icon_, "cancel");
+        ui_icon_set_variant(history_status_icon_, "warning");
+        lv_label_set_text(history_status_label_, "Last print cancelled");
         break;
     }
 }

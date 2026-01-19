@@ -194,6 +194,7 @@ void PrintSelectListView::init_pool() {
             data->status_success_container = lv_obj_find_by_name(row, "status_success_container");
             data->status_success_count = lv_obj_find_by_name(row, "status_success_count");
             data->status_failed_icon = lv_obj_find_by_name(row, "status_failed");
+            data->status_cancelled_icon = lv_obj_find_by_name(row, "status_cancelled");
 
             list_pool_.push_back(row);
             list_data_pool_.push_back(std::move(data));
@@ -261,6 +262,9 @@ void PrintSelectListView::configure_row(lv_obj_t* row, size_t pool_index, size_t
     if (data->status_failed_icon) {
         lv_obj_add_flag(data->status_failed_icon, LV_OBJ_FLAG_HIDDEN);
     }
+    if (data->status_cancelled_icon) {
+        lv_obj_add_flag(data->status_cancelled_icon, LV_OBJ_FLAG_HIDDEN);
+    }
 
     // Show appropriate status indicator (directories have no history)
     if (!file.is_dir) {
@@ -284,6 +288,12 @@ void PrintSelectListView::configure_row(lv_obj_t* row, size_t pool_index, size_t
         case FileHistoryStatus::FAILED:
             if (data->status_failed_icon) {
                 lv_obj_remove_flag(data->status_failed_icon, LV_OBJ_FLAG_HIDDEN);
+            }
+            break;
+
+        case FileHistoryStatus::CANCELLED:
+            if (data->status_cancelled_icon) {
+                lv_obj_remove_flag(data->status_cancelled_icon, LV_OBJ_FLAG_HIDDEN);
             }
             break;
 

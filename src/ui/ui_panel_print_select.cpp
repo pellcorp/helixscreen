@@ -1429,9 +1429,16 @@ CardDimensions PrintSelectPanel::calculate_card_dimensions() {
     lv_obj_t* top_bar = lv_obj_get_child(panel_root, 0);
     lv_coord_t top_bar_height = top_bar ? lv_obj_get_height(top_bar) : 60;
     lv_coord_t panel_gap = lv_obj_get_style_pad_row(panel_root, LV_PART_MAIN);
-    lv_coord_t container_padding = lv_obj_get_style_pad_top(card_view_container_, LV_PART_MAIN) +
-                                   lv_obj_get_style_pad_bottom(card_view_container_, LV_PART_MAIN);
+    lv_coord_t container_pad_top = lv_obj_get_style_pad_top(card_view_container_, LV_PART_MAIN);
+    lv_coord_t container_pad_bottom =
+        lv_obj_get_style_pad_bottom(card_view_container_, LV_PART_MAIN);
+    lv_coord_t container_padding = container_pad_top + container_pad_bottom;
     lv_coord_t available_height = panel_height - top_bar_height - container_padding - panel_gap;
+
+    spdlog::debug("[{}] Height calc: panel={} - top_bar={} - container_pad({}+{})={} - "
+                  "panel_gap={} = available={}",
+                  get_name(), panel_height, top_bar_height, container_pad_top, container_pad_bottom,
+                  container_padding, panel_gap, available_height);
 
     CardDimensions dims;
 
@@ -1439,8 +1446,17 @@ CardDimensions PrintSelectPanel::calculate_card_dimensions() {
     dims.num_rows = (available_height >= ROW_COUNT_3_MIN_HEIGHT) ? 3 : 2;
 
     // Calculate card height based on rows
-    int total_row_gaps = (dims.num_rows - 1) * card_gap;
-    dims.card_height = (available_height - total_row_gaps) / dims.num_rows;
+    // Each row takes card_height + gap (LVGL flex adds gap after each row)
+    // Reserve a small bottom margin, then divide remaining height by num_rows
+    int bottom_margin = card_gap / 2;
+    int row_height = (available_height - bottom_margin) / dims.num_rows;
+    dims.card_height = row_height - card_gap;
+
+    int total_row_gaps = dims.num_rows * card_gap;
+    int total_used = (dims.num_rows * dims.card_height) + total_row_gaps;
+    spdlog::debug("[{}] Card height: row_height={} - gap={} = {}, total_used={}, remainder={}",
+                  get_name(), row_height, card_gap, dims.card_height, total_used,
+                  available_height - total_used);
 
     // Try different column counts
     for (int cols = 10; cols >= 1; cols--) {
@@ -1729,6 +1745,8 @@ void PrintSelectPanel::merge_history_into_file_list() {
             file.history_status = FileHistoryStatus::COMPLETED;
             break;
         case PrintJobStatus::CANCELLED:
+            file.history_status = FileHistoryStatus::CANCELLED;
+            break;
         case PrintJobStatus::ERROR:
             file.history_status = FileHistoryStatus::FAILED;
             break;
