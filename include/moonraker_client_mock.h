@@ -169,6 +169,38 @@ class MoonrakerClientMock : public MoonrakerClient {
     }
 
     /**
+     * @brief Set idle timeout duration in seconds
+     * @param seconds Timeout duration (default 600 = 10 minutes)
+     */
+    void set_idle_timeout_seconds(uint32_t seconds) {
+        idle_timeout_seconds_.store(seconds);
+    }
+
+    /**
+     * @brief Get idle timeout duration in seconds
+     * @return Current timeout setting
+     */
+    uint32_t get_idle_timeout_seconds() const {
+        return idle_timeout_seconds_.load();
+    }
+
+    /**
+     * @brief Check if idle timeout has been triggered
+     * @return true if idle timeout triggered (motors disabled due to inactivity)
+     */
+    bool is_idle_timeout_triggered() const {
+        return idle_timeout_triggered_.load();
+    }
+
+    /**
+     * @brief Reset idle timeout timer
+     *
+     * Called when activity occurs (homing, movement, temperature commands).
+     * Resets the inactivity timer and clears the triggered flag.
+     */
+    void reset_idle_timeout();
+
+    /**
      * @brief Get current layer number in simulated print
      * @return Current layer (0-based), or 0 if not printing
      */
@@ -811,6 +843,11 @@ class MoonrakerClientMock : public MoonrakerClient {
     // Motion mode state
     std::atomic<bool> relative_mode_{false}; // G90=absolute (false), G91=relative (true)
     std::atomic<bool> motors_enabled_{true}; // Track motor enable state for idle_timeout
+
+    // Idle timeout simulation
+    std::chrono::steady_clock::time_point last_activity_time_;
+    std::atomic<bool> idle_timeout_triggered_{false};
+    std::atomic<uint32_t> idle_timeout_seconds_{600}; // Default 10 minutes
 
     // Homing state (needs mutex since std::string is not atomic)
     mutable std::mutex homed_axes_mutex_;

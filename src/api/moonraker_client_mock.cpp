@@ -22,6 +22,9 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type) : MoonrakerClientMock
 
 MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor)
     : printer_type_(type) {
+    // Initialize idle timeout tracking
+    last_activity_time_ = std::chrono::steady_clock::now();
+
     // Set speedup factor (clamped)
     speedup_factor_.store(std::clamp(speedup_factor, 0.1, 10000.0));
 
@@ -73,6 +76,14 @@ void MoonrakerClientMock::set_simulation_speedup(double factor) {
 
 double MoonrakerClientMock::get_simulation_speedup() const {
     return speedup_factor_.load();
+}
+
+void MoonrakerClientMock::reset_idle_timeout() {
+    last_activity_time_ = std::chrono::steady_clock::now();
+    if (idle_timeout_triggered_.load()) {
+        idle_timeout_triggered_.store(false);
+        spdlog::debug("[MoonrakerClientMock] Idle timeout reset");
+    }
 }
 
 int MoonrakerClientMock::get_current_layer() const {
@@ -861,9 +872,11 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
 
         if (gcode.find("HEATER=extruder") != std::string::npos) {
             set_extruder_target(target);
+            reset_idle_timeout();
             spdlog::info("[MoonrakerClientMock] Extruder target set to {}°C", target);
         } else if (gcode.find("HEATER=heater_bed") != std::string::npos) {
             set_bed_target(target);
+            reset_idle_timeout();
             spdlog::info("[MoonrakerClientMock] Bed target set to {}°C", target);
         }
     }
@@ -873,6 +886,7 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
         if (s_pos != std::string::npos) {
             double target = std::stod(gcode.substr(s_pos + 1));
             set_extruder_target(target);
+            reset_idle_timeout();
             spdlog::info("[MoonrakerClientMock] Extruder target set to {}°C (M-code)", target);
         }
     } else if (gcode.find("M140") != std::string::npos || gcode.find("M190") != std::string::npos) {
@@ -880,6 +894,7 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
         if (s_pos != std::string::npos) {
             double target = std::stod(gcode.substr(s_pos + 1));
             set_bed_target(target);
+            reset_idle_timeout();
             spdlog::info("[MoonrakerClientMock] Bed target set to {}°C (M-code)", target);
         }
     }
@@ -968,6 +983,8 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
                              has_x, has_y, has_z, homed_axes_);
             }
         }
+        // Reset idle timeout when homing
+        reset_idle_timeout();
     }
 
     // Parse movement commands (G0/G1)
@@ -1034,6 +1051,8 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
             spdlog::debug("[MoonrakerClientMock] Move {} X={} Y={} Z={} (mode={})",
                           gcode.find("G0") != std::string::npos ? "G0" : "G1", pos_x_.load(),
                           pos_y_.load(), pos_z_.load(), is_relative ? "relative" : "absolute");
+            // Reset idle timeout when moving
+            reset_idle_timeout();
         }
     }
 
@@ -1664,6 +1683,9 @@ bool MoonrakerClientMock::start_print_internal(const std::string& filename) {
     }
     extruder_target_.store(nozzle_target);
     bed_target_.store(bed_target);
+
+    // Reset idle timeout when starting a print
+    reset_idle_timeout();
 
     // Set print filename
     {
@@ -2319,9 +2341,29 @@ void MoonrakerClientMock::temperature_simulation_loop() {
         MockPrintPhase phase = print_phase_.load();
 
         switch (phase) {
-        case MockPrintPhase::IDLE:
-            // Nothing special - temps cool to room temp (handled above)
+        case MockPrintPhase::IDLE: {
+            // Check idle timeout (only when not printing)
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::seconds>(now - last_activity_time_).count();
+
+            if (!idle_timeout_triggered_.load() &&
+                elapsed >= static_cast<int64_t>(idle_timeout_seconds_.load())) {
+                idle_timeout_triggered_.store(true);
+                motors_enabled_.store(false);
+                spdlog::info("[MoonrakerClientMock] Idle timeout triggered after {}s", elapsed);
+
+                // Dispatch stepper_enable update
+                json stepper_status = {{"stepper_enable",
+                                        {{"steppers",
+                                          {{"stepper_x", false},
+                                           {"stepper_y", false},
+                                           {"stepper_z", false},
+                                           {"extruder", false}}}}}};
+                dispatch_status_update(stepper_status);
+            }
             break;
+        }
 
         case MockPrintPhase::PREHEAT:
             // Advance PRINT_START simulation (dispatches G-code responses)
@@ -2476,6 +2518,8 @@ void MoonrakerClientMock::temperature_simulation_loop() {
                                    if (phase == MockPrintPhase::PRINTING ||
                                        phase == MockPrintPhase::PREHEAT) {
                                        return "Printing";
+                                   } else if (idle_timeout_triggered_.load()) {
+                                       return "Idle";
                                    } else {
                                        return "Ready";
                                    }

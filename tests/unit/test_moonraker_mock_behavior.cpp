@@ -2731,4 +2731,202 @@ TEST_CASE("MoonrakerClientMock handles printer restart commands", "[mock][restar
     }
 }
 
+// ============================================================================
+// Idle Timeout Simulation Tests
+// ============================================================================
+
+TEST_CASE("MoonrakerClientMock idle_timeout simulation", "[mock][idle_timeout]") {
+    SECTION("idle_timeout triggers after configured duration") {
+        MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        MockBehaviorTestFixture fixture;
+
+        // Set 1 second timeout for testing
+        mock.set_idle_timeout_seconds(1);
+        REQUIRE(mock.get_idle_timeout_seconds() == 1);
+
+        // Verify initial state
+        REQUIRE_FALSE(mock.is_idle_timeout_triggered());
+        REQUIRE(mock.are_motors_enabled());
+
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
+
+        // Wait for idle timeout to trigger (need 2+ seconds to ensure >1s elapsed)
+        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+
+        // Should be triggered now
+        REQUIRE(mock.is_idle_timeout_triggered());
+        REQUIRE_FALSE(mock.are_motors_enabled());
+
+        // Look for a notification with idle_timeout state = "Idle"
+        bool found_idle_notification = fixture.wait_for_matching(
+            [](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("idle_timeout")) {
+                    return false;
+                }
+                const json& idle_timeout = status["idle_timeout"];
+                return idle_timeout.contains("state") &&
+                       idle_timeout["state"].get<std::string>() == "Idle";
+            },
+            500);
+
+        REQUIRE(found_idle_notification);
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
+    }
+
+    SECTION("activity resets idle timeout") {
+        MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+        // Set 2 second timeout
+        mock.set_idle_timeout_seconds(2);
+
+        mock.connect("ws://mock/websocket", []() {}, []() {});
+
+        // Wait 1 second (less than timeout)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        REQUIRE_FALSE(mock.is_idle_timeout_triggered());
+
+        // Send G28 to reset the timeout
+        mock.gcode_script("G28");
+
+        // Wait another 1 second (still less than 2s from last activity)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Should NOT be triggered because G28 reset the timer
+        REQUIRE_FALSE(mock.is_idle_timeout_triggered());
+        REQUIRE(mock.are_motors_enabled());
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
+    }
+
+    SECTION("printing state prevents idle timeout") {
+        MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+        // Set 1 second timeout
+        mock.set_idle_timeout_seconds(1);
+
+        mock.connect("ws://mock/websocket", []() {}, []() {});
+
+        // Start a print (puts mock in PREHEAT then PRINTING phase)
+        mock.start_print_internal("3DBenchy.gcode");
+
+        // Wait 2 seconds (longer than timeout)
+        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+
+        // Should NOT be triggered during printing (phase != IDLE)
+        REQUIRE_FALSE(mock.is_idle_timeout_triggered());
+        REQUIRE(mock.are_motors_enabled());
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
+    }
+
+    SECTION("temperature commands reset idle timeout") {
+        MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+        // Set 2 second timeout
+        mock.set_idle_timeout_seconds(2);
+
+        mock.connect("ws://mock/websocket", []() {}, []() {});
+
+        // Wait 1 second
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Send temperature command to reset timeout
+        mock.gcode_script("M104 S200");
+
+        // Wait another 1 second
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Should NOT be triggered because M104 reset the timer
+        REQUIRE_FALSE(mock.is_idle_timeout_triggered());
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
+    }
+
+    SECTION("movement commands reset idle timeout") {
+        MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+        // Set 2 second timeout
+        mock.set_idle_timeout_seconds(2);
+
+        mock.connect("ws://mock/websocket", []() {}, []() {});
+
+        // Wait 1 second
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Send movement command to reset timeout
+        mock.gcode_script("G1 X100 Y100");
+
+        // Wait another 1 second
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Should NOT be triggered because G1 reset the timer
+        REQUIRE_FALSE(mock.is_idle_timeout_triggered());
+        REQUIRE(mock.are_motors_enabled());
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
+    }
+
+    SECTION("idle_timeout state is returned in objects.query") {
+        MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+
+        // Set 1 second timeout
+        mock.set_idle_timeout_seconds(1);
+
+        mock.connect("ws://mock/websocket", []() {}, []() {});
+
+        // Initial query should return "Ready"
+        bool query_completed = false;
+        std::string initial_state;
+
+        mock.send_jsonrpc(
+            "printer.objects.query", {{"objects", {{"idle_timeout", nullptr}}}},
+            [&query_completed, &initial_state](json response) {
+                query_completed = true;
+                if (response.contains("result") && response["result"].contains("status") &&
+                    response["result"]["status"].contains("idle_timeout")) {
+                    initial_state = response["result"]["status"]["idle_timeout"]["state"];
+                }
+            },
+            nullptr);
+
+        REQUIRE(query_completed);
+        REQUIRE(initial_state == "Ready");
+
+        // Wait for timeout
+        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+
+        // Query again should return "Idle"
+        query_completed = false;
+        std::string timeout_state;
+
+        mock.send_jsonrpc(
+            "printer.objects.query", {{"objects", {{"idle_timeout", nullptr}}}},
+            [&query_completed, &timeout_state](json response) {
+                query_completed = true;
+                if (response.contains("result") && response["result"].contains("status") &&
+                    response["result"]["status"].contains("idle_timeout")) {
+                    timeout_state = response["result"]["status"]["idle_timeout"]["state"];
+                }
+            },
+            nullptr);
+
+        REQUIRE(query_completed);
+        REQUIRE(timeout_state == "Idle");
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
+    }
+}
+
 #pragma GCC diagnostic pop

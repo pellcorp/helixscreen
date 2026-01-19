@@ -107,16 +107,20 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
 
             // idle_timeout (for printer activity state)
             if (objects.contains("idle_timeout")) {
-                // Derive state from print phase and motor state:
-                // - "Idle" when idle timeout has triggered
+                // Derive state from print phase and idle_timeout_triggered:
                 // - "Printing" when active print in progress
-                // - "Ready" when toolhead is not actively moving
+                // - "Idle" when idle timeout has triggered
+                // - "Ready" when active but not printing
                 std::string idle_state;
                 auto phase = self->get_print_phase();
-                idle_state = (phase == MoonrakerClientMock::MockPrintPhase::PRINTING ||
-                              phase == MoonrakerClientMock::MockPrintPhase::PREHEAT)
-                                 ? "Printing"
-                                 : "Ready";
+                if (phase == MoonrakerClientMock::MockPrintPhase::PRINTING ||
+                    phase == MoonrakerClientMock::MockPrintPhase::PREHEAT) {
+                    idle_state = "Printing";
+                } else if (self->is_idle_timeout_triggered()) {
+                    idle_state = "Idle";
+                } else {
+                    idle_state = "Ready";
+                }
                 status_obj["idle_timeout"] = {{"state", idle_state}};
             }
 
@@ -284,10 +288,14 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
             if (objects.contains("idle_timeout")) {
                 std::string idle_state;
                 auto phase = self->get_print_phase();
-                idle_state = (phase == MoonrakerClientMock::MockPrintPhase::PRINTING ||
-                              phase == MoonrakerClientMock::MockPrintPhase::PREHEAT)
-                                 ? "Printing"
-                                 : "Ready";
+                if (phase == MoonrakerClientMock::MockPrintPhase::PRINTING ||
+                    phase == MoonrakerClientMock::MockPrintPhase::PREHEAT) {
+                    idle_state = "Printing";
+                } else if (self->is_idle_timeout_triggered()) {
+                    idle_state = "Idle";
+                } else {
+                    idle_state = "Ready";
+                }
                 status_obj["idle_timeout"] = {{"state", idle_state}, {"printing_time", 0.0}};
             }
 
