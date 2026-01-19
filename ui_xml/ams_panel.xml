@@ -192,7 +192,7 @@
                      width="100%" height="#button_height" style_radius="#border_radius" style_border_width="0"
                      style_shadow_width="0">
             <bind_flag_if_eq subject="ams_type" flag="hidden" ref_value="4"/>
-            <lv_obj-bind_state_if_eq subject="ams_filament_loaded" state="disabled" ref_value="0"/>
+            <bind_state_if_eq subject="ams_filament_loaded" state="disabled" ref_value="0"/>
             <icon src="tray_arrow_up" size="sm" align="left_mid" style_translate_x="#space_sm"/>
             <text_body text="Unload" align="center"/>
             <event_cb trigger="clicked" callback="ams_unload_clicked_cb"/>
@@ -207,10 +207,8 @@
           </lv_button>
         </lv_obj>
         <!-- Dryer Card (hidden when dryer not supported or for tool changers) -->
-        <ams_dryer_card name="dryer_card">
-          <lv_obj-bind_flag_if_eq subject="dryer_supported" flag="hidden" ref_value="0"/>
-          <lv_obj-bind_flag_if_eq subject="ams_type" flag="hidden" ref_value="4"/>
-        </ams_dryer_card>
+        <ams_dryer_card name="dryer_card"/>
+        <!-- Visibility controlled by binding inside ams_dryer_card.xml -->
       </lv_obj>
     </lv_obj>
   </view>
