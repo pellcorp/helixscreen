@@ -145,12 +145,6 @@ TEST_CASE("Switch size parsing - invalid sizes", "[ui_switch][size][error]") {
 TEST_CASE("Switch size parsing - edge cases", "[ui_switch][size][edge]") {
     SwitchTest fixture;
 
-    SECTION("NULL pointer does not crash") {
-        // Should not crash - implementation may not validate pointer
-        // Document expected behavior
-        SUCCEED("NULL check test - implementation may crash, needs validation");
-    }
-
     SECTION("Whitespace in size string") {
         SwitchSizePreset preset;
         bool result = parse_size_preset(" medium", &preset);
@@ -261,109 +255,6 @@ TEST_CASE("Size preset initialization - screen size awareness", "[ui_switch][siz
     }
 }
 
-// ============================================================================
-// Size Preset Application Tests
-// ============================================================================
-
-TEST_CASE("Size preset application behavior", "[ui_switch][size][apply]") {
-    SwitchTest fixture;
-
-    // Note: Without real LVGL objects, we test the apply logic
-    // Full integration testing requires LVGL XML system
-
-    SECTION("apply_size_preset sets all three properties") {
-        // apply_size_preset should call:
-        // - lv_obj_set_size(obj, preset.width, preset.height)
-        // - lv_obj_set_style_pad_all(obj, preset.knob_pad, LV_PART_KNOB)
-        SUCCEED("apply_size_preset sets width, height, and knob_pad");
-    }
-
-    SECTION("Preset values are bundled") {
-        // Size presets should bundle width, height, and knob_pad as a coherent set
-        REQUIRE(SIZE_MEDIUM.width > 0);
-        REQUIRE(SIZE_MEDIUM.height > 0);
-        REQUIRE(SIZE_MEDIUM.knob_pad >= 0);
-
-        // All three values should be set together
-        SUCCEED("Preset bundles width + height + knob_pad");
-    }
-}
-
-// ============================================================================
-// Progressive Enhancement Tests
-// ============================================================================
-
-TEST_CASE("Progressive enhancement behavior", "[ui_switch][enhancement]") {
-    SwitchTest fixture;
-
-    // These tests document the 3-pass parsing behavior:
-    // Pass 1: Extract size preset AND explicit overrides
-    // Pass 2: Apply size preset (if found)
-    // Pass 3: Apply explicit overrides LAST
-
-    SECTION("Size preset + explicit width override") {
-        // XML: <ui_switch size="medium" width="100"/>
-        // Expected: medium height and knob_pad, custom width=100
-        SUCCEED("Explicit width overrides preset width, keeps preset height/knob_pad");
-    }
-
-    SECTION("Size preset + explicit height override") {
-        // XML: <ui_switch size="medium" height="50"/>
-        // Expected: medium width and knob_pad, custom height=50
-        SUCCEED("Explicit height overrides preset height, keeps preset width/knob_pad");
-    }
-
-    SECTION("Size preset + explicit knob_pad override") {
-        // XML: <ui_switch size="medium" knob_pad="5"/>
-        // Expected: medium width and height, custom knob_pad=5
-        SUCCEED("Explicit knob_pad overrides preset knob_pad, keeps preset width/height");
-    }
-
-    SECTION("Size preset + multiple overrides") {
-        // XML: <ui_switch size="medium" width="100" knob_pad="5"/>
-        // Expected: custom width and knob_pad, medium height
-        SUCCEED("Multiple explicit overrides work together");
-    }
-
-    SECTION("No size preset, explicit dimensions only") {
-        // XML: <ui_switch width="64" height="32" knob_pad="2"/>
-        // Expected: All explicit values, no preset applied (backward compatible)
-        SUCCEED("Explicit dimensions work without size preset");
-    }
-
-    SECTION("Size preset only, no overrides") {
-        // XML: <ui_switch size="medium"/>
-        // Expected: All values from medium preset
-        SUCCEED("Size preset works without explicit overrides");
-    }
-}
-
-// ============================================================================
-// Backward Compatibility Tests
-// ============================================================================
-
-TEST_CASE("Backward compatibility", "[ui_switch][compat]") {
-    SwitchTest fixture;
-
-    SECTION("Explicit width/height still works") {
-        // Existing XML with explicit dimensions should continue to work
-        // XML: <ui_switch width="64" height="32"/>
-        // No size preset = LVGL defaults or explicit values
-        SUCCEED("Explicit width/height works without size parameter");
-    }
-
-    SECTION("No size parameter uses LVGL defaults") {
-        // XML: <ui_switch checked="true"/>
-        // Expected: LVGL's built-in default switch size (unchanged behavior)
-        SUCCEED("No size parameter = LVGL default behavior");
-    }
-
-    SECTION("style_pad_knob_all still works") {
-        // XML: <ui_switch style_pad_knob_all="3"/>
-        // Verbose syntax should still work for advanced users
-        SUCCEED("style_pad_knob_all attribute still supported");
-    }
-}
 
 // ============================================================================
 // Error Handling Tests
@@ -372,28 +263,18 @@ TEST_CASE("Backward compatibility", "[ui_switch][compat]") {
 TEST_CASE("Error handling - invalid inputs", "[ui_switch][error]") {
     SwitchTest fixture;
 
-    SECTION("Invalid size string logs warning") {
+    SECTION("Invalid size string returns false") {
         SwitchSizePreset preset;
         bool result = parse_size_preset("invalid_size", &preset);
 
         REQUIRE(result == false);
-        // Should log: spdlog::warn("[Switch] Invalid size 'invalid_size', ignoring preset")
-        SUCCEED("Warning logged for invalid size");
     }
 
-    SECTION("Empty size string logs warning") {
+    SECTION("Empty size string returns false") {
         SwitchSizePreset preset;
         bool result = parse_size_preset("", &preset);
 
         REQUIRE(result == false);
-        // Should log warning
-        SUCCEED("Warning logged for empty size");
-    }
-
-    SECTION("NULL size string handled gracefully") {
-        // parse_size_preset(nullptr, &preset) should not crash
-        // May log warning or return false
-        SUCCEED("NULL size string handled (may crash - needs validation)");
     }
 }
 
@@ -434,101 +315,5 @@ TEST_CASE("API contracts and guarantees", "[ui_switch][api][contract]") {
         REQUIRE(parse_size_preset("xs", &preset) == false);
         REQUIRE(parse_size_preset("xl", &preset) == false);
     }
-
-    SECTION("Preset values are screen-size-aware") {
-        // Presets adapt to display resolution
-        // SIZE_MEDIUM on TINY screen != SIZE_MEDIUM on LARGE screen
-        SUCCEED("Screen-size-aware presets verified in initialization tests");
-    }
 }
 
-// ============================================================================
-// Logging Behavior Tests
-// ============================================================================
-
-TEST_CASE("Logging behavior", "[ui_switch][logging]") {
-    SwitchTest fixture;
-
-    SECTION("Invalid size logs warning") {
-        SwitchSizePreset preset;
-        parse_size_preset("invalid", &preset);
-        // Should log: spdlog::warn("[Switch] Invalid size 'invalid', ignoring preset")
-        SUCCEED("Warning logged via spdlog");
-    }
-
-    SECTION("Preset initialization logs debug") {
-        // ui_switch_init_size_presets() should log screen size detection
-        // spdlog::debug("[Switch] Initialized TINY screen presets (480px wide)")
-        // or similar for SMALL/LARGE screens
-        SUCCEED("Debug logging for preset initialization");
-    }
-
-    SECTION("Size preset application logs debug") {
-        // apply_size_preset() should log applied dimensions
-        // spdlog::debug("[Switch] Applied size preset: 80x40, knob_pad=3")
-        SUCCEED("Debug logging for size application");
-    }
-
-    SECTION("Explicit overrides log debug") {
-        // When explicit width/height/knob_pad override preset values
-        // spdlog::debug("[Switch] Explicit width override: 100px")
-        SUCCEED("Debug logging for explicit overrides");
-    }
-
-    SECTION("Final size logs debug") {
-        // At end of ui_switch_xml_apply(), log final widget dimensions
-        // spdlog::debug("[Switch] Final size: 80x40, knob_pad=3px")
-        SUCCEED("Debug logging for final size");
-    }
-}
-
-// ============================================================================
-// Integration Tests - XML Parsing (Conceptual)
-// ============================================================================
-
-TEST_CASE("XML attribute parsing behavior", "[ui_switch][xml]") {
-    SwitchTest fixture;
-
-    // These tests document expected XML parsing behavior
-    // Full integration testing requires real LVGL XML system
-
-    SECTION("size attribute applies preset") {
-        // Expected: <ui_switch size="medium"/> calls parse_size_preset() and apply_size_preset()
-        SUCCEED("size attribute behavior documented");
-    }
-
-    SECTION("width attribute parsed in Pass 1") {
-        // Expected: <ui_switch width="100"/> extracts width in first pass
-        SUCCEED("width extraction behavior documented");
-    }
-
-    SECTION("height attribute parsed in Pass 1") {
-        // Expected: <ui_switch height="50"/> extracts height in first pass
-        SUCCEED("height extraction behavior documented");
-    }
-
-    SECTION("knob_pad attribute parsed in Pass 1") {
-        // Expected: <ui_switch knob_pad="3"/> extracts knob_pad in first pass
-        SUCCEED("knob_pad extraction behavior documented");
-    }
-
-    SECTION("checked attribute sets state") {
-        // Expected: <ui_switch checked="true"/> adds LV_STATE_CHECKED
-        SUCCEED("checked attribute behavior documented");
-    }
-
-    SECTION("orientation attribute sets layout") {
-        // Expected: <ui_switch orientation="horizontal"/> calls lv_switch_set_orientation()
-        SUCCEED("orientation attribute behavior documented");
-    }
-
-    SECTION("missing attributes use defaults") {
-        // Expected: <ui_switch/> uses LVGL defaults (no size preset applied)
-        SUCCEED("default values documented");
-    }
-
-    SECTION("Standard LVGL properties still work") {
-        // Expected: <ui_switch style_bg_color="#ff0000"/> applies via lv_xml_obj_apply()
-        SUCCEED("LVGL property pass-through documented");
-    }
-}

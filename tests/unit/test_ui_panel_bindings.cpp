@@ -42,27 +42,6 @@
 //
 // Remaining issue: lv_timer_handler() hangs when there are async subject updates
 // scheduled. This prevents using process_lvgl() in tests that use XMLTestFixture.
-// See "XMLTestFixture initializes without hanging" test for verification.
-
-TEST_CASE_METHOD(XMLTestFixture, "XMLTestFixture initializes without hanging",
-                 "[ui][xml][fixture]") {
-    // This test verifies that XMLTestFixture initialization completes successfully.
-    // Previously, this would hang during ui_theme_init() when the theme was applied
-    // to an existing screen. The fix deletes the screen before theme init.
-
-    // Verify we have a valid test screen
-    REQUIRE(test_screen() != nullptr);
-
-    // Verify theme is initialized
-    REQUIRE(lv_display_get_theme(lv_display_get_default()) != nullptr);
-
-    // NOTE: process_lvgl() is not called here because lv_timer_handler() hangs
-    // when there are async subject updates scheduled. This is a separate issue
-    // from the original theme initialization hang.
-
-    // If we get here, initialization succeeded
-    SUCCEED("XMLTestFixture initialization completed without hanging");
-}
 
 TEST_CASE_METHOD(XMLTestFixture, "temp_display: binds to extruder temperature subjects",
                  "[ui][temp_display][bind_current][bind_target]") {
@@ -419,66 +398,4 @@ TEST_CASE_METHOD(MoonrakerTestFixture,
                  "[ui][print_status_panel][bind_flag][.xml_required]") {
     SKIP("Print status panel has many component dependencies - implement after simpler panels "
          "work");
-}
-
-// =============================================================================
-// SUMMARY TEST - Documents all bindings tested
-// =============================================================================
-
-TEST_CASE("UI Panel Bindings Test Coverage Summary", "[ui][summary]") {
-    INFO("This test documents the binding coverage in test_ui_panel_bindings.cpp");
-    INFO("");
-    INFO("IMPLEMENTED TESTS (5 tests using XMLTestFixture):");
-    INFO("  - temp_display: binds to extruder temperature subjects");
-    INFO("  - temp_display: reactive update when subject changes");
-    INFO("  - temp_display: target shows -- when heater off (target=0)");
-    INFO("  - temp_display: binds to bed temperature subjects");
-    INFO("  - XMLTestFixture initializes without hanging");
-    INFO("");
-    INFO("HOME PANEL (10 bindings - SKIP pending component dependencies):");
-    INFO("  - status_text_label: bind_text (status_text)");
-    INFO("  - printer_info_bar: bind_text (printer_type_text)");
-    INFO("  - print_card text: bind_text (print_display_filename)");
-    INFO("  - print_progress_text: bind_text (print_progress_text)");
-    INFO("  - print_progress_bar: bind_value (print_progress)");
-    INFO("  - disconnected_overlay: bind_flag_if_eq (printer_connection_state)");
-    INFO("  - notification_badge: bind_flag_if_eq (notification_count)");
-    INFO("  - temp_text_label: bind_current (extruder_temp)");
-    INFO("  - temp_text_label: bind_target (extruder_target)");
-    INFO("  - network_label: bind_text (network_label)");
-    INFO("");
-    INFO("CONTROLS PANEL (10 bindings - SKIP pending component dependencies):");
-    INFO("  - pos_x: bind_text (controls_pos_x)");
-    INFO("  - pos_y: bind_text (controls_pos_y)");
-    INFO("  - pos_z: bind_text (controls_pos_z)");
-    INFO("  - speed_pct: bind_text (controls_speed_pct)");
-    INFO("  - flow_pct: bind_text (controls_flow_pct)");
-    INFO("  - x homed indicator: bind_style (x_homed)");
-    INFO("  - y homed indicator: bind_style (y_homed)");
-    INFO("  - z homed indicator: bind_style (z_homed)");
-    INFO("  - part_fan_slider: bind_value (controls_fan_pct)");
-    INFO("  - z_offset_banner: bind_flag_if_eq (pending_z_offset_delta)");
-    INFO("");
-    INFO("PRINT STATUS PANEL (8 bindings - SKIP pending component dependencies):");
-    INFO("  - file_name: bind_text (print_display_filename)");
-    INFO("  - print_elapsed: bind_text (print_elapsed)");
-    INFO("  - print_remaining: bind_text (print_remaining)");
-    INFO("  - print_progress: bind_value (print_progress)");
-    INFO("  - print_percent: bind_text (print_progress_text)");
-    INFO("  - layer_progress_label: bind_text (print_layer_text)");
-    INFO("  - preparing_overlay: bind_flag_if_eq (preparing_visible)");
-    INFO("  - print_complete_overlay: bind_flag_if_not_eq (print_outcome)");
-    INFO("");
-    INFO("TEMPERATURE PANELS (6 bindings - all tested via temp_display widget):");
-    INFO("  - temp_display bind_current (extruder_temp) - IMPLEMENTED");
-    INFO("  - temp_display bind_target (extruder_target) - IMPLEMENTED");
-    INFO("  - temp_display bind_current (bed_temp) - IMPLEMENTED");
-    INFO("  - temp_display bind_target (bed_target) - IMPLEMENTED");
-    INFO("  - Reactive updates on subject change - IMPLEMENTED");
-    INFO("  - Heater off state (target=0 shows --) - IMPLEMENTED");
-    INFO("");
-    INFO("TOTAL: 5 implemented binding tests, 28 skipped panel tests");
-
-    // This test always passes - it's just documentation
-    SUCCEED("Binding test coverage documented");
 }

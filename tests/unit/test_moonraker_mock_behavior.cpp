@@ -541,74 +541,160 @@ TEST_CASE("MoonrakerClientMock callback invocation", "[connection][slow][callbac
 // ============================================================================
 
 TEST_CASE("MoonrakerClientMock G-code temperature parsing", "[connection][slow][gcode]") {
-    // Note: These tests verify gcode_script returns success.
-    // The internal state changes are verified via log output.
-    // Notification-based tests were removed due to timing flakiness.
+    MockBehaviorTestFixture fixture;
+
+    // Helper to verify extruder target in notifications
+    auto verify_extruder_target = [&fixture](double expected_target) {
+        return fixture.wait_for_matching(
+            [expected_target](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("extruder")) {
+                    return false;
+                }
+                const json& extruder = status["extruder"];
+                if (!extruder.is_object() || !extruder.contains("target")) {
+                    return false;
+                }
+                double target = extruder["target"].get<double>();
+                return std::abs(target - expected_target) < 0.1;
+            },
+            2000);
+    };
+
+    // Helper to verify bed target in notifications
+    auto verify_bed_target = [&fixture](double expected_target) {
+        return fixture.wait_for_matching(
+            [expected_target](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("heater_bed")) {
+                    return false;
+                }
+                const json& heater_bed = status["heater_bed"];
+                if (!heater_bed.is_object() || !heater_bed.contains("target")) {
+                    return false;
+                }
+                double target = heater_bed["target"].get<double>();
+                return std::abs(target - expected_target) < 0.1;
+            },
+            2000);
+    };
 
     SECTION("SET_HEATER_TEMPERATURE HEATER=extruder TARGET=xxx updates target") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // SET_HEATER_TEMPERATURE should not throw and should return success
         int result = mock.gcode_script("SET_HEATER_TEMPERATURE HEATER=extruder TARGET=200");
         REQUIRE(result == 0);
-        // The mock logs "Extruder target set to 200°C" on success
+
+        // Verify the target actually changed in status notifications
+        REQUIRE(verify_extruder_target(200.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 
     SECTION("SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=xxx updates target") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // SET_HEATER_TEMPERATURE should not throw and should return success
         int result = mock.gcode_script("SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=60");
         REQUIRE(result == 0);
-        // The mock logs "Bed target set to 60°C" on success
+
+        // Verify the target actually changed in status notifications
+        REQUIRE(verify_bed_target(60.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 
     SECTION("M104 Sxxx sets extruder target") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // M104 should not throw and should return success
         int result = mock.gcode_script("M104 S210");
         REQUIRE(result == 0);
-        // The mock logs "Extruder target set to 210°C (M-code)" on success
+
+        // Verify the target actually changed in status notifications
+        REQUIRE(verify_extruder_target(210.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 
     SECTION("M109 Sxxx sets extruder target") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // M109 should not throw and should return success
         int result = mock.gcode_script("M109 S215");
         REQUIRE(result == 0);
-        // The mock logs "Extruder target set to 215°C (M-code)" on success
+
+        // Verify the target actually changed in status notifications
+        REQUIRE(verify_extruder_target(215.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 
     SECTION("M140 Sxxx sets bed target") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // M140 should not throw and should return success
         int result = mock.gcode_script("M140 S55");
         REQUIRE(result == 0);
-        // The mock logs "Bed target set to 55°C (M-code)" on success
+
+        // Verify the target actually changed in status notifications
+        REQUIRE(verify_bed_target(55.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 
     SECTION("M190 Sxxx sets bed target") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // M190 should not throw and should return success
         int result = mock.gcode_script("M190 S65");
         REQUIRE(result == 0);
-        // The mock logs "Bed target set to 65°C (M-code)" on success
+
+        // Verify the target actually changed in status notifications
+        REQUIRE(verify_bed_target(65.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 
     SECTION("SET_HEATER_TEMPERATURE TARGET=0 turns off heater") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // First set a target
+        // First set a target to verify it changes
         mock.set_extruder_target(200.0);
+        REQUIRE(verify_extruder_target(200.0));
 
-        // Turn off - should return success
+        fixture.reset();
+
+        // Turn off - should set target to 0
         int result = mock.gcode_script("SET_HEATER_TEMPERATURE HEATER=extruder TARGET=0");
         REQUIRE(result == 0);
-        // The mock logs "Extruder target set to 0°C" on success
+
+        // Verify the target changed to 0 in status notifications
+        REQUIRE(verify_extruder_target(0.0));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 }
 
@@ -1161,25 +1247,56 @@ TEST_CASE("MoonrakerClientMock send_jsonrpc methods", "[connection][slow][jsonrp
         REQUIRE(mock.send_jsonrpc("printer.print.start", params) == 0);
     }
 
-    SECTION("send_jsonrpc with callback returns valid request ID") {
+    SECTION("send_jsonrpc with callback returns valid request ID and invokes callback") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
         json params = {};
         bool callback_invoked = false;
-        // Real MoonrakerClient returns valid RequestId (> 0) on success,
-        // or INVALID_REQUEST_ID (0) if send fails. Mock simulates success.
-        REQUIRE(mock.send_jsonrpc("printer.info", params, [&callback_invoked](json) {
+        json received_response;
+
+        RequestId id = mock.send_jsonrpc("printer.info", params, [&](json response) {
             callback_invoked = true;
-        }) != INVALID_REQUEST_ID);
+            received_response = response;
+        });
+
+        // Verify valid request ID returned
+        REQUIRE(id != INVALID_REQUEST_ID);
+
+        // Verify callback was invoked (printer.info is a registered handler)
+        REQUIRE(callback_invoked);
+
+        // Verify the response contains expected fields
+        REQUIRE(received_response.contains("result"));
+        REQUIRE(received_response["result"].contains("state"));
+        REQUIRE(received_response["result"]["state"].get<std::string>() == "ready");
+        REQUIRE(received_response["result"].contains("hostname"));
+        REQUIRE(received_response["result"].contains("software_version"));
     }
 
-    SECTION("send_jsonrpc with error callback returns valid request ID") {
+    SECTION("send_jsonrpc with error callback returns valid request ID and invokes success callback") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
         json params = {};
-        // Real MoonrakerClient returns valid RequestId (> 0) on success,
-        // or INVALID_REQUEST_ID (0) if send fails. Mock simulates success.
-        REQUIRE(mock.send_jsonrpc(
-                    "printer.info", params, [](json) {}, [](const MoonrakerError&) {}, 5000) !=
-                INVALID_REQUEST_ID);
+        bool success_invoked = false;
+        bool error_invoked = false;
+        json received_response;
+
+        RequestId id = mock.send_jsonrpc(
+            "printer.info", params,
+            [&](json response) {
+                success_invoked = true;
+                received_response = response;
+            },
+            [&](const MoonrakerError&) { error_invoked = true; }, 5000);
+
+        // Verify valid request ID returned
+        REQUIRE(id != INVALID_REQUEST_ID);
+
+        // Verify success callback was invoked, not error callback
+        REQUIRE(success_invoked);
+        REQUIRE_FALSE(error_invoked);
+
+        // Verify the response contains expected printer info
+        REQUIRE(received_response.contains("result"));
+        REQUIRE(received_response["result"]["state"].get<std::string>() == "ready");
     }
 }
 
@@ -1937,20 +2054,96 @@ TEST_CASE("MoonrakerClientMock print progress increments during printing", "[pri
 }
 
 TEST_CASE("MoonrakerClientMock print completion triggers complete state", "[print][complete]") {
-    // Note: This test would take a long time with default progress rate.
-    // For this test, we're verifying the mechanism works by checking
-    // that the get_print_state_string helper returns correct values.
+    MockBehaviorTestFixture fixture;
 
-    SECTION("get_print_state_string returns correct values") {
+    SECTION("print state transitions through phases correctly") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
+        mock.register_notify_update(fixture.create_capture_callback());
+        mock.connect("ws://mock/websocket", []() {}, []() {});
 
-        // Initial state
-        // We can't directly test private members, but we can verify via G-code commands
-        // that return success
+        // Verify initial state is IDLE
+        REQUIRE(mock.get_print_phase() == MoonrakerClientMock::MockPrintPhase::IDLE);
+
+        // Start a print - transitions to PREHEAT or PRINTING
         REQUIRE(mock.gcode_script("SDCARD_PRINT_FILE FILENAME=3DBenchy.gcode") == 0);
+        auto phase_after_start = mock.get_print_phase();
+        REQUIRE((phase_after_start == MoonrakerClientMock::MockPrintPhase::PREHEAT ||
+                 phase_after_start == MoonrakerClientMock::MockPrintPhase::PRINTING));
+
+        // Wait for print_stats notification with printing or preheat state
+        REQUIRE(fixture.wait_for_matching(
+            [](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("print_stats")) {
+                    return false;
+                }
+                std::string state = status["print_stats"]["state"].get<std::string>();
+                return state == "printing" || state == "preheat";
+            },
+            2000));
+
+        // Pause the print
+        fixture.reset();
         REQUIRE(mock.gcode_script("PAUSE") == 0);
+        REQUIRE(mock.get_print_phase() == MoonrakerClientMock::MockPrintPhase::PAUSED);
+
+        // Wait for paused state notification
+        REQUIRE(fixture.wait_for_matching(
+            [](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("print_stats")) {
+                    return false;
+                }
+                return status["print_stats"]["state"].get<std::string>() == "paused";
+            },
+            2000));
+
+        // Resume the print
+        fixture.reset();
         REQUIRE(mock.gcode_script("RESUME") == 0);
+        REQUIRE(mock.get_print_phase() == MoonrakerClientMock::MockPrintPhase::PRINTING);
+
+        // Wait for printing state notification
+        REQUIRE(fixture.wait_for_matching(
+            [](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("print_stats")) {
+                    return false;
+                }
+                return status["print_stats"]["state"].get<std::string>() == "printing";
+            },
+            2000));
+
+        // Cancel the print
+        fixture.reset();
         REQUIRE(mock.gcode_script("CANCEL_PRINT") == 0);
+        REQUIRE(mock.get_print_phase() == MoonrakerClientMock::MockPrintPhase::CANCELLED);
+
+        // Wait for cancelled state notification
+        REQUIRE(fixture.wait_for_matching(
+            [](const json& n) {
+                if (!n.contains("params") || !n["params"].is_array() || n["params"].empty()) {
+                    return false;
+                }
+                const json& status = n["params"][0];
+                if (!status.is_object() || !status.contains("print_stats")) {
+                    return false;
+                }
+                return status["print_stats"]["state"].get<std::string>() == "cancelled";
+            },
+            2000));
+
+        mock.stop_temperature_simulation();
+        mock.disconnect();
     }
 }
 

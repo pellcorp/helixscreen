@@ -758,7 +758,7 @@ TEST_CASE("MoonrakerClientMock position in status updates", "[api][position_repo
         mock.disconnect();
     }
 
-    SECTION("toolhead structure matches Moonraker format") {
+    SECTION("toolhead structure matches Moonraker format with valid values") {
         MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24);
         mock.register_notify_update(fixture.create_capture_callback());
         mock.connect("ws://mock/websocket", []() {}, []() {});
@@ -785,8 +785,36 @@ TEST_CASE("MoonrakerClientMock position in status updates", "[api][position_repo
             REQUIRE(toolhead["position"].is_array());
             REQUIRE(toolhead["position"].size() == 4); // [x, y, z, e]
 
+            // Verify position values are valid numbers within reasonable bounds
+            double x = toolhead["position"][0].get<double>();
+            double y = toolhead["position"][1].get<double>();
+            double z = toolhead["position"][2].get<double>();
+            double e = toolhead["position"][3].get<double>();
+
+            // Position values should be finite numbers (not NaN or inf)
+            REQUIRE(std::isfinite(x));
+            REQUIRE(std::isfinite(y));
+            REQUIRE(std::isfinite(z));
+            REQUIRE(std::isfinite(e));
+
+            // Initial position should be at origin or within reasonable print bed bounds
+            // Typical 3D printer bed is 0-300mm, Z 0-300mm
+            REQUIRE(x >= -10.0); // Allow small negative for calibration
+            REQUIRE(x <= 500.0);
+            REQUIRE(y >= -10.0);
+            REQUIRE(y <= 500.0);
+            REQUIRE(z >= -5.0); // Allow small negative for bed mesh probing
+            REQUIRE(z <= 500.0);
+
+            // Verify homed_axes field
             REQUIRE(toolhead.contains("homed_axes"));
             REQUIRE(toolhead["homed_axes"].is_string());
+
+            // homed_axes should only contain valid axis characters or be empty
+            std::string homed = toolhead["homed_axes"].get<std::string>();
+            for (char c : homed) {
+                REQUIRE((c == 'x' || c == 'y' || c == 'z'));
+            }
 
             break;
         }

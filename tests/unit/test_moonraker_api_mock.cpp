@@ -414,25 +414,42 @@ TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock download_file handles null success callback",
                  "[mock][api][download]") {
-    // Should not crash when success callback is null
+    std::atomic<bool> error_called{false};
+
+    // Should not crash when success callback is null, and file should still be found
     REQUIRE_NOTHROW(
-        api_->download_file("gcodes", "3DBenchy.gcode", nullptr, [](const MoonrakerError&) {}));
+        api_->download_file("gcodes", "3DBenchy.gcode", nullptr,
+                            [&](const MoonrakerError&) { error_called.store(true); }));
+
+    // Verify no error occurred (file exists)
+    REQUIRE_FALSE(error_called.load());
 }
 
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock download_file handles null error callback",
                  "[mock][api][download]") {
+    std::atomic<bool> success_called{false};
+
     // Should not crash when error callback is null (for missing file)
-    REQUIRE_NOTHROW(
-        api_->download_file("gcodes", "nonexistent.gcode", [](const std::string&) {}, nullptr));
+    REQUIRE_NOTHROW(api_->download_file(
+        "gcodes", "nonexistent.gcode", [&](const std::string&) { success_called.store(true); },
+        nullptr));
+
+    // Verify success was not called (file doesn't exist)
+    REQUIRE_FALSE(success_called.load());
 }
 
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock upload_file handles null success callback",
                  "[mock][api][upload]") {
+    std::atomic<bool> error_called{false};
+
     // Should not crash when success callback is null
-    REQUIRE_NOTHROW(
-        api_->upload_file("gcodes", "test.gcode", "G28", nullptr, [](const MoonrakerError&) {}));
+    REQUIRE_NOTHROW(api_->upload_file("gcodes", "test.gcode", "G28", nullptr,
+                                      [&](const MoonrakerError&) { error_called.store(true); }));
+
+    // Verify no error occurred (upload succeeds in mock)
+    REQUIRE_FALSE(error_called.load());
 }
 
 // ============================================================================
@@ -528,22 +545,34 @@ TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock consume_filament decrements active spool weight",
                  "[mock][filament]") {
-    // Get initial weight of active spool (spool 1 by default)
     auto& spools = api_->get_mock_spools();
-    float initial_weight = spools[0].remaining_weight_g; // Spool 1 is first
+
+    // Find the currently active spool (don't assume index 0 is active)
+    SpoolInfo* active_spool = nullptr;
+    for (auto& s : spools) {
+        if (s.is_active) {
+            active_spool = &s;
+            break;
+        }
+    }
+    REQUIRE(active_spool != nullptr);
+
+    // Record initial weight before consumption
+    float initial_weight = active_spool->remaining_weight_g;
+    REQUIRE(initial_weight > 50.0f); // Sanity check: enough to consume
 
     api_->consume_filament(50.0f); // Consume 50 grams
 
-    REQUIRE(spools[0].remaining_weight_g == Catch::Approx(initial_weight - 50.0f));
+    // Verify weight decreased by exactly 50 grams
+    REQUIRE(active_spool->remaining_weight_g == Catch::Approx(initial_weight - 50.0f));
 }
 
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock consume_filament uses slot's assigned spool",
                  "[mock][filament]") {
-    // Assign spool 5 (Kingroon PETG, 1000g) to slot 2
-    api_->assign_spool_to_slot(2, 5);
-
     auto& spools = api_->get_mock_spools();
+
+    // Find spool 5 by ID (don't assume array index)
     SpoolInfo* spool5 = nullptr;
     for (auto& s : spools) {
         if (s.id == 5) {
@@ -553,56 +582,114 @@ TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
     }
     REQUIRE(spool5 != nullptr);
 
+    // Assign spool 5 to slot 2
+    api_->assign_spool_to_slot(2, 5);
+
+    // Record initial weight before consumption
     float initial_weight = spool5->remaining_weight_g;
-    REQUIRE(initial_weight == Catch::Approx(1000.0f));
+    REQUIRE(initial_weight >= 75.0f); // Sanity check: enough to consume
 
     api_->consume_filament(75.0f, 2); // Consume from slot 2
 
-    REQUIRE(spool5->remaining_weight_g == Catch::Approx(925.0f));
+    // Verify spool 5's weight decreased by exactly 75 grams
+    REQUIRE(spool5->remaining_weight_g == Catch::Approx(initial_weight - 75.0f));
 }
 
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock consume_filament doesn't go negative", "[mock][filament]") {
-    // Spool 4 has only 100g remaining
-    api_->set_active_spool(4, []() {}, nullptr);
-
     auto& spools = api_->get_mock_spools();
-    SpoolInfo* spool4 = nullptr;
+
+    // Find a spool with limited remaining weight (find by ID, not index)
+    SpoolInfo* test_spool = nullptr;
     for (auto& s : spools) {
         if (s.id == 4) {
-            spool4 = &s;
+            test_spool = &s;
             break;
         }
     }
-    REQUIRE(spool4 != nullptr);
+    REQUIRE(test_spool != nullptr);
 
-    api_->consume_filament(200.0f); // Try to consume more than available
+    // Set this spool as active
+    api_->set_active_spool(4, []() {}, nullptr);
 
-    REQUIRE(spool4->remaining_weight_g == 0.0f); // Should clamp to 0
+    // Verify it's now active
+    REQUIRE(test_spool->is_active);
+
+    // Record initial weight
+    float initial_weight = test_spool->remaining_weight_g;
+    REQUIRE(initial_weight > 0); // Sanity check: spool has some filament
+
+    // Try to consume more than available
+    float excess_consumption = initial_weight + 100.0f;
+    api_->consume_filament(excess_consumption);
+
+    // Should clamp to 0, not go negative
+    REQUIRE(test_spool->remaining_weight_g >= 0.0f);
+    REQUIRE(test_spool->remaining_weight_g == 0.0f);
 }
 
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock consume_filament updates remaining length", "[mock][filament]") {
     auto& spools = api_->get_mock_spools();
-    float initial_length = spools[0].remaining_length_m;
 
-    api_->consume_filament(100.0f); // Consume 10% of a 1kg spool
+    // Find the currently active spool
+    SpoolInfo* active_spool = nullptr;
+    for (auto& s : spools) {
+        if (s.is_active) {
+            active_spool = &s;
+            break;
+        }
+    }
+    REQUIRE(active_spool != nullptr);
 
-    // Length should decrease proportionally
-    REQUIRE(spools[0].remaining_length_m < initial_length);
+    float initial_length = active_spool->remaining_length_m;
+    float initial_weight = active_spool->remaining_weight_g;
+    REQUIRE(initial_length > 0);
+    REQUIRE(initial_weight > 0);
+
+    // Consume some filament
+    float consumption_grams = 100.0f;
+    REQUIRE(initial_weight >= consumption_grams); // Sanity check
+    api_->consume_filament(consumption_grams);
+
+    // Length should decrease
+    REQUIRE(active_spool->remaining_length_m < initial_length);
+
+    // Verify proportional relationship:
+    // length reduction should be approximately proportional to weight reduction
+    float weight_ratio =
+        (initial_weight - consumption_grams) / initial_weight;
+    float expected_length = initial_length * weight_ratio;
+    // Allow 10% tolerance for calculation differences
+    REQUIRE(active_spool->remaining_length_m == Catch::Approx(expected_length).epsilon(0.1));
 }
 
 TEST_CASE_METHOD(MoonrakerAPIMockTestFixture,
                  "MoonrakerAPIMock set_active_spool updates is_active flag", "[mock][filament]") {
     auto& spools = api_->get_mock_spools();
+    REQUIRE(spools.size() >= 2); // Need at least 2 spools for this test
 
-    // Initially spool 1 is active
-    REQUIRE(spools[0].is_active == true);
-    REQUIRE(spools[1].is_active == false);
+    // Find spool with ID 1 and spool with ID 2 (don't assume array index)
+    SpoolInfo* spool1 = nullptr;
+    SpoolInfo* spool2 = nullptr;
+    for (auto& s : spools) {
+        if (s.id == 1)
+            spool1 = &s;
+        if (s.id == 2)
+            spool2 = &s;
+    }
+    REQUIRE(spool1 != nullptr);
+    REQUIRE(spool2 != nullptr);
 
+    // First set spool 1 as active to establish known state
+    api_->set_active_spool(1, []() {}, nullptr);
+    REQUIRE(spool1->is_active == true);
+    REQUIRE(spool2->is_active == false);
+
+    // Now set spool 2 as active
     api_->set_active_spool(2, []() {}, nullptr);
 
-    // Now spool 2 is active, spool 1 is not
-    REQUIRE(spools[0].is_active == false);
-    REQUIRE(spools[1].is_active == true);
+    // Verify spool 2 is now active and spool 1 is not
+    REQUIRE(spool1->is_active == false);
+    REQUIRE(spool2->is_active == true);
 }
