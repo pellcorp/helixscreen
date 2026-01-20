@@ -133,10 +133,7 @@ class StatusBarManager {
     StatusBarManager() = default;
     ~StatusBarManager() = default;
 
-    // Observer callbacks (static to work with LVGL API)
-    static void network_status_observer(lv_observer_t* observer, lv_subject_t* subject);
-    static void printer_connection_observer(lv_observer_t* observer, lv_subject_t* subject);
-    static void klippy_state_observer(lv_observer_t* observer, lv_subject_t* subject);
+    // Event callback for notification history button (static to work with LVGL XML API)
     static void notification_history_clicked(lv_event_t* e);
 
     // Combined logic to update printer icon

@@ -271,17 +271,15 @@ static void apply_slot_status(AmsSlotData* data, int status_int) {
 }
 
 /**
- * @brief Observer callback for current slot changes (highlight active slot)
+ * @brief Apply current slot highlight logic
  *
  * Active slots get a glowing border effect using shadows for visual emphasis.
+ * Used by both current_slot and filament_loaded observers.
  */
-static void on_current_slot_changed(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* data = static_cast<AmsSlotData*>(lv_observer_get_user_data(observer));
+static void apply_current_slot_highlight(AmsSlotData* data, int current_slot) {
     if (!data || !data->container) {
         return;
     }
-
-    int current_slot = lv_subject_get_int(subject);
 
     // Also check filament_loaded to only highlight when actually loaded
     lv_subject_t* loaded_subject = AmsState::instance().get_filament_loaded_subject();
@@ -316,25 +314,6 @@ static void on_current_slot_changed(lv_observer_t* observer, lv_subject_t* subje
 
     spdlog::trace("[AmsSlot] Slot {} active={} (current_slot={}, loaded={})", data->slot_index,
                   is_active, current_slot, filament_loaded);
-}
-
-/**
- * @brief Observer callback for filament loaded changes (affects highlight)
- */
-static void on_filament_loaded_changed(lv_observer_t* observer, lv_subject_t* subject) {
-    LV_UNUSED(subject); // We re-evaluate using current_slot, not the loaded value directly
-
-    auto* data = static_cast<AmsSlotData*>(lv_observer_get_user_data(observer));
-    if (!data || !data->container) {
-        return;
-    }
-
-    // Re-evaluate highlight - delegate to current_slot logic
-    lv_subject_t* slot_subject = AmsState::instance().get_current_slot_subject();
-    if (slot_subject) {
-        // Trigger the same logic as current_slot observer
-        on_current_slot_changed(data->current_slot_observer.get(), slot_subject);
-    }
 }
 
 // ============================================================================
@@ -602,12 +581,19 @@ static void setup_slot_observers(AmsSlotData* data) {
             });
     }
     if (current_slot_subject) {
-        data->current_slot_observer =
-            ObserverGuard(current_slot_subject, on_current_slot_changed, data);
+        data->current_slot_observer = observe_int_sync<AmsSlotData>(
+            current_slot_subject, data,
+            [](AmsSlotData* d, int current_slot) { apply_current_slot_highlight(d, current_slot); });
     }
     if (filament_loaded_subject) {
-        data->filament_loaded_observer =
-            ObserverGuard(filament_loaded_subject, on_filament_loaded_changed, data);
+        // When filament_loaded changes, re-evaluate highlight using current_slot value
+        data->filament_loaded_observer = observe_int_sync<AmsSlotData>(
+            filament_loaded_subject, data, [](AmsSlotData* d, int /*loaded*/) {
+                lv_subject_t* slot_subject = AmsState::instance().get_current_slot_subject();
+                if (slot_subject) {
+                    apply_current_slot_highlight(d, lv_subject_get_int(slot_subject));
+                }
+            });
     }
 
     // Update slot badge with 1-based display number
@@ -625,7 +611,7 @@ static void setup_slot_observers(AmsSlotData* data) {
         apply_slot_status(data, lv_subject_get_int(status_subject));
     }
     if (current_slot_subject && data->current_slot_observer) {
-        on_current_slot_changed(data->current_slot_observer.get(), current_slot_subject);
+        apply_current_slot_highlight(data, lv_subject_get_int(current_slot_subject));
     }
 
     // Update material label from backend if available
@@ -805,7 +791,7 @@ void ui_ams_slot_refresh(lv_obj_t* obj) {
 
     lv_subject_t* current_slot_subject = state.get_current_slot_subject();
     if (current_slot_subject && data->current_slot_observer) {
-        on_current_slot_changed(data->current_slot_observer.get(), current_slot_subject);
+        apply_current_slot_highlight(data, lv_subject_get_int(current_slot_subject));
     }
 
     // Update material from backend

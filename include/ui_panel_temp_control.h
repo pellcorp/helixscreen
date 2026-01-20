@@ -84,15 +84,7 @@ class TempControlPanel {
     static void on_bed_custom_clicked(lv_event_t* e);
 
   private:
-    //
-    // Observer callbacks (static trampolines that call instance methods)
-    //
-    static void nozzle_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void nozzle_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void bed_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void bed_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-
-    // Instance methods called by observers
+    // Instance methods called by observers (via observer factory pattern)
     void on_nozzle_temp_changed(int temp);
     void on_nozzle_target_changed(int target);
     void on_bed_temp_changed(int temp);

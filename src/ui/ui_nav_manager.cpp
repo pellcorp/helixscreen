@@ -3,6 +3,7 @@
 
 #include "ui_nav_manager.h"
 
+#include "observer_factory.h"
 #include "ui_emergency_stop.h"
 #include "ui_event_safety.h"
 #include "ui_fonts.h"
@@ -18,6 +19,8 @@
 #include "settings_manager.h"
 
 #include <spdlog/spdlog.h>
+
+using helix::ui::observe_int_sync;
 
 #include <algorithm>
 #include <cstdlib>
@@ -272,66 +275,56 @@ void NavigationManager::overlay_animate_slide_out(lv_obj_t* panel) {
 }
 
 // ============================================================================
-// OBSERVER CALLBACKS
+// OBSERVER HANDLERS (used by factory-created observers)
 // ============================================================================
 
-void NavigationManager::active_panel_observer_cb([[maybe_unused]] lv_observer_t* observer,
-                                                 lv_subject_t* subject) {
-    auto& mgr = NavigationManager::instance();
-    int32_t new_active_panel = lv_subject_get_int(subject);
-
+void NavigationManager::handle_active_panel_change(int32_t new_active_panel) {
     // Show/hide panels if widgets are set
     for (int i = 0; i < UI_PANEL_COUNT; i++) {
-        if (mgr.panel_widgets_[i]) {
+        if (panel_widgets_[i]) {
             if (i == new_active_panel) {
-                lv_obj_remove_flag(mgr.panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_remove_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
             } else {
-                lv_obj_add_flag(mgr.panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(panel_widgets_[i], LV_OBJ_FLAG_HIDDEN);
             }
         }
     }
 }
 
-void NavigationManager::connection_state_observer_cb([[maybe_unused]] lv_observer_t* observer,
-                                                     lv_subject_t* subject) {
-    auto& mgr = NavigationManager::instance();
-    int state = lv_subject_get_int(subject);
+void NavigationManager::handle_connection_state_change(int state) {
     bool was_connected =
-        (mgr.previous_connection_state_ == static_cast<int>(ConnectionState::CONNECTED));
+        (previous_connection_state_ == static_cast<int>(ConnectionState::CONNECTED));
     bool is_connected = (state == static_cast<int>(ConnectionState::CONNECTED));
 
     // Only redirect if we were previously connected and are now disconnected
-    if (was_connected && !is_connected && panel_requires_connection(mgr.active_panel_)) {
+    if (was_connected && !is_connected && panel_requires_connection(active_panel_)) {
         spdlog::info("[NavigationManager] Connection lost on panel {} - navigating to home",
-                     static_cast<int>(mgr.active_panel_));
+                     static_cast<int>(active_panel_));
 
-        mgr.clear_overlay_stack();
-        mgr.set_active(UI_PANEL_HOME);
+        clear_overlay_stack();
+        set_active(UI_PANEL_HOME);
     }
 
-    mgr.previous_connection_state_ = state;
+    previous_connection_state_ = state;
 }
 
-void NavigationManager::klippy_state_observer_cb([[maybe_unused]] lv_observer_t* observer,
-                                                 lv_subject_t* subject) {
-    auto& mgr = NavigationManager::instance();
-    int state = lv_subject_get_int(subject);
-    bool was_ready = (mgr.previous_klippy_state_ == static_cast<int>(KlippyState::READY));
+void NavigationManager::handle_klippy_state_change(int state) {
+    bool was_ready = (previous_klippy_state_ == static_cast<int>(KlippyState::READY));
     bool is_ready = (state == static_cast<int>(KlippyState::READY));
 
     // Redirect to home if klippy enters non-READY state (SHUTDOWN/ERROR) while on restricted panel
-    if (was_ready && !is_ready && panel_requires_connection(mgr.active_panel_)) {
+    if (was_ready && !is_ready && panel_requires_connection(active_panel_)) {
         const char* state_name = (state == static_cast<int>(KlippyState::SHUTDOWN)) ? "SHUTDOWN"
                                  : (state == static_cast<int>(KlippyState::ERROR))  ? "ERROR"
                                                                                     : "non-READY";
         spdlog::info("[NavigationManager] Klippy {} on panel {} - navigating to home", state_name,
-                     static_cast<int>(mgr.active_panel_));
+                     static_cast<int>(active_panel_));
 
-        mgr.clear_overlay_stack();
-        mgr.set_active(UI_PANEL_HOME);
+        clear_overlay_stack();
+        set_active(UI_PANEL_HOME);
     }
 
-    mgr.previous_klippy_state_ = state;
+    previous_klippy_state_ = state;
 }
 
 // ============================================================================
@@ -540,8 +533,10 @@ void NavigationManager::init() {
 
     UI_MANAGED_SUBJECT_INT(active_panel_subject_, UI_PANEL_HOME, "active_panel", subjects_);
 
-    active_panel_observer_ =
-        ObserverGuard(&active_panel_subject_, active_panel_observer_cb, nullptr);
+    active_panel_observer_ = observe_int_sync<NavigationManager>(
+        &active_panel_subject_, this, [](NavigationManager* mgr, int value) {
+            mgr->handle_active_panel_change(value);
+        });
 
     subjects_initialized_ = true;
     spdlog::debug("[NavigationManager] Navigation subjects initialized successfully");
@@ -606,13 +601,14 @@ void NavigationManager::wire_events(lv_obj_t* navbar) {
     }
 
     // Register connection state observer for redirect on disconnect
-    connection_state_observer_ =
-        ObserverGuard(get_printer_state().get_printer_connection_state_subject(),
-                      connection_state_observer_cb, nullptr);
+    connection_state_observer_ = observe_int_sync<NavigationManager>(
+        get_printer_state().get_printer_connection_state_subject(), this,
+        [](NavigationManager* mgr, int value) { mgr->handle_connection_state_change(value); });
 
     // Register klippy state observer for redirect on SHUTDOWN/ERROR
-    klippy_state_observer_ = ObserverGuard(get_printer_state().get_klippy_state_subject(),
-                                           klippy_state_observer_cb, nullptr);
+    klippy_state_observer_ = observe_int_sync<NavigationManager>(
+        get_printer_state().get_klippy_state_subject(), this,
+        [](NavigationManager* mgr, int value) { mgr->handle_klippy_state_change(value); });
 
     spdlog::debug(
         "[NavigationManager] Navigation button events wired (with connection/klippy gating)");

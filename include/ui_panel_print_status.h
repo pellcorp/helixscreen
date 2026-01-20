@@ -442,28 +442,6 @@ class PrintStatusPanel : public OverlayBase {
     static void on_resize_static();
 
     //
-    // === PrinterState Observer Callbacks ===
-    //
-
-    static void extruder_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void extruder_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void bed_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void bed_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_progress_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_filename_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void speed_factor_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void flow_factor_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void gcode_z_offset_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void led_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_layer_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_duration_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_time_left_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_start_phase_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_start_message_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_start_progress_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-
-    //
     // === Observer Instance Methods ===
     //
 

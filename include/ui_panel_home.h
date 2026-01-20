@@ -159,13 +159,6 @@ class HomePanel : public PanelBase {
     static void network_clicked_cb(lv_event_t* e);
     static void ams_clicked_cb(lv_event_t* e);
     static void tip_rotation_timer_cb(lv_timer_t* timer);
-    static void extruder_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void extruder_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void led_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void led_brightness_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void ams_slot_count_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void ams_bypass_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void filament_sensor_count_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
 
     ObserverGuard extruder_temp_observer_;
     ObserverGuard extruder_target_observer_;
@@ -210,13 +203,7 @@ class HomePanel : public PanelBase {
     void update_print_card_label(int progress, int time_left_secs);
     void reset_print_card_to_idle();
 
-    static void print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_progress_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_time_left_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void print_thumbnail_path_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-
     // Filament runout handling
-    static void filament_runout_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
     void check_and_show_idle_runout_modal();
     void show_idle_runout_modal();
 };

@@ -6,6 +6,7 @@
 #include "lvgl/lvgl.h"
 #include "overlay_base.h"
 #include "subject_managed_panel.h"
+#include "ui_observer_guard.h"
 
 #include <string>
 
@@ -198,13 +199,9 @@ class ZOffsetCalibrationPanel : public OverlayBase {
     // Subject manager for automatic cleanup
     SubjectManager subjects_;
 
-    // Observer for manual_probe state changes (for real Klipper integration)
-    lv_observer_t* manual_probe_active_observer_ = nullptr;
-    lv_observer_t* manual_probe_z_observer_ = nullptr;
-
-    // Observer callbacks (static for LVGL)
-    static void on_manual_probe_active_changed(lv_observer_t* observer, lv_subject_t* subject);
-    static void on_manual_probe_z_changed(lv_observer_t* observer, lv_subject_t* subject);
+    // Observer guards for manual_probe state changes (RAII cleanup)
+    ObserverGuard manual_probe_active_observer_;
+    ObserverGuard manual_probe_z_observer_;
 };
 
 // Global instance accessor

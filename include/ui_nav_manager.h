@@ -287,10 +287,10 @@ class NavigationManager {
     void overlay_animate_slide_out(lv_obj_t* panel);
     static void overlay_slide_out_complete_cb(lv_anim_t* anim);
 
-    // Observer callbacks
-    static void active_panel_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void connection_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
-    static void klippy_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
+    // Observer handlers (used by factory-created observers)
+    void handle_active_panel_change(int32_t new_active_panel);
+    void handle_connection_state_change(int state);
+    void handle_klippy_state_change(int state);
 
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);

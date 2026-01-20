@@ -3,6 +3,7 @@
 
 #include "ui_emergency_stop.h"
 
+#include "observer_factory.h"
 #include "ui_notification.h"
 #include "ui_toast.h"
 #include "ui_update_queue.h"
@@ -10,6 +11,8 @@
 #include "abort_manager.h"
 
 #include <spdlog/spdlog.h>
+
+using helix::ui::observe_int_sync;
 
 EmergencyStopOverlay& EmergencyStopOverlay::instance() {
     static EmergencyStopOverlay instance;
@@ -82,12 +85,60 @@ void EmergencyStopOverlay::create() {
     // Subscribe to print state changes for automatic visibility updates
     // The estop_visible subject drives XML bindings in home_panel, controls_panel,
     // and print_status_panel (no FAB - buttons are embedded in each panel)
-    print_state_observer_ = ObserverGuard(printer_state_->get_print_state_enum_subject(),
-                                          print_state_observer_cb, this);
+    print_state_observer_ = observe_int_sync<EmergencyStopOverlay>(
+        printer_state_->get_print_state_enum_subject(), this,
+        [](EmergencyStopOverlay* self, int /*state*/) { self->update_visibility(); });
 
     // Subscribe to klippy state changes for recovery dialog auto-popup
-    klippy_state_observer_ =
-        ObserverGuard(printer_state_->get_klippy_state_subject(), klippy_state_observer_cb, this);
+    klippy_state_observer_ = observe_int_sync<EmergencyStopOverlay>(
+        printer_state_->get_klippy_state_subject(), this,
+        [](EmergencyStopOverlay* self, int state) {
+            auto klippy_state = static_cast<KlippyState>(state);
+
+            if (klippy_state == KlippyState::SHUTDOWN) {
+                // Don't show recovery dialog if we initiated the restart operation
+                // (Klipper briefly enters SHUTDOWN during firmware/klipper restart)
+                if (self->restart_in_progress_) {
+                    spdlog::debug("[KlipperRecovery] Ignoring SHUTDOWN during restart operation");
+                    return;
+                }
+                // Don't show recovery dialog if AbortManager is handling controlled shutdown
+                // (M112 -> FIRMWARE_RESTART escalation path)
+                if (helix::AbortManager::instance().is_handling_shutdown()) {
+                    spdlog::debug(
+                        "[KlipperRecovery] Ignoring SHUTDOWN - AbortManager handling recovery");
+                    return;
+                }
+                // Auto-popup recovery dialog when Klipper enters SHUTDOWN state
+                // NOTE: Must defer to main thread - observer may fire from WebSocket thread
+                spdlog::info(
+                    "[KlipperRecovery] Detected Klipper SHUTDOWN state, queueing recovery dialog");
+                spdlog::debug("[KlipperRecovery] Queueing recovery dialog (observer path)");
+                ui_async_call(
+                    [](void*) {
+                        spdlog::debug("[KlipperRecovery] Async callback executing (observer path)");
+                        EmergencyStopOverlay::instance().show_recovery_dialog();
+                    },
+                    nullptr);
+            } else if (klippy_state == KlippyState::READY) {
+                // Reset restart flag - operation complete
+                self->restart_in_progress_ = false;
+
+                // Auto-dismiss recovery dialog when Klipper is back to READY
+                // NOTE: Must defer to main thread - observer may fire from WebSocket thread
+                ui_async_call(
+                    [](void*) {
+                        auto& inst = EmergencyStopOverlay::instance();
+                        if (inst.recovery_dialog_) {
+                            spdlog::info(
+                                "[KlipperRecovery] Klipper is READY, dismissing recovery dialog");
+                            inst.dismiss_recovery_dialog();
+                            ui_toast_show(ToastSeverity::SUCCESS, "Printer ready", 3000);
+                        }
+                    },
+                    nullptr);
+            }
+        });
 
     // Initial visibility update
     update_visibility();
@@ -342,65 +393,4 @@ void EmergencyStopOverlay::home_firmware_restart_clicked(lv_event_t* e) {
     LV_UNUSED(e);
     spdlog::info("[Home] Firmware Restart clicked from Home panel");
     EmergencyStopOverlay::instance().firmware_restart();
-}
-
-// Static observer callbacks
-void EmergencyStopOverlay::print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    LV_UNUSED(subject);
-    auto* self = static_cast<EmergencyStopOverlay*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->update_visibility();
-    }
-}
-
-void EmergencyStopOverlay::klippy_state_observer_cb(lv_observer_t* observer,
-                                                    lv_subject_t* subject) {
-    auto* self = static_cast<EmergencyStopOverlay*>(lv_observer_get_user_data(observer));
-    if (!self) {
-        return;
-    }
-
-    int state = lv_subject_get_int(subject);
-    auto klippy_state = static_cast<KlippyState>(state);
-
-    if (klippy_state == KlippyState::SHUTDOWN) {
-        // Don't show recovery dialog if we initiated the restart operation
-        // (Klipper briefly enters SHUTDOWN during firmware/klipper restart)
-        if (self->restart_in_progress_) {
-            spdlog::debug("[KlipperRecovery] Ignoring SHUTDOWN during restart operation");
-            return;
-        }
-        // Don't show recovery dialog if AbortManager is handling controlled shutdown
-        // (M112 -> FIRMWARE_RESTART escalation path)
-        if (helix::AbortManager::instance().is_handling_shutdown()) {
-            spdlog::debug("[KlipperRecovery] Ignoring SHUTDOWN - AbortManager handling recovery");
-            return;
-        }
-        // Auto-popup recovery dialog when Klipper enters SHUTDOWN state
-        // NOTE: Must defer to main thread - observer may fire from WebSocket thread
-        spdlog::info("[KlipperRecovery] Detected Klipper SHUTDOWN state, queueing recovery dialog");
-        spdlog::debug("[KlipperRecovery] Queueing recovery dialog (observer path)");
-        ui_async_call(
-            [](void*) {
-                spdlog::debug("[KlipperRecovery] Async callback executing (observer path)");
-                EmergencyStopOverlay::instance().show_recovery_dialog();
-            },
-            nullptr);
-    } else if (klippy_state == KlippyState::READY) {
-        // Reset restart flag - operation complete
-        self->restart_in_progress_ = false;
-
-        // Auto-dismiss recovery dialog when Klipper is back to READY
-        // NOTE: Must defer to main thread - observer may fire from WebSocket thread
-        ui_async_call(
-            [](void*) {
-                auto& inst = EmergencyStopOverlay::instance();
-                if (inst.recovery_dialog_) {
-                    spdlog::info("[KlipperRecovery] Klipper is READY, dismissing recovery dialog");
-                    inst.dismiss_recovery_dialog();
-                    ui_toast_show(ToastSeverity::SUCCESS, "Printer ready", 3000);
-                }
-            },
-            nullptr);
-    }
 }

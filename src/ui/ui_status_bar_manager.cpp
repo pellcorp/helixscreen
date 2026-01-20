@@ -3,6 +3,7 @@
 
 #include "ui_status_bar_manager.h"
 
+#include "observer_factory.h"
 #include "ui_nav.h"
 #include "ui_panel_notification_history.h"
 #include "ui_theme.h"
@@ -15,6 +16,8 @@
 #include <spdlog/spdlog.h>
 
 #include <cstring>
+
+using helix::ui::observe_int_sync;
 
 // Forward declaration for class-based API
 NotificationHistoryPanel& get_global_notification_history_panel();
@@ -50,37 +53,6 @@ enum NotificationSeverityState {
     NOTIFICATION_SEVERITY_WARNING = 1, // Orange badge
     NOTIFICATION_SEVERITY_ERROR = 2    // Red badge
 };
-
-// ============================================================================
-// OBSERVER CALLBACKS (static)
-// ============================================================================
-
-void StatusBarManager::network_status_observer([[maybe_unused]] lv_observer_t* observer,
-                                               lv_subject_t* subject) {
-    int32_t network_state = lv_subject_get_int(subject);
-    spdlog::trace("[StatusBarManager] Network observer fired! State: {}", network_state);
-
-    // Map integer to NetworkStatus enum
-    NetworkStatus status = static_cast<NetworkStatus>(network_state);
-    StatusBarManager::instance().update_network(status);
-}
-
-void StatusBarManager::printer_connection_observer([[maybe_unused]] lv_observer_t* observer,
-                                                   lv_subject_t* subject) {
-    auto& mgr = StatusBarManager::instance();
-    mgr.cached_connection_state_ = lv_subject_get_int(subject);
-    spdlog::trace("[StatusBarManager] Connection state changed to: {}",
-                  mgr.cached_connection_state_);
-    mgr.update_printer_icon_combined();
-}
-
-void StatusBarManager::klippy_state_observer([[maybe_unused]] lv_observer_t* observer,
-                                             lv_subject_t* subject) {
-    auto& mgr = StatusBarManager::instance();
-    mgr.cached_klippy_state_ = lv_subject_get_int(subject);
-    spdlog::trace("[StatusBarManager] Klippy state changed to: {}", mgr.cached_klippy_state_);
-    mgr.update_printer_icon_combined();
-}
 
 void StatusBarManager::notification_history_clicked([[maybe_unused]] lv_event_t* e) {
     spdlog::info("[StatusBarManager] Notification history button CLICKED!");
@@ -196,20 +168,36 @@ void StatusBarManager::init() {
     lv_subject_t* net_subject = printer_state.get_network_status_subject();
     spdlog::trace("[StatusBarManager] Registering observer on network_status_subject at {}",
                   (void*)net_subject);
-    network_observer_ = ObserverGuard(net_subject, network_status_observer, nullptr);
+    network_observer_ =
+        observe_int_sync<StatusBarManager>(net_subject, this, [](StatusBarManager* self, int val) {
+            spdlog::trace("[StatusBarManager] Network observer fired! State: {}", val);
+            self->update_network(static_cast<NetworkStatus>(val));
+        });
 
     // Printer connection observer
     lv_subject_t* conn_subject = printer_state.get_printer_connection_state_subject();
     spdlog::trace(
         "[StatusBarManager] Registering observer on printer_connection_state_subject at {}",
         (void*)conn_subject);
-    connection_observer_ = ObserverGuard(conn_subject, printer_connection_observer, nullptr);
+    connection_observer_ =
+        observe_int_sync<StatusBarManager>(conn_subject, this, [](StatusBarManager* self, int val) {
+            self->cached_connection_state_ = val;
+            spdlog::trace("[StatusBarManager] Connection state changed to: {}",
+                          self->cached_connection_state_);
+            self->update_printer_icon_combined();
+        });
 
     // Klippy state observer
     lv_subject_t* klippy_subject = printer_state.get_klippy_state_subject();
     spdlog::trace("[StatusBarManager] Registering observer on klippy_state_subject at {}",
                   (void*)klippy_subject);
-    klippy_observer_ = ObserverGuard(klippy_subject, klippy_state_observer, nullptr);
+    klippy_observer_ =
+        observe_int_sync<StatusBarManager>(klippy_subject, this, [](StatusBarManager* self, int val) {
+            self->cached_klippy_state_ = val;
+            spdlog::trace("[StatusBarManager] Klippy state changed to: {}",
+                          self->cached_klippy_state_);
+            self->update_printer_icon_combined();
+        });
 
     initialized_ = true;
     spdlog::debug("[StatusBarManager] Initialization complete");

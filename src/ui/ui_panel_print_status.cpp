@@ -3,6 +3,7 @@
 
 #include "ui_panel_print_status.h"
 
+#include "observer_factory.h"
 #include "ui_ams_current_tool.h"
 #include "ui_component_header_bar.h"
 #include "ui_error_reporting.h"
@@ -50,6 +51,11 @@ static std::unique_ptr<PrintStatusPanel> g_print_status_panel;
 using helix::ui::temperature::centi_to_degrees;
 using helix::ui::temperature::format_temperature_pair;
 
+// Observer factory pattern
+using helix::ui::observe_int_sync;
+using helix::ui::observe_print_state;
+using helix::ui::observe_string;
+
 // Helper to get or create the global instance
 PrintStatusPanel& get_global_print_status_panel() {
     if (!g_print_status_panel) {
@@ -63,48 +69,68 @@ PrintStatusPanel& get_global_print_status_panel() {
 PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, MoonrakerAPI* api)
     : printer_state_(printer_state), api_(api) {
     // Subscribe to PrinterState temperature subjects (ObserverGuard handles cleanup)
-    extruder_temp_observer_ =
-        ObserverGuard(printer_state_.get_extruder_temp_subject(), extruder_temp_observer_cb, this);
-    extruder_target_observer_ = ObserverGuard(printer_state_.get_extruder_target_subject(),
-                                              extruder_target_observer_cb, this);
-    bed_temp_observer_ =
-        ObserverGuard(printer_state_.get_bed_temp_subject(), bed_temp_observer_cb, this);
-    bed_target_observer_ =
-        ObserverGuard(printer_state_.get_bed_target_subject(), bed_target_observer_cb, this);
+    extruder_temp_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_extruder_temp_subject(), this,
+        [](PrintStatusPanel* self, int) { self->on_temperature_changed(); });
+    extruder_target_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_extruder_target_subject(), this,
+        [](PrintStatusPanel* self, int) { self->on_temperature_changed(); });
+    bed_temp_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_bed_temp_subject(), this,
+        [](PrintStatusPanel* self, int) { self->on_temperature_changed(); });
+    bed_target_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_bed_target_subject(), this,
+        [](PrintStatusPanel* self, int) { self->on_temperature_changed(); });
 
     // Subscribe to print progress and state
-    print_progress_observer_ = ObserverGuard(printer_state_.get_print_progress_subject(),
-                                             print_progress_observer_cb, this);
-    print_state_observer_ =
-        ObserverGuard(printer_state_.get_print_state_enum_subject(), print_state_observer_cb, this);
-    print_filename_observer_ = ObserverGuard(printer_state_.get_print_filename_subject(),
-                                             print_filename_observer_cb, this);
+    print_progress_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_print_progress_subject(), this,
+        [](PrintStatusPanel* self, int progress) { self->on_print_progress_changed(progress); });
+    print_state_observer_ = observe_print_state<PrintStatusPanel>(
+        printer_state_.get_print_state_enum_subject(), this,
+        [](PrintStatusPanel* self, PrintJobState state) { self->on_print_state_changed(state); });
+    print_filename_observer_ = observe_string<PrintStatusPanel>(
+        printer_state_.get_print_filename_subject(), this,
+        [](PrintStatusPanel* self, const char* filename) {
+            self->on_print_filename_changed(filename);
+        });
 
     // Subscribe to speed/flow factors
-    speed_factor_observer_ =
-        ObserverGuard(printer_state_.get_speed_factor_subject(), speed_factor_observer_cb, this);
-    flow_factor_observer_ =
-        ObserverGuard(printer_state_.get_flow_factor_subject(), flow_factor_observer_cb, this);
-    gcode_z_offset_observer_ = ObserverGuard(printer_state_.get_gcode_z_offset_subject(),
-                                             gcode_z_offset_observer_cb, this);
+    speed_factor_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_speed_factor_subject(), this,
+        [](PrintStatusPanel* self, int speed) { self->on_speed_factor_changed(speed); });
+    flow_factor_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_flow_factor_subject(), this,
+        [](PrintStatusPanel* self, int flow) { self->on_flow_factor_changed(flow); });
+    gcode_z_offset_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_gcode_z_offset_subject(), this,
+        [](PrintStatusPanel* self, int microns) { self->on_gcode_z_offset_changed(microns); });
 
     // Subscribe to layer tracking for G-code viewer ghost layer updates
-    print_layer_observer_ = ObserverGuard(printer_state_.get_print_layer_current_subject(),
-                                          print_layer_observer_cb, this);
+    print_layer_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_print_layer_current_subject(), this,
+        [](PrintStatusPanel* self, int layer) { self->on_print_layer_changed(layer); });
 
     // Subscribe to print time tracking
-    print_duration_observer_ = ObserverGuard(printer_state_.get_print_duration_subject(),
-                                             print_duration_observer_cb, this);
-    print_time_left_observer_ = ObserverGuard(printer_state_.get_print_time_left_subject(),
-                                              print_time_left_observer_cb, this);
+    print_duration_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_print_duration_subject(), this,
+        [](PrintStatusPanel* self, int seconds) { self->on_print_duration_changed(seconds); });
+    print_time_left_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_print_time_left_subject(), this,
+        [](PrintStatusPanel* self, int seconds) { self->on_print_time_left_changed(seconds); });
 
     // Subscribe to print start preparation phase subjects
-    print_start_phase_observer_ = ObserverGuard(printer_state_.get_print_start_phase_subject(),
-                                                print_start_phase_observer_cb, this);
-    print_start_message_observer_ = ObserverGuard(printer_state_.get_print_start_message_subject(),
-                                                  print_start_message_observer_cb, this);
-    print_start_progress_observer_ = ObserverGuard(
-        printer_state_.get_print_start_progress_subject(), print_start_progress_observer_cb, this);
+    print_start_phase_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_print_start_phase_subject(), this,
+        [](PrintStatusPanel* self, int phase) { self->on_print_start_phase_changed(phase); });
+    print_start_message_observer_ = observe_string<PrintStatusPanel>(
+        printer_state_.get_print_start_message_subject(), this,
+        [](PrintStatusPanel* self, const char* message) {
+            self->on_print_start_message_changed(message);
+        });
+    print_start_progress_observer_ = observe_int_sync<PrintStatusPanel>(
+        printer_state_.get_print_start_progress_subject(), this,
+        [](PrintStatusPanel* self, int progress) { self->on_print_start_progress_changed(progress); });
 
     spdlog::debug("[{}] Subscribed to PrinterState subjects", get_name());
 
@@ -114,8 +140,9 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, MoonrakerAPI* ap
         std::string configured_led = config->get<std::string>(helix::wizard::LED_STRIP, "");
         if (!configured_led.empty()) {
             light_timelapse_controls_.set_configured_led(configured_led);
-            led_state_observer_ =
-                ObserverGuard(printer_state_.get_led_state_subject(), led_state_observer_cb, this);
+            led_state_observer_ = observe_int_sync<PrintStatusPanel>(
+                printer_state_.get_led_state_subject(), this,
+                [](PrintStatusPanel* self, int state) { self->on_led_state_changed(state); });
             spdlog::debug("[{}] Configured LED: {} (observing state)", get_name(), configured_led);
         }
     }
@@ -994,139 +1021,6 @@ void PrintStatusPanel::on_resize_static() {
     // Use global instance for resize callback (registered without user_data)
     if (g_print_status_panel) {
         g_print_status_panel->handle_resize();
-    }
-}
-
-// ============================================================================
-// PRINTERSTATE OBSERVER CALLBACKS
-// ============================================================================
-
-void PrintStatusPanel::extruder_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_temperature_changed();
-    }
-}
-
-void PrintStatusPanel::extruder_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_temperature_changed();
-    }
-}
-
-void PrintStatusPanel::bed_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_temperature_changed();
-    }
-}
-
-void PrintStatusPanel::bed_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_temperature_changed();
-    }
-}
-
-void PrintStatusPanel::print_progress_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_progress_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        // Read enum from integer subject (type-safe, no string parsing)
-        auto state = static_cast<PrintJobState>(lv_subject_get_int(subject));
-        self->on_print_state_changed(state);
-    }
-}
-
-void PrintStatusPanel::print_filename_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_filename_changed(lv_subject_get_string(subject));
-    }
-}
-
-void PrintStatusPanel::speed_factor_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_speed_factor_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::flow_factor_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_flow_factor_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::gcode_z_offset_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_gcode_z_offset_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::led_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_led_state_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::print_layer_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_layer_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::print_duration_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_duration_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::print_time_left_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_time_left_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::print_start_phase_observer_cb(lv_observer_t* observer,
-                                                     lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_start_phase_changed(lv_subject_get_int(subject));
-    }
-}
-
-void PrintStatusPanel::print_start_message_observer_cb(lv_observer_t* observer,
-                                                       lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        auto* msg = lv_subject_get_string(subject);
-        self->on_print_start_message_changed(msg);
-    }
-}
-
-void PrintStatusPanel::print_start_progress_observer_cb(lv_observer_t* observer,
-                                                        lv_subject_t* subject) {
-    auto* self = static_cast<PrintStatusPanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_start_progress_changed(lv_subject_get_int(subject));
     }
 }
 

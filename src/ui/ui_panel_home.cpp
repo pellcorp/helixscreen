@@ -3,6 +3,7 @@
 
 #include "ui_panel_home.h"
 
+#include "observer_factory.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_icon.h"
@@ -56,20 +57,30 @@ HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
 
     // Subscribe to PrinterState subjects (ObserverGuard handles cleanup)
     // Note: Connection state dimming is now handled by XML binding to printer_connection_state
-    extruder_temp_observer_ =
-        ObserverGuard(printer_state_.get_extruder_temp_subject(), extruder_temp_observer_cb, this);
-    extruder_target_observer_ = ObserverGuard(printer_state_.get_extruder_target_subject(),
-                                              extruder_target_observer_cb, this);
+    using helix::ui::observe_int_sync;
+    using helix::ui::observe_print_state;
+    using helix::ui::observe_string;
+
+    extruder_temp_observer_ = observe_int_sync<HomePanel>(
+        printer_state_.get_extruder_temp_subject(), this,
+        [](HomePanel* self, int temp) { self->on_extruder_temp_changed(temp); });
+    extruder_target_observer_ = observe_int_sync<HomePanel>(
+        printer_state_.get_extruder_target_subject(), this,
+        [](HomePanel* self, int target) { self->on_extruder_target_changed(target); });
 
     // Subscribe to print state for dynamic print card updates
-    print_state_observer_ =
-        ObserverGuard(printer_state_.get_print_state_enum_subject(), print_state_observer_cb, this);
-    print_progress_observer_ = ObserverGuard(printer_state_.get_print_progress_subject(),
-                                             print_progress_observer_cb, this);
-    print_time_left_observer_ = ObserverGuard(printer_state_.get_print_time_left_subject(),
-                                              print_time_left_observer_cb, this);
-    print_thumbnail_path_observer_ = ObserverGuard(
-        printer_state_.get_print_thumbnail_path_subject(), print_thumbnail_path_observer_cb, this);
+    print_state_observer_ = observe_print_state<HomePanel>(
+        printer_state_.get_print_state_enum_subject(), this,
+        [](HomePanel* self, PrintJobState state) { self->on_print_state_changed(state); });
+    print_progress_observer_ = observe_int_sync<HomePanel>(
+        printer_state_.get_print_progress_subject(), this,
+        [](HomePanel* self, int /*progress*/) { self->on_print_progress_or_time_changed(); });
+    print_time_left_observer_ = observe_int_sync<HomePanel>(
+        printer_state_.get_print_time_left_subject(), this,
+        [](HomePanel* self, int /*time*/) { self->on_print_progress_or_time_changed(); });
+    print_thumbnail_path_observer_ = observe_string<HomePanel>(
+        printer_state_.get_print_thumbnail_path_subject(), this,
+        [](HomePanel* self, const char* path) { self->on_print_thumbnail_path_changed(path); });
 
     spdlog::debug("[{}] Subscribed to PrinterState extruder temperature and target", get_name());
     spdlog::debug("[{}] Subscribed to PrinterState print state/progress/time/thumbnail",
@@ -77,8 +88,15 @@ HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
 
     // Subscribe to filament runout for idle modal
     auto& fsm = helix::FilamentSensorManager::instance();
-    filament_runout_observer_ =
-        ObserverGuard(fsm.get_any_runout_subject(), filament_runout_observer_cb, this);
+    filament_runout_observer_ = observe_int_sync<HomePanel>(
+        fsm.get_any_runout_subject(), this, [](HomePanel* self, int any_runout) {
+            spdlog::debug("[{}] Filament runout subject changed: {}", self->get_name(), any_runout);
+            if (any_runout == 1) {
+                self->check_and_show_idle_runout_modal();
+            } else {
+                self->runout_modal_shown_ = false;
+            }
+        });
     spdlog::debug("[{}] Subscribed to filament_any_runout subject", get_name());
 
     // Load configured LED from wizard settings and tell PrinterState to track it
@@ -90,12 +108,14 @@ HomePanel::HomePanel(PrinterState& printer_state, MoonrakerAPI* api)
             printer_state_.set_tracked_led(configured_led_);
 
             // Subscribe to LED state changes from PrinterState
-            led_state_observer_ =
-                ObserverGuard(printer_state_.get_led_state_subject(), led_state_observer_cb, this);
+            led_state_observer_ = observe_int_sync<HomePanel>(
+                printer_state_.get_led_state_subject(), this,
+                [](HomePanel* self, int state) { self->on_led_state_changed(state); });
 
             // Subscribe to LED brightness changes for dynamic icon updates
-            led_brightness_observer_ = ObserverGuard(printer_state_.get_led_brightness_subject(),
-                                                     led_brightness_observer_cb, this);
+            led_brightness_observer_ = observe_int_sync<HomePanel>(
+                printer_state_.get_led_brightness_subject(), this,
+                [](HomePanel* self, int /*brightness*/) { self->update_light_icon(); });
 
             spdlog::info("[{}] Configured LED: {} (observing state)", get_name(), configured_led_);
         } else {
@@ -126,6 +146,8 @@ HomePanel::~HomePanel() {
 }
 
 void HomePanel::init_subjects() {
+    using helix::ui::observe_int_sync;
+
     if (subjects_initialized_) {
         spdlog::warn("[{}] init_subjects() called twice - ignoring", get_name());
         return;
@@ -174,15 +196,17 @@ void HomePanel::init_subjects() {
     // AmsState::init_subjects() is called in main.cpp before us
     // NOTE: Observer callback may fire immediately - show_filament_status_ must be initialized
     // first
-    ams_slot_count_observer_ = ObserverGuard(AmsState::instance().get_slot_count_subject(),
-                                             ams_slot_count_observer_cb, this);
+    ams_slot_count_observer_ = observe_int_sync<HomePanel>(
+        AmsState::instance().get_slot_count_subject(), this,
+        [](HomePanel* self, int slot_count) { self->update_ams_indicator(slot_count); });
 
     // Observe inputs that affect filament status visibility
-    ams_bypass_observer_ = ObserverGuard(AmsState::instance().get_bypass_active_subject(),
-                                         ams_bypass_observer_cb, this);
-    filament_sensor_count_observer_ =
-        ObserverGuard(helix::FilamentSensorManager::instance().get_sensor_count_subject(),
-                      filament_sensor_count_observer_cb, this);
+    ams_bypass_observer_ = observe_int_sync<HomePanel>(
+        AmsState::instance().get_bypass_active_subject(), this,
+        [](HomePanel* self, int /*bypass*/) { self->update_filament_status_visibility(); });
+    filament_sensor_count_observer_ = observe_int_sync<HomePanel>(
+        helix::FilamentSensorManager::instance().get_sensor_count_subject(), this,
+        [](HomePanel* self, int /*count*/) { self->update_filament_status_visibility(); });
 
     // Compute initial visibility (observers may have already fired, but this ensures correct
     // initial state)
@@ -734,6 +758,8 @@ void HomePanel::update_temp_icon_animation() {
 }
 
 void HomePanel::reload_from_config() {
+    using helix::ui::observe_int_sync;
+
     Config* config = Config::get_instance();
     if (!config) {
         spdlog::warn("[{}] reload_from_config: Config not available", get_name());
@@ -752,14 +778,16 @@ void HomePanel::reload_from_config() {
 
             // Subscribe to LED state changes if not already subscribed
             if (!led_state_observer_) {
-                led_state_observer_ = ObserverGuard(printer_state_.get_led_state_subject(),
-                                                    led_state_observer_cb, this);
+                led_state_observer_ = observe_int_sync<HomePanel>(
+                    printer_state_.get_led_state_subject(), this,
+                    [](HomePanel* self, int state) { self->on_led_state_changed(state); });
             }
 
             // Subscribe to LED brightness changes if not already subscribed
             if (!led_brightness_observer_) {
-                led_brightness_observer_ = ObserverGuard(
-                    printer_state_.get_led_brightness_subject(), led_brightness_observer_cb, this);
+                led_brightness_observer_ = observe_int_sync<HomePanel>(
+                    printer_state_.get_led_brightness_subject(), this,
+                    [](HomePanel* self, int /*brightness*/) { self->update_light_icon(); });
             }
 
             spdlog::info("[{}] Reloaded LED config: {}", get_name(), configured_led_);
@@ -890,35 +918,6 @@ void HomePanel::tip_rotation_timer_cb(lv_timer_t* timer) {
     }
 }
 
-void HomePanel::led_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_led_state_changed(lv_subject_get_int(subject));
-    }
-}
-
-void HomePanel::led_brightness_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->update_light_icon();
-    }
-}
-
-void HomePanel::extruder_temp_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_extruder_temp_changed(lv_subject_get_int(subject));
-    }
-}
-
-void HomePanel::extruder_target_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_extruder_target_changed(lv_subject_get_int(subject));
-    }
-}
-
 void HomePanel::update(const char* status_text, int temp) {
     // Update subjects - all bound widgets update automatically
     if (status_text) {
@@ -1022,32 +1021,10 @@ void HomePanel::set_light(bool is_on) {
     spdlog::debug("[{}] Local light state: {}", get_name(), is_on ? "ON" : "OFF");
 }
 
-void HomePanel::ams_slot_count_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->update_ams_indicator(lv_subject_get_int(subject));
-    }
-}
-
 void HomePanel::update_ams_indicator(int /* slot_count */) {
     // AMS mini status widget auto-updates via observers bound to AmsState.
     // This method only needs to update filament status visibility.
     update_filament_status_visibility();
-}
-
-void HomePanel::ams_bypass_observer_cb(lv_observer_t* observer, lv_subject_t* /*subject*/) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->update_filament_status_visibility();
-    }
-}
-
-void HomePanel::filament_sensor_count_observer_cb(lv_observer_t* observer,
-                                                  lv_subject_t* /*subject*/) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->update_filament_status_visibility();
-    }
 }
 
 void HomePanel::update_filament_status_visibility() {
@@ -1076,38 +1053,6 @@ void HomePanel::update_filament_status_visibility() {
 // ============================================================================
 // PRINT CARD DYNAMIC UPDATES
 // ============================================================================
-
-void HomePanel::print_state_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        auto state = static_cast<PrintJobState>(lv_subject_get_int(subject));
-        self->on_print_state_changed(state);
-    }
-}
-
-void HomePanel::print_progress_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_progress_or_time_changed();
-    }
-}
-
-void HomePanel::print_time_left_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    (void)subject;
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        self->on_print_progress_or_time_changed();
-    }
-}
-
-void HomePanel::print_thumbnail_path_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (self) {
-        const char* path = lv_subject_get_string(subject);
-        self->on_print_thumbnail_path_changed(path);
-    }
-}
 
 void HomePanel::on_print_thumbnail_path_changed(const char* path) {
     if (!print_card_active_thumb_) {
@@ -1210,24 +1155,6 @@ void HomePanel::reset_print_card_to_idle() {
 // ============================================================================
 // Filament Runout Modal
 // ============================================================================
-
-void HomePanel::filament_runout_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* self = static_cast<HomePanel*>(lv_observer_get_user_data(observer));
-    if (!self) {
-        return;
-    }
-
-    int any_runout = lv_subject_get_int(subject);
-    spdlog::debug("[{}] Filament runout subject changed: {}", self->get_name(), any_runout);
-
-    if (any_runout == 1) {
-        // Runout detected - check if we should show modal
-        self->check_and_show_idle_runout_modal();
-    } else {
-        // Filament present - reset the shown flag so modal can show again next time
-        self->runout_modal_shown_ = false;
-    }
-}
 
 void HomePanel::check_and_show_idle_runout_modal() {
     // Grace period - don't show modal during startup
