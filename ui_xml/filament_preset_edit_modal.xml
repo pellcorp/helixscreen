@@ -34,15 +34,7 @@
             height="content" style_bg_opa="0" style_border_width="0" style_pad_all="#space_md" flex_flow="column"
             style_pad_gap="#space_md" scrollable="false">
       <!-- Name field -->
-      <lv_obj width="100%"
-              height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
-              style_pad_gap="#space_xs" scrollable="false">
-        <text_small text="Name" style_text_color="#text_secondary"/>
-        <lv_textarea name="name_input"
-                     width="100%" height="40" style_radius="#border_radius" style_bg_color="#card_bg"
-                     style_border_width="1" style_border_color="#text_secondary" one_line="true" placeholder="PLA"
-                     max_length="16"/>
-      </lv_obj>
+      <form_field label="Name" input_name="name_input" placeholder="PLA" max_length="16"/>
       <!-- Temperature row -->
       <lv_obj width="100%"
               height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"

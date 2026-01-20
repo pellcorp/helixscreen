@@ -630,6 +630,21 @@ void Modal::destroy() {
 // MODAL CLASS - STATIC EVENT HANDLERS
 // ============================================================================
 
+// Helper macro to reduce boilerplate in button callbacks.
+// All button callbacks follow the same pattern: extract Modal* from button's
+// user_data and call the appropriate virtual method.
+#define MODAL_BUTTON_CB_IMPL(cb_name, method_name, button_label)                                   \
+    void Modal::cb_name(lv_event_t* e) {                                                           \
+        LVGL_SAFE_EVENT_CB_BEGIN("[Modal] " #cb_name);                                             \
+        lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));                            \
+        auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));                               \
+        if (self) {                                                                                \
+            spdlog::debug("[{}] " button_label " button clicked", self->get_name());               \
+            self->method_name();                                                                   \
+        }                                                                                          \
+        LVGL_SAFE_EVENT_CB_END();                                                                  \
+    }
+
 void Modal::backdrop_click_cb(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[Modal] backdrop_click_cb");
 
@@ -686,88 +701,17 @@ void Modal::esc_key_cb(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void Modal::ok_button_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Modal] ok_button_cb");
+// Generate all button callbacks using the macro
+// Note: lv_event_get_user_data returns NULL for XML-registered callbacks,
+// so we use lv_obj_get_user_data on the target button instead (set by wire_*_button)
+MODAL_BUTTON_CB_IMPL(ok_button_cb, on_ok, "Ok")
+MODAL_BUTTON_CB_IMPL(cancel_button_cb, on_cancel, "Cancel")
+MODAL_BUTTON_CB_IMPL(tertiary_button_cb, on_tertiary, "Tertiary")
+MODAL_BUTTON_CB_IMPL(quaternary_button_cb, on_quaternary, "Quaternary")
+MODAL_BUTTON_CB_IMPL(quinary_button_cb, on_quinary, "Quinary")
+MODAL_BUTTON_CB_IMPL(senary_button_cb, on_senary, "Senary")
 
-    // Get Modal instance from button's user_data (set by wire_ok_button)
-    // Note: lv_event_get_user_data returns NULL for XML-registered callbacks,
-    // so we use lv_obj_get_user_data on the target button instead
-    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));
-    if (self) {
-        spdlog::debug("[{}] Ok button clicked", self->get_name());
-        self->on_ok();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void Modal::cancel_button_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Modal] cancel_button_cb");
-
-    // Get Modal instance from button's user_data (set by wire_cancel_button)
-    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));
-    if (self) {
-        spdlog::debug("[{}] Cancel button clicked", self->get_name());
-        self->on_cancel();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void Modal::tertiary_button_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Modal] tertiary_button_cb");
-
-    // Get Modal instance from button's user_data (set by wire_tertiary_button)
-    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));
-    if (self) {
-        spdlog::debug("[{}] Tertiary button clicked", self->get_name());
-        self->on_tertiary();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void Modal::quaternary_button_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Modal] quaternary_button_cb");
-
-    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));
-    if (self) {
-        spdlog::debug("[{}] Quaternary button clicked", self->get_name());
-        self->on_quaternary();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void Modal::quinary_button_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Modal] quinary_button_cb");
-
-    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));
-    if (self) {
-        spdlog::debug("[{}] Quinary button clicked", self->get_name());
-        self->on_quinary();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void Modal::senary_button_cb(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[Modal] senary_button_cb");
-
-    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto* self = static_cast<Modal*>(lv_obj_get_user_data(btn));
-    if (self) {
-        spdlog::debug("[{}] Senary button clicked", self->get_name());
-        self->on_senary();
-    }
-
-    LVGL_SAFE_EVENT_CB_END();
-}
+#undef MODAL_BUTTON_CB_IMPL
 
 // ============================================================================
 // MODAL DIALOG SUBJECTS

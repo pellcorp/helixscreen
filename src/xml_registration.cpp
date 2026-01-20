@@ -125,6 +125,7 @@ void register_xml_components() {
     lv_xml_register_component_from_file("A:ui_xml/empty_state.xml");
     lv_xml_register_component_from_file("A:ui_xml/connecting_state.xml");
     lv_xml_register_component_from_file("A:ui_xml/info_note.xml");
+    lv_xml_register_component_from_file("A:ui_xml/form_field.xml");
 
     // emergency_stop_button.xml removed - E-Stop buttons are now embedded in panels
     lv_xml_register_component_from_file("A:ui_xml/estop_confirmation_dialog.xml");

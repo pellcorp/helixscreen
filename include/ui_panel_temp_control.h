@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ui/temperature_observer_bundle.h"
 #include "ui_heater_config.h"
 #include "ui_heating_animator.h"
 #include "ui_observer_guard.h"
@@ -115,10 +116,8 @@ class TempControlPanel {
     MoonrakerAPI* api_;
 
     // Observer handles (RAII cleanup via ObserverGuard)
-    ObserverGuard nozzle_temp_observer_;
-    ObserverGuard nozzle_target_observer_;
-    ObserverGuard bed_temp_observer_;
-    ObserverGuard bed_target_observer_;
+    /// @brief Temperature observer bundle (nozzle + bed temps)
+    helix::ui::TemperatureObserverBundle<TempControlPanel> temp_observers_;
 
     // Temperature state
     int nozzle_current_ = 25;

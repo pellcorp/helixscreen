@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ui/temperature_observer_bundle.h"
 #include "ui_filament_runout_handler.h"
 #include "ui_modal.h"
 #include "ui_observer_guard.h"
@@ -461,10 +462,8 @@ class PrintStatusPanel : public OverlayBase {
     void on_print_start_progress_changed(int progress);
 
     // PrinterState observers (ObserverGuard handles cleanup)
-    ObserverGuard extruder_temp_observer_;
-    ObserverGuard extruder_target_observer_;
-    ObserverGuard bed_temp_observer_;
-    ObserverGuard bed_target_observer_;
+    /// @brief Temperature observer bundle (nozzle + bed temps)
+    helix::ui::TemperatureObserverBundle<PrintStatusPanel> temp_observers_;
     ObserverGuard print_progress_observer_;
     ObserverGuard print_state_observer_;
     ObserverGuard print_filename_observer_;

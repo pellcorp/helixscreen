@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ui/temperature_observer_bundle.h"
 #include "ui_observer_guard.h"
 #include "ui_panel_base.h"
 
@@ -178,10 +179,8 @@ class ControlsPanel : public PanelBase {
     // === Observer Guards (RAII cleanup) ===
     //
 
-    ObserverGuard extruder_temp_observer_;
-    ObserverGuard extruder_target_observer_;
-    ObserverGuard bed_temp_observer_;
-    ObserverGuard bed_target_observer_;
+    /// @brief Temperature observer bundle (nozzle + bed temps)
+    helix::ui::TemperatureObserverBundle<ControlsPanel> temp_observers_;
     ObserverGuard fan_observer_;
     ObserverGuard fans_version_observer_; // Multi-fan list changes
 

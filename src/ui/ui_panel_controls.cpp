@@ -392,27 +392,22 @@ void ControlsPanel::setup_card_handlers() {
 }
 
 void ControlsPanel::register_observers() {
-    // Subscribe to temperature updates using observer factory (raw caching pattern)
-    extruder_temp_observer_ = observe_int_sync<ControlsPanel>(
-        printer_state_.get_extruder_temp_subject(), this, [](ControlsPanel* self, int value) {
+    // Subscribe to temperature updates using bundle (replaces 4 individual observers)
+    temp_observers_.setup_sync(
+        this, printer_state_,
+        [](ControlsPanel* self, int value) {
             self->cached_extruder_temp_ = value;
             self->update_nozzle_temp_display();
-        });
-
-    extruder_target_observer_ = observe_int_sync<ControlsPanel>(
-        printer_state_.get_extruder_target_subject(), this, [](ControlsPanel* self, int value) {
+        },
+        [](ControlsPanel* self, int value) {
             self->cached_extruder_target_ = value;
             self->update_nozzle_temp_display();
-        });
-
-    bed_temp_observer_ = observe_int_sync<ControlsPanel>(printer_state_.get_bed_temp_subject(),
-                                                         this, [](ControlsPanel* self, int value) {
-                                                             self->cached_bed_temp_ = value;
-                                                             self->update_bed_temp_display();
-                                                         });
-
-    bed_target_observer_ = observe_int_sync<ControlsPanel>(
-        printer_state_.get_bed_target_subject(), this, [](ControlsPanel* self, int value) {
+        },
+        [](ControlsPanel* self, int value) {
+            self->cached_bed_temp_ = value;
+            self->update_bed_temp_display();
+        },
+        [](ControlsPanel* self, int value) {
             self->cached_bed_target_ = value;
             self->update_bed_temp_display();
         });

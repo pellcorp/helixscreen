@@ -3,6 +3,7 @@
 
 #include "ui_panel_advanced.h"
 
+#include "ui/ui_lazy_panel_helper.h"
 #include "ui_nav.h"
 #include "ui_nav_manager.h"
 #include "ui_overlay_timelapse_settings.h"
@@ -122,131 +123,24 @@ void AdvancedPanel::on_activate() {
 // ============================================================================
 
 void AdvancedPanel::handle_spoolman_clicked() {
-    spdlog::debug("[{}] Spoolman clicked - opening panel", get_name());
-
-    // Create Spoolman panel on first access (lazy initialization)
-    if (!spoolman_panel_ && parent_screen_) {
-        auto& spoolman = get_global_spoolman_panel();
-
-        // Initialize subjects and callbacks if not already done
-        if (!spoolman.are_subjects_initialized()) {
-            spoolman.init_subjects();
-        }
-        spoolman.register_callbacks();
-
-        // Create overlay UI
-        spoolman_panel_ = spoolman.create(parent_screen_);
-        if (!spoolman_panel_) {
-            spdlog::error("[{}] Failed to create Spoolman panel from XML", get_name());
-            ui_toast_show(ToastSeverity::ERROR, "Failed to open Spoolman", 2000);
-            return;
-        }
-
-        // Register with NavigationManager for lifecycle callbacks
-        NavigationManager::instance().register_overlay_instance(spoolman_panel_, &spoolman);
-        spdlog::info("[{}] Spoolman panel created", get_name());
-    }
-
-    // Push Spoolman panel onto navigation history and show it
-    if (spoolman_panel_) {
-        ui_nav_push_overlay(spoolman_panel_);
-    }
+    helix::ui::lazy_create_and_push_overlay<SpoolmanPanel>(
+        get_global_spoolman_panel, spoolman_panel_, parent_screen_, "Spoolman", get_name());
 }
 
 void AdvancedPanel::handle_macros_clicked() {
-    spdlog::debug("[{}] Macros clicked - opening panel", get_name());
-
-    // Create Macros panel on first access (lazy initialization)
-    if (!macros_panel_ && parent_screen_) {
-        auto& macros = get_global_macros_panel();
-
-        // Initialize subjects and callbacks if not already done
-        if (!macros.are_subjects_initialized()) {
-            macros.init_subjects();
-        }
-        macros.register_callbacks();
-
-        // Create overlay UI
-        macros_panel_ = macros.create(parent_screen_);
-        if (!macros_panel_) {
-            spdlog::error("[{}] Failed to create Macros panel from XML", get_name());
-            ui_toast_show(ToastSeverity::ERROR, "Failed to open Macros", 2000);
-            return;
-        }
-
-        // Register with NavigationManager for lifecycle callbacks
-        NavigationManager::instance().register_overlay_instance(macros_panel_, &macros);
-        spdlog::info("[{}] Macros panel created", get_name());
-    }
-
-    // Push Macros panel onto navigation history and show it
-    if (macros_panel_) {
-        ui_nav_push_overlay(macros_panel_);
-    }
+    helix::ui::lazy_create_and_push_overlay<MacrosPanel>(
+        get_global_macros_panel, macros_panel_, parent_screen_, "Macros", get_name());
 }
 
 void AdvancedPanel::handle_console_clicked() {
-    spdlog::debug("[{}] Console clicked - opening panel", get_name());
-
-    // Create Console panel on first access (lazy initialization)
-    if (!console_panel_ && parent_screen_) {
-        auto& console = get_global_console_panel();
-
-        // Initialize subjects and callbacks if not already done
-        if (!console.are_subjects_initialized()) {
-            console.init_subjects();
-        }
-        console.register_callbacks();
-
-        // Create overlay UI
-        console_panel_ = console.create(parent_screen_);
-        if (!console_panel_) {
-            spdlog::error("[{}] Failed to create Console panel from XML", get_name());
-            ui_toast_show(ToastSeverity::ERROR, "Failed to open Console", 2000);
-            return;
-        }
-
-        // Register with NavigationManager for lifecycle callbacks
-        NavigationManager::instance().register_overlay_instance(console_panel_, &console);
-        spdlog::info("[{}] Console panel created", get_name());
-    }
-
-    // Push Console panel onto navigation history and show it
-    if (console_panel_) {
-        ui_nav_push_overlay(console_panel_);
-    }
+    helix::ui::lazy_create_and_push_overlay<ConsolePanel>(
+        get_global_console_panel, console_panel_, parent_screen_, "Console", get_name());
 }
 
 void AdvancedPanel::handle_history_clicked() {
-    spdlog::debug("[{}] History clicked - opening panel", get_name());
-
-    // Create History Dashboard panel on first access (lazy initialization)
-    if (!history_dashboard_panel_ && parent_screen_) {
-        auto& history = get_global_history_dashboard_panel();
-
-        // Initialize subjects and callbacks if not already done
-        if (!history.are_subjects_initialized()) {
-            history.init_subjects();
-        }
-        history.register_callbacks();
-
-        // Create overlay UI
-        history_dashboard_panel_ = history.create(parent_screen_);
-        if (!history_dashboard_panel_) {
-            spdlog::error("[{}] Failed to create History Dashboard panel from XML", get_name());
-            ui_toast_show(ToastSeverity::ERROR, "Failed to open Print History", 2000);
-            return;
-        }
-
-        // Register with NavigationManager for lifecycle callbacks
-        NavigationManager::instance().register_overlay_instance(history_dashboard_panel_, &history);
-        spdlog::info("[{}] History Dashboard panel created", get_name());
-    }
-
-    // Push History Dashboard panel onto navigation history and show it
-    if (history_dashboard_panel_) {
-        ui_nav_push_overlay(history_dashboard_panel_);
-    }
+    helix::ui::lazy_create_and_push_overlay<HistoryDashboardPanel>(
+        get_global_history_dashboard_panel, history_dashboard_panel_, parent_screen_,
+        "Print History", get_name());
 }
 
 void AdvancedPanel::handle_configure_print_start_clicked() {

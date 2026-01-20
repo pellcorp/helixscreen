@@ -63,10 +63,10 @@ TempControlPanel::TempControlPanel(PrinterState& printer_state, MoonrakerAPI* ap
     nozzle_status_buf_.fill('\0');
     bed_status_buf_.fill('\0');
 
-    // Subscribe to PrinterState temperature subjects using observer factory (ObserverGuard handles
-    // cleanup)
-    nozzle_temp_observer_ = observe_int_sync<TempControlPanel>(
-        printer_state_.get_extruder_temp_subject(), this, [](TempControlPanel* self, int temp) {
+    // Subscribe to temperature subjects using bundle (replaces 4 individual observers)
+    temp_observers_.setup_sync(
+        this, printer_state_,
+        [](TempControlPanel* self, int temp) {
             // Throttled logging: log every 40th unique major value change (~10 seconds)
             static int last_logged = 0;
             if (temp != last_logged && (temp / 100) != (last_logged / 100)) {
@@ -74,18 +74,9 @@ TempControlPanel::TempControlPanel(PrinterState& printer_state, MoonrakerAPI* ap
                 last_logged = temp;
             }
             self->on_nozzle_temp_changed(temp);
-        });
-
-    nozzle_target_observer_ = observe_int_sync<TempControlPanel>(
-        printer_state_.get_extruder_target_subject(), this,
-        [](TempControlPanel* self, int target) { self->on_nozzle_target_changed(target); });
-
-    bed_temp_observer_ = observe_int_sync<TempControlPanel>(
-        printer_state_.get_bed_temp_subject(), this,
-        [](TempControlPanel* self, int temp) { self->on_bed_temp_changed(temp); });
-
-    bed_target_observer_ = observe_int_sync<TempControlPanel>(
-        printer_state_.get_bed_target_subject(), this,
+        },
+        [](TempControlPanel* self, int target) { self->on_nozzle_target_changed(target); },
+        [](TempControlPanel* self, int temp) { self->on_bed_temp_changed(temp); },
         [](TempControlPanel* self, int target) { self->on_bed_target_changed(target); });
 
     // Register XML event callbacks in constructor (BEFORE any lv_xml_create calls)
