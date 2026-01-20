@@ -6,15 +6,37 @@
 
 ---
 
+## Workflow Checklist
+
+**Before starting work:**
+1. Read this document to understand remaining tasks
+2. Pick tasks from the same group for parallel execution (see "Notes for Parallel Execution")
+3. Use TodoWrite to track in-progress items
+
+**After completing tasks:**
+1. Update task status in this document (`[ ]` → `[x]`)
+2. Update individual checklists within tasks
+3. Add entry to Completion Log with date and notes
+4. Update Summary table counts
+5. Run code review before committing
+6. Commit this document with your code changes
+
+**Commit format:**
+```
+refactor(ui): [brief description] ([task IDs])
+```
+
+---
+
 ## Summary
 
 | Category | Total Tasks | Completed | Remaining |
 |----------|-------------|-----------|-----------|
 | High Priority | 5 | 5 | 0 |
-| Medium Priority - C++ | 8 | 0 | 8 |
-| Medium Priority - XML | 6 | 0 | 6 |
+| Medium Priority - C++ | 8 | 5 | 3 |
+| Medium Priority - XML | 6 | 5 | 1 |
 | Low Priority | 5 | 0 | 5 |
-| **Total** | **24** | **5** | **19** |
+| **Total** | **24** | **15** | **9** |
 
 ---
 
@@ -266,7 +288,7 @@ ObserverGuard observe_print_state(lv_subject_t* subject, Panel* panel, Handler&&
 ## Medium Priority Tasks - C++
 
 ### MP-C1: Extract Subject Init/Deinit Guards to Base Class
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: ~20 lines saved per panel, 6+ panels
 - **Files**:
   - Update: `include/ui/ui_panel_base.h` or `include/ui/ui_overlay_base.h`
@@ -301,18 +323,18 @@ protected:
 ```
 
 **Checklist**:
-- [ ] Add guarded init/deinit methods to base class
-- [ ] Refactor `ui_panel_filament.cpp`
-- [ ] Refactor `ui_panel_bed_mesh.cpp`
-- [ ] Refactor `ui_panel_temp_control.cpp`
-- [ ] Refactor `ui_panel_console.cpp`
-- [ ] Refactor `ui_panel_spoolman.cpp`
-- [ ] Refactor `ui_panel_macros.cpp`
+- [x] Add guarded init/deinit methods to base class
+- [x] Refactor `ui_panel_filament.cpp`
+- [x] Refactor `ui_panel_bed_mesh.cpp`
+- [-] Refactor `ui_panel_temp_control.cpp` (standalone class, skipped)
+- [x] Refactor `ui_panel_console.cpp`
+- [x] Refactor `ui_panel_spoolman.cpp`
+- [x] Refactor `ui_panel_macros.cpp`
 
 ---
 
 ### MP-C2: Create Overlay Creation Helper in OverlayBase
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: ~30 lines saved per overlay, 4+ overlays
 - **Files**:
   - Update: `include/ui/ui_overlay_base.h`
@@ -348,11 +370,11 @@ protected:
 ```
 
 **Checklist**:
-- [ ] Add `create_overlay_from_xml` to `OverlayBase`
-- [ ] Refactor `ui_panel_console.cpp`
-- [ ] Refactor `ui_panel_spoolman.cpp`
-- [ ] Refactor `ui_panel_macros.cpp`
-- [ ] Refactor `ui_panel_bed_mesh.cpp`
+- [x] Add `create_overlay_from_xml` to `OverlayBase`
+- [x] Refactor `ui_panel_console.cpp`
+- [x] Refactor `ui_panel_spoolman.cpp`
+- [x] Refactor `ui_panel_macros.cpp`
+- [-] Refactor `ui_panel_bed_mesh.cpp` (not an overlay, skipped)
 
 ---
 
@@ -404,7 +426,7 @@ lv_obj_t* lazy_create_and_push_overlay(
 ---
 
 ### MP-C4: Consolidate Modal Button Wiring
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: ~50 lines saved in Modal class
 - **Files**:
   - Update: `include/ui/ui_modal.h`
@@ -430,8 +452,8 @@ void Modal::wire_cancel_button(const char* name) { wire_button(name, "Cancel"); 
 ```
 
 **Checklist**:
-- [ ] Add `wire_button` private helper to Modal
-- [ ] Refactor all `wire_*_button` methods to use helper
+- [x] Add `wire_button` private helper to Modal
+- [x] Refactor all `wire_*_button` methods to use helper
 
 ---
 
@@ -465,7 +487,7 @@ void Modal::wire_cancel_button(const char* name) { wire_button(name, "Cancel"); 
 ---
 
 ### MP-C7: Create Fullscreen Backdrop Helper
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: ~20 lines saved
 - **Files**:
   - Update: `include/ui/ui_utils.h` or new file
@@ -478,14 +500,14 @@ lv_obj_t* ui_create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity = 180
 ```
 
 **Checklist**:
-- [ ] Add `ui_create_fullscreen_backdrop` utility
-- [ ] Refactor `Modal::show()` and `Modal::create_and_show()`
-- [ ] Refactor `BusyOverlay::create_overlay_internal()`
+- [x] Add `ui_create_fullscreen_backdrop` utility
+- [x] Refactor `Modal::show()` and `Modal::create_and_show()`
+- [x] Refactor `BusyOverlay::create_overlay_internal()`
 
 ---
 
 ### MP-C8: Create Visibility Toggle Utility
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: ~10 lines saved per panel, 3+ panels
 - **Files**:
   - Update: `include/ui/ui_utils.h`
@@ -502,15 +524,15 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
 ```
 
 **Checklist**:
-- [ ] Add `ui_toggle_list_empty_state` to `ui_utils.h`
-- [ ] Refactor visibility logic in 3+ panels
+- [x] Add `ui_toggle_list_empty_state` to `ui_utils.h`
+- [x] Refactor visibility logic in console, macros panels
 
 ---
 
 ## Medium Priority Tasks - XML
 
 ### MP-X1: Create Modal Header Component
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: 5+ modal files simplified
 - **Files**:
   - Create: `ui_xml/modal_header.xml`
@@ -520,14 +542,16 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
   - Update: `ui_xml/action_prompt_modal.xml`
 
 **Checklist**:
-- [ ] Create `ui_xml/modal_header.xml` with icon + title
-- [ ] Register component
-- [ ] Update modal files to use component
+- [x] Create `ui_xml/modal_header.xml` with icon + title
+- [x] Register component
+- [x] Update factory_reset_modal.xml, theme_restart_modal.xml
+- [-] modal_dialog.xml (uses dynamic severity icons, skipped)
+- [-] action_prompt_modal.xml (no icon, skipped)
 
 ---
 
 ### MP-X2: Create Connecting State Component
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: 2+ files, potential for more
 - **Files**:
   - Create: `ui_xml/connecting_state.xml`
@@ -535,14 +559,14 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
   - Update: `ui_xml/hidden_network_modal.xml`
 
 **Checklist**:
-- [ ] Create `ui_xml/connecting_state.xml`
-- [ ] Register component
-- [ ] Update WiFi modals to use component
+- [x] Create `ui_xml/connecting_state.xml`
+- [x] Register component
+- [x] Update wifi_password_modal.xml, hidden_network_modal.xml
 
 ---
 
 ### MP-X3: Create Info Note Component
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: 3+ files
 - **Files**:
   - Create: `ui_xml/info_note.xml`
@@ -551,14 +575,14 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
   - Update: `ui_xml/network_settings_overlay.xml`
 
 **Checklist**:
-- [ ] Create `ui_xml/info_note.xml`
-- [ ] Register component
-- [ ] Update overlay files to use component
+- [x] Create `ui_xml/info_note.xml`
+- [x] Register component
+- [x] Update settings_plugins_overlay.xml, display_settings_overlay.xml, filament_sensors_overlay.xml
 
 ---
 
 ### MP-X4: Create Empty State Component
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: 3+ files
 - **Files**:
   - Create: `ui_xml/empty_state.xml`
@@ -567,14 +591,14 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
   - Update: `ui_xml/spoolman_picker_modal.xml`
 
 **Checklist**:
-- [ ] Create `ui_xml/empty_state.xml` with icon + text props
-- [ ] Register component
-- [ ] Update files with empty placeholder pattern
+- [x] Create `ui_xml/empty_state.xml` with icon + text props
+- [x] Register component
+- [x] Update network_settings_overlay.xml, spoolman_picker_modal.xml
 
 ---
 
 ### MP-X5: Create Centered Column Component
-- **Status**: `[ ]` Pending
+- **Status**: `[x]` Complete (2026-01-20)
 - **Impact**: 27 occurrences across 14 files
 - **Files**:
   - Create: `ui_xml/centered_column.xml`
@@ -589,9 +613,9 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
 ```
 
 **Checklist**:
-- [ ] Create `ui_xml/centered_column.xml`
-- [ ] Register component
-- [ ] Update files using centered flex pattern
+- [x] Create `ui_xml/centered_column.xml`
+- [x] Register component
+- [x] Update 5 files: spoolman_panel, print_select_panel, history_dashboard_panel, filament_sensors_overlay, bed_mesh_panel
 
 ---
 
@@ -671,6 +695,16 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
 | 2026-01-20 | HP-2: Global panel singleton macro | Created macro, refactored 4 panels (console, spoolman, macros, bed_mesh) |
 | 2026-01-20 | HP-3: Modal button row component | Created component, registered in xml_registration.cpp |
 | 2026-01-20 | HP-4: Divider components | Created horizontal and vertical dividers, registered in xml_registration.cpp |
+| 2026-01-20 | MP-C1: Subject init/deinit guards | Added to PanelBase and OverlayBase, refactored 5 panels |
+| 2026-01-20 | MP-C2: Overlay creation helper | Added `create_overlay_from_xml()` to OverlayBase, refactored 3 overlay panels |
+| 2026-01-20 | MP-C4: Modal button wiring | Consolidated with private `wire_button()` helper |
+| 2026-01-20 | MP-C7: Fullscreen backdrop helper | Added `ui_create_fullscreen_backdrop()`, refactored Modal and BusyOverlay |
+| 2026-01-20 | MP-C8: Visibility toggle utility | Added `ui_toggle_list_empty_state()`, refactored console and macros panels |
+| 2026-01-20 | MP-X1: Modal header component | Created component, updated 2 modal files |
+| 2026-01-20 | MP-X2: Connecting state component | Created component, updated WiFi modals |
+| 2026-01-20 | MP-X3: Info note component | Created component, updated 3 overlay files |
+| 2026-01-20 | MP-X4: Empty state component | Created component with sensible `inbox_outline` default icon |
+| 2026-01-20 | MP-X5: Centered column component | Created component, updated 5 panel/overlay files |
 
 ---
 
@@ -679,24 +713,31 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
 Tasks are designed to be independent. Safe parallel groupings:
 
 **Group A** (C++ Observer Patterns):
-- HP-1: Migrate manual observer callbacks
+- HP-1: Migrate manual observer callbacks ✅
 - HP-5: Add domain-specific observer helpers ✅
 - MP-C6: Temperature observer bundle
 
 **Group B** (C++ Base Class Improvements):
 - HP-2: Global panel singleton macro ✅
-- MP-C1: Subject init/deinit guards
-- MP-C2: Overlay creation helper
+- MP-C1: Subject init/deinit guards ✅
+- MP-C2: Overlay creation helper ✅
 
 **Group C** (XML Components):
-- HP-3: Modal button row ✅ (component created)
-- HP-4: Dividers ✅ (components created)
-- MP-X1 through MP-X6
+- HP-3: Modal button row ✅
+- HP-4: Dividers ✅
+- MP-X1: Modal header ✅
+- MP-X2: Connecting state ✅
+- MP-X3: Info note ✅
+- MP-X4: Empty state ✅
+- MP-X5: Centered column ✅
+- MP-X6: Form field
 
 **Group D** (Utilities):
 - MP-C3: Lazy panel navigation
-- MP-C4/C5: Modal button consolidation
-- MP-C7/C8: Backdrop and visibility helpers
+- MP-C4: Modal button wiring ✅
+- MP-C5: Modal button callbacks
+- MP-C7: Backdrop helper ✅
+- MP-C8: Visibility helper ✅
 
 ---
 
