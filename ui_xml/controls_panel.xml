@@ -26,15 +26,19 @@
     <!-- Z-Offset Adjustment Banner (reactive: hidden when pending_z_offset_delta == 0) -->
     <!-- Uses absolute positioning via align to avoid affecting flex layout -->
     <lv_obj name="z_offset_banner"
-            width="content" height="content" hidden="true" align="top_mid" style_bg_color="#tertiary_color"
-            style_bg_opa="220" style_radius="#border_radius" style_pad_all="#space_sm" style_border_width="0"
-            scrollable="false" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm">
+            width="content" height="content" hidden="true" align="top_mid" style_bg_color="#info_color"
+            style_bg_opa="200" style_radius="#border_radius" style_pad_all="#space_sm" style_border_width="0"
+            scrollable="false" flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center">
       <bind_flag_if_eq subject="pending_z_offset_delta" flag="hidden" ref_value="0"/>
-      <text_small text="Z-Offset:" style_text_color="#text_primary"/>
-      <text_small name="z_offset_delta_label" bind_text="z_offset_delta_display" style_text_color="#text_primary"/>
+      <lv_obj width="content"
+              height="content" style_bg_opa="0" style_border_width="0" scrollable="false" flex_flow="column"
+              style_pad_gap="#space_xxs">
+        <text_small text="Z-Offset Adjusted" style_text_color="#text_primary"/>
+        <text_small name="z_offset_delta_label" bind_text="z_offset_delta_display" style_text_color="#text_secondary"/>
+      </lv_obj>
       <lv_button name="btn_save_z_offset"
                  height="content" style_radius="#border_radius" style_bg_color="#success_color" style_border_width="0"
-                 style_pad_left="#space_sm" style_pad_right="#space_sm" style_margin_left="#space_xs">
+                 style_pad_left="#space_sm" style_pad_right="#space_sm" style_margin_left="#space_md">
         <event_cb trigger="clicked" callback="on_controls_save_z_offset"/>
         <text_small text="Save" style_text_color="#text_primary"/>
       </lv_button>
@@ -94,20 +98,57 @@
             </lv_obj>
           </lv_obj>
         </lv_obj>
-        <!-- Z-Offset Live Tune (clickable row to open zoffset panel) -->
-        <lv_button name="btn_zoffset_tune"
-                   width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
-                   style_radius="0" style_pad_top="#space_xs" flex_flow="row" style_flex_main_place="space_between"
-                   style_flex_cross_place="center">
-          <event_cb trigger="clicked" callback="on_zoffset_tune"/>
-          <text_small text="Z-Offset" style_text_color="#text_secondary"/>
-          <lv_obj width="content"
+        <!-- Speed/Flow Overrides -->
+        <lv_obj width="100%"
+                height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
+                flex_flow="column" style_pad_gap="#space_xxs" style_pad_top="#space_xs">
+          <!-- Speed Override Row -->
+          <lv_obj width="100%"
                   height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
-                  flex_flow="row" style_pad_gap="#space_xs" style_flex_cross_place="center">
-            <text_body name="zoffset_display" bind_text="controls_zoffset" style_text_color="#text_primary"/>
-            <icon src="chevron_right" size="sm" variant="secondary"/>
+                  flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center">
+            <text_small text="Speed" style_text_color="#text_secondary"/>
+            <lv_obj width="content"
+                    height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
+                    flex_flow="row" style_pad_gap="#space_xxs" style_flex_cross_place="center">
+              <lv_button width="40"
+                         height="40" style_radius="#border_radius" style_bg_color="#secondary_color" style_bg_opa="60"
+                         style_border_width="0" style_pad_all="0">
+                <event_cb trigger="clicked" callback="on_controls_speed_down"/>
+                <text_body text="-" align="center"/>
+              </lv_button>
+              <text_body name="speed_pct" width="48" bind_text="controls_speed_pct" style_text_align="center"/>
+              <lv_button width="40"
+                         height="40" style_radius="#border_radius" style_bg_color="#secondary_color" style_bg_opa="60"
+                         style_border_width="0" style_pad_all="0">
+                <event_cb trigger="clicked" callback="on_controls_speed_up"/>
+                <text_body text="+" align="center"/>
+              </lv_button>
+            </lv_obj>
           </lv_obj>
-        </lv_button>
+          <!-- Flow Override Row -->
+          <lv_obj width="100%"
+                  height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
+                  flex_flow="row" style_flex_main_place="space_between" style_flex_cross_place="center">
+            <text_small text="Flow" style_text_color="#text_secondary"/>
+            <lv_obj width="content"
+                    height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
+                    flex_flow="row" style_pad_gap="#space_xxs" style_flex_cross_place="center">
+              <lv_button width="40"
+                         height="40" style_radius="#border_radius" style_bg_color="#secondary_color" style_bg_opa="60"
+                         style_border_width="0" style_pad_all="0">
+                <event_cb trigger="clicked" callback="on_controls_flow_down"/>
+                <text_body text="-" align="center"/>
+              </lv_button>
+              <text_body name="flow_pct" width="48" bind_text="controls_flow_pct" style_text_align="center"/>
+              <lv_button width="40"
+                         height="40" style_radius="#border_radius" style_bg_color="#secondary_color" style_bg_opa="60"
+                         style_border_width="0" style_pad_all="0">
+                <event_cb trigger="clicked" callback="on_controls_flow_up"/>
+                <text_body text="+" align="center"/>
+              </lv_button>
+            </lv_obj>
+          </lv_obj>
+        </lv_obj>
         <!-- Motion panel navigation button -->
         <lv_button name="btn_motion"
                    width="100%" height="#button_height_sm" style_radius="#border_radius" style_pad_left="#space_sm"

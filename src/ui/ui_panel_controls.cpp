@@ -176,10 +176,13 @@ void ControlsPanel::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(controls_pos_z_subject_, controls_pos_z_buf_, "   —   mm",
                               "controls_pos_z", subjects_);
 
-    // Z-Offset display subject for Position card tune row
-    std::strcpy(controls_zoffset_buf_, "—");
-    UI_MANAGED_SUBJECT_STRING(controls_zoffset_subject_, controls_zoffset_buf_, "—",
-                              "controls_zoffset", subjects_);
+    // Speed/Flow override display subjects
+    std::strcpy(speed_override_buf_, "100%");
+    std::strcpy(flow_override_buf_, "100%");
+    UI_MANAGED_SUBJECT_STRING(speed_override_subject_, speed_override_buf_, "100%",
+                              "controls_speed_pct", subjects_);
+    UI_MANAGED_SUBJECT_STRING(flow_override_subject_, flow_override_buf_, "100%",
+                              "controls_flow_pct", subjects_);
 
     // Macro buttons 3 & 4 visibility and names
     UI_MANAGED_SUBJECT_INT(macro_3_visible_, 0, "macro_3_visible", subjects_);
@@ -252,8 +255,11 @@ void ControlsPanel::init_subjects() {
     lv_xml_register_event_cb(nullptr, "on_controls_macro_3", on_macro_3);
     lv_xml_register_event_cb(nullptr, "on_controls_macro_4", on_macro_4);
 
-    // Z-Offset tune button (Position card)
-    lv_xml_register_event_cb(nullptr, "on_zoffset_tune", on_zoffset_tune);
+    // Speed/Flow override buttons
+    lv_xml_register_event_cb(nullptr, "on_controls_speed_up", on_speed_up);
+    lv_xml_register_event_cb(nullptr, "on_controls_speed_down", on_speed_down);
+    lv_xml_register_event_cb(nullptr, "on_controls_flow_up", on_flow_up);
+    lv_xml_register_event_cb(nullptr, "on_controls_flow_down", on_flow_down);
 
     // Cooling: Fan slider
     lv_xml_register_event_cb(nullptr, "on_controls_fan_slider", on_fan_slider_changed);
@@ -443,10 +449,10 @@ void ControlsPanel::register_observers() {
             lv_subject_copy_string(&self->controls_pos_z_subject_, self->controls_pos_z_buf_);
         });
 
-    // Subscribe to z-offset updates for Position card tune row
-    zoffset_observer_ = observe_int_sync<ControlsPanel>(
-        printer_state_.get_gcode_z_offset_subject(), this,
-        [](ControlsPanel* self, int /* value */) { self->update_zoffset_display(); });
+    // Subscribe to speed/flow factor updates
+    speed_factor_observer_ = observe_int_sync<ControlsPanel>(
+        printer_state_.get_speed_factor_subject(), this,
+        [](ControlsPanel* self, int /* value */) { self->update_speed_display(); });
 
     spdlog::debug("[{}] Observers registered for dashboard live data", get_name());
 }
@@ -1018,24 +1024,121 @@ void ControlsPanel::handle_macro_4() {
 }
 
 // ============================================================================
-// Z-OFFSET TUNE HANDLERS
+// SPEED/FLOW OVERRIDE HANDLERS
 // ============================================================================
 
-void ControlsPanel::update_zoffset_display() {
-    // Get z_offset in microns from PrinterState and format as mm
-    int offset_microns = 0;
-    if (auto* zoffset_subj = printer_state_.get_gcode_z_offset_subject()) {
-        offset_microns = lv_subject_get_int(zoffset_subj);
+void ControlsPanel::update_speed_display() {
+    int speed_pct = 100;
+    if (auto* speed_subj = printer_state_.get_speed_factor_subject()) {
+        speed_pct = lv_subject_get_int(speed_subj);
     }
-
-    double offset_mm = static_cast<double>(offset_microns) / 1000.0;
-    std::snprintf(controls_zoffset_buf_, sizeof(controls_zoffset_buf_), "%.3fmm", offset_mm);
-    lv_subject_copy_string(&controls_zoffset_subject_, controls_zoffset_buf_);
+    std::snprintf(speed_override_buf_, sizeof(speed_override_buf_), "%d%%", speed_pct);
+    lv_subject_copy_string(&speed_override_subject_, speed_override_buf_);
 }
 
-void ControlsPanel::handle_zoffset_tune() {
-    spdlog::debug("[{}] Z-Offset tune row clicked - opening Z-Offset panel", get_name());
-    handle_calibration_zoffset();
+void ControlsPanel::update_flow_display() {
+    // Flow factor is stored as percentage (100 = 100%)
+    int flow_pct = 100;
+    // Note: PrinterState may need a get_extrude_factor_subject() method
+    // For now, we'll initialize to 100% and update when that's available
+    std::snprintf(flow_override_buf_, sizeof(flow_override_buf_), "%d%%", flow_pct);
+    lv_subject_copy_string(&flow_override_subject_, flow_override_buf_);
+}
+
+void ControlsPanel::handle_speed_up() {
+    if (!api_) {
+        NOTIFY_ERROR("No printer connection");
+        return;
+    }
+
+    int current = 100;
+    if (auto* speed_subj = printer_state_.get_speed_factor_subject()) {
+        current = lv_subject_get_int(speed_subj);
+    }
+
+    int new_speed = std::min(current + 10, 200); // Cap at 200%
+    spdlog::debug("[{}] Speed up: {} → {}", get_name(), current, new_speed);
+
+    char gcode[32];
+    std::snprintf(gcode, sizeof(gcode), "M220 S%d", new_speed);
+    api_->execute_gcode(
+        gcode, []() { /* Silent success */ },
+        [](const MoonrakerError& err) {
+            NOTIFY_ERROR("Speed change failed: {}", err.user_message());
+        });
+}
+
+void ControlsPanel::handle_speed_down() {
+    if (!api_) {
+        NOTIFY_ERROR("No printer connection");
+        return;
+    }
+
+    int current = 100;
+    if (auto* speed_subj = printer_state_.get_speed_factor_subject()) {
+        current = lv_subject_get_int(speed_subj);
+    }
+
+    int new_speed = std::max(current - 10, 10); // Floor at 10%
+    spdlog::debug("[{}] Speed down: {} → {}", get_name(), current, new_speed);
+
+    char gcode[32];
+    std::snprintf(gcode, sizeof(gcode), "M220 S%d", new_speed);
+    api_->execute_gcode(
+        gcode, []() { /* Silent success */ },
+        [](const MoonrakerError& err) {
+            NOTIFY_ERROR("Speed change failed: {}", err.user_message());
+        });
+}
+
+void ControlsPanel::handle_flow_up() {
+    if (!api_) {
+        NOTIFY_ERROR("No printer connection");
+        return;
+    }
+
+    // For now, track locally; ideally this would come from PrinterState
+    static int current_flow = 100;
+    int new_flow = std::min(current_flow + 5, 150); // Cap at 150%
+    spdlog::debug("[{}] Flow up: {} → {}", get_name(), current_flow, new_flow);
+    current_flow = new_flow;
+
+    char gcode[32];
+    std::snprintf(gcode, sizeof(gcode), "M221 S%d", new_flow);
+    api_->execute_gcode(
+        gcode,
+        [this, new_flow]() {
+            std::snprintf(flow_override_buf_, sizeof(flow_override_buf_), "%d%%", new_flow);
+            lv_subject_copy_string(&flow_override_subject_, flow_override_buf_);
+        },
+        [](const MoonrakerError& err) {
+            NOTIFY_ERROR("Flow change failed: {}", err.user_message());
+        });
+}
+
+void ControlsPanel::handle_flow_down() {
+    if (!api_) {
+        NOTIFY_ERROR("No printer connection");
+        return;
+    }
+
+    // For now, track locally; ideally this would come from PrinterState
+    static int current_flow = 100;
+    int new_flow = std::max(current_flow - 5, 50); // Floor at 50%
+    spdlog::debug("[{}] Flow down: {} → {}", get_name(), current_flow, new_flow);
+    current_flow = new_flow;
+
+    char gcode[32];
+    std::snprintf(gcode, sizeof(gcode), "M221 S%d", new_flow);
+    api_->execute_gcode(
+        gcode,
+        [this, new_flow]() {
+            std::snprintf(flow_override_buf_, sizeof(flow_override_buf_), "%d%%", new_flow);
+            lv_subject_copy_string(&flow_override_subject_, flow_override_buf_);
+        },
+        [](const MoonrakerError& err) {
+            NOTIFY_ERROR("Flow change failed: {}", err.user_message());
+        });
 }
 
 // ============================================================================
@@ -1338,10 +1441,31 @@ void ControlsPanel::on_macro_4(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_END();
 }
 
-void ControlsPanel::on_zoffset_tune(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_zoffset_tune");
+void ControlsPanel::on_speed_up(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_speed_up");
     (void)e;
-    get_global_controls_panel().handle_zoffset_tune();
+    get_global_controls_panel().handle_speed_up();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void ControlsPanel::on_speed_down(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_speed_down");
+    (void)e;
+    get_global_controls_panel().handle_speed_down();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void ControlsPanel::on_flow_up(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_flow_up");
+    (void)e;
+    get_global_controls_panel().handle_flow_up();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void ControlsPanel::on_flow_down(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ControlsPanel] on_flow_down");
+    (void)e;
+    get_global_controls_panel().handle_flow_down();
     LVGL_SAFE_EVENT_CB_END();
 }
 
