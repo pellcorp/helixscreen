@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <any>
 #include <cmath>
 #include <cstdint>
 #include <string>
@@ -816,6 +817,71 @@ struct ToolMappingCapabilities {
     bool supported = false;  ///< Does this backend support tool mapping?
     bool editable = false;   ///< Can the UI modify the mapping?
     std::string description; ///< UI hint text (e.g., "Per-lane tool assignment via SET_MAP")
+};
+
+/**
+ * @brief Action type for dynamic device controls
+ */
+enum class ActionType {
+    BUTTON,   ///< Simple action button
+    TOGGLE,   ///< On/off toggle switch
+    SLIDER,   ///< Value slider with min/max
+    DROPDOWN, ///< Selection from options list
+    INFO      ///< Read-only information display
+};
+
+/**
+ * @brief Convert ActionType to string for display/debug
+ */
+inline const char* action_type_to_string(ActionType type) {
+    switch (type) {
+    case ActionType::BUTTON:
+        return "Button";
+    case ActionType::TOGGLE:
+        return "Toggle";
+    case ActionType::SLIDER:
+        return "Slider";
+    case ActionType::DROPDOWN:
+        return "Dropdown";
+    case ActionType::INFO:
+        return "Info";
+    default:
+        return "Unknown";
+    }
+}
+
+/**
+ * @brief Section metadata for UI rendering
+ *
+ * Groups related device actions together in the UI.
+ */
+struct DeviceSection {
+    std::string id;    ///< Section identifier (e.g., "calibration")
+    std::string label; ///< Display label (e.g., "Calibration")
+    std::string icon;  ///< Icon name for the section header
+    int display_order; ///< Sort order (0 = first)
+};
+
+/**
+ * @brief Represents a single device-specific action
+ *
+ * Backends populate these to expose unique features without hardcoding in UI.
+ */
+struct DeviceAction {
+    std::string id;                   ///< Unique action ID (e.g., "afc_calibration")
+    std::string label;                ///< Display label
+    std::string icon;                 ///< Icon name
+    std::string section;              ///< Section ID this action belongs to
+    std::string description;          ///< Optional tooltip/hint text
+    ActionType type;                  ///< Control type
+    std::any current_value;           ///< Current value (for toggles/sliders/dropdowns)
+    std::vector<std::string> options; ///< Options for dropdown type
+    float min_value = 0;              ///< Min value for slider type
+    float max_value = 100;            ///< Max value for slider type
+    std::string unit;                 ///< Display unit (e.g., "mm", "%")
+    int slot_index = -1;              ///< If action is per-slot (-1 = system-wide)
+    bool enabled = true;              ///< Whether action is currently available
+    std::string disable_reason;       ///< Why disabled (if applicable)
 };
 
 } // namespace helix::printer

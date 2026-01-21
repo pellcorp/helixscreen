@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <string>
 
 // Forward declaration
 class MoonrakerAPI;

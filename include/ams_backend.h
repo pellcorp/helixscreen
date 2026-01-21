@@ -16,6 +16,7 @@
 #include "ams_error.h"
 #include "ams_types.h"
 
+#include <any>
 #include <functional>
 #include <memory>
 #include <string>
@@ -521,6 +522,47 @@ class AmsBackend {
      */
     [[nodiscard]] virtual std::vector<int> get_tool_mapping() const {
         return {}; // Default: empty
+    }
+
+    // ========================================================================
+    // Device-Specific Actions
+    // ========================================================================
+
+    /**
+     * @brief Get available device sections for this backend
+     *
+     * Sections group related actions (e.g., "Calibration", "Speed Settings").
+     * UI renders sections in display_order.
+     *
+     * @return Vector of DeviceSection (empty if no device-specific features)
+     */
+    [[nodiscard]] virtual std::vector<helix::printer::DeviceSection> get_device_sections() const {
+        return {};
+    }
+
+    /**
+     * @brief Get available device actions
+     *
+     * Returns all device-specific actions. UI groups them by section ID.
+     *
+     * @return Vector of DeviceAction (empty if no device-specific features)
+     */
+    [[nodiscard]] virtual std::vector<helix::printer::DeviceAction> get_device_actions() const {
+        return {};
+    }
+
+    /**
+     * @brief Execute a device action
+     *
+     * @param action_id The action ID from get_device_actions()
+     * @param value Optional value for toggles/sliders/dropdowns
+     * @return AmsError indicating success/failure
+     */
+    virtual AmsError execute_device_action(const std::string& action_id,
+                                           const std::any& value = {}) {
+        (void)action_id;
+        (void)value;
+        return AmsErrorHelper::not_supported("Device actions");
     }
 
     // ========================================================================

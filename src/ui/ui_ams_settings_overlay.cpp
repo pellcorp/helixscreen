@@ -9,6 +9,7 @@
 #include "ui_ams_settings_overlay.h"
 
 #include "ui_ams_behavior_overlay.h"
+#include "ui_ams_device_actions_overlay.h"
 #include "ui_ams_endless_spool_overlay.h"
 #include "ui_ams_maintenance_overlay.h"
 #include "ui_ams_spoolman_overlay.h"
@@ -282,16 +283,30 @@ void AmsSettingsOverlay::on_behavior_clicked(lv_event_t* e) {
 void AmsSettingsOverlay::on_calibration_clicked(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[AmsSettingsOverlay] on_calibration_clicked");
     LV_UNUSED(e);
-    spdlog::info("[AmsSettingsOverlay] Calibration clicked (not yet implemented)");
-    // TODO: Push calibration sub-panel
+
+    auto& overlay = get_ams_device_actions_overlay();
+    if (!overlay.are_subjects_initialized()) {
+        overlay.init_subjects();
+        overlay.register_callbacks();
+    }
+    overlay.set_filter("calibration");
+    overlay.show(get_ams_settings_overlay().get_parent_screen());
+
     LVGL_SAFE_EVENT_CB_END();
 }
 
 void AmsSettingsOverlay::on_speed_settings_clicked(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[AmsSettingsOverlay] on_speed_settings_clicked");
     LV_UNUSED(e);
-    spdlog::info("[AmsSettingsOverlay] Speed Settings clicked (not yet implemented)");
-    // TODO: Push speed settings sub-panel
+
+    auto& overlay = get_ams_device_actions_overlay();
+    if (!overlay.are_subjects_initialized()) {
+        overlay.init_subjects();
+        overlay.register_callbacks();
+    }
+    overlay.set_filter("speed");
+    overlay.show(get_ams_settings_overlay().get_parent_screen());
+
     LVGL_SAFE_EVENT_CB_END();
 }
 

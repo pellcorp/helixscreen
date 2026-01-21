@@ -11,6 +11,7 @@
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 
 // Forward declaration

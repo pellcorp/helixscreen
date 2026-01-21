@@ -134,6 +134,11 @@ static void ensure_ams_widgets_registered() {
     lv_xml_register_component_from_file("A:ui_xml/ams_settings_nav_row.xml");
     lv_xml_register_component_from_file("A:ui_xml/ams_settings_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/ams_settings_tool_mapping.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_settings_endless_spool.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_settings_maintenance.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_settings_behavior.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_settings_spoolman.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_settings_device_actions.xml");
     lv_xml_register_component_from_file("A:ui_xml/ams_panel.xml");
     lv_xml_register_component_from_file("A:ui_xml/ams_context_menu.xml");
     lv_xml_register_component_from_file("A:ui_xml/spoolman_spool_item.xml");
