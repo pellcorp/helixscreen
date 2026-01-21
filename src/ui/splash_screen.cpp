@@ -4,6 +4,7 @@
 #include "splash_screen.h"
 
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "helix_timing.h"
 
@@ -147,9 +148,7 @@ void show_splash_screen(int screen_width, int screen_height) {
     }
 
     // Clean up splash screen (guard against early shutdown)
-    if (lv_is_initialized() && container && lv_obj_is_valid(container)) {
-        lv_obj_delete(container);
-    }
+    lv_obj_safe_delete(container);
 
     spdlog::debug("[Splash Screen] complete");
 }

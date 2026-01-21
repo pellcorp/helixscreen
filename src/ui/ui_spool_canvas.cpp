@@ -4,6 +4,7 @@
 #include "ui_spool_canvas.h"
 
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "lvgl/lvgl.h"
 #include "lvgl/src/xml/lv_xml.h"
@@ -415,7 +416,7 @@ lv_obj_t* ui_spool_canvas_create(lv_obj_t* parent, int32_t size) {
         lv_canvas_set_draw_buf(canvas, data_ptr->draw_buf);
     } else {
         spdlog::error("[SpoolCanvas] Failed to create draw buffer");
-        lv_obj_delete(canvas);
+        lv_obj_safe_delete(canvas);
         return nullptr;
     }
 

@@ -211,9 +211,8 @@ void ModalStack::exit_animation_done(lv_anim_t* anim) {
     spdlog::debug("[ModalStack] Exit animation complete - deleting backdrop");
     ui_async_call(
         [](void* obj) {
-            if (lv_obj_is_valid(static_cast<lv_obj_t*>(obj))) {
-                lv_obj_delete(static_cast<lv_obj_t*>(obj));
-            }
+            lv_obj_t* widget = static_cast<lv_obj_t*>(obj);
+            lv_obj_safe_delete(widget);
         },
         backdrop);
 }
@@ -230,9 +229,8 @@ void ModalStack::animate_exit(lv_obj_t* backdrop, lv_obj_t* dialog) {
         spdlog::debug("[ModalStack] Animations disabled - deleting modal instantly");
         ui_async_call(
             [](void* obj) {
-                if (lv_obj_is_valid(static_cast<lv_obj_t*>(obj))) {
-                    lv_obj_delete(static_cast<lv_obj_t*>(obj));
-                }
+                lv_obj_t* widget = static_cast<lv_obj_t*>(obj);
+                lv_obj_safe_delete(widget);
             },
             backdrop);
         return;
@@ -289,12 +287,12 @@ Modal::Modal() = default;
 
 Modal::~Modal() {
     // RAII: auto-hide if still visible
-    // CRITICAL: Check if LVGL is initialized - may be during static destruction
-    if (backdrop_ && lv_is_initialized()) {
+    // Use safe delete to handle shutdown race conditions
+    if (backdrop_) {
         // Hide immediately without calling virtual on_hide() - derived class already destroyed
         ModalStack::instance().remove(backdrop_);
-        lv_obj_delete(backdrop_);
-        backdrop_ = nullptr;
+        lv_obj_safe_delete(backdrop_);
+        // dialog_ is a child of backdrop_ and was destroyed with it
         dialog_ = nullptr;
     }
     spdlog::debug("[Modal] Destroyed");
@@ -317,9 +315,11 @@ Modal& Modal::operator=(Modal&& other) noexcept {
         // NOTE: Do NOT call virtual on_hide() here - it's unsafe to call virtual
         // functions during move operations. Callers should call hide() before
         // move-assigning if they need lifecycle hooks.
-        if (backdrop_ && lv_is_initialized()) {
+        if (backdrop_) {
             ModalStack::instance().remove(backdrop_);
-            lv_obj_delete(backdrop_);
+            lv_obj_safe_delete(backdrop_);
+            // dialog_ is a child of backdrop_ and was destroyed with it
+            dialog_ = nullptr;
         }
 
         // Move state
@@ -360,7 +360,7 @@ lv_obj_t* Modal::show(const char* component_name, const char** attrs) {
     lv_obj_t* dialog = static_cast<lv_obj_t*>(lv_xml_create(backdrop, component_name, attrs));
     if (!dialog) {
         spdlog::error("[Modal] Failed to create modal from XML: {}", component_name);
-        lv_obj_delete(backdrop);
+        lv_obj_safe_delete(backdrop);
         return nullptr;
     }
 
@@ -408,15 +408,12 @@ void Modal::hide(lv_obj_t* dialog) {
     lv_obj_t* backdrop = stack.backdrop_for(dialog);
     if (!backdrop) {
         spdlog::warn("[Modal] Dialog not found in stack");
-        if (lv_obj_is_valid(dialog)) {
-            ui_async_call(
-                [](void* obj) {
-                    if (lv_obj_is_valid(static_cast<lv_obj_t*>(obj))) {
-                        lv_obj_delete(static_cast<lv_obj_t*>(obj));
-                    }
-                },
-                dialog);
-        }
+        ui_async_call(
+            [](void* obj) {
+                lv_obj_t* widget = static_cast<lv_obj_t*>(obj);
+                lv_obj_safe_delete(widget);
+            },
+            dialog);
         return;
     }
 
@@ -586,8 +583,7 @@ bool Modal::create_and_show(lv_obj_t* parent, const char* comp_name, const char*
     dialog_ = static_cast<lv_obj_t*>(lv_xml_create(backdrop_, comp_name, attrs));
     if (!dialog_) {
         spdlog::error("[{}] Failed to create modal from XML component '{}'", get_name(), comp_name);
-        lv_obj_delete(backdrop_);
-        backdrop_ = nullptr;
+        lv_obj_safe_delete(backdrop_);
         return false;
     }
 
@@ -620,8 +616,8 @@ bool Modal::create_and_show(lv_obj_t* parent, const char* comp_name, const char*
 void Modal::destroy() {
     if (backdrop_) {
         ModalStack::instance().remove(backdrop_);
-        lv_obj_delete(backdrop_);
-        backdrop_ = nullptr;
+        lv_obj_safe_delete(backdrop_);
+        // dialog_ is a child of backdrop_ and was destroyed with it
         dialog_ = nullptr;
     }
 }

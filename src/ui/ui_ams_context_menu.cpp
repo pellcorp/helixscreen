@@ -3,6 +3,8 @@
 
 #include "ui_ams_context_menu.h"
 
+#include "ui_utils.h"
+
 #include <spdlog/spdlog.h>
 
 namespace helix::ui {
@@ -139,9 +141,7 @@ bool AmsContextMenu::show_near_widget(lv_obj_t* parent, int slot_index, lv_obj_t
 
 void AmsContextMenu::hide() {
     // Check if LVGL is initialized - may be called from destructor during static destruction
-    if (menu_ && lv_is_initialized()) {
-        lv_obj_delete(menu_);
-        menu_ = nullptr;
+    if (lv_obj_safe_delete(menu_)) {
         slot_index_ = -1;
         spdlog::debug("[AmsContextMenu] hide()");
     }

@@ -9,6 +9,7 @@
 #include "ui_panel_history_list.h"
 #include "ui_theme.h"
 #include "ui_toast.h"
+#include "ui_utils.h"
 
 #include "app_globals.h"
 #include "format_utils.h"
@@ -670,7 +671,7 @@ void HistoryDashboardPanel::update_filament_chart(const std::vector<PrintHistory
 
     // Clear existing bar rows
     for (auto* row : filament_bar_rows_) {
-        lv_obj_delete(row);
+        lv_obj_safe_delete(row);
     }
     filament_bar_rows_.clear();
 

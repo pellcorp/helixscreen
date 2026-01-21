@@ -306,3 +306,48 @@ inline void ui_toggle_list_empty_state(lv_obj_t* list, lv_obj_t* empty_state, bo
  * @return Newly created backdrop object, or nullptr on failure
  */
 lv_obj_t* ui_create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity = 180);
+
+// ============================================================================
+// Object Lifecycle Utilities
+// ============================================================================
+
+/**
+ * @brief Safely delete an LVGL object, guarding against shutdown race conditions
+ *
+ * During app shutdown, lv_is_initialized() can return true even after the display
+ * has been torn down. This causes crashes in lv_obj_delete() -> lv_obj_invalidate()
+ * -> lv_obj_get_display(). This function checks both that LVGL is initialized AND
+ * that a display still exists before attempting deletion.
+ *
+ * The pointer is automatically set to nullptr after deletion (or if skipped).
+ *
+ * Usage:
+ * @code
+ * // Before (vulnerable to crash-on-quit):
+ * if (widget_) {
+ *     lv_obj_delete(widget_);
+ *     widget_ = nullptr;
+ * }
+ *
+ * // After (safe, auto-nulls):
+ * lv_obj_safe_delete(widget_);
+ * @endcode
+ *
+ * @param obj Reference to pointer to the LVGL object (will be set to nullptr)
+ * @return true if object was deleted, false if skipped (nullptr or shutdown in progress)
+ */
+inline bool lv_obj_safe_delete(lv_obj_t*& obj) {
+    if (!obj)
+        return false;
+    if (!lv_is_initialized()) {
+        obj = nullptr;
+        return false;
+    }
+    if (!lv_display_get_next(nullptr)) {
+        obj = nullptr;
+        return false;
+    }
+    lv_obj_delete(obj);
+    obj = nullptr;
+    return true;
+}

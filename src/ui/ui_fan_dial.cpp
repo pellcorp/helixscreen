@@ -3,6 +3,8 @@
 
 #include "ui_fan_dial.h"
 
+#include "ui_utils.h"
+
 #include "lvgl/src/xml/lv_xml.h"
 #include "ui/ui_event_trampoline.h"
 
@@ -94,10 +96,8 @@ FanDial::FanDial(FanDial&& other) noexcept
 
 FanDial& FanDial::operator=(FanDial&& other) noexcept {
     if (this != &other) {
-        // Clean up current resources
-        if (root_) {
-            lv_obj_delete(root_);
-        }
+        // Clean up current resources (child widgets are destroyed with root_)
+        lv_obj_safe_delete(root_);
 
         // Move resources
         root_ = other.root_;

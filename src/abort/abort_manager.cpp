@@ -3,6 +3,7 @@
 #include "abort_manager.h"
 
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "moonraker_api.h"
 #include "printer_state.h"
@@ -71,10 +72,7 @@ void AbortManager::deinit_subjects() {
 
     // Delete modal widget if it exists and display is still available
     // (Display may already be deleted if window was closed via X button)
-    if (modal_ && lv_is_initialized() && lv_display_get_next(nullptr)) {
-        lv_obj_delete(modal_);
-    }
-    modal_ = nullptr;
+    lv_obj_safe_delete(modal_);
 
     // Deinitialize all subjects via RAII manager
     subjects_.deinit_all();

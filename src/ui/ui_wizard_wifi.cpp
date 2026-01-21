@@ -10,6 +10,7 @@
 #include "ui_subject_registry.h"
 #include "ui_theme.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "config.h"
 #include "ethernet_manager.h"
@@ -402,7 +403,7 @@ void WizardWifiStep::clear_network_list() {
 
             // Delete the widget - the DELETE handler will automatically clean up
             // WifiWizardNetworkItemData
-            lv_obj_delete(child);
+            lv_obj_safe_delete(child);
         }
     }
 

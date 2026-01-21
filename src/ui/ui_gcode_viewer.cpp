@@ -5,6 +5,7 @@
 
 #include "ui_theme.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "gcode_camera.h"
 #include "gcode_layer_renderer.h"
@@ -436,10 +437,8 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
             st->ghost_progress_label_ = nullptr; // Clear reference immediately
             ui_async_call(
                 [](void* user_data) {
-                    auto* label = static_cast<lv_obj_t*>(user_data);
-                    if (lv_obj_is_valid(label)) {
-                        lv_obj_delete(label);
-                    }
+                    lv_obj_t* widget = static_cast<lv_obj_t*>(user_data);
+                    lv_obj_safe_delete(widget);
                 },
                 label_to_delete);
         }
@@ -805,7 +804,7 @@ lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent) {
     // Allocate state (C++ object) using RAII
     auto state_ptr = std::make_unique<gcode_viewer_state_t>();
     if (!state_ptr) {
-        lv_obj_delete(obj);
+        lv_obj_safe_delete(obj);
         return nullptr;
     }
 
@@ -900,7 +899,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
     // Clean up previous loading UI if it exists
     if (st->loading_container) {
-        lv_obj_delete(st->loading_container);
+        lv_obj_safe_delete(st->loading_container);
         st->loading_container = nullptr;
     }
 
@@ -961,8 +960,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
                 // Clean up loading UI
                 if (st->loading_container) {
-                    lv_obj_delete(st->loading_container);
-                    st->loading_container = nullptr;
+                    lv_obj_safe_delete(st->loading_container);
                     st->loading_spinner = nullptr;
                     st->loading_label = nullptr;
                 }
@@ -1212,8 +1210,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
 
             // Clean up loading UI
             if (st->loading_container) {
-                lv_obj_delete(st->loading_container);
-                st->loading_container = nullptr;
+                lv_obj_safe_delete(st->loading_container);
                 st->loading_spinner = nullptr;
                 st->loading_label = nullptr;
             }

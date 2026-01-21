@@ -7,6 +7,7 @@
 #include "ui_fonts.h"
 #include "ui_text_input.h"
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "config.h"
 #include "keyboard_layout_provider.h"
@@ -142,10 +143,7 @@ bool KeyboardManager::point_in_area(const lv_area_t* area, const lv_point_t* poi
 }
 
 void KeyboardManager::overlay_cleanup() {
-    if (overlay_ != nullptr) {
-        lv_obj_delete(overlay_);
-        overlay_ = nullptr;
-    }
+    lv_obj_safe_delete(overlay_);
     alternatives_ = nullptr;
     pressed_char_ = nullptr;
     pressed_btn_id_ = 0;

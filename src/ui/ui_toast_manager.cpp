@@ -6,6 +6,7 @@
 #include "ui_notification_history.h"
 #include "ui_status_bar.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "settings_manager.h"
 
@@ -142,8 +143,7 @@ void ToastManager::animate_exit(lv_obj_t* toast) {
     if (!SettingsManager::instance().get_animations_enabled()) {
         // Directly delete the toast - no animation
         if (toast && active_toast_ == toast) {
-            lv_obj_delete(toast);
-            active_toast_ = nullptr;
+            lv_obj_safe_delete(active_toast_);
             animating_exit_ = false;
             spdlog::debug("[ToastManager] Animations disabled - hiding toast instantly");
         }
@@ -173,8 +173,7 @@ void ToastManager::exit_animation_complete_cb(lv_anim_t* anim) {
 
     // Delete the toast widget now that animation is complete
     if (toast && mgr.active_toast_ == toast) {
-        lv_obj_delete(toast);
-        mgr.active_toast_ = nullptr;
+        lv_obj_safe_delete(mgr.active_toast_);
         mgr.animating_exit_ = false;
         spdlog::debug("[ToastManager] Exit animation complete, toast deleted");
     }
@@ -289,8 +288,7 @@ void ToastManager::create_toast_internal(ToastSeverity severity, const char* mes
         }
 
         // Delete immediately (no exit animation when replacing)
-        lv_obj_delete(active_toast_);
-        active_toast_ = nullptr;
+        lv_obj_safe_delete(active_toast_);
         animating_exit_ = false;
     }
 

@@ -5,6 +5,7 @@
 
 #include "ui_subject_registry.h"
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "config.h"
 #include "display_manager.h"
@@ -204,10 +205,7 @@ void WizardTouchCalibrationStep::cleanup() {
     lv_subject_copy_string(&wizard_next_button_text, "Next");
 
     // Delete crosshair (it was reparented to screen, not part of screen_root_)
-    if (crosshair_) {
-        lv_obj_delete(crosshair_);
-        crosshair_ = nullptr;
-    }
+    lv_obj_safe_delete(crosshair_);
 
     // Clear widget pointers FIRST to prevent UI updates during cleanup
     // (test area widgets are children of screen_root_, so they're deleted with it)
@@ -435,7 +433,8 @@ void WizardTouchCalibrationStep::create_ripple_at(lv_coord_t x, lv_coord_t y) {
     });
     lv_anim_set_completed_cb(&fade_anim, [](lv_anim_t* a) {
         // Delete ripple object when animation completes
-        lv_obj_delete(static_cast<lv_obj_t*>(a->var));
+        lv_obj_t* widget = static_cast<lv_obj_t*>(a->var);
+        lv_obj_safe_delete(widget);
     });
     lv_anim_start(&fade_anim);
 }

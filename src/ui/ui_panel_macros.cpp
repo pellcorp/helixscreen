@@ -154,9 +154,7 @@ void MacrosPanel::on_deactivate() {
 
 void MacrosPanel::clear_macro_list() {
     for (auto& entry : macro_entries_) {
-        if (entry.card) {
-            lv_obj_delete(entry.card);
-        }
+        lv_obj_safe_delete(entry.card);
     }
     macro_entries_.clear();
 }

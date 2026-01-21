@@ -16,6 +16,7 @@
 #include "ui_panel_common.h"
 #include "ui_spool_canvas.h"
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "ams_backend.h"
 #include "ams_state.h"
@@ -481,10 +482,7 @@ void AmsPanel::create_slots(int count) {
 
     // Delete existing slots
     for (int i = 0; i < current_slot_count_; ++i) {
-        if (slot_widgets_[i]) {
-            lv_obj_delete(slot_widgets_[i]);
-            slot_widgets_[i] = nullptr;
-        }
+        lv_obj_safe_delete(slot_widgets_[i]);
         // Note: label_widgets_ are no longer used - labels are inside slot widgets
         label_widgets_[i] = nullptr;
     }
@@ -1500,8 +1498,7 @@ void destroy_ams_panel_ui() {
             g_ams_panel->clear_panel_reference();
         }
 
-        lv_obj_delete(s_ams_panel_obj);
-        s_ams_panel_obj = nullptr;
+        lv_obj_safe_delete(s_ams_panel_obj);
 
         // Note: Widget registrations remain (LVGL doesn't support unregistration)
         // Note: g_ams_panel C++ object stays for state preservation

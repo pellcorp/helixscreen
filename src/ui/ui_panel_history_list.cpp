@@ -627,9 +627,7 @@ void HistoryListPanel::clear_list() {
     uint32_t child_count = lv_obj_get_child_count(list_rows_);
     for (int32_t i = child_count - 1; i >= 0; --i) {
         lv_obj_t* child = lv_obj_get_child(list_rows_, i);
-        if (child) {
-            lv_obj_delete(child);
-        }
+        lv_obj_safe_delete(child);
     }
 }
 

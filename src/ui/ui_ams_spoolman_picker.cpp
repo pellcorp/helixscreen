@@ -4,6 +4,7 @@
 #include "ui_ams_spoolman_picker.h"
 
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "moonraker_api.h"
 
@@ -160,9 +161,7 @@ void AmsSpoolmanPicker::hide() {
     // to prevent potential crashes from stale observer pointers during shutdown.
     slot_indicator_observer_ = nullptr;
 
-    if (picker_) {
-        lv_obj_delete(picker_);
-        picker_ = nullptr;
+    if (lv_obj_safe_delete(picker_)) {
         slot_index_ = -1;
         current_spool_id_ = 0;
         cached_spools_.clear();

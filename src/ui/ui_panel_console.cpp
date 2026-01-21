@@ -577,9 +577,7 @@ void ConsolePanel::add_entry(const GcodeEntry& entry) {
         entries_.pop_front();
         // Remove oldest widget (first child)
         lv_obj_t* first_child = lv_obj_get_child(console_container_, 0);
-        if (first_child) {
-            lv_obj_delete(first_child);
-        }
+        lv_obj_safe_delete(first_child);
     }
 
     // Create widget for new entry

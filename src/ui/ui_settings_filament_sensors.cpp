@@ -10,6 +10,7 @@
 
 #include "ui_event_safety.h"
 #include "ui_nav_manager.h"
+#include "ui_utils.h"
 
 #include "filament_sensor_manager.h"
 #include "filament_sensor_types.h"
@@ -114,7 +115,8 @@ void FilamentSensorSettingsOverlay::show(lv_obj_t* parent_screen) {
 // INTERNAL METHODS
 // ============================================================================
 
-std::vector<helix::FilamentSensorConfig> FilamentSensorSettingsOverlay::get_standalone_sensors() const {
+std::vector<helix::FilamentSensorConfig>
+FilamentSensorSettingsOverlay::get_standalone_sensors() const {
     auto& mgr = helix::FilamentSensorManager::instance();
     auto all_sensors = mgr.get_sensors();
 
@@ -156,14 +158,15 @@ void FilamentSensorSettingsOverlay::populate_sensor_list() {
     for (int i = static_cast<int>(child_count) - 1; i >= 0; i--) {
         lv_obj_t* child = lv_obj_get_child(sensors_list, i);
         if (child != placeholder) {
-            lv_obj_delete(child);
+            lv_obj_safe_delete(child);
         }
     }
 
     // Get standalone sensors (excludes AMS/multi-material types)
     auto sensors = get_standalone_sensors();
 
-    spdlog::debug("[{}] Populating sensor list with {} standalone sensors", get_name(), sensors.size());
+    spdlog::debug("[{}] Populating sensor list with {} standalone sensors", get_name(),
+                  sensors.size());
 
     // Create a row for each sensor
     for (const auto& sensor : sensors) {

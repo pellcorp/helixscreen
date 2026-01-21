@@ -5,6 +5,7 @@
 
 #include "ui_fonts.h"
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "bed_mesh_renderer.h"
 #include "lvgl/lvgl.h"
@@ -330,7 +331,7 @@ static void* bed_mesh_xml_create(lv_xml_parser_state_t* state, const char** attr
     data_ptr->renderer = bed_mesh_renderer_create();
     if (!data_ptr->renderer) {
         spdlog::error("[bed_mesh] Failed to create renderer");
-        lv_obj_delete(obj);
+        lv_obj_safe_delete(obj);
         return NULL; // unique_ptr automatically cleans up
     }
 

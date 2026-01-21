@@ -79,10 +79,7 @@ PrintSelectDetailView::~PrintSelectDetailView() {
     }
 
     // Clean up main widget if created
-    if (overlay_root_) {
-        lv_obj_delete(overlay_root_);
-        overlay_root_ = nullptr;
-    }
+    lv_obj_safe_delete(overlay_root_);
 }
 
 // ============================================================================

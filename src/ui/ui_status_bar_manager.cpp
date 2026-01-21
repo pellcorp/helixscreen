@@ -6,6 +6,7 @@
 #include "ui_nav.h"
 #include "ui_panel_notification_history.h"
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "app_globals.h"
 #include "moonraker_client.h"
@@ -75,12 +76,7 @@ void StatusBarManager::notification_history_clicked([[maybe_unused]] lv_event_t*
     }
 
     // Clean up old panel if it exists but is hidden/invalid
-    if (mgr.notification_panel_obj_) {
-        if (lv_obj_is_valid(mgr.notification_panel_obj_)) {
-            lv_obj_delete(mgr.notification_panel_obj_);
-        }
-        mgr.notification_panel_obj_ = nullptr;
-    }
+    lv_obj_safe_delete(mgr.notification_panel_obj_);
 
     // Now create XML component
     lv_obj_t* panel_obj =

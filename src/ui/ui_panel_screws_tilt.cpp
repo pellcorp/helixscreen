@@ -7,6 +7,7 @@
 #include "ui_nav.h"
 #include "ui_nav_manager.h"
 #include "ui_theme.h"
+#include "ui_utils.h"
 
 #include "moonraker_api.h"
 #include "moonraker_client.h"
@@ -457,9 +458,7 @@ void ScrewsTiltPanel::populate_results(const std::vector<ScrewTiltResult>& resul
 void ScrewsTiltPanel::clear_results() {
     // Clear bed diagram indicators (dynamically positioned)
     for (auto* indicator : screw_indicators_) {
-        if (indicator) {
-            lv_obj_delete(indicator);
-        }
+        lv_obj_safe_delete(indicator);
     }
     screw_indicators_.clear();
 

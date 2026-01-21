@@ -6,6 +6,7 @@
 #include "ui_notification.h"
 #include "ui_toast.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "abort_manager.h"
 #include "observer_factory.h"
@@ -237,8 +238,7 @@ void EmergencyStopOverlay::show_confirmation_dialog() {
 
 void EmergencyStopOverlay::dismiss_confirmation_dialog() {
     if (confirmation_dialog_) {
-        lv_obj_delete(confirmation_dialog_);
-        confirmation_dialog_ = nullptr;
+        lv_obj_safe_delete(confirmation_dialog_);
         spdlog::debug("[EmergencyStop] Confirmation dialog dismissed");
     }
 }
@@ -272,8 +272,7 @@ void EmergencyStopOverlay::show_recovery_dialog() {
 
 void EmergencyStopOverlay::dismiss_recovery_dialog() {
     if (recovery_dialog_) {
-        lv_obj_delete(recovery_dialog_);
-        recovery_dialog_ = nullptr;
+        lv_obj_safe_delete(recovery_dialog_);
         spdlog::debug("[KlipperRecovery] Recovery dialog dismissed");
     }
 }

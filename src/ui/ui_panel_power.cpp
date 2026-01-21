@@ -8,6 +8,7 @@
 #include "ui_nav.h"
 #include "ui_panel_common.h"
 #include "ui_subject_registry.h"
+#include "ui_utils.h"
 
 #include "app_globals.h"
 #include "device_display_name.h"
@@ -123,9 +124,7 @@ void PowerPanel::fetch_devices() {
 void PowerPanel::clear_device_list() {
     // Remove all device row widgets
     for (auto& row : device_rows_) {
-        if (row.container) {
-            lv_obj_delete(row.container);
-        }
+        lv_obj_safe_delete(row.container);
     }
     device_rows_.clear();
 }
@@ -189,7 +188,7 @@ void PowerPanel::create_device_row(const PowerDevice& device) {
     lv_obj_t* toggle = lv_obj_find_by_name(row, "device_toggle");
     if (!toggle) {
         spdlog::error("[{}] device_toggle not found in row", get_name());
-        lv_obj_delete(row);
+        lv_obj_safe_delete(row);
         return;
     }
 

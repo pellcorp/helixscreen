@@ -226,7 +226,7 @@ void MotionPanel::setup_jog_pad() {
     lv_coord_t jog_size = (lv_coord_t)(available_height * 0.80f);
 
     // Delete placeholder container
-    lv_obj_delete(jog_pad_container);
+    lv_obj_safe_delete(jog_pad_container);
 
     // Create jog pad widget
     jog_pad_ = ui_jog_pad_create(left_column);

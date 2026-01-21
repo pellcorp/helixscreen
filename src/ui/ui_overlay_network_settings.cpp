@@ -9,6 +9,7 @@
 #include "ui_step_progress.h"
 #include "ui_subject_registry.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "config.h"
 #include "ethernet_manager.h"
@@ -649,7 +650,7 @@ void NetworkSettingsOverlay::clear_network_list() {
         const char* name = lv_obj_get_name(child);
         if (name && strncmp(name, "network_item_", 13) == 0) {
             // Delete widget - DELETE event handler will automatically clean up user_data
-            lv_obj_delete(child);
+            lv_obj_safe_delete(child);
         }
     }
 

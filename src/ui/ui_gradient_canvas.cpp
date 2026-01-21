@@ -5,6 +5,7 @@
 
 #include "ui_error_reporting.h"
 #include "ui_update_queue.h"
+#include "ui_utils.h"
 
 #include "lvgl/lvgl.h"
 #include "lvgl/src/xml/lv_xml.h"
@@ -181,7 +182,7 @@ static void* ui_gradient_canvas_xml_create(lv_xml_parser_state_t* state, const c
 
     if (!data_ptr->draw_buf) {
         LOG_ERROR_INTERNAL("[GradientCanvas] Failed to create draw buffer");
-        lv_obj_delete(img);
+        lv_obj_safe_delete(img);
         return nullptr;
     }
 
