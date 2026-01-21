@@ -797,6 +797,7 @@ void SettingsPanel::handle_plugins_clicked() {
 
     // Show the overlay via navigation stack
     if (overlay.get_root()) {
+        NavigationManager::instance().register_overlay_instance(overlay.get_root(), &overlay);
         ui_nav_push_overlay(overlay.get_root());
     }
 }

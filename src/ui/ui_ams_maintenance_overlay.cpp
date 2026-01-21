@@ -130,6 +130,9 @@ void AmsMaintenanceOverlay::show(lv_obj_t* parent_screen) {
     // Update status from backend
     update_status();
 
+    // Register with NavigationManager for lifecycle callbacks
+    NavigationManager::instance().register_overlay_instance(overlay_, this);
+
     // Push onto navigation stack
     ui_nav_push_overlay(overlay_);
 }

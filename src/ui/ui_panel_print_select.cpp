@@ -18,6 +18,7 @@
 #include "ui_icon.h"
 #include "ui_modal.h"
 #include "ui_nav.h"
+#include "ui_nav_manager.h"
 #include "ui_panel_print_status.h"
 #include "ui_print_select_file_sorter.h"
 #include "ui_print_select_history.h"
@@ -1855,6 +1856,8 @@ void PrintSelectPanel::create_detail_view() {
     print_controller_->set_show_detail_view([this]() { show_detail_view(); });
     print_controller_->set_navigate_to_print_status([this]() {
         if (print_status_panel_widget_) {
+            NavigationManager::instance().register_overlay_instance(
+                print_status_panel_widget_, &get_global_print_status_panel());
             ui_nav_push_overlay(print_status_panel_widget_);
         }
     });

@@ -565,6 +565,8 @@ void HomePanel::handle_print_card_clicked() {
         extern PrintStatusPanel& get_global_print_status_panel();
         lv_obj_t* status_panel = get_global_print_status_panel().get_panel();
         if (status_panel) {
+            NavigationManager::instance().register_overlay_instance(
+                status_panel, &get_global_print_status_panel());
             ui_nav_push_overlay(status_panel);
         } else {
             spdlog::error("[{}] Print status panel not available", get_name());

@@ -145,6 +145,9 @@ void AmsSpoolmanOverlay::show(lv_obj_t* parent_screen) {
     // Update UI controls to match subject values
     update_ui_from_subjects();
 
+    // Register with NavigationManager for lifecycle callbacks
+    NavigationManager::instance().register_overlay_instance(overlay_, this);
+
     // Push onto navigation stack
     ui_nav_push_overlay(overlay_);
 }

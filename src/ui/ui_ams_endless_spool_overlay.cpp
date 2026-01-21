@@ -9,7 +9,6 @@
 #include "ui_ams_endless_spool_overlay.h"
 
 #include "ui_event_safety.h"
-#include "ui_icon.h"
 #include "ui_icon_codepoints.h"
 #include "ui_nav_manager.h"
 #include "ui_theme.h"
@@ -204,6 +203,9 @@ void AmsEndlessSpoolOverlay::show(lv_obj_t* parent_screen) {
             clear_slot_rows();
         }
     }
+
+    // Register with NavigationManager for lifecycle callbacks
+    NavigationManager::instance().register_overlay_instance(overlay_, this);
 
     // Push onto navigation stack
     ui_nav_push_overlay(overlay_);
