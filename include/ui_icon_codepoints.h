@@ -139,7 +139,6 @@ static const IconMapping ICON_MAP[] = {
     {"leaf",               "\xF3\xB0\x8C\xAA"},  // F032A leaf
     {"light",              "\xF3\xB0\x8C\xB5"},  // F0335 lightbulb
     {"light_off",          "\xF3\xB0\xB9\x8F"},  // F0E4F lightbulb-off
-    {"link",               "\xF3\xB0\x8C\xB9"},  // F0339 link (tool mapping)
     {"lightbulb_on",       "\xF3\xB0\x9B\xA8"},  // F06E8 lightbulb-on (100%)
     {"lightbulb_on_10",    "\xF3\xB1\xA9\x8E"},  // F1A4E lightbulb-on-10
     {"lightbulb_on_20",    "\xF3\xB1\xA9\x8F"},  // F1A4F lightbulb-on-20
@@ -152,6 +151,7 @@ static const IconMapping ICON_MAP[] = {
     {"lightbulb_on_90",    "\xF3\xB1\xA9\x96"},  // F1A56 lightbulb-on-90
     {"lightbulb_outline",  "\xF3\xB0\x8C\xB6"},  // F0336 lightbulb-outline (OFF)
     {"limit",              "\xF3\xB0\xB9\x8F"},  // Use same as light_off or find better
+    {"link",               "\xF3\xB0\x8C\xB9"},  // F0339 link (tool mapping)
     {"list",               "\xF3\xB0\x89\xB9"},  // F0279 format-list-bulleted
     {"lock",               "\xF3\xB0\x8C\xBE"},  // F033E lock
 
