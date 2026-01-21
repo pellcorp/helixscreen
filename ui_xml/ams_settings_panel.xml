@@ -54,26 +54,32 @@
       <!-- ================================================================== -->
       <!-- Tool Mapping -->
       <ams_settings_nav_row name="row_tool_mapping"
-                            label="Tool Mapping" icon="link" summary="" callback="on_ams_settings_tool_mapping_clicked"/>
+                            label="Tool Mapping" icon="link" summary_bind="ams_settings_tool_mapping_summary"
+                            callback="on_ams_settings_tool_mapping_clicked"/>
       <!-- Endless Spool -->
       <ams_settings_nav_row name="row_endless_spool"
-                            label="Endless Spool" icon="refresh" summary=""
+                            label="Endless Spool" icon="refresh" summary_bind="ams_settings_endless_spool_summary"
                             callback="on_ams_settings_endless_spool_clicked"/>
       <!-- Maintenance -->
       <ams_settings_nav_row name="row_maintenance"
-                            label="Maintenance" icon="wrench" summary="" callback="on_ams_settings_maintenance_clicked"/>
+                            label="Maintenance" icon="wrench" summary_bind="ams_settings_maintenance_summary"
+                            callback="on_ams_settings_maintenance_clicked"/>
       <!-- Behavior -->
       <ams_settings_nav_row name="row_behavior"
-                            label="Behavior" icon="tune" summary="" callback="on_ams_settings_behavior_clicked"/>
+                            label="Behavior" icon="tune" summary_bind="ams_settings_behavior_summary"
+                            callback="on_ams_settings_behavior_clicked"/>
       <!-- Calibration -->
       <ams_settings_nav_row name="row_calibration"
-                            label="Calibration" icon="ruler" summary="" callback="on_ams_settings_calibration_clicked"/>
+                            label="Calibration" icon="ruler" summary_bind="ams_settings_calibration_summary"
+                            callback="on_ams_settings_calibration_clicked"/>
       <!-- Speed Settings -->
       <ams_settings_nav_row name="row_speed_settings"
-                            label="Speed Settings" icon="speed" summary="" callback="on_ams_settings_speed_clicked"/>
+                            label="Speed Settings" icon="speed" summary_bind="ams_settings_speed_summary"
+                            callback="on_ams_settings_speed_clicked"/>
       <!-- Spoolman -->
       <ams_settings_nav_row name="row_spoolman"
-                            label="Spoolman" icon="spoolman" summary="" callback="on_ams_settings_spoolman_clicked"/>
+                            label="Spoolman" icon="spoolman" summary_bind="ams_settings_spoolman_summary"
+                            callback="on_ams_settings_spoolman_clicked"/>
     </lv_obj>
   </view>
 </component>

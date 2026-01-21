@@ -56,6 +56,13 @@ AmsSettingsOverlay::~AmsSettingsOverlay() {
         lv_subject_deinit(&version_subject_);
         lv_subject_deinit(&slot_count_subject_);
         lv_subject_deinit(&connection_status_subject_);
+        lv_subject_deinit(&tool_mapping_summary_subject_);
+        lv_subject_deinit(&endless_spool_summary_subject_);
+        lv_subject_deinit(&maintenance_summary_subject_);
+        lv_subject_deinit(&behavior_summary_subject_);
+        lv_subject_deinit(&calibration_summary_subject_);
+        lv_subject_deinit(&speed_summary_subject_);
+        lv_subject_deinit(&spoolman_summary_subject_);
     }
     spdlog::debug("[{}] Destroyed", get_name());
 }
@@ -84,6 +91,46 @@ void AmsSettingsOverlay::init_subjects() {
     // Initialize connection status subject (0=disconnected, 1=connected)
     lv_subject_init_int(&connection_status_subject_, 0);
     lv_xml_register_subject(nullptr, "ams_settings_connection", &connection_status_subject_);
+
+    // Initialize navigation row summary subjects
+    snprintf(tool_mapping_summary_buf_, sizeof(tool_mapping_summary_buf_), "");
+    lv_subject_init_string(&tool_mapping_summary_subject_, tool_mapping_summary_buf_, nullptr,
+                           sizeof(tool_mapping_summary_buf_), tool_mapping_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_tool_mapping_summary",
+                            &tool_mapping_summary_subject_);
+
+    snprintf(endless_spool_summary_buf_, sizeof(endless_spool_summary_buf_), "");
+    lv_subject_init_string(&endless_spool_summary_subject_, endless_spool_summary_buf_, nullptr,
+                           sizeof(endless_spool_summary_buf_), endless_spool_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_endless_spool_summary",
+                            &endless_spool_summary_subject_);
+
+    snprintf(maintenance_summary_buf_, sizeof(maintenance_summary_buf_), "");
+    lv_subject_init_string(&maintenance_summary_subject_, maintenance_summary_buf_, nullptr,
+                           sizeof(maintenance_summary_buf_), maintenance_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_maintenance_summary",
+                            &maintenance_summary_subject_);
+
+    snprintf(behavior_summary_buf_, sizeof(behavior_summary_buf_), "");
+    lv_subject_init_string(&behavior_summary_subject_, behavior_summary_buf_, nullptr,
+                           sizeof(behavior_summary_buf_), behavior_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_behavior_summary", &behavior_summary_subject_);
+
+    snprintf(calibration_summary_buf_, sizeof(calibration_summary_buf_), "");
+    lv_subject_init_string(&calibration_summary_subject_, calibration_summary_buf_, nullptr,
+                           sizeof(calibration_summary_buf_), calibration_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_calibration_summary",
+                            &calibration_summary_subject_);
+
+    snprintf(speed_summary_buf_, sizeof(speed_summary_buf_), "");
+    lv_subject_init_string(&speed_summary_subject_, speed_summary_buf_, nullptr,
+                           sizeof(speed_summary_buf_), speed_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_speed_summary", &speed_summary_subject_);
+
+    snprintf(spoolman_summary_buf_, sizeof(spoolman_summary_buf_), "");
+    lv_subject_init_string(&spoolman_summary_subject_, spoolman_summary_buf_, nullptr,
+                           sizeof(spoolman_summary_buf_), spoolman_summary_buf_);
+    lv_xml_register_subject(nullptr, "ams_settings_spoolman_summary", &spoolman_summary_subject_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
@@ -156,6 +203,9 @@ void AmsSettingsOverlay::show(lv_obj_t* parent_screen) {
     // Update status card from backend
     update_status_card();
 
+    // Update navigation row summaries
+    update_nav_summaries();
+
     // Push onto navigation stack
     ui_nav_push_overlay(overlay_);
 }
@@ -218,6 +268,112 @@ void AmsSettingsOverlay::update_status_card() {
 
     spdlog::debug("[{}] Status card updated: {} v{}, {} slots, connected={}", get_name(),
                   info.type_name, info.version, info.total_slots, is_connected);
+}
+
+void AmsSettingsOverlay::update_nav_summaries() {
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (!backend) {
+        // Clear all summaries when no backend
+        snprintf(tool_mapping_summary_buf_, sizeof(tool_mapping_summary_buf_), "");
+        lv_subject_copy_string(&tool_mapping_summary_subject_, tool_mapping_summary_buf_);
+
+        snprintf(endless_spool_summary_buf_, sizeof(endless_spool_summary_buf_), "");
+        lv_subject_copy_string(&endless_spool_summary_subject_, endless_spool_summary_buf_);
+
+        snprintf(maintenance_summary_buf_, sizeof(maintenance_summary_buf_), "");
+        lv_subject_copy_string(&maintenance_summary_subject_, maintenance_summary_buf_);
+
+        snprintf(behavior_summary_buf_, sizeof(behavior_summary_buf_), "");
+        lv_subject_copy_string(&behavior_summary_subject_, behavior_summary_buf_);
+
+        snprintf(calibration_summary_buf_, sizeof(calibration_summary_buf_), "");
+        lv_subject_copy_string(&calibration_summary_subject_, calibration_summary_buf_);
+
+        snprintf(speed_summary_buf_, sizeof(speed_summary_buf_), "");
+        lv_subject_copy_string(&speed_summary_subject_, speed_summary_buf_);
+
+        snprintf(spoolman_summary_buf_, sizeof(spoolman_summary_buf_), "");
+        lv_subject_copy_string(&spoolman_summary_subject_, spoolman_summary_buf_);
+        return;
+    }
+
+    // Tool Mapping summary: show tool count if supported
+    auto tool_mapping_caps = backend->get_tool_mapping_capabilities();
+    if (tool_mapping_caps.supported) {
+        auto mapping = backend->get_tool_mapping();
+        int tool_count = static_cast<int>(mapping.size());
+        snprintf(tool_mapping_summary_buf_, sizeof(tool_mapping_summary_buf_), "%d tool%s",
+                 tool_count, tool_count == 1 ? "" : "s");
+    } else {
+        snprintf(tool_mapping_summary_buf_, sizeof(tool_mapping_summary_buf_), "");
+    }
+    lv_subject_copy_string(&tool_mapping_summary_subject_, tool_mapping_summary_buf_);
+
+    // Endless Spool summary: count pairs with backups configured
+    auto es_caps = backend->get_endless_spool_capabilities();
+    if (es_caps.supported) {
+        auto configs = backend->get_endless_spool_config();
+        int pair_count = 0;
+        for (const auto& config : configs) {
+            if (config.backup_slot >= 0) {
+                pair_count++;
+            }
+        }
+        if (pair_count > 0) {
+            snprintf(endless_spool_summary_buf_, sizeof(endless_spool_summary_buf_), "%d pair%s",
+                     pair_count, pair_count == 1 ? "" : "s");
+        } else {
+            snprintf(endless_spool_summary_buf_, sizeof(endless_spool_summary_buf_), "None");
+        }
+    } else {
+        snprintf(endless_spool_summary_buf_, sizeof(endless_spool_summary_buf_), "");
+    }
+    lv_subject_copy_string(&endless_spool_summary_subject_, endless_spool_summary_buf_);
+
+    // Maintenance summary: leave empty for now
+    snprintf(maintenance_summary_buf_, sizeof(maintenance_summary_buf_), "");
+    lv_subject_copy_string(&maintenance_summary_subject_, maintenance_summary_buf_);
+
+    // Behavior summary: leave empty for now
+    snprintf(behavior_summary_buf_, sizeof(behavior_summary_buf_), "");
+    lv_subject_copy_string(&behavior_summary_subject_, behavior_summary_buf_);
+
+    // Calibration summary: count actions in calibration section
+    auto actions = backend->get_device_actions();
+    int calibration_count = 0;
+    for (const auto& action : actions) {
+        if (action.section == "calibration") {
+            calibration_count++;
+        }
+    }
+    if (calibration_count > 0) {
+        snprintf(calibration_summary_buf_, sizeof(calibration_summary_buf_), "%d action%s",
+                 calibration_count, calibration_count == 1 ? "" : "s");
+    } else {
+        snprintf(calibration_summary_buf_, sizeof(calibration_summary_buf_), "");
+    }
+    lv_subject_copy_string(&calibration_summary_subject_, calibration_summary_buf_);
+
+    // Speed Settings summary: count actions in speed section
+    int speed_count = 0;
+    for (const auto& action : actions) {
+        if (action.section == "speed") {
+            speed_count++;
+        }
+    }
+    if (speed_count > 0) {
+        snprintf(speed_summary_buf_, sizeof(speed_summary_buf_), "%d setting%s", speed_count,
+                 speed_count == 1 ? "" : "s");
+    } else {
+        snprintf(speed_summary_buf_, sizeof(speed_summary_buf_), "");
+    }
+    lv_subject_copy_string(&speed_summary_subject_, speed_summary_buf_);
+
+    // Spoolman summary: leave empty for now
+    snprintf(spoolman_summary_buf_, sizeof(spoolman_summary_buf_), "");
+    lv_subject_copy_string(&spoolman_summary_subject_, spoolman_summary_buf_);
+
+    spdlog::debug("[{}] Navigation summaries updated", get_name());
 }
 
 // ============================================================================

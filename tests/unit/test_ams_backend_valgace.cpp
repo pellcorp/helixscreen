@@ -392,6 +392,43 @@ TEST_CASE("ValgACE error segment inference", "[ams][valgace][segment]") {
 }
 
 // ============================================================================
+// Invalid Slot Handling Tests
+// ============================================================================
+
+TEST_CASE("ValgACE returns invalid markers for out-of-bounds slot", "[ams][valgace][slot]") {
+    AmsBackendValgACETestHelper helper;
+
+    // Before any initialization, getting any slot should return invalid markers
+    auto slot = helper.get_slot_info(0);
+    REQUIRE(slot.slot_index == -1);
+    REQUIRE(slot.global_index == -1);
+
+    // Invalid negative index should also return invalid markers
+    slot = helper.get_slot_info(-1);
+    REQUIRE(slot.slot_index == -1);
+    REQUIRE(slot.global_index == -1);
+
+    // Initialize with slots
+    json info = {{"slot_count", 4}};
+    helper.test_parse_info_response(info);
+
+    // Valid slot should work
+    auto valid_slot = helper.get_slot_info(0);
+    REQUIRE(valid_slot.slot_index == 0);
+    REQUIRE(valid_slot.global_index == 0);
+
+    // Out-of-bounds should return invalid markers
+    auto out_of_bounds = helper.get_slot_info(10);
+    REQUIRE(out_of_bounds.slot_index == -1);
+    REQUIRE(out_of_bounds.global_index == -1);
+
+    // Negative index should return invalid markers
+    auto negative = helper.get_slot_info(-5);
+    REQUIRE(negative.slot_index == -1);
+    REQUIRE(negative.global_index == -1);
+}
+
+// ============================================================================
 // Not Running State Tests
 // ============================================================================
 

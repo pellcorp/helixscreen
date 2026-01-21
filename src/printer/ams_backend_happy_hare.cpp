@@ -709,6 +709,16 @@ AmsError AmsBackendHappyHare::set_tool_mapping(int tool_number, int slot_index) 
         if (slot_index < 0 || slot_index >= system_info_.total_slots) {
             return AmsErrorHelper::invalid_slot(slot_index, system_info_.total_slots - 1);
         }
+
+        // Check if another tool already maps to this slot
+        for (size_t i = 0; i < system_info_.tool_to_slot_map.size(); ++i) {
+            if (i != static_cast<size_t>(tool_number) &&
+                system_info_.tool_to_slot_map[i] == slot_index) {
+                spdlog::warn("[AMS HappyHare] Tool {} will share slot {} with tool {}", tool_number,
+                             slot_index, i);
+                break;
+            }
+        }
     }
 
     // Send MMU_TTG_MAP command to update tool-to-gate mapping (Happy Hare uses "gate" in its API)

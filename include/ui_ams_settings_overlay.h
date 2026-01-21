@@ -160,6 +160,33 @@ class AmsSettingsOverlay : public OverlayBase {
 
     /// Connection status subject (0=disconnected, 1=connected)
     lv_subject_t connection_status_subject_;
+
+    /// Navigation row summary subjects
+    lv_subject_t tool_mapping_summary_subject_;
+    char tool_mapping_summary_buf_[32];
+
+    lv_subject_t endless_spool_summary_subject_;
+    char endless_spool_summary_buf_[32];
+
+    lv_subject_t maintenance_summary_subject_;
+    char maintenance_summary_buf_[32];
+
+    lv_subject_t behavior_summary_subject_;
+    char behavior_summary_buf_[32];
+
+    lv_subject_t calibration_summary_subject_;
+    char calibration_summary_buf_[32];
+
+    lv_subject_t speed_summary_subject_;
+    char speed_summary_buf_[32];
+
+    lv_subject_t spoolman_summary_subject_;
+    char spoolman_summary_buf_[32];
+
+    /**
+     * @brief Update navigation row summaries from backend data
+     */
+    void update_nav_summaries();
 };
 
 /**

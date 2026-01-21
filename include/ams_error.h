@@ -398,4 +398,14 @@ class AmsErrorHelper {
                         "Feature not available",
                         "This feature requires different hardware or configuration");
     }
+
+    /**
+     * @brief Create an invalid parameter error
+     * @param detail Description of the invalid parameter
+     * @return AmsError configured for UI display
+     */
+    static AmsError invalid_parameter(const std::string& detail) {
+        return AmsError(AmsResult::WRONG_STATE, detail, "Invalid parameter",
+                        "Check the provided value and try again");
+    }
 };

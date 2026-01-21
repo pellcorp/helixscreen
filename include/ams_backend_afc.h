@@ -182,6 +182,38 @@ class AmsBackendAfc : public AmsBackend {
     void set_discovered_lanes(const std::vector<std::string>& lane_names,
                               const std::vector<std::string>& hub_names) override;
 
+    // Device-Specific Actions
+    /**
+     * @brief Get available device sections for AFC backend
+     *
+     * AFC exposes calibration and speed settings sections.
+     *
+     * @return Vector of DeviceSection for UI grouping
+     */
+    [[nodiscard]] std::vector<helix::printer::DeviceSection> get_device_sections() const override;
+
+    /**
+     * @brief Get available device actions for AFC backend
+     *
+     * Returns AFC-specific actions including:
+     * - Calibration wizard
+     * - Bowden length configuration
+     * - Speed multipliers (forward/reverse)
+     *
+     * @return Vector of DeviceAction for UI rendering
+     */
+    [[nodiscard]] std::vector<helix::printer::DeviceAction> get_device_actions() const override;
+
+    /**
+     * @brief Execute an AFC-specific device action
+     *
+     * @param action_id Action identifier from get_device_actions()
+     * @param value Optional value for sliders/toggles
+     * @return AmsError indicating success or failure
+     */
+    AmsError execute_device_action(const std::string& action_id,
+                                   const std::any& value = {}) override;
+
   protected:
     // Allow test helper access to private members
     friend class AmsBackendAfcTestHelper;

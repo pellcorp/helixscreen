@@ -49,6 +49,7 @@ AmsBehaviorOverlay::~AmsBehaviorOverlay() {
         lv_subject_deinit(&supports_bypass_subject_);
         lv_subject_deinit(&bypass_active_subject_);
         lv_subject_deinit(&supports_auto_heat_subject_);
+        lv_subject_deinit(&has_features_subject_);
     }
     spdlog::debug("[{}] Destroyed", get_name());
 }
@@ -74,6 +75,10 @@ void AmsBehaviorOverlay::init_subjects() {
     lv_subject_init_int(&supports_auto_heat_subject_, 0);
     lv_xml_register_subject(nullptr, "ams_behavior_supports_auto_heat",
                             &supports_auto_heat_subject_);
+
+    // Initialize has-features subject (0=no features, 1=has features)
+    lv_subject_init_int(&has_features_subject_, 0);
+    lv_xml_register_subject(nullptr, "ams_behavior_has_features", &has_features_subject_);
 
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
@@ -165,7 +170,7 @@ void AmsBehaviorOverlay::update_from_backend() {
         lv_subject_set_int(&supports_bypass_subject_, 0);
         lv_subject_set_int(&bypass_active_subject_, 0);
         lv_subject_set_int(&supports_auto_heat_subject_, 0);
-        show_no_features();
+        lv_subject_set_int(&has_features_subject_, 0);
         return;
     }
 
@@ -178,36 +183,14 @@ void AmsBehaviorOverlay::update_from_backend() {
     spdlog::debug("[{}] Backend caps: bypass={}, bypass_active={}, auto_heat={}", get_name(),
                   supports_bypass, bypass_active, supports_auto_heat);
 
-    // Update subjects
+    // Update subjects - XML bindings handle visibility declaratively
     lv_subject_set_int(&supports_bypass_subject_, supports_bypass ? 1 : 0);
     lv_subject_set_int(&bypass_active_subject_, bypass_active ? 1 : 0);
     lv_subject_set_int(&supports_auto_heat_subject_, supports_auto_heat ? 1 : 0);
 
-    // Show/hide no features card based on whether any feature is supported
-    if (!supports_bypass && !supports_auto_heat) {
-        show_no_features();
-    } else {
-        // Hide no features card, show description
-        if (no_features_card_) {
-            lv_obj_add_flag(no_features_card_, LV_OBJ_FLAG_HIDDEN);
-        }
-        lv_obj_t* description = lv_obj_find_by_name(overlay_, "description");
-        if (description) {
-            lv_obj_remove_flag(description, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-}
-
-void AmsBehaviorOverlay::show_no_features() {
-    // Hide description
-    lv_obj_t* description = lv_obj_find_by_name(overlay_, "description");
-    if (description) {
-        lv_obj_add_flag(description, LV_OBJ_FLAG_HIDDEN);
-    }
-    // Show no features card
-    if (no_features_card_) {
-        lv_obj_remove_flag(no_features_card_, LV_OBJ_FLAG_HIDDEN);
-    }
+    // Update has_features subject - controls no_features_card and description visibility
+    bool has_features = supports_bypass || supports_auto_heat;
+    lv_subject_set_int(&has_features_subject_, has_features ? 1 : 0);
 }
 
 // ============================================================================

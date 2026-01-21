@@ -134,15 +134,9 @@ class AmsBehaviorOverlay : public OverlayBase {
      * - supports_bypass flag from system_info
      * - is_bypass_active() for current bypass state
      * - supports_auto_heat_on_load() for auto-heat capability
+     * - has_features (any of the above supported)
      */
     void update_from_backend();
-
-    /**
-     * @brief Show the "no features" message
-     *
-     * Displayed when neither bypass nor auto-heat is supported.
-     */
-    void show_no_features();
 
     //
     // === Static Callbacks ===
@@ -180,6 +174,9 @@ class AmsBehaviorOverlay : public OverlayBase {
 
     /// Subject for auto-heat support (0=not supported, 1=supported)
     lv_subject_t supports_auto_heat_subject_;
+
+    /// Subject for whether any behavior features are available (0=none, 1=has features)
+    lv_subject_t has_features_subject_;
 };
 
 /**
