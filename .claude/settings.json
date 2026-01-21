@@ -1,6 +1,4 @@
 {
-  "outputStyle": "~/.claude/output-styles/real.md",
-  "enabledPlugins": {
-    "prompt-improver@severity1-marketplace": true
-  }
+  "enabledPlugins": {},
+  "outputStyle": "~/.claude/output-styles/real.md"
 }

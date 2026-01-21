@@ -29,8 +29,8 @@
 > Avoid mutex locks in destructors during static destruction phase. Other objects may already be destroyed, causing deadlock or crash on exit
 
 
-### [L014] [****-|**---] Register all XML components
-- **Uses**: 24 | **Velocity**: 2.81 | **Learned**: 2025-12-14 | **Last**: 2026-01-20 | **Category**: gotcha | **Type**: constraint
+### [L014] [****-|-----] Register all XML components
+- **Uses**: 26 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-20 | **Category**: gotcha | **Type**: constraint
 > When adding new XML components, must add lv_xml_component_register_from_file() call in main.cpp. Forgetting causes silent failures
 
 
@@ -60,7 +60,7 @@
 
 
 ### [L031] [****-|-----] XML no recompile
-- **Uses**: 15 | **Velocity**: 0.01 | **Learned**: 2025-12-27 | **Last**: 2026-01-20 | **Category**: gotcha | **Type**: constraint
+- **Uses**: 16 | **Velocity**: 0.07 | **Learned**: 2025-12-27 | **Last**: 2026-01-21 | **Category**: gotcha | **Type**: constraint
 > 
 
 
@@ -89,8 +89,8 @@
 > Multiple bind_flag_if_eq on same object creates independent observers where last one wins (race condition). For 'show only when X=value' logic, use single bind_flag_if_not_eq instead. Example: bind_flag_if_not_eq ref_value="0" shows only when value IS 0.
 
 
-### [L043] [*----|-----] Sonnet for structural reviews
-- **Uses**: 2 | **Velocity**: 0.01 | **Learned**: 2026-01-01 | **Last**: 2026-01-01 | **Category**: pattern | **Type**: informational
+### [L043] [**---|-----] Sonnet for structural reviews
+- **Uses**: 3 | **Velocity**: 0.01 | **Learned**: 2026-01-01 | **Last**: 2026-01-21 | **Category**: pattern | **Type**: informational
 > Use Sonnet (not Haiku) for architectural-level code reviews, structural changes, or final comprehensive reviews. Haiku is fine for quick single-file spot-checks with clear pass/fail criteria.
 
 
