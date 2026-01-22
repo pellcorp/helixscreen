@@ -6,6 +6,7 @@
 #include "ui_ams_color_picker.h"
 #include "ui_event_safety.h"
 #include "ui_global_panel_helper.h"
+#include "ui_modal.h"
 #include "ui_nav.h"
 #include "ui_theme.h"
 
@@ -58,8 +59,9 @@ void ThemeEditorOverlay::init_subjects() {
 }
 
 lv_obj_t* ThemeEditorOverlay::create(lv_obj_t* parent) {
-    // Create overlay root from XML
-    overlay_root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "theme_editor_overlay", nullptr));
+    // Create overlay root from XML (uses theme_settings_overlay component)
+    overlay_root_ =
+        static_cast<lv_obj_t*>(lv_xml_create(parent, "theme_settings_overlay", nullptr));
     if (!overlay_root_) {
         spdlog::error("[{}] Failed to create overlay from XML", get_name());
         return nullptr;
@@ -69,6 +71,21 @@ lv_obj_t* ThemeEditorOverlay::create(lv_obj_t* parent) {
     panel_ = lv_obj_find_by_name(overlay_root_, "overlay_content");
     if (!panel_) {
         spdlog::warn("[{}] Could not find overlay_content widget", get_name());
+    }
+
+    // Wire up custom back button handler for dirty state check
+    // Exception to "NO lv_obj_add_event_cb" rule: Required for unsaved data protection
+    // The default XML callback (on_header_back_clicked) is removed and replaced with ours
+    lv_obj_t* header = lv_obj_find_by_name(overlay_root_, "overlay_header");
+    if (header) {
+        lv_obj_t* back_button = lv_obj_find_by_name(header, "back_button");
+        if (back_button) {
+            // Remove existing click handlers and add our custom one
+            lv_obj_remove_event_cb(back_button, nullptr); // Remove all callbacks
+            lv_obj_add_event_cb(back_button, on_back_clicked, LV_EVENT_CLICKED, nullptr);
+            spdlog::debug("[{}] Wired custom back button handler for dirty state check",
+                          get_name());
+        }
     }
 
     // Find swatch widgets (swatch_0 through swatch_15)
@@ -101,7 +118,9 @@ void ThemeEditorOverlay::register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_theme_save_as_clicked", on_theme_save_as_clicked);
     lv_xml_register_event_cb(nullptr, "on_theme_revert_clicked", on_theme_revert_clicked);
 
-    // Back button is handled by overlay_panel base component
+    // Custom back button callback to intercept close and check dirty state
+    lv_xml_register_event_cb(nullptr, "on_theme_editor_back_clicked", on_back_clicked);
+
     spdlog::debug("[{}] Callbacks registered", get_name());
 }
 
@@ -123,6 +142,13 @@ void ThemeEditorOverlay::cleanup() {
         color_picker_.reset();
     }
     editing_color_index_ = -1;
+
+    // Clean up discard confirmation dialog if showing
+    if (discard_dialog_) {
+        Modal::hide(discard_dialog_);
+        discard_dialog_ = nullptr;
+    }
+    pending_discard_action_ = nullptr;
 
     // Clear swatch references (widgets will be destroyed by LVGL)
     swatch_objects_.fill(nullptr);
@@ -233,13 +259,43 @@ void ThemeEditorOverlay::update_property_sliders() {
 void ThemeEditorOverlay::mark_dirty() {
     if (!dirty_) {
         dirty_ = true;
+        update_title_dirty_indicator();
         spdlog::debug("[{}] Theme marked as dirty (unsaved changes)", get_name());
     }
 }
 
 void ThemeEditorOverlay::clear_dirty() {
-    dirty_ = false;
-    spdlog::trace("[{}] Dirty state cleared", get_name());
+    if (dirty_) {
+        dirty_ = false;
+        update_title_dirty_indicator();
+        spdlog::trace("[{}] Dirty state cleared", get_name());
+    }
+}
+
+void ThemeEditorOverlay::update_title_dirty_indicator() {
+    if (!overlay_root_) {
+        return;
+    }
+
+    // Find the header bar and its title label
+    lv_obj_t* header = lv_obj_find_by_name(overlay_root_, "overlay_header");
+    if (!header) {
+        spdlog::trace("[{}] Could not find overlay_header for title update", get_name());
+        return;
+    }
+
+    lv_obj_t* title_label = lv_obj_find_by_name(header, "header_title");
+    if (!title_label) {
+        spdlog::trace("[{}] Could not find header_title for title update", get_name());
+        return;
+    }
+
+    // Update title text with dirty indicator
+    if (dirty_) {
+        lv_label_set_text(title_label, "Theme Colors *");
+    } else {
+        lv_label_set_text(title_label, "Theme Colors");
+    }
 }
 
 // ============================================================================
@@ -337,7 +393,65 @@ void ThemeEditorOverlay::on_slider_changed(lv_event_t* /* e */) {
 }
 
 void ThemeEditorOverlay::on_close_requested(lv_event_t* /* e */) {
-    // Will be implemented in task 6.6
+    // Delegate to on_back_clicked for consistent dirty state handling
+    get_theme_editor_overlay().handle_back_clicked();
+}
+
+void ThemeEditorOverlay::on_back_clicked(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ThemeEditorOverlay] on_back_clicked");
+    static_cast<void>(lv_event_get_current_target(e));
+    get_theme_editor_overlay().handle_back_clicked();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void ThemeEditorOverlay::on_discard_confirm(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ThemeEditorOverlay] on_discard_confirm");
+    static_cast<void>(lv_event_get_current_target(e));
+
+    auto& overlay = get_theme_editor_overlay();
+
+    // Hide the dialog first
+    if (overlay.discard_dialog_) {
+        Modal::hide(overlay.discard_dialog_);
+        overlay.discard_dialog_ = nullptr;
+    }
+
+    // Execute the pending discard action
+    if (overlay.pending_discard_action_) {
+        auto action = std::move(overlay.pending_discard_action_);
+        overlay.pending_discard_action_ = nullptr;
+        action();
+    }
+
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void ThemeEditorOverlay::on_discard_cancel(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[ThemeEditorOverlay] on_discard_cancel");
+    static_cast<void>(lv_event_get_current_target(e));
+
+    auto& overlay = get_theme_editor_overlay();
+
+    // Just hide the dialog, don't execute the discard action
+    if (overlay.discard_dialog_) {
+        Modal::hide(overlay.discard_dialog_);
+        overlay.discard_dialog_ = nullptr;
+    }
+
+    overlay.pending_discard_action_ = nullptr;
+    spdlog::debug("[ThemeEditorOverlay] Discard cancelled by user");
+
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void ThemeEditorOverlay::handle_back_clicked() {
+    if (dirty_) {
+        // Show confirmation before closing
+        show_discard_confirmation([]() { ui_nav_go_back(); });
+    } else {
+        // Not dirty, close immediately
+        ui_nav_go_back();
+    }
 }
 
 // ============================================================================
@@ -404,18 +518,26 @@ void ThemeEditorOverlay::handle_save_as_clicked() {
 }
 
 void ThemeEditorOverlay::handle_revert_clicked() {
-    // Restore original theme
-    editing_theme_ = original_theme_;
-    clear_dirty();
+    // If dirty, show confirmation before reverting
+    if (dirty_) {
+        show_discard_confirmation([this]() {
+            // Restore original theme
+            editing_theme_ = original_theme_;
+            clear_dirty();
 
-    // Update UI to reflect reverted values
-    update_swatch_colors();
-    update_property_sliders();
+            // Update UI to reflect reverted values
+            update_swatch_colors();
+            update_property_sliders();
 
-    // Preview the original theme
-    ui_theme_preview(editing_theme_);
+            // Preview the original theme
+            ui_theme_preview(editing_theme_);
 
-    spdlog::info("[{}] Theme reverted to original state", get_name());
+            spdlog::info("[{}] Theme reverted to original state", get_name());
+        });
+    } else {
+        // Not dirty, no confirmation needed
+        spdlog::debug("[{}] No changes to revert", get_name());
+    }
 }
 
 // ============================================================================
@@ -437,7 +559,8 @@ void ThemeEditorOverlay::handle_slider_change(const char* /* slider_name */, int
 }
 
 void ThemeEditorOverlay::show_color_picker(int palette_index) {
-    if (palette_index < 0 || palette_index >= static_cast<int>(editing_theme_.colors.color_names().size())) {
+    if (palette_index < 0 ||
+        palette_index >= static_cast<int>(editing_theme_.colors.color_names().size())) {
         spdlog::error("[{}] Invalid palette index {} for color picker", get_name(), palette_index);
         return;
     }
@@ -464,11 +587,12 @@ void ThemeEditorOverlay::show_color_picker(int palette_index) {
     }
 
     // Set callback to handle color selection
-    color_picker_->set_color_callback([this](uint32_t color_rgb, const std::string& /* color_name */) {
+    color_picker_->set_color_callback([this](uint32_t color_rgb,
+                                             const std::string& /* color_name */) {
         if (editing_color_index_ < 0 ||
             editing_color_index_ >= static_cast<int>(editing_theme_.colors.color_names().size())) {
-            spdlog::warn("[{}] Color picker callback: invalid editing_color_index_ {}",
-                         get_name(), editing_color_index_);
+            spdlog::warn("[{}] Color picker callback: invalid editing_color_index_ {}", get_name(),
+                         editing_color_index_);
             return;
         }
 
@@ -483,7 +607,8 @@ void ThemeEditorOverlay::show_color_picker(int palette_index) {
         if (editing_color_index_ < static_cast<int>(swatch_objects_.size()) &&
             swatch_objects_[editing_color_index_]) {
             lv_color_t lv_color = lv_color_hex(color_rgb);
-            lv_obj_set_style_bg_color(swatch_objects_[editing_color_index_], lv_color, LV_PART_MAIN);
+            lv_obj_set_style_bg_color(swatch_objects_[editing_color_index_], lv_color,
+                                      LV_PART_MAIN);
         }
 
         // Mark dirty and preview
@@ -515,6 +640,17 @@ void ThemeEditorOverlay::show_restart_dialog() {
                  get_name());
 }
 
-void ThemeEditorOverlay::show_discard_confirmation(std::function<void()> /* on_discard */) {
-    // Will be implemented in task 6.6
+void ThemeEditorOverlay::show_discard_confirmation(std::function<void()> on_discard) {
+    // Store the action to execute if user confirms discard
+    pending_discard_action_ = std::move(on_discard);
+
+    // Show confirmation dialog using modal system
+    discard_dialog_ = ui_modal_show_confirmation(
+        "Discard Changes?", "You have unsaved changes. Discard them?", ModalSeverity::Warning,
+        "Discard", on_discard_confirm, on_discard_cancel, nullptr);
+
+    if (!discard_dialog_) {
+        spdlog::error("[{}] Failed to show discard confirmation dialog", get_name());
+        pending_discard_action_ = nullptr;
+    }
 }

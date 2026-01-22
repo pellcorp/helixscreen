@@ -8,9 +8,10 @@
 
 #pragma once
 
+#include "ui_ams_color_picker.h"
+
 #include "overlay_base.h"
 #include "theme_loader.h"
-#include "ui_ams_color_picker.h"
 
 #include <array>
 #include <functional>
@@ -104,6 +105,9 @@ class ThemeEditorOverlay : public OverlayBase {
     static void on_swatch_clicked(lv_event_t* e);
     static void on_slider_changed(lv_event_t* e);
     static void on_close_requested(lv_event_t* e);
+    static void on_back_clicked(lv_event_t* e);
+    static void on_discard_confirm(lv_event_t* e);
+    static void on_discard_cancel(lv_event_t* e);
 
     // Slider property callbacks (registered with XML)
     static void on_border_radius_changed(lv_event_t* e);
@@ -134,6 +138,8 @@ class ThemeEditorOverlay : public OverlayBase {
     void show_save_as_dialog();
     void show_restart_dialog();
     void show_discard_confirmation(std::function<void()> on_discard);
+    void update_title_dirty_indicator();
+    void handle_back_clicked();
 
     helix::ThemeData editing_theme_;
     helix::ThemeData original_theme_;
@@ -145,6 +151,10 @@ class ThemeEditorOverlay : public OverlayBase {
 
     // Color picker for swatch editing
     std::unique_ptr<helix::ui::AmsColorPicker> color_picker_;
+
+    // Discard confirmation dialog tracking
+    lv_obj_t* discard_dialog_ = nullptr;
+    std::function<void()> pending_discard_action_;
 };
 
 /**
