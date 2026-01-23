@@ -103,14 +103,6 @@ lv_obj_t* TimelapseSettingsOverlay::create(lv_obj_t* parent) {
     // Mode info text is standalone
     mode_info_text_ = lv_obj_find_by_name(overlay_root_, "mode_info_text");
 
-    // Set dropdown options programmatically (more reliable than XML \n parsing)
-    if (mode_dropdown_) {
-        lv_dropdown_set_options(mode_dropdown_, "Layer\nHyperlapse");
-    }
-    if (framerate_dropdown_) {
-        lv_dropdown_set_options(framerate_dropdown_, "15 fps\n24 fps\n30 fps\n60 fps");
-    }
-
     // Log widget discovery
     spdlog::debug("[{}] Widgets found: enable={} mode={} info={} framerate={} autorender={}",
                   get_name(), enable_switch_ != nullptr, mode_dropdown_ != nullptr,

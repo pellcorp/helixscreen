@@ -4,12 +4,13 @@
 <!-- Reusable Settings Dropdown Row Component -->
 <!-- Creates a setting row with label, optional icon, and dropdown selector -->
 <!-- Usage: <setting_dropdown_row label="Display Sleep" icon="clock"/> -->
-<!-- Note: Dropdown options and selection handled in C++ -->
+<!-- Note: Options can be set via options prop (use &#10; as separator) or in C++ for dynamic data -->
 <component>
   <api>
     <prop name="label" type="string" default="Setting"/>
     <prop name="icon" type="string" default=""/>
     <prop name="description" type="string" default=""/>
+    <prop name="options" type="string" default=""/>
     <prop name="callback" type="string" default=""/>
   </api>
   <view name="dropdown_row"
@@ -28,7 +29,7 @@
       <text_small name="description" text="$description" style_text_color="#text_secondary"/>
     </lv_obj>
     <!-- Right side: Dropdown -->
-    <lv_dropdown name="dropdown" width="255" height="40" style_radius="#border_radius" style_border_width="0">
+    <lv_dropdown name="dropdown" width="255" height="40" options="$options" style_radius="#border_radius" style_border_width="0">
       <event_cb trigger="value_changed" callback="$callback"/>
     </lv_dropdown>
   </view>

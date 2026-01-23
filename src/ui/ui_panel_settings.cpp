@@ -421,13 +421,11 @@ void SettingsPanel::setup_toggle_handlers() {
     }
 
     // === Completion Alert Dropdown ===
-    // Event handler wired via XML <event_cb>, just set initial value here
+    // Event handler wired via XML <event_cb>, just set initial value here (options set in XML)
     lv_obj_t* completion_row = lv_obj_find_by_name(panel_, "row_completion_alert");
     if (completion_row) {
         completion_alert_dropdown_ = lv_obj_find_by_name(completion_row, "dropdown");
         if (completion_alert_dropdown_) {
-            // Set dropdown options (component doesn't support passing via XML attribute)
-            lv_dropdown_set_options(completion_alert_dropdown_, "Off\nNotification\nAlert");
             auto mode = settings.get_completion_alert_mode();
             lv_dropdown_set_selected(completion_alert_dropdown_, static_cast<uint32_t>(mode));
             spdlog::debug("[{}]   ✓ Completion alert dropdown (mode={})", get_name(),
@@ -743,8 +741,8 @@ void SettingsPanel::handle_touch_calibration_clicked() {
         overlay.create(parent_screen_);
     }
 
-    // Settings panel doesn't allow skip - only wizard does
-    overlay.set_allow_skip(false);
+    // Auto-start: skip IDLE state since user explicitly chose to recalibrate
+    overlay.set_auto_start(true);
     overlay.show();
 }
 

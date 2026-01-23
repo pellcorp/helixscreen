@@ -222,12 +222,9 @@ void FilamentSensorSettingsOverlay::populate_sensor_list() {
             },
             LV_EVENT_DELETE, nullptr);
 
-        // Wire up role dropdown
+        // Wire up role dropdown (options set in XML)
         lv_obj_t* role_dropdown = lv_obj_find_by_name(row, "role_dropdown");
         if (role_dropdown) {
-            // Set options with proper newline separators (XML can't do this)
-            lv_dropdown_set_options(role_dropdown, "None\nRunout\nToolhead\nEntry");
-
             // Set current role
             lv_dropdown_set_selected(role_dropdown, static_cast<uint32_t>(sensor.role));
 

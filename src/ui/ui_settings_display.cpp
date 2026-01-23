@@ -185,11 +185,7 @@ void DisplaySettingsOverlay::init_sleep_dropdown() {
     lv_obj_t* sleep_row = lv_obj_find_by_name(overlay_root_, "row_display_sleep");
     lv_obj_t* sleep_dropdown = sleep_row ? lv_obj_find_by_name(sleep_row, "dropdown") : nullptr;
     if (sleep_dropdown) {
-        // Set dropdown options
-        lv_dropdown_set_options(sleep_dropdown,
-                                "Never\n1 minute\n5 minutes\n10 minutes\n30 minutes");
-
-        // Set initial selection based on current setting
+        // Set initial selection based on current setting (options set in XML)
         int current_sec = SettingsManager::instance().get_display_sleep_sec();
         int index = SettingsManager::sleep_seconds_to_index(current_sec);
         lv_dropdown_set_selected(sleep_dropdown, index);
@@ -207,11 +203,7 @@ void DisplaySettingsOverlay::init_bed_mesh_dropdown() {
     lv_obj_t* bed_mesh_dropdown =
         bed_mesh_row ? lv_obj_find_by_name(bed_mesh_row, "dropdown") : nullptr;
     if (bed_mesh_dropdown) {
-        // Set dropdown options
-        lv_dropdown_set_options(bed_mesh_dropdown,
-                                SettingsManager::get_bed_mesh_render_mode_options());
-
-        // Set initial selection based on current setting
+        // Set initial selection based on current setting (options set in XML)
         int current_mode = SettingsManager::instance().get_bed_mesh_render_mode();
         lv_dropdown_set_selected(bed_mesh_dropdown, current_mode);
 
@@ -228,10 +220,7 @@ void DisplaySettingsOverlay::init_gcode_dropdown() {
     lv_obj_t* gcode_row = lv_obj_find_by_name(overlay_root_, "row_gcode_mode");
     lv_obj_t* gcode_dropdown = gcode_row ? lv_obj_find_by_name(gcode_row, "dropdown") : nullptr;
     if (gcode_dropdown) {
-        // Set dropdown options
-        lv_dropdown_set_options(gcode_dropdown, SettingsManager::get_gcode_render_mode_options());
-
-        // Set initial selection based on current setting
+        // Set initial selection based on current setting (options set in XML)
         int current_mode = SettingsManager::instance().get_gcode_render_mode();
         lv_dropdown_set_selected(gcode_dropdown, current_mode);
 
@@ -269,10 +258,7 @@ void DisplaySettingsOverlay::init_time_format_dropdown() {
     lv_obj_t* time_format_dropdown =
         time_format_row ? lv_obj_find_by_name(time_format_row, "dropdown") : nullptr;
     if (time_format_dropdown) {
-        // Set dropdown options
-        lv_dropdown_set_options(time_format_dropdown, SettingsManager::get_time_format_options());
-
-        // Set initial selection based on current setting
+        // Set initial selection based on current setting (options set in XML)
         auto current_format = SettingsManager::instance().get_time_format();
         lv_dropdown_set_selected(time_format_dropdown, static_cast<uint32_t>(current_format));
 
