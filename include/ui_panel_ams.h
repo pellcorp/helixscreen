@@ -7,6 +7,7 @@
 #include "ui_ams_context_menu.h"
 #include "ui_ams_dryer_card.h"
 #include "ui_ams_edit_modal.h"
+#include "ui_ams_loading_error_modal.h"
 #include "ui_ams_slot_edit_popup.h"
 #include "ui_ams_spoolman_picker.h"
 #include "ui_observer_guard.h"
@@ -118,6 +119,7 @@ class AmsPanel : public PanelBase {
     std::unique_ptr<helix::ui::AmsSpoolmanPicker> spoolman_picker_; ///< Spoolman spool picker
     std::unique_ptr<helix::ui::AmsEditModal> edit_modal_;           ///< Edit filament modal
     std::unique_ptr<helix::ui::AmsDryerCard> dryer_card_;           ///< Dryer card and modal
+    std::unique_ptr<helix::ui::AmsLoadingErrorModal> error_modal_;  ///< Loading error modal
 
     // === Observers (RAII cleanup via ObserverGuard) ===
 
@@ -145,6 +147,11 @@ class AmsPanel : public PanelBase {
 
     lv_obj_t* path_canvas_ = nullptr; ///< Filament path visualization widget
 
+    // === Step Progress Widget ===
+
+    lv_obj_t* step_progress_ = nullptr;           ///< Step progress stepper widget
+    lv_obj_t* step_progress_container_ = nullptr; ///< Container for step progress
+
     // === Endless Spool Arrows Canvas ===
 
     lv_obj_t* endless_arrows_ = nullptr; ///< Endless spool backup chain visualization
@@ -159,6 +166,8 @@ class AmsPanel : public PanelBase {
     void update_path_canvas_from_backend();
     void setup_endless_arrows();
     void update_endless_arrows_from_backend();
+    void setup_step_progress();
+    void update_step_progress(AmsAction action);
 
     /**
      * @brief Create slot widgets dynamically based on slot count
@@ -247,6 +256,7 @@ class AmsPanel : public PanelBase {
     void show_slot_edit_popup(int slot_index, lv_obj_t* near_widget);
     void show_spoolman_picker(int slot_index);
     void show_edit_modal(int slot_index);
+    void show_loading_error_modal();
 
     // === Action Handlers (public for XML event callbacks) ===
   public:

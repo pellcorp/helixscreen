@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<!-- Copyright (C) 2025-2026 356C LLC -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Modal for displaying AMS loading errors with retry option -->
+<!-- NOTE: Backdrop created programmatically by Modal system -->
+<component>
+  <!-- Dialog card -->
+  <view name="ams_loading_error_modal"
+        extends="ui_dialog" width="360" height="content" align="center" flex_flow="column" style_flex_main_place="start"
+        style_pad_gap="0">
+    <!-- Header with title and close button -->
+    <lv_obj width="100%"
+            height="content" style_bg_opa="0" style_border_width="0" style_pad_left="#space_lg"
+            style_pad_right="#space_md" style_pad_top="#space_lg" style_pad_bottom="#space_sm" flex_flow="row"
+            style_flex_main_place="space_between" style_flex_cross_place="center" scrollable="false">
+      <lv_obj width="content"
+              height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
+              style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false">
+        <icon src="alert_circle" size="md" variant="error"/>
+        <text_heading text="Loading Error"/>
+      </lv_obj>
+      <!-- Close button -->
+      <lv_button name="btn_close"
+                 width="40" height="40" style_radius="#border_radius" style_bg_opa="0" style_border_width="0"
+                 style_shadow_width="0" clickable="true">
+        <event_cb trigger="clicked" callback="ams_loading_error_close_cb"/>
+        <icon src="close" size="sm" variant="secondary" align="center"/>
+      </lv_button>
+    </lv_obj>
+    <!-- Horizontal divider -->
+    <divider_horizontal/>
+    <!-- Error message content -->
+    <lv_obj width="100%"
+            height="content" style_bg_opa="0" style_border_width="0" style_pad_all="#space_lg" flex_flow="column"
+            style_pad_gap="#space_md" scrollable="false">
+      <!-- Error message text -->
+      <text_body name="error_message" width="100%" text="An error occurred while loading filament." long_mode="wrap"/>
+      <!-- Hint text -->
+      <text_small name="error_hint"
+                  width="100%" text="Check the filament path and try again." style_text_color="#text_secondary"
+                  long_mode="wrap"/>
+    </lv_obj>
+    <!-- Horizontal divider above buttons -->
+    <divider_horizontal/>
+    <!-- Action buttons row -->
+    <lv_obj width="100%"
+            height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
+            scrollable="false">
+      <!-- Cancel button -->
+      <lv_button name="btn_cancel"
+                 height="100%" flex_grow="1" style_radius="#border_radius" style_border_width="0" style_shadow_width="0"
+                 clickable="true">
+        <text_body text="Close" align="center" style_text_color="#text_secondary"/>
+        <event_cb trigger="clicked" callback="ams_loading_error_cancel_cb"/>
+      </lv_button>
+      <!-- Vertical divider -->
+      <divider_vertical/>
+      <!-- Retry button -->
+      <lv_button name="btn_retry"
+                 height="100%" flex_grow="1" style_radius="#border_radius" style_border_width="0" style_shadow_width="0"
+                 clickable="true">
+        <text_body text="Retry" align="center" style_text_color="#primary_color"/>
+        <event_cb trigger="clicked" callback="ams_loading_error_retry_cb"/>
+      </lv_button>
+    </lv_obj>
+  </view>
+</component>

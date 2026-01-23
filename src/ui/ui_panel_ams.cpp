@@ -18,6 +18,7 @@
 #include "ui_nav_manager.h"
 #include "ui_panel_common.h"
 #include "ui_spool_canvas.h"
+#include "ui_step_progress.h"
 #include "ui_theme.h"
 #include "ui_utils.h"
 
@@ -152,6 +153,7 @@ static void ensure_ams_widgets_registered() {
     lv_xml_register_component_from_file("A:ui_xml/spoolman_spool_item.xml");
     lv_xml_register_component_from_file("A:ui_xml/spoolman_picker_modal.xml");
     lv_xml_register_component_from_file("A:ui_xml/ams_edit_modal.xml");
+    lv_xml_register_component_from_file("A:ui_xml/ams_loading_error_modal.xml");
     // NOTE: color_picker.xml is registered at startup in xml_registration.cpp
 
     s_ams_widgets_registered = true;
@@ -326,6 +328,7 @@ void AmsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     setup_action_buttons();
     setup_status_display();
     setup_path_canvas();
+    setup_step_progress();
 
     // Setup endless spool arrows (before dryer card as it's in slot area)
     setup_endless_arrows();
@@ -398,6 +401,7 @@ void AmsPanel::clear_panel_reference() {
     context_menu_.reset();
     slot_edit_popup_.reset();
     edit_modal_.reset();
+    error_modal_.reset();
 
     // Clear observer guards BEFORE clearing widget pointers (they reference widgets)
     slots_version_observer_.reset();
@@ -428,6 +432,8 @@ void AmsPanel::clear_panel_reference() {
     labels_layer_ = nullptr;
     path_canvas_ = nullptr;
     endless_arrows_ = nullptr;
+    step_progress_ = nullptr;
+    step_progress_container_ = nullptr;
     current_slot_count_ = 0;
 
     for (int i = 0; i < MAX_VISIBLE_SLOTS; ++i) {
@@ -886,6 +892,87 @@ void AmsPanel::update_endless_arrows_from_backend() {
     spdlog::debug("[{}] Endless arrows updated with {} slots", get_name(), slot_count);
 }
 
+void AmsPanel::setup_step_progress() {
+    step_progress_container_ = lv_obj_find_by_name(panel_, "progress_stepper_container");
+    if (!step_progress_container_) {
+        spdlog::warn("[{}] progress_stepper_container not found in XML", get_name());
+        return;
+    }
+
+    // Create step progress widget with loading steps
+    ui_step_t steps[] = {
+        {"Heat nozzle", UI_STEP_STATE_PENDING},
+        {"Feed filament", UI_STEP_STATE_PENDING},
+        {"Verify extrusion", UI_STEP_STATE_PENDING},
+        {"Complete", UI_STEP_STATE_PENDING},
+    };
+
+    step_progress_ =
+        ui_step_progress_create(step_progress_container_, steps, 4, false, "ams_step_progress");
+
+    if (!step_progress_) {
+        spdlog::error("[{}] Failed to create step progress widget", get_name());
+        return;
+    }
+
+    // Container is hidden by default (via XML)
+    spdlog::debug("[{}] Step progress widget created", get_name());
+}
+
+void AmsPanel::update_step_progress(AmsAction action) {
+    if (!step_progress_ || !step_progress_container_) {
+        return;
+    }
+
+    // Show/hide container based on action
+    bool show_progress = (action == AmsAction::HEATING || action == AmsAction::LOADING ||
+                          action == AmsAction::CHECKING || action == AmsAction::FORMING_TIP);
+
+    if (show_progress) {
+        lv_obj_remove_flag(step_progress_container_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(step_progress_container_, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    // Update step progress based on action
+    switch (action) {
+    case AmsAction::HEATING:
+        // Step 0: Heat nozzle
+        ui_step_progress_set_current(step_progress_, 0);
+        break;
+
+    case AmsAction::LOADING:
+        // Step 1: Feed filament
+        ui_step_progress_set_current(step_progress_, 1);
+        break;
+
+    case AmsAction::CHECKING:
+    case AmsAction::FORMING_TIP:
+        // Step 2: Verify extrusion
+        ui_step_progress_set_current(step_progress_, 2);
+        break;
+
+    case AmsAction::IDLE:
+        // If we were in a loading sequence, mark complete then hide
+        if (!lv_obj_has_flag(step_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+            ui_step_progress_set_current(step_progress_, 3);
+            // Hide after a brief delay to show completion
+            lv_obj_add_flag(step_progress_container_, LV_OBJ_FLAG_HIDDEN);
+        }
+        break;
+
+    case AmsAction::ERROR:
+        // Error case handled separately via error modal
+        lv_obj_add_flag(step_progress_container_, LV_OBJ_FLAG_HIDDEN);
+        break;
+
+    default:
+        // Other actions (UNLOADING, SELECTING, RESETTING, PAUSED) - hide progress
+        lv_obj_add_flag(step_progress_container_, LV_OBJ_FLAG_HIDDEN);
+        break;
+    }
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -1028,17 +1115,26 @@ void AmsPanel::update_action_display(AmsAction action) {
     // This method can add visual feedback (progress indicators, etc.)
 
     lv_obj_t* progress = lv_obj_find_by_name(panel_, "action_progress");
-    if (!progress) {
-        return;
+    if (progress) {
+        bool show_progress = (action == AmsAction::LOADING || action == AmsAction::UNLOADING ||
+                              action == AmsAction::SELECTING || action == AmsAction::RESETTING ||
+                              action == AmsAction::HEATING);
+
+        if (show_progress) {
+            lv_obj_remove_flag(progress, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(progress, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 
-    bool show_progress = (action == AmsAction::LOADING || action == AmsAction::UNLOADING ||
-                          action == AmsAction::SELECTING || action == AmsAction::RESETTING);
+    // Update step progress stepper
+    update_step_progress(action);
 
-    if (show_progress) {
-        lv_obj_remove_flag(progress, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(progress, LV_OBJ_FLAG_HIDDEN);
+    // Handle error state - show error modal (only if not already visible)
+    if (action == AmsAction::ERROR) {
+        if (!error_modal_ || !error_modal_->is_visible()) {
+            show_loading_error_modal();
+        }
     }
 }
 
@@ -1568,6 +1664,47 @@ void AmsPanel::show_edit_modal(int slot_index) {
 
     // Show the modal
     edit_modal_->show_for_slot(parent_screen_, slot_index, initial_info, api_);
+}
+
+void AmsPanel::show_loading_error_modal() {
+    if (!parent_screen_) {
+        spdlog::warn("[{}] Cannot show error modal - no parent screen", get_name());
+        return;
+    }
+
+    AmsBackend* backend = AmsState::instance().get_backend();
+    if (!backend) {
+        return;
+    }
+
+    // Create modal on first use (lazy initialization)
+    if (!error_modal_) {
+        error_modal_ = std::make_unique<helix::ui::AmsLoadingErrorModal>();
+    }
+
+    // Get error details from backend
+    AmsSystemInfo info = backend->get_system_info();
+    std::string error_message = info.operation_detail;
+    if (error_message.empty()) {
+        error_message = "An error occurred during filament loading.";
+    }
+
+    // Store slot for retry
+    int retry_slot = info.current_slot;
+
+    // Show the error modal with retry callback
+    error_modal_->show(parent_screen_, error_message, [this, retry_slot]() {
+        // Retry load operation for the same slot
+        if (retry_slot >= 0) {
+            AmsBackend* backend = AmsState::instance().get_backend();
+            if (backend) {
+                spdlog::info("[AmsPanel] Retrying load for slot {}", retry_slot);
+                // Reset the AMS first, then load
+                backend->reset();
+                handle_load_with_preheat(retry_slot);
+            }
+        }
+    });
 }
 
 // ============================================================================

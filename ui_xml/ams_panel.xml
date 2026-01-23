@@ -52,8 +52,7 @@
                  Positioned at TOP of slot area, ABOVE the slots.
                  Arrows show up-over-down connections between slots. -->
             <endless_spool_arrows name="endless_arrows"
-                                  width="100%" height="45"
-                                  clickable="false" scrollable="false" style_bg_opa="0"/>
+                                  width="100%" height="45" clickable="false" scrollable="false" style_bg_opa="0"/>
             <!-- Slots wrapper - contains grid, tray, and labels with relative positioning -->
             <lv_obj name="slots_wrapper"
                     width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
@@ -73,8 +72,8 @@
                    Positioned at top of slot area, overlapping labels area.
                    Uses absolute positioning relative to slot_area so it renders above spools. -->
               <endless_spool_arrows name="endless_arrows"
-                                    width="100%" height="50" align="top_mid"
-                                    clickable="false" scrollable="false" style_bg_opa="0"/>
+                                    width="100%" height="50" align="top_mid" clickable="false" scrollable="false"
+                                    style_bg_opa="0"/>
               <!-- Labels Layer - renders ON TOP of slots so labels aren't obscured by overlapping slots
                    Height matches slot stagger area; set dynamically by C++ for different gate counts -->
               <lv_obj name="labels_layer"
@@ -179,6 +178,12 @@
                       style_arc_color="#primary_color" style_arc_opa_main="0" hidden="true"/>
           <!-- Status label - bound to ams_action_detail subject -->
           <text_body name="status_label" bind_text="ams_action_detail" style_text_align="center" flex_grow="1"/>
+        </lv_obj>
+        <!-- Step Progress Stepper (shown during load operations) -->
+        <lv_obj name="progress_stepper_container"
+                width="100%" height="150" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false"
+                hidden="true">
+          <!-- Step progress widget created dynamically by AmsPanel -->
         </lv_obj>
         <!-- Flex spacer - pushes action buttons to bottom of column -->
         <lv_obj width="1" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false" flex_grow="1"/>
