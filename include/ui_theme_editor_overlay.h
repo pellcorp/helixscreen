@@ -89,6 +89,14 @@ class ThemeEditorOverlay : public OverlayBase {
     }
 
     /**
+     * @brief Get the theme currently being edited
+     * @return Reference to editing theme data
+     */
+    [[nodiscard]] const helix::ThemeData& get_editing_theme() const {
+        return editing_theme_;
+    }
+
+    /**
      * @brief Load theme for editing
      * @param filename Theme filename (without .json extension)
      */

@@ -211,6 +211,7 @@ class DisplaySettingsOverlay : public OverlayBase {
     static void on_theme_preset_changed(lv_event_t* e);
     static void on_theme_preview_clicked(lv_event_t* e);
     static void on_theme_settings_clicked(lv_event_t* e);
+    static void on_preview_dark_mode_toggled(lv_event_t* e);
 };
 
 /**

@@ -43,23 +43,8 @@ static lv_style_transition_dsc_t button_press_transition;
  * @param is_dark Dark mode flag
  * @return Computed input background color
  */
-static lv_color_t compute_input_bg_color(lv_color_t card_bg, bool is_dark) {
-    uint32_t rgb = lv_color_to_u32(card_bg);
-    int r = (rgb >> 16) & 0xFF;
-    int g = (rgb >> 8) & 0xFF;
-    int b = rgb & 0xFF;
-
-    // Apply RGB offsets with clamping
-    int r_offset = is_dark ? 22 : -22;
-    int g_offset = is_dark ? 23 : -23;
-    int b_offset = is_dark ? 27 : -27;
-
-    r = (r + r_offset < 0) ? 0 : ((r + r_offset > 255) ? 255 : r + r_offset);
-    g = (g + g_offset < 0) ? 0 : ((g + g_offset > 255) ? 255 : g + g_offset);
-    b = (b + b_offset < 0) ? 0 : ((b + b_offset > 255) ? 255 : b + b_offset);
-
-    return lv_color_hex((uint32_t)((r << 16) | (g << 8) | b));
-}
+// Input widgets (dropdowns, textareas, etc.) use border_muted color
+// This is passed directly rather than computed from card_bg
 
 /**
  * Custom theme apply callback
@@ -189,12 +174,12 @@ lv_theme_t* helix_theme_init(lv_display_t* display, lv_color_t primary_color,
     helix_theme_instance->base.flags = 0;
     helix_theme_instance->is_dark_mode = is_dark;
 
-    // Compute input widget background color
-    lv_color_t input_bg = compute_input_bg_color(card_bg, is_dark);
+    // Input widgets use border_muted color (theme_grey) for background
+    // This provides consistent contrast in both light and dark modes
 
     // Initialize custom input background style
     lv_style_init(&helix_theme_instance->input_bg_style);
-    lv_style_set_bg_color(&helix_theme_instance->input_bg_style, input_bg);
+    lv_style_set_bg_color(&helix_theme_instance->input_bg_style, theme_grey);
     lv_style_set_bg_opa(&helix_theme_instance->input_bg_style, LV_OPA_COVER);
 
     // Initialize global disabled state style (50% opacity)
@@ -309,9 +294,8 @@ void helix_theme_update_colors(bool is_dark, lv_color_t screen_bg, lv_color_t ca
     // Update our custom styles in-place
     helix_theme_instance->is_dark_mode = is_dark;
 
-    // Recompute input widget background color
-    lv_color_t input_bg = compute_input_bg_color(card_bg, is_dark);
-    lv_style_set_bg_color(&helix_theme_instance->input_bg_style, input_bg);
+    // Input widgets use border_muted color (theme_grey)
+    lv_style_set_bg_color(&helix_theme_instance->input_bg_style, theme_grey);
 
     // Update button style colors
     lv_style_set_bg_color(&helix_theme_instance->button_style, theme_grey);
@@ -380,9 +364,8 @@ void helix_theme_preview_colors(bool is_dark, const char* colors[16], int32_t bo
     lv_color_t card_bg = is_dark ? lv_color_hex(strtoul(colors[1] + 1, NULL, 16)) : // bg_dark
                              lv_color_hex(strtoul(colors[5] + 1, NULL, 16));        // bg_light
 
-    lv_color_t theme_grey = is_dark ? lv_color_hex(strtoul(colors[3] + 1, NULL, 16))
-                                    :                                           // border_muted
-                                lv_color_hex(strtoul(colors[4] + 1, NULL, 16)); // text_light
+    // border_muted used for both light and dark (consistent input field backgrounds)
+    lv_color_t border_muted = lv_color_hex(strtoul(colors[3] + 1, NULL, 16));
 
     lv_color_t text_primary = is_dark ? lv_color_hex(strtoul(colors[6] + 1, NULL, 16))
                                       :                                           // bg_lightest
@@ -391,12 +374,11 @@ void helix_theme_preview_colors(bool is_dark, const char* colors[16], int32_t bo
     // Update the helix_theme instance
     helix_theme_instance->is_dark_mode = is_dark;
 
-    // Recompute input widget background color
-    lv_color_t input_bg = compute_input_bg_color(card_bg, is_dark);
-    lv_style_set_bg_color(&helix_theme_instance->input_bg_style, input_bg);
+    // Input widgets use border_muted color
+    lv_style_set_bg_color(&helix_theme_instance->input_bg_style, border_muted);
 
     // Update button style
-    lv_style_set_bg_color(&helix_theme_instance->button_style, theme_grey);
+    lv_style_set_bg_color(&helix_theme_instance->button_style, border_muted);
     lv_style_set_text_color(&helix_theme_instance->button_style, text_primary);
     lv_style_set_radius(&helix_theme_instance->button_style, border_radius);
     lv_style_set_radius(&helix_theme_instance->pressed_style, border_radius);
@@ -430,13 +412,13 @@ void helix_theme_preview_colors(bool is_dark, const char* colors[16], int32_t bo
 
     def_theme->color_scr = screen_bg;
     def_theme->color_card = card_bg;
-    def_theme->color_grey = theme_grey;
+    def_theme->color_grey = border_muted;
     def_theme->color_text = text_primary;
 
     lv_style_set_bg_color(&def_theme->styles.scr, screen_bg);
     lv_style_set_text_color(&def_theme->styles.scr, text_primary);
     lv_style_set_bg_color(&def_theme->styles.card, card_bg);
-    lv_style_set_bg_color(&def_theme->styles.btn, theme_grey);
+    lv_style_set_bg_color(&def_theme->styles.btn, border_muted);
     lv_style_set_radius(&def_theme->styles.btn, border_radius);
 
     // Trigger style refresh

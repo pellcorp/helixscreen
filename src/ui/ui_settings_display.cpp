@@ -8,8 +8,10 @@
 
 #include "ui_settings_display.h"
 
+#include "helix_theme.h"
 #include "ui_event_safety.h"
 #include "ui_nav_manager.h"
+#include "ui_theme.h"
 #include "ui_theme_editor_overlay.h"
 #include "ui_utils.h"
 
@@ -78,6 +80,7 @@ void DisplaySettingsOverlay::register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_theme_preset_changed", on_theme_preset_changed);
     lv_xml_register_event_cb(nullptr, "on_theme_preview_clicked", on_theme_preview_clicked);
     lv_xml_register_event_cb(nullptr, "on_theme_settings_clicked", on_theme_settings_clicked);
+    lv_xml_register_event_cb(nullptr, "on_preview_dark_mode_toggled", on_preview_dark_mode_toggled);
 
     spdlog::debug("[{}] Callbacks registered", get_name());
 }
@@ -377,6 +380,27 @@ void DisplaySettingsOverlay::on_theme_settings_clicked(lv_event_t* e) {
     LVGL_SAFE_EVENT_CB_BEGIN("[DisplaySettingsOverlay] on_theme_settings_clicked");
     static_cast<void>(lv_event_get_current_target(e));
     get_display_settings_overlay().handle_theme_settings_clicked();
+    LVGL_SAFE_EVENT_CB_END();
+}
+
+void DisplaySettingsOverlay::on_preview_dark_mode_toggled(lv_event_t* e) {
+    LVGL_SAFE_EVENT_CB_BEGIN("[DisplaySettingsOverlay] on_preview_dark_mode_toggled");
+    auto* target = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    bool is_dark = lv_obj_has_state(target, LV_STATE_CHECKED);
+
+    // Get the current editing theme and preview it with toggled dark mode
+    auto& editor = get_theme_editor_overlay();
+    const auto& theme = editor.get_editing_theme();
+
+    // Re-preview with the new dark mode setting
+    const char* colors[16];
+    for (size_t i = 0; i < 16; ++i) {
+        colors[i] = theme.colors.at(i).c_str();
+    }
+    helix_theme_preview_colors(is_dark, colors, theme.properties.border_radius);
+    ui_theme_refresh_widget_tree(lv_screen_active());
+
+    spdlog::debug("[DisplaySettingsOverlay] Preview dark mode toggled to {}", is_dark ? "dark" : "light");
     LVGL_SAFE_EVENT_CB_END();
 }
 

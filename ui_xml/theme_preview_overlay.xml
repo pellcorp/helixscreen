@@ -35,7 +35,7 @@
                     style_pad_all="0" style_pad_gap="#space_xs" scrollable="false">
               <text_small text="Mode" style_text_color="#text_secondary"/>
               <lv_dropdown name="preview_dropdown"
-                           width="100%" height="#input_height" options="Standard Quiet Focused"
+                           width="100%" height="#input_height" options="Standard&#10;Quiet&#10;Focused"
                            style_radius="#border_radius" style_border_width="0"/>
             </lv_obj>
             <lv_obj width="content"
@@ -45,13 +45,16 @@
               <ui_switch name="preview_switch" size="small" checked="true"/>
             </lv_obj>
           </lv_obj>
+          <text_small text="Input" style_text_color="#text_secondary"/>
+          <lv_textarea name="preview_text_input"
+                       width="100%" height="#input_height" placeholder="Type to preview input field..."
+                       style_radius="#border_radius" style_border_width="0" one_line="true"/>
           <text_small text="Intensity" style_text_color="#text_secondary"/>
           <lv_obj width="100%"
                   height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm" style_bg_opa="0"
                   style_border_width="0" style_flex_cross_place="center" scrollable="false">
             <icon src="light_off" size="xs" variant="secondary"/>
-            <lv_slider name="preview_intensity_slider"
-                       height="#input_height" flex_grow="1" min_value="0" max_value="100" value="60"/>
+            <lv_slider name="preview_intensity_slider" flex_grow="1" min_value="0" max_value="100" value="60"/>
             <icon src="light" size="xs" variant="primary"/>
           </lv_obj>
         </lv_obj>
@@ -92,6 +95,16 @@
                        style_bg_color="#error_color" style_border_width="0" style_shadow_width="0">
               <text_body text="Danger" align="center" style_text_color="#text_primary"/>
             </lv_button>
+          </lv_obj>
+          <divider_horizontal opacity="20"/>
+          <lv_obj width="100%"
+                  height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm" style_bg_opa="0"
+                  style_border_width="0" style_flex_main_place="space_between" style_flex_cross_place="center"
+                  scrollable="false">
+            <text_body text="Dark Mode" style_text_color="#text_primary"/>
+            <ui_switch name="preview_dark_mode_toggle" size="small" checked="true">
+              <event_cb trigger="value_changed" callback="on_preview_dark_mode_toggled"/>
+            </ui_switch>
           </lv_obj>
           <divider_horizontal opacity="20"/>
           <lv_obj width="100%"
