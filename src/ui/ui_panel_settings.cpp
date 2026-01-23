@@ -243,6 +243,13 @@ void SettingsPanel::init_subjects() {
     subjects_.register_subject(&show_touch_calibration_subject_);
     lv_xml_register_subject(nullptr, "show_touch_calibration", &show_touch_calibration_subject_);
 
+    // Touch calibration status - show "Calibrated" or "Not calibrated" in row description
+    Config* config = Config::get_instance();
+    bool is_calibrated = config && config->get<bool>("/input/calibration/valid", false);
+    const char* status_text = is_calibrated ? "Calibrated" : "Not calibrated";
+    UI_MANAGED_SUBJECT_STRING(touch_cal_status_subject_, touch_cal_status_buf_, status_text,
+                              "touch_cal_status", subjects_);
+
     // Register XML event callbacks for dropdowns (already in XML)
     lv_xml_register_event_cb(nullptr, "on_completion_alert_changed",
                              on_completion_alert_dropdown_changed);
@@ -484,6 +491,17 @@ void SettingsPanel::setup_action_handlers() {
             lv_label_bind_text(label, get_printer_state().get_hardware_issues_label_subject(),
                                "%s");
             spdlog::debug("[{}]   ✓ Hardware health row with reactive label", get_name());
+        }
+    }
+
+    // === Touch Calibration Row (reactive description binding) ===
+    lv_obj_t* touch_cal_row = lv_obj_find_by_name(panel_, "row_touch_calibration");
+    if (touch_cal_row) {
+        lv_obj_t* description = lv_obj_find_by_name(touch_cal_row, "description");
+        if (description) {
+            // Bind to subject for "Calibrated" / "Not calibrated" status
+            lv_label_bind_text(description, &touch_cal_status_subject_, "%s");
+            spdlog::debug("[{}]   ✓ Touch calibration row with reactive description", get_name());
         }
     }
 }
@@ -743,7 +761,13 @@ void SettingsPanel::handle_touch_calibration_clicked() {
 
     // Auto-start: skip IDLE state since user explicitly chose to recalibrate
     overlay.set_auto_start(true);
-    overlay.show();
+    overlay.show([this](bool success) {
+        if (success) {
+            // Update status to "Calibrated" when calibration completes successfully
+            lv_subject_copy_string(&touch_cal_status_subject_, "Calibrated");
+            spdlog::info("[{}] Touch calibration completed - updated status", get_name());
+        }
+    });
 }
 
 void SettingsPanel::handle_factory_reset_clicked() {

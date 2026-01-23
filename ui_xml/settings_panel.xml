@@ -102,11 +102,12 @@
                         label="Network Settings" icon="wifi" description="WiFi and Ethernet configuration"
                         callback="on_network_clicked"/>
     <!-- Touch Calibration (hidden on non-touch displays unless test mode) -->
+    <!-- Description is bound to touch_cal_status subject in C++ setup() -->
     <lv_obj name="container_touch_calibration"
             width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false">
       <bind_flag_if_eq subject="show_touch_calibration" flag="hidden" ref_value="0"/>
       <setting_action_row name="row_touch_calibration"
-                          label="Touch Calibration" icon="cursor_move" description="Calibrate touchscreen input"
+                          label="Touch Calibration" icon="cursor_move" description=""
                           callback="on_touch_calibration_clicked"/>
     </lv_obj>
     <!-- Hardware Issues (hidden when no issues) -->

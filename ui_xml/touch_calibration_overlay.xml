@@ -4,13 +4,8 @@
 <!-- Touch Calibration Overlay Panel -->
 <!-- 3-point touchscreen calibration accessed from Settings -->
 <!-- States: 0=IDLE, 1=POINT_1, 2=POINT_2, 3=POINT_3, 4=VERIFY, 5=COMPLETE -->
+<!-- Subjects are registered in C++ (init_subjects) - do not define here to avoid shadowing -->
 <component>
-  <subjects>
-    <subject name="touch_cal_state" type="int" value="0"/>
-    <subject name="touch_cal_instruction" type="string" value="Tap Start to begin calibration"/>
-    <subject name="touch_cal_skip_visible" type="int" value="0"/>
-  </subjects>
-
   <view name="touch_calibration_overlay"
         extends="overlay_panel" width="#overlay_panel_width_full" title="Touch Calibration" bg_color="#app_bg_color">
 
@@ -24,10 +19,10 @@
                  style_pad_left="#space_lg" style_pad_right="#space_lg"/>
 
       <!-- Crosshair target - positioned dynamically by C++ code -->
-      <!-- Uses MDI crosshairs-gps icon (U+F0785) -->
+      <!-- Uses MDI target icon (U+F04FE) via icon_target constant -->
       <!-- Visible only during POINT_1, POINT_2, POINT_3 (states 1, 2, 3) -->
       <lv_label name="crosshair"
-                width="50" height="50" text="󰞅" style_text_font="mdi_icons_48" style_text_color="#primary_color"
+                width="50" height="50" text="#icon_target" style_text_font="mdi_icons_48" style_text_color="#primary_color"
                 style_text_align="center" align="top_left">
         <!-- Bindings control visibility: hidden in states 0, 4, 5 (visible in 1, 2, 3) -->
         <!-- NOTE: Do NOT add hidden="true" base attribute - bindings handle it -->
@@ -36,11 +31,7 @@
         <bind_flag_if_eq subject="touch_cal_state" flag="hidden" ref_value="5"/>
       </lv_label>
 
-      <!-- Verify marker - shows where transformed touch lands during VERIFY state -->
-      <!-- Visibility controlled by C++ code (shown temporarily on touch) -->
-      <lv_obj name="verify_marker"
-              width="24" height="24" style_bg_color="#success_color" style_radius="12" style_bg_opa="200"
-              style_border_width="0" align="top_left" hidden="true" scrollable="false"/>
+      <!-- Note: Verify marker removed - using ripple effect instead (via ui_create_ripple) -->
 
       <!-- Touch capture overlay - invisible but captures all touches -->
       <!-- Visible during POINT_1/2/3 (calibration) and VERIFY (accuracy test) -->
@@ -79,14 +70,7 @@
           <text_body text="Retry" align="center"/>
         </lv_button>
 
-        <!-- Skip button - visible only in IDLE when skip is allowed -->
-        <lv_button name="btn_skip" width="100" height="#button_height" style_bg_color="#card_bg">
-          <event_cb trigger="clicked" callback="on_touch_cal_skip_clicked"/>
-          <!-- Hidden if state != 0 OR skip not allowed (skip_visible == 0) -->
-          <bind_flag_if_not_eq subject="touch_cal_state" flag="hidden" ref_value="0"/>
-          <bind_flag_if_eq subject="touch_cal_skip_visible" flag="hidden" ref_value="0"/>
-          <text_body text="Skip" align="center"/>
-        </lv_button>
+        <!-- Note: Skip button removed - only relevant for wizard (wizard_touch_calibration.xml) -->
       </lv_obj>
     </lv_obj>
   </view>

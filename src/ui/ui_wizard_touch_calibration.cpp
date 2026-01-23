@@ -22,11 +22,6 @@
 constexpr int CROSSHAIR_SIZE = 50;
 constexpr int CROSSHAIR_HALF_SIZE = CROSSHAIR_SIZE / 2;
 
-// Ripple animation constants
-constexpr int RIPPLE_START_SIZE = 20;
-constexpr int RIPPLE_END_SIZE = 120;
-constexpr int32_t RIPPLE_DURATION_MS = 400;
-
 // External wizard subjects (defined in ui_wizard.cpp)
 extern lv_subject_t connection_test_passed;
 extern lv_subject_t wizard_next_button_text;
@@ -372,71 +367,10 @@ void WizardTouchCalibrationStep::handle_test_area_touched(lv_event_t* e) {
 }
 
 void WizardTouchCalibrationStep::create_ripple_at(lv_coord_t x, lv_coord_t y) {
-    // Skip animation if disabled
-    if (!SettingsManager::instance().get_animations_enabled()) {
-        spdlog::debug("[{}] Animations disabled - skipping ripple", get_name());
-        return;
-    }
-
     if (!test_touch_area_) {
         return;
     }
-
-    // Create circle object for ripple effect
-    lv_obj_t* ripple = lv_obj_create(test_touch_area_);
-    lv_obj_remove_style_all(ripple);
-
-    // Initial size (small circle)
-    lv_obj_set_size(ripple, RIPPLE_START_SIZE, RIPPLE_START_SIZE);
-    lv_obj_set_style_radius(ripple, LV_RADIUS_CIRCLE, 0);
-
-    // Style: primary color, semi-transparent
-    lv_obj_set_style_bg_color(ripple, ui_theme_get_color("primary_color"), 0);
-    lv_obj_set_style_bg_opa(ripple, LV_OPA_50, 0);
-    lv_obj_set_style_border_width(ripple, 0, 0);
-
-    // Take out of flex layout so position works, and make non-clickable
-    lv_obj_add_flag(ripple, LV_OBJ_FLAG_FLOATING);
-    lv_obj_remove_flag(ripple, LV_OBJ_FLAG_CLICKABLE);
-
-    // Position centered on touch point
-    lv_obj_set_pos(ripple, x - RIPPLE_START_SIZE / 2, y - RIPPLE_START_SIZE / 2);
-
-    // Animation 1: Scale (grow)
-    lv_anim_t scale_anim;
-    lv_anim_init(&scale_anim);
-    lv_anim_set_var(&scale_anim, ripple);
-    lv_anim_set_values(&scale_anim, RIPPLE_START_SIZE, RIPPLE_END_SIZE);
-    lv_anim_set_duration(&scale_anim, RIPPLE_DURATION_MS);
-    lv_anim_set_path_cb(&scale_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&scale_anim, [](void* var, int32_t size) {
-        auto* obj = static_cast<lv_obj_t*>(var);
-        lv_coord_t old_size = lv_obj_get_width(obj);
-        lv_coord_t delta = (size - old_size) / 2;
-        lv_obj_set_size(obj, size, size);
-        // Use style values (not coords) - coords aren't updated until layout refresh
-        int32_t current_x = lv_obj_get_style_x(obj, LV_PART_MAIN);
-        int32_t current_y = lv_obj_get_style_y(obj, LV_PART_MAIN);
-        lv_obj_set_pos(obj, current_x - delta, current_y - delta);
-    });
-    lv_anim_start(&scale_anim);
-
-    // Animation 2: Fade out
-    lv_anim_t fade_anim;
-    lv_anim_init(&fade_anim);
-    lv_anim_set_var(&fade_anim, ripple);
-    lv_anim_set_values(&fade_anim, LV_OPA_50, LV_OPA_TRANSP);
-    lv_anim_set_duration(&fade_anim, RIPPLE_DURATION_MS);
-    lv_anim_set_path_cb(&fade_anim, lv_anim_path_ease_out);
-    lv_anim_set_exec_cb(&fade_anim, [](void* var, int32_t opa) {
-        lv_obj_set_style_bg_opa(static_cast<lv_obj_t*>(var), static_cast<lv_opa_t>(opa), 0);
-    });
-    lv_anim_set_completed_cb(&fade_anim, [](lv_anim_t* a) {
-        // Delete ripple object when animation completes
-        lv_obj_t* widget = static_cast<lv_obj_t*>(a->var);
-        lv_obj_safe_delete(widget);
-    });
-    lv_anim_start(&fade_anim);
+    ui_create_ripple(test_touch_area_, x, y);
 }
 
 // ============================================================================

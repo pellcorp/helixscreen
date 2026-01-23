@@ -8,16 +8,15 @@
  * Provides a fullscreen overlay for touch calibration with:
  * - Visual crosshair targets for touch point capture
  * - State-driven UI progression (idle -> points -> verify -> complete)
- * - Completion callback with success/skip status for wizard integration
- * - Optional skip button for setup wizard (allow_skip mode)
+ * - Completion callback with success status
+ * - Auto-start option to skip IDLE state
  *
  * ## States:
  *   IDLE -> POINT_1 -> POINT_2 -> POINT_3 -> VERIFY -> COMPLETE
  *
  * ## Completion Callback:
- * - (true, false)  = Accepted and saved
- * - (false, false) = Cancelled (back button)
- * - (false, true)  = Skipped (wizard only)
+ * - true  = Accepted and saved
+ * - false = Cancelled (back button)
  *
  * ## Initialization Order:
  *   1. Register XML components (touch_calibration_overlay.xml)
@@ -57,14 +56,12 @@ class TouchCalibrationOverlay : public OverlayBase {
      * @brief Completion callback type
      *
      * @param success true if calibration was accepted and saved
-     * @param skipped true if user chose to skip (wizard mode only)
      *
      * Callback interpretations:
-     * - (true, false)  = Calibration accepted and saved
-     * - (false, false) = Calibration cancelled (back button)
-     * - (false, true)  = Calibration skipped (wizard only)
+     * - true  = Calibration accepted and saved
+     * - false = Calibration cancelled (back button)
      */
-    using CompletionCallback = std::function<void(bool success, bool skipped)>;
+    using CompletionCallback = std::function<void(bool success)>;
 
     TouchCalibrationOverlay();
     ~TouchCalibrationOverlay() override;
@@ -83,7 +80,6 @@ class TouchCalibrationOverlay : public OverlayBase {
      * Creates and registers subjects:
      * - touch_cal_state (int): Current state 0-5
      * - touch_cal_instruction (string): Instruction text
-     * - touch_cal_skip_visible (int): 1 if skip button shown
      *
      * MUST be called BEFORE create() to ensure bindings work.
      */
@@ -96,7 +92,6 @@ class TouchCalibrationOverlay : public OverlayBase {
      * - on_touch_cal_start_clicked
      * - on_touch_cal_accept_clicked
      * - on_touch_cal_retry_clicked
-     * - on_touch_cal_skip_clicked
      * - on_touch_cal_screen_touched
      * - on_touch_cal_back_clicked
      */
@@ -158,13 +153,14 @@ class TouchCalibrationOverlay : public OverlayBase {
     void hide();
 
     /**
-     * @brief Enable or disable the skip button
+     * @brief Enable auto-start mode
      *
-     * @param allow true to show skip button (wizard mode)
+     * @param auto_start If true, show() will skip IDLE and start at POINT_1
      *
-     * When enabled, users can skip calibration during initial setup.
+     * When enabled (called before show()), the overlay skips the Start button
+     * and immediately begins calibration at the first point.
      */
-    void set_allow_skip(bool allow);
+    void set_auto_start(bool auto_start);
 
     //
     // === Event Handlers (called by static trampolines) ===
@@ -178,9 +174,6 @@ class TouchCalibrationOverlay : public OverlayBase {
 
     /** @brief Handle retry button click - restarts calibration */
     void handle_retry_clicked();
-
-    /** @brief Handle skip button click - skips without saving */
-    void handle_skip_clicked();
 
     /**
      * @brief Handle screen touch event - captures calibration point
@@ -221,6 +214,9 @@ class TouchCalibrationOverlay : public OverlayBase {
     /** @brief Position crosshair at current calibration target */
     void update_crosshair_position();
 
+    /** @brief Update step progress indicator (3 dots) */
+    void update_step_progress();
+
     /**
      * @brief Handle calibration completion from panel
      * @param cal Calibration data if successful, nullptr if cancelled
@@ -238,9 +234,8 @@ class TouchCalibrationOverlay : public OverlayBase {
     //
 
     SubjectManager subjects_;
-    lv_subject_t state_subject_;        ///< int: 0-5 for states
-    lv_subject_t instruction_subject_;  ///< string: instruction text
-    lv_subject_t skip_visible_subject_; ///< int: 1 if skip allowed
+    lv_subject_t state_subject_;       ///< int: 0-5 for states
+    lv_subject_t instruction_subject_; ///< string: instruction text
     char instruction_buffer_[128];
 
     //
@@ -248,15 +243,15 @@ class TouchCalibrationOverlay : public OverlayBase {
     //
 
     CompletionCallback completion_callback_;
-    bool allow_skip_ = false;
     bool callback_invoked_ = false; ///< Guard against double-invoke
+    bool auto_start_ = false;       ///< Skip IDLE, start at POINT_1
 
     //
-    // === Widget References (for crosshair positioning) ===
+    // === Widget References ===
     //
 
     lv_obj_t* crosshair_ = nullptr;
-    lv_obj_t* verify_marker_ = nullptr;
+    lv_obj_t* step_progress_ = nullptr; ///< 3-dot progress during calibration
 
     //
     // === State Constants ===

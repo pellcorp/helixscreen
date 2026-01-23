@@ -5,7 +5,9 @@
 
 #include "ui_event_safety.h"
 #include "ui_nav_manager.h"
+#include "ui_step_progress.h"
 #include "ui_toast_manager.h"
+#include "ui_utils.h"
 
 #include "config.h"
 #include "display_manager.h"
@@ -55,13 +57,6 @@ static void on_touch_cal_retry_clicked(lv_event_t* e) {
     (void)e;
     LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] retry clicked");
     get_touch_calibration_overlay().handle_retry_clicked();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-static void on_touch_cal_skip_clicked(lv_event_t* e) {
-    (void)e;
-    LVGL_SAFE_EVENT_CB_BEGIN("[TouchCalibrationOverlay] skip clicked");
-    get_touch_calibration_overlay().handle_skip_clicked();
     LVGL_SAFE_EVENT_CB_END();
 }
 
@@ -137,7 +132,7 @@ TouchCalibrationOverlay::~TouchCalibrationOverlay() {
     // Clear widget pointers (owned by LVGL)
     overlay_root_ = nullptr;
     crosshair_ = nullptr;
-    verify_marker_ = nullptr;
+    step_progress_ = nullptr;
 }
 
 // ============================================================================
@@ -159,9 +154,6 @@ void TouchCalibrationOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(instruction_subject_, instruction_buffer_,
                               "Tap Start to begin calibration", "touch_cal_instruction", subjects_);
 
-    // Skip button visibility subject (1 = visible, 0 = hidden)
-    UI_MANAGED_SUBJECT_INT(skip_visible_subject_, 0, "touch_cal_skip_visible", subjects_);
-
     subjects_initialized_ = true;
     spdlog::debug("[{}] Subjects initialized", get_name());
 }
@@ -176,7 +168,6 @@ void TouchCalibrationOverlay::register_callbacks() {
     lv_xml_register_event_cb(nullptr, "on_touch_cal_start_clicked", on_touch_cal_start_clicked);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_accept_clicked", on_touch_cal_accept_clicked);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_retry_clicked", on_touch_cal_retry_clicked);
-    lv_xml_register_event_cb(nullptr, "on_touch_cal_skip_clicked", on_touch_cal_skip_clicked);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_overlay_touched", on_touch_cal_overlay_touched);
     lv_xml_register_event_cb(nullptr, "on_touch_cal_back_clicked", on_touch_cal_back_clicked);
 
@@ -213,8 +204,30 @@ lv_obj_t* TouchCalibrationOverlay::create(lv_obj_t* parent) {
         spdlog::warn("[{}] Crosshair widget not found in XML", get_name());
     }
 
-    // Find verify marker widget (optional)
-    verify_marker_ = lv_obj_find_by_name(overlay_root_, "verify_marker");
+    // Create step progress widget (3 dots for calibration points)
+    // Place it below the instruction label
+    lv_obj_t* content = lv_obj_find_by_name(overlay_root_, "calibration_content");
+    if (content) {
+        // Create container for step progress (centered horizontally, below instruction)
+        lv_obj_t* step_container = lv_obj_create(content);
+        lv_obj_remove_style_all(step_container);
+        lv_obj_set_size(step_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_align(step_container, LV_ALIGN_TOP_MID, 0, 80); // Below instruction
+        lv_obj_add_flag(step_container, LV_OBJ_FLAG_FLOATING); // Don't affect layout
+
+        // Create horizontal 3-step progress (no labels, just dots)
+        static const ui_step_t steps[] = {
+            {"", UI_STEP_STATE_PENDING},
+            {"", UI_STEP_STATE_PENDING},
+            {"", UI_STEP_STATE_PENDING},
+        };
+        step_progress_ = ui_step_progress_create(step_container, steps, 3, true, nullptr);
+        if (step_progress_) {
+            // Initially hidden (shown during POINT_1/2/3)
+            lv_obj_add_flag(step_container, LV_OBJ_FLAG_HIDDEN);
+            spdlog::debug("[{}] Step progress widget created", get_name());
+        }
+    }
 
     // Initially hidden
     lv_obj_add_flag(overlay_root_, LV_OBJ_FLAG_HIDDEN);
@@ -233,7 +246,7 @@ void TouchCalibrationOverlay::show(CompletionCallback callback) {
         return;
     }
 
-    spdlog::debug("[{}] Showing overlay", get_name());
+    spdlog::debug("[{}] Showing overlay (auto_start={})", get_name(), auto_start_);
 
     // Store completion callback
     completion_callback_ = std::move(callback);
@@ -243,11 +256,21 @@ void TouchCalibrationOverlay::show(CompletionCallback callback) {
     if (panel_) {
         panel_->cancel(); // Reset to IDLE
     }
-    lv_subject_set_int(&state_subject_, STATE_IDLE);
-    update_instruction_text();
 
-    // Update skip visibility
-    lv_subject_set_int(&skip_visible_subject_, allow_skip_ ? 1 : 0);
+    // Auto-start: skip IDLE state and begin calibration immediately
+    if (auto_start_ && panel_) {
+        panel_->start();
+        lv_subject_set_int(&state_subject_, STATE_POINT_1);
+        spdlog::info("[{}] Auto-starting calibration at POINT_1", get_name());
+    } else {
+        lv_subject_set_int(&state_subject_, STATE_IDLE);
+    }
+    update_instruction_text();
+    update_crosshair_position();
+    update_step_progress();
+
+    // Reset auto_start flag for next show()
+    auto_start_ = false;
 
     // Register with NavigationManager for lifecycle callbacks
     NavigationManager::instance().register_overlay_instance(overlay_root_, this);
@@ -256,6 +279,10 @@ void TouchCalibrationOverlay::show(CompletionCallback callback) {
     ui_nav_push_overlay(overlay_root_);
 
     spdlog::info("[{}] Overlay shown", get_name());
+}
+
+void TouchCalibrationOverlay::set_auto_start(bool auto_start) {
+    auto_start_ = auto_start;
 }
 
 void TouchCalibrationOverlay::hide() {
@@ -320,24 +347,13 @@ void TouchCalibrationOverlay::cleanup() {
 
     // Clear widget pointers
     crosshair_ = nullptr;
-    verify_marker_ = nullptr;
+    step_progress_ = nullptr;
 
     // Clear callback
     completion_callback_ = nullptr;
     callback_invoked_ = false;
 
     spdlog::debug("[{}] Cleanup complete", get_name());
-}
-
-// ============================================================================
-// Public API
-// ============================================================================
-
-void TouchCalibrationOverlay::set_allow_skip(bool allow) {
-    allow_skip_ = allow;
-    if (subjects_initialized_) {
-        lv_subject_set_int(&skip_visible_subject_, allow ? 1 : 0);
-    }
 }
 
 // ============================================================================
@@ -356,6 +372,7 @@ void TouchCalibrationOverlay::handle_start_clicked() {
     lv_subject_set_int(&state_subject_, STATE_POINT_1);
     update_instruction_text();
     update_crosshair_position();
+    update_step_progress();
 }
 
 void TouchCalibrationOverlay::handle_accept_clicked() {
@@ -407,7 +424,7 @@ void TouchCalibrationOverlay::handle_accept_clicked() {
     // Invoke completion callback with success
     if (completion_callback_ && !callback_invoked_) {
         callback_invoked_ = true;
-        completion_callback_(true, false);
+        completion_callback_(true);
     }
 
     hide();
@@ -424,20 +441,7 @@ void TouchCalibrationOverlay::handle_retry_clicked() {
     lv_subject_set_int(&state_subject_, STATE_POINT_1);
     update_instruction_text();
     update_crosshair_position();
-}
-
-void TouchCalibrationOverlay::handle_skip_clicked() {
-    spdlog::info("[{}] Skip calibration clicked", get_name());
-
-    // Don't call panel_->cancel() here to avoid triggering completion callback
-    // Just invoke our completion callback directly with skipped=true
-
-    if (completion_callback_ && !callback_invoked_) {
-        callback_invoked_ = true;
-        completion_callback_(false, true);
-    }
-
-    hide();
+    update_step_progress();
 }
 
 void TouchCalibrationOverlay::handle_screen_touched(lv_event_t* e) {
@@ -453,22 +457,25 @@ void TouchCalibrationOverlay::handle_screen_touched(lv_event_t* e) {
     lv_point_t point;
     lv_indev_get_point(lv_indev_active(), &point);
 
-    // Handle VERIFY state - show calibration accuracy visualization
+    // Handle VERIFY state - show calibration accuracy visualization with ripple
     if (state == helix::TouchCalibrationPanel::State::VERIFY) {
         spdlog::debug("[{}] Verify touch at ({}, {})", get_name(), point.x, point.y);
 
         // Get calibration and transform the point
         const TouchCalibration* cal = panel_->get_calibration();
         DisplayManager* dm = DisplayManager::instance();
-        if (cal && cal->valid && verify_marker_ && dm) {
+        if (cal && cal->valid && dm) {
             // Transform through calibration to show where system thinks touch landed
             helix::Point raw{point.x, point.y};
             helix::Point transformed =
                 helix::transform_point(*cal, raw, dm->width() - 1, dm->height() - 1);
 
-            // Position verify marker at transformed position (centered on 24x24 marker)
-            lv_obj_set_pos(verify_marker_, transformed.x - 12, transformed.y - 12);
-            lv_obj_remove_flag(verify_marker_, LV_OBJ_FLAG_HIDDEN);
+            // Create ripple at transformed position
+            // Use overlay_root_ as parent (full screen) with screen coordinates
+            lv_obj_t* content = lv_obj_find_by_name(overlay_root_, "calibration_content");
+            if (content) {
+                ui_create_ripple(content, transformed.x, transformed.y);
+            }
 
             spdlog::debug("[{}] Verify: raw({},{}) -> transformed({},{})", get_name(), raw.x, raw.y,
                           transformed.x, transformed.y);
@@ -493,15 +500,16 @@ void TouchCalibrationOverlay::handle_screen_touched(lv_event_t* e) {
     update_state_subject();
     update_instruction_text();
     update_crosshair_position();
+    update_step_progress();
 }
 
 void TouchCalibrationOverlay::handle_back_clicked() {
     spdlog::info("[{}] Back button clicked", get_name());
 
-    // Invoke completion callback with cancelled (not skipped)
+    // Invoke completion callback with cancelled
     if (completion_callback_ && !callback_invoked_) {
         callback_invoked_ = true;
-        completion_callback_(false, false);
+        completion_callback_(false);
     }
 
     hide();
@@ -617,6 +625,49 @@ void TouchCalibrationOverlay::update_crosshair_position() {
 
     spdlog::debug("[{}] Crosshair positioned at ({}, {}) for step {}", get_name(), target.x,
                   target.y, step);
+}
+
+void TouchCalibrationOverlay::update_step_progress() {
+    if (!step_progress_ || !panel_) {
+        return;
+    }
+
+    // Get parent container (step_progress_ is inside it)
+    lv_obj_t* step_container = lv_obj_get_parent(step_progress_);
+    if (!step_container) {
+        return;
+    }
+
+    auto state = panel_->get_state();
+
+    // Only show during calibration point states (POINT_1, POINT_2, POINT_3)
+    bool is_calibrating = (state == helix::TouchCalibrationPanel::State::POINT_1 ||
+                           state == helix::TouchCalibrationPanel::State::POINT_2 ||
+                           state == helix::TouchCalibrationPanel::State::POINT_3);
+
+    if (is_calibrating) {
+        lv_obj_remove_flag(step_container, LV_OBJ_FLAG_HIDDEN);
+
+        // Map state to step index (0-based)
+        int step_index = 0;
+        switch (state) {
+        case helix::TouchCalibrationPanel::State::POINT_1:
+            step_index = 0;
+            break;
+        case helix::TouchCalibrationPanel::State::POINT_2:
+            step_index = 1;
+            break;
+        case helix::TouchCalibrationPanel::State::POINT_3:
+            step_index = 2;
+            break;
+        default:
+            break;
+        }
+
+        ui_step_progress_set_current(step_progress_, step_index);
+    } else {
+        lv_obj_add_flag(step_container, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void TouchCalibrationOverlay::on_calibration_complete(const TouchCalibration* cal) {

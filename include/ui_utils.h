@@ -312,6 +312,33 @@ lv_obj_t* ui_create_fullscreen_backdrop(lv_obj_t* parent, lv_opa_t opacity = 180
 // Object Lifecycle Utilities
 // ============================================================================
 
+// ============================================================================
+// Touch Feedback Utilities
+// ============================================================================
+
+/**
+ * @brief Create a ripple effect animation at the specified position
+ *
+ * Creates a circular ripple that expands and fades out, providing visual
+ * feedback for touch events. The ripple uses the primary color and respects
+ * the user's animation settings (disabled if animations are off).
+ *
+ * The ripple is automatically deleted when the animation completes.
+ *
+ * @param parent Parent container for the ripple (touch position is relative to this)
+ * @param x X coordinate relative to parent (touch point)
+ * @param y Y coordinate relative to parent (touch point)
+ * @param start_size Initial diameter in pixels (default: 20)
+ * @param end_size Final diameter in pixels (default: 120)
+ * @param duration_ms Animation duration in milliseconds (default: 400)
+ */
+void ui_create_ripple(lv_obj_t* parent, lv_coord_t x, lv_coord_t y, int start_size = 20,
+                      int end_size = 120, int32_t duration_ms = 400);
+
+// ============================================================================
+// Object Lifecycle Utilities
+// ============================================================================
+
 /**
  * @brief Safely delete an LVGL object, guarding against shutdown race conditions
  *
