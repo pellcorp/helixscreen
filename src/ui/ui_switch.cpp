@@ -196,14 +196,69 @@ static void ui_switch_xml_apply(lv_xml_parser_state_t* state, const char** attrs
         lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_CHECKED);
     }
 
-    // UNCHECKED state: 40% track opacity, knob = track color + 50% brighter
+    // UNCHECKED state: 40% track opacity, knob contrasts with background
     lv_obj_set_style_bg_opa(obj, 102, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    // Get track color and brighten it 50% for the knob (mix with white)
+    // Get track color and use theme surface colors for mode-aware knob
     lv_color_t track_color = lv_obj_get_style_bg_color(obj, LV_PART_MAIN);
-    lv_color_t knob_color = lv_color_mix(lv_color_white(), track_color, LV_OPA_50);
+    bool is_dark = theme_manager_is_dark_mode();
+
+    const char* elevated_str = lv_xml_get_const(NULL, "surface_elevated");
+    const char* dim_str = lv_xml_get_const(NULL, "surface_dim");
+
+    lv_color_t knob_color;
+    if (is_dark && elevated_str) {
+        // Dark mode: use elevated surface color for visible knob
+        lv_color_t elevated = theme_manager_parse_hex_color(elevated_str);
+        knob_color = lv_color_mix(elevated, track_color, LV_OPA_60);
+    } else if (!is_dark && dim_str) {
+        // Light mode: use dim surface color for contrast against light bg
+        lv_color_t dim = theme_manager_parse_hex_color(dim_str);
+        knob_color = lv_color_mix(dim, track_color, LV_OPA_50);
+    } else {
+        // Fallback
+        knob_color = lv_color_mix(lv_color_white(), track_color, LV_OPA_50);
+    }
     lv_obj_set_style_bg_color(obj, knob_color, LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_DEFAULT);
+
+    // DISABLED state: mode-aware styling using theme colors for proper contrast
+    // Light mode: mix toward dark theme colors; Dark mode: mix toward light theme colors
+    // (is_dark already defined above)
+
+    // Get theme colors for mixing (preserves theme warmth/coolness)
+    const char* dark_color_str = lv_xml_get_const(NULL, "surface_dim");
+    const char* light_color_str = lv_xml_get_const(NULL, "text_light");
+
+    if (dark_color_str && light_color_str) {
+        lv_color_t dark_color = theme_manager_parse_hex_color(dark_color_str);
+        lv_color_t light_color = theme_manager_parse_hex_color(light_color_str);
+
+        lv_color_t disabled_track;
+        lv_color_t disabled_knob;
+        lv_opa_t track_opa;
+
+        if (is_dark) {
+            // Dark mode: lighten track toward theme's light color
+            disabled_track = lv_color_mix(light_color, track_color, LV_OPA_20);
+            disabled_knob = lv_color_mix(light_color, disabled_track, LV_OPA_40);
+            track_opa = 77; // ~30%
+        } else {
+            // Light mode: darken track toward theme's dark color for visibility
+            disabled_track = lv_color_mix(dark_color, track_color, LV_OPA_40);
+            disabled_knob = lv_color_mix(dark_color, track_color, LV_OPA_30);
+            track_opa = 128; // ~50%
+        }
+
+        lv_obj_set_style_bg_color(obj, disabled_track, LV_PART_MAIN | LV_STATE_DISABLED);
+        lv_obj_set_style_bg_opa(obj, track_opa, LV_PART_MAIN | LV_STATE_DISABLED);
+
+        lv_obj_set_style_bg_color(obj, disabled_track, LV_PART_INDICATOR | LV_STATE_DISABLED);
+        lv_obj_set_style_bg_opa(obj, track_opa, LV_PART_INDICATOR | LV_STATE_DISABLED);
+
+        lv_obj_set_style_bg_color(obj, disabled_knob, LV_PART_KNOB | LV_STATE_DISABLED);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_KNOB | LV_STATE_DISABLED);
+    }
 
     // PASS 2: Apply size preset (if found), then process other custom properties
     if (preset_found) {
