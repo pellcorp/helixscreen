@@ -5,6 +5,7 @@
 <!-- Creates a setting row with label, optional icon, and dropdown selector -->
 <!-- Usage: <setting_dropdown_row label="Display Sleep" icon="clock"/> -->
 <!-- Note: Options can be set via options prop (use &#10; as separator) or in C++ for dynamic data -->
+<!-- Optional: disabled="subject_name" to dim label and disable dropdown when subject = 1 -->
 <component>
   <api>
     <prop name="label" type="string" default="Setting"/>
@@ -12,7 +13,13 @@
     <prop name="description" type="string" default=""/>
     <prop name="options" type="string" default=""/>
     <prop name="callback" type="string" default=""/>
+    <prop name="disabled" type="string" default=""/>
   </api>
+  <!-- Styles for disabled state binding -->
+  <styles>
+    <style name="label_enabled" text_color="#text_primary"/>
+    <style name="label_disabled" text_color="#text_subtle"/>
+  </styles>
   <view name="dropdown_row"
         extends="lv_obj" width="100%" height="content" flex_flow="row" style_flex_main_place="start"
         style_flex_cross_place="center" style_bg_opa="0" style_border_width="0" style_pad_left="#space_lg"
@@ -24,13 +31,17 @@
     <lv_obj width="content"
             height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
             style_pad_gap="#space_xs" flex_grow="1" scrollable="false">
-      <text_body name="label" text="$label" style_text_color="#text_primary"/>
+      <text_body name="label" text="$label" style_text_color="#text_primary">
+        <bind_style name="label_enabled" subject="$disabled" ref_value="0"/>
+        <bind_style name="label_disabled" subject="$disabled" ref_value="1"/>
+      </text_body>
       <!-- Description shown only if provided -->
       <text_small name="description" text="$description" style_text_color="#text_secondary"/>
     </lv_obj>
     <!-- Right side: Dropdown -->
     <lv_dropdown name="dropdown"
                  width="255" height="40" options="$options" style_radius="#border_radius" style_border_width="0">
+      <bind_state_if_eq subject="$disabled" state="disabled" ref_value="1"/>
       <event_cb trigger="value_changed" callback="$callback"/>
     </lv_dropdown>
   </view>

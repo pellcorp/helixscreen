@@ -4,6 +4,7 @@
 <!-- Reusable Settings Slider Row Component -->
 <!-- Creates a settings row with label, description, and an inline slider -->
 <!-- Usage: <setting_slider_row label="Scroll Speed" icon="tune" description="Higher = faster" min="1" max="100" value="50"/> -->
+<!-- Optional: disabled="subject_name" to dim label and disable slider when subject = 1 -->
 <component>
   <api>
     <prop name="label" type="string" default="Setting"/>
@@ -15,7 +16,13 @@
     <prop name="callback" type="string" default=""/>
     <prop name="min_icon" type="string" default=""/>
     <prop name="max_icon" type="string" default=""/>
+    <prop name="disabled" type="string" default=""/>
   </api>
+  <!-- Styles for disabled state binding -->
+  <styles>
+    <style name="label_enabled" text_color="#text_primary"/>
+    <style name="label_disabled" text_color="#text_subtle"/>
+  </styles>
   <view name="slider_row"
         extends="lv_obj" width="100%" height="content" flex_flow="column" style_bg_opa="0" style_border_width="0"
         style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_md" style_pad_bottom="#space_md"
@@ -29,7 +36,10 @@
               height="content" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm"
               style_bg_opa="0" style_border_width="0" style_pad_all="0" scrollable="false">
         <icon name="row_icon" src="$icon" size="sm" variant="secondary"/>
-        <text_body name="label" text="$label" style_text_color="#text_primary"/>
+        <text_body name="label" text="$label" style_text_color="#text_primary">
+          <bind_style name="label_enabled" subject="$disabled" ref_value="0"/>
+          <bind_style name="label_disabled" subject="$disabled" ref_value="1"/>
+        </text_body>
       </lv_obj>
       <!-- Right side: Current value (bind to subject when available) -->
       <text_body name="value_label" text="$value" style_text_color="#text_secondary"/>
@@ -43,6 +53,7 @@
             style_pad_gap="#space_sm" style_margin_top="#space_xs" scrollable="false">
       <icon name="min_icon" src="$min_icon" size="xs" variant="secondary"/>
       <lv_slider name="slider" flex_grow="1" min_value="$min" max_value="$max" value="$value">
+        <bind_state_if_eq subject="$disabled" state="disabled" ref_value="1"/>
         <event_cb trigger="value_changed" callback="$callback"/>
       </lv_slider>
       <icon name="max_icon" src="$max_icon" size="xs" variant="secondary"/>

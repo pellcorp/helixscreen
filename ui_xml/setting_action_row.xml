@@ -4,17 +4,25 @@
 <!-- Reusable Settings Action Row Component -->
 <!-- Creates a clickable row that opens a sub-panel or performs an action -->
 <!-- Usage: <setting_action_row label="Network Settings" icon="lan" description="WiFi and Ethernet"/> -->
+<!-- Optional: disabled="subject_name" to dim label and disable button when subject = 1 -->
 <component>
   <api>
     <prop name="label" type="string" default="Action"/>
     <prop name="icon" type="string" default=""/>
     <prop name="description" type="string" default=""/>
     <prop name="callback" type="string" default=""/>
+    <prop name="disabled" type="string" default=""/>
   </api>
+  <!-- Styles for disabled state binding -->
+  <styles>
+    <style name="label_enabled" text_color="#text_primary"/>
+    <style name="label_disabled" text_color="#text_subtle"/>
+  </styles>
   <!-- Root button - receives all bubbled click events -->
   <view name="action_row"
         extends="lv_button" width="100%" height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0"
         style_shadow_width="0" style_radius="0" scrollable="false">
+    <bind_state_if_eq subject="$disabled" state="disabled" ref_value="1"/>
     <!-- Content container: clickable=false so clicks bubble to button -->
     <lv_obj width="100%"
             height="content" flex_flow="row" style_flex_main_place="start" style_flex_cross_place="center"
@@ -27,7 +35,10 @@
       <lv_obj width="content"
               height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
               style_pad_gap="#space_xs" flex_grow="1" scrollable="false" clickable="false" event_bubble="true">
-        <text_body name="label" text="$label" style_text_color="#text_primary"/>
+        <text_body name="label" text="$label" style_text_color="#text_primary">
+          <bind_style name="label_enabled" subject="$disabled" ref_value="0"/>
+          <bind_style name="label_disabled" subject="$disabled" ref_value="1"/>
+        </text_body>
         <text_small name="description" text="$description" style_text_color="#text_secondary"/>
       </lv_obj>
       <!-- Right side: Chevron icon -->

@@ -4,6 +4,7 @@
 <!-- Reusable Settings Toggle Row Component -->
 <!-- Creates a setting row with label, optional icon, and switch toggle -->
 <!-- Usage: <setting_toggle_row label="Dark Mode" icon="light" subject="settings_dark_mode"/> -->
+<!-- Optional: disabled="subject_name" to dim label and disable switch when subject = 1 -->
 <component>
   <api>
     <prop name="label" type="string" default="Setting"/>
@@ -11,7 +12,13 @@
     <prop name="description" type="string" default=""/>
     <prop name="subject" type="string" default=""/>
     <prop name="callback" type="string" default=""/>
+    <prop name="disabled" type="string" default=""/>
   </api>
+  <!-- Styles for disabled state binding -->
+  <styles>
+    <style name="label_enabled" text_color="#text_primary"/>
+    <style name="label_disabled" text_color="#text_subtle"/>
+  </styles>
   <view name="setting_row"
         extends="lv_obj" width="100%" height="content" flex_flow="row" style_flex_main_place="start"
         style_flex_cross_place="center" style_bg_opa="0" style_border_width="0" style_pad_left="#space_lg"
@@ -23,13 +30,17 @@
     <lv_obj width="content"
             height="content" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="column"
             style_pad_gap="#space_xs" flex_grow="1" scrollable="false">
-      <text_body name="label" text="$label" style_text_color="#text_primary"/>
+      <text_body name="label" text="$label" style_text_color="#text_primary">
+        <bind_style name="label_enabled" subject="$disabled" ref_value="0"/>
+        <bind_style name="label_disabled" subject="$disabled" ref_value="1"/>
+      </text_body>
       <!-- Description shown only if provided -->
       <text_small name="description" text="$description" style_text_color="#text_secondary"/>
     </lv_obj>
     <!-- Right side: Switch toggle -->
     <ui_switch name="toggle" size="small">
       <bind_state_if_eq subject="$subject" state="checked" ref_value="1"/>
+      <bind_state_if_eq subject="$disabled" state="disabled" ref_value="1"/>
       <event_cb trigger="value_changed" callback="$callback"/>
     </ui_switch>
   </view>
