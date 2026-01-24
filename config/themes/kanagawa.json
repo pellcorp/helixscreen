@@ -1,0 +1,25 @@
+{
+  "border_opacity": 40,
+  "border_radius": 12,
+  "border_width": 1,
+  "colors": {
+    "accent_highlight": "#7e9cd8",
+    "accent_primary": "#7fb4ca",
+    "accent_secondary": "#d27e99",
+    "accent_tertiary": "#957fb8",
+    "bg_dark": "#1f1f28",
+    "surface_elevated": "#2a2a37",
+    "bg_darkest": "#16161d",
+    "bg_light": "#c8c093",
+    "bg_lightest": "#f2ecbc",
+    "surface_dim": "#363646",
+    "status_danger": "#ffa066",
+    "status_error": "#c34043",
+    "status_special": "#957fb8",
+    "status_success": "#76946a",
+    "status_warning": "#e6c384",
+    "text_light": "#dcd7ba"
+  },
+  "name": "Kanagawa",
+  "shadow_intensity": 0
+}

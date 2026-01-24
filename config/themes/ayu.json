@@ -1,0 +1,25 @@
+{
+  "border_opacity": 40,
+  "border_radius": 12,
+  "border_width": 1,
+  "colors": {
+    "accent_highlight": "#73d0ff",
+    "accent_primary": "#ffcc66",
+    "accent_secondary": "#f28779",
+    "accent_tertiary": "#95e6cb",
+    "bg_dark": "#1f2430",
+    "surface_elevated": "#272d38",
+    "bg_darkest": "#0d1017",
+    "bg_light": "#cccac2",
+    "bg_lightest": "#fafafa",
+    "surface_dim": "#3d4455",
+    "status_danger": "#ff9940",
+    "status_error": "#f28779",
+    "status_special": "#d2a6ff",
+    "status_success": "#87d96c",
+    "status_warning": "#ffcc66",
+    "text_light": "#bfbdb6"
+  },
+  "name": "Ayu",
+  "shadow_intensity": 0
+}

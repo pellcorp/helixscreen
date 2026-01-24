@@ -1,0 +1,25 @@
+{
+  "border_opacity": 40,
+  "border_radius": 12,
+  "border_width": 1,
+  "colors": {
+    "accent_highlight": "#9ccfd8",
+    "accent_primary": "#c4a7e7",
+    "accent_secondary": "#ebbcba",
+    "accent_tertiary": "#f6c177",
+    "bg_dark": "#1f1d2e",
+    "surface_elevated": "#26233a",
+    "bg_darkest": "#191724",
+    "bg_light": "#e0def4",
+    "bg_lightest": "#faf4ed",
+    "surface_dim": "#403d52",
+    "status_danger": "#f6c177",
+    "status_error": "#eb6f92",
+    "status_special": "#c4a7e7",
+    "status_success": "#31748f",
+    "status_warning": "#f6c177",
+    "text_light": "#e0def4"
+  },
+  "name": "Rosé Pine",
+  "shadow_intensity": 0
+}
