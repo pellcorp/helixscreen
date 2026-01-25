@@ -25,11 +25,17 @@ namespace PrinterImages {
 /// Base path for printer images (LVGL filesystem prefix)
 inline constexpr const char* IMAGE_BASE_PATH = "A:assets/images/printers/";
 
+/// Base path for pre-rendered printer images (faster on embedded)
+inline constexpr const char* PRERENDERED_BASE_PATH = "A:assets/images/printers/prerendered/";
+
 /// Default fallback image for unknown/unmapped printers (generic CoreXY)
 inline constexpr const char* DEFAULT_IMAGE = "A:assets/images/printers/generic-corexy.png";
 
 /// Default image filename (without path)
 inline constexpr const char* DEFAULT_IMAGE_FILENAME = "generic-corexy.png";
+
+/// Pre-rendered image size for wizard/home (300px width, maintains aspect ratio)
+inline constexpr int PRERENDERED_SIZE = 300;
 
 /**
  * @brief Get printer name from type index
@@ -68,10 +74,38 @@ inline bool image_file_exists(const std::string& lvgl_path) {
 }
 
 /**
+ * @brief Get pre-rendered image path for a filename
+ *
+ * Converts a PNG filename (e.g., "voron-24r2.png") to its pre-rendered
+ * binary equivalent (e.g., "voron-24r2-300.bin").
+ *
+ * @param image_filename Original filename from database (e.g., "voron-24r2.png")
+ * @return Full LVGL path to pre-rendered image, or empty string if not found
+ */
+inline std::string get_prerendered_path(const std::string& image_filename) {
+    // Convert "name.png" to "name-300.bin"
+    size_t dot_pos = image_filename.rfind('.');
+    if (dot_pos == std::string::npos) {
+        return "";
+    }
+
+    std::string basename = image_filename.substr(0, dot_pos);
+    std::string prerendered_name =
+        basename + "-" + std::to_string(PRERENDERED_SIZE) + ".bin";
+    std::string full_path = std::string(PRERENDERED_BASE_PATH) + prerendered_name;
+
+    if (image_file_exists(full_path)) {
+        return full_path;
+    }
+    return "";
+}
+
+/**
  * @brief Get image path for a printer name (from database)
  *
  * Looks up the image in the printer database JSON and constructs the full
- * LVGL path. Falls back to DEFAULT_IMAGE if not found or file doesn't exist.
+ * LVGL path. Prefers pre-rendered .bin files for performance on embedded
+ * devices, falls back to PNG if not available.
  *
  * @param printer_name Printer name (e.g., "Voron 2.4", "FlashForge Adventurer 5M")
  * @return Full LVGL path to printer image
@@ -81,9 +115,14 @@ inline std::string get_image_path_for_name(const std::string& printer_name) {
     std::string image_filename = PrinterDetector::get_image_for_printer(printer_name);
 
     if (!image_filename.empty()) {
-        std::string full_path = std::string(IMAGE_BASE_PATH) + image_filename;
+        // Try pre-rendered binary first (much faster on embedded)
+        std::string prerendered = get_prerendered_path(image_filename);
+        if (!prerendered.empty()) {
+            return prerendered;
+        }
 
-        // Verify file exists
+        // Fall back to original PNG
+        std::string full_path = std::string(IMAGE_BASE_PATH) + image_filename;
         if (image_file_exists(full_path)) {
             return full_path;
         }
