@@ -204,6 +204,15 @@ class FilamentSensorManager {
      */
     [[nodiscard]] bool is_motion_active() const;
 
+    /**
+     * @brief Check if Z probe is triggered
+     *
+     * Returns false if master disabled, probe sensor disabled, or no probe assigned.
+     *
+     * @return true if Z probe sensor is triggered
+     */
+    [[nodiscard]] bool is_probe_triggered() const;
+
     // ========================================================================
     // State Updates
     // ========================================================================
@@ -246,6 +255,12 @@ class FilamentSensorManager {
      * @return Subject (int: 0=no filament, 1=detected, -1=no sensor)
      */
     [[nodiscard]] lv_subject_t* get_entry_detected_subject();
+
+    /**
+     * @brief Get subject for Z probe triggered state
+     * @return Subject (int: 0=not triggered, 1=triggered, -1=no sensor)
+     */
+    [[nodiscard]] lv_subject_t* get_probe_triggered_subject();
 
     /**
      * @brief Get subject for any runout active (any sensor shows no filament)
@@ -370,6 +385,7 @@ class FilamentSensorManager {
     lv_subject_t runout_detected_;
     lv_subject_t toolhead_detected_;
     lv_subject_t entry_detected_;
+    lv_subject_t probe_triggered_;
     lv_subject_t any_runout_;
     lv_subject_t motion_active_;
     lv_subject_t master_enabled_subject_;

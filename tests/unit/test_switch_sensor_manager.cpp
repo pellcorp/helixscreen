@@ -763,10 +763,8 @@ TEST_CASE("SwitchSensorTypes - type string conversion", "[sensors][switch][types
 }
 
 // ============================================================================
-// Z_PROBE Role Tests (will fail until implemented in FilamentSensorManager)
+// Z_PROBE Role Tests
 // ============================================================================
-// Note: These tests use the EXISTING FilamentSensorManager infrastructure.
-// Once we rename to SwitchSensorManager and add probe support, they'll pass.
 
 TEST_CASE_METHOD(FilamentSensorTestFixture, "FilamentSensorManager - Z_PROBE role assignment",
                  "[filament][probe]") {
@@ -775,52 +773,44 @@ TEST_CASE_METHOD(FilamentSensorTestFixture, "FilamentSensorManager - Z_PROBE rol
     mgr().discover_sensors(sensors);
 
     SECTION("Can assign Z_PROBE role") {
-        // This will fail until we add Z_PROBE to FilamentSensorRole
-        // For now, skip this test - it documents the intended behavior
-        SKIP("Z_PROBE role not yet implemented in FilamentSensorRole");
-
-        // Intended test (uncomment when implementing):
-        // mgr().set_sensor_role("filament_switch_sensor e1_sensor", FilamentSensorRole::Z_PROBE);
-        // auto configs = mgr().get_sensors();
-        // REQUIRE(configs[0].role == FilamentSensorRole::Z_PROBE);
+        mgr().set_sensor_role("filament_switch_sensor e1_sensor", FilamentSensorRole::Z_PROBE);
+        auto configs = mgr().get_sensors();
+        REQUIRE(configs[0].role == FilamentSensorRole::Z_PROBE);
     }
 }
 
 TEST_CASE_METHOD(FilamentSensorTestFixture, "FilamentSensorManager - probe subject updates",
                  "[filament][probe]") {
     SECTION("Probe triggered subject updates from sensor state") {
-        SKIP("Probe subject not yet implemented");
+        mgr().discover_sensors({"filament_switch_sensor probe"});
+        mgr().set_sensor_role("filament_switch_sensor probe", FilamentSensorRole::Z_PROBE);
 
-        // Intended test:
-        // mgr().discover_sensors({"filament_switch_sensor probe"});
-        // mgr().set_sensor_role("filament_switch_sensor probe", FilamentSensorRole::Z_PROBE);
-        //
-        // auto* subject = mgr().get_probe_triggered_subject();
-        // REQUIRE(subject != nullptr);
-        //
-        // json status;
-        // status["filament_switch_sensor probe"]["filament_detected"] = true;
-        // mgr().update_from_status(status);
-        //
-        // REQUIRE(lv_subject_get_int(subject) == 1);  // Triggered
+        auto* subject = mgr().get_probe_triggered_subject();
+        REQUIRE(subject != nullptr);
+
+        // After assignment but no status update, should be 0 (not triggered)
+        REQUIRE(lv_subject_get_int(subject) == 0);
+
+        json status;
+        status["filament_switch_sensor probe"]["filament_detected"] = true;
+        mgr().update_from_status(status);
+
+        REQUIRE(lv_subject_get_int(subject) == 1); // Triggered
     }
 }
 
 TEST_CASE_METHOD(FilamentSensorTestFixture, "FilamentSensorManager - is_probe_triggered query",
                  "[filament][probe]") {
     SECTION("is_probe_triggered returns correct state") {
-        SKIP("is_probe_triggered not yet implemented");
+        REQUIRE_FALSE(mgr().is_probe_triggered()); // No probe assigned
 
-        // Intended test:
-        // REQUIRE_FALSE(mgr().is_probe_triggered());  // No probe assigned
-        //
-        // mgr().discover_sensors({"filament_switch_sensor e1"});
-        // mgr().set_sensor_role("filament_switch_sensor e1", FilamentSensorRole::Z_PROBE);
-        //
-        // json status;
-        // status["filament_switch_sensor e1"]["filament_detected"] = true;
-        // mgr().update_from_status(status);
-        //
-        // REQUIRE(mgr().is_probe_triggered());
+        mgr().discover_sensors({"filament_switch_sensor e1"});
+        mgr().set_sensor_role("filament_switch_sensor e1", FilamentSensorRole::Z_PROBE);
+
+        json status;
+        status["filament_switch_sensor e1"]["filament_detected"] = true;
+        mgr().update_from_status(status);
+
+        REQUIRE(mgr().is_probe_triggered());
     }
 }

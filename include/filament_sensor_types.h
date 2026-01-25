@@ -19,7 +19,8 @@ enum class FilamentSensorRole {
     NONE = 0,     ///< Sensor discovered but not assigned to a role
     RUNOUT = 1,   ///< Primary runout detection sensor
     TOOLHEAD = 2, ///< Toolhead/nozzle proximity sensor
-    ENTRY = 3     ///< Entry point detection sensor
+    ENTRY = 3,    ///< Entry point detection sensor
+    Z_PROBE = 10  ///< Z probing sensor (maps to Klipper "probe" object)
 };
 
 /**
@@ -83,6 +84,8 @@ inline const char* role_to_display_string(FilamentSensorRole role) {
         return "Toolhead Sensor";
     case FilamentSensorRole::ENTRY:
         return "Entry Sensor";
+    case FilamentSensorRole::Z_PROBE:
+        return "Z Probe";
     case FilamentSensorRole::NONE:
     default:
         return "Unassigned";
@@ -102,6 +105,8 @@ inline const char* role_to_config_string(FilamentSensorRole role) {
         return "toolhead";
     case FilamentSensorRole::ENTRY:
         return "entry";
+    case FilamentSensorRole::Z_PROBE:
+        return "z_probe";
     case FilamentSensorRole::NONE:
     default:
         return "none";
@@ -120,6 +125,8 @@ inline FilamentSensorRole role_from_config_string(const std::string& str) {
         return FilamentSensorRole::TOOLHEAD;
     if (str == "entry")
         return FilamentSensorRole::ENTRY;
+    if (str == "z_probe")
+        return FilamentSensorRole::Z_PROBE;
     return FilamentSensorRole::NONE;
 }
 

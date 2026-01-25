@@ -55,10 +55,11 @@ void FilamentSensorManager::init_subjects() {
     spdlog::debug("[FilamentSensorManager] Initializing subjects");
 
     // Initialize all subjects with SubjectManager for automatic cleanup
-    // -1 = no sensor, 0 = no filament, 1 = filament detected
+    // -1 = no sensor, 0 = no filament/not triggered, 1 = filament detected/triggered
     UI_MANAGED_SUBJECT_INT(runout_detected_, -1, "filament_runout_detected", subjects_);
     UI_MANAGED_SUBJECT_INT(toolhead_detected_, -1, "filament_toolhead_detected", subjects_);
     UI_MANAGED_SUBJECT_INT(entry_detected_, -1, "filament_entry_detected", subjects_);
+    UI_MANAGED_SUBJECT_INT(probe_triggered_, -1, "probe_triggered", subjects_);
     UI_MANAGED_SUBJECT_INT(any_runout_, 0, "filament_any_runout", subjects_);
     UI_MANAGED_SUBJECT_INT(motion_active_, 0, "filament_motion_active", subjects_);
     UI_MANAGED_SUBJECT_INT(master_enabled_subject_, master_enabled_ ? 1 : 0,
@@ -587,6 +588,30 @@ lv_subject_t* FilamentSensorManager::get_sensor_count_subject() {
     return &sensor_count_;
 }
 
+lv_subject_t* FilamentSensorManager::get_probe_triggered_subject() {
+    return &probe_triggered_;
+}
+
+bool FilamentSensorManager::is_probe_triggered() const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+    if (!master_enabled_) {
+        return false;
+    }
+
+    const auto* config = find_config_by_role(FilamentSensorRole::Z_PROBE);
+    if (!config || !config->enabled) {
+        return false;
+    }
+
+    auto it = states_.find(config->klipper_name);
+    if (it == states_.end() || !it->second.available) {
+        return false;
+    }
+
+    return it->second.filament_detected;
+}
+
 bool FilamentSensorManager::is_in_startup_grace_period() const {
     auto now = std::chrono::steady_clock::now();
     return (now - startup_time_) < AppConstants::Startup::NOTIFICATION_GRACE_PERIOD;
@@ -674,15 +699,17 @@ void FilamentSensorManager::update_subjects() {
     lv_subject_set_int(&runout_detected_, get_role_value(FilamentSensorRole::RUNOUT));
     lv_subject_set_int(&toolhead_detected_, get_role_value(FilamentSensorRole::TOOLHEAD));
     lv_subject_set_int(&entry_detected_, get_role_value(FilamentSensorRole::ENTRY));
+    lv_subject_set_int(&probe_triggered_, get_role_value(FilamentSensorRole::Z_PROBE));
 
     // Update aggregate subjects
     lv_subject_set_int(&any_runout_, has_any_runout() ? 1 : 0);
     lv_subject_set_int(&motion_active_, is_motion_active() ? 1 : 0);
 
-    spdlog::trace(
-        "[FilamentSensorManager] Subjects updated: runout={}, toolhead={}, entry={}, any_runout={}",
-        lv_subject_get_int(&runout_detected_), lv_subject_get_int(&toolhead_detected_),
-        lv_subject_get_int(&entry_detected_), lv_subject_get_int(&any_runout_));
+    spdlog::trace("[FilamentSensorManager] Subjects updated: runout={}, toolhead={}, entry={}, "
+                  "probe={}, any_runout={}",
+                  lv_subject_get_int(&runout_detected_), lv_subject_get_int(&toolhead_detected_),
+                  lv_subject_get_int(&entry_detected_), lv_subject_get_int(&probe_triggered_),
+                  lv_subject_get_int(&any_runout_));
 }
 
 void FilamentSensorManager::reset_for_testing() {
@@ -709,6 +736,7 @@ void FilamentSensorManager::reset_for_testing() {
         lv_subject_set_int(&runout_detected_, -1);
         lv_subject_set_int(&toolhead_detected_, -1);
         lv_subject_set_int(&entry_detected_, -1);
+        lv_subject_set_int(&probe_triggered_, -1);
         lv_subject_set_int(&any_runout_, 0);
         lv_subject_set_int(&motion_active_, 0);
         lv_subject_set_int(&master_enabled_subject_, 1);
