@@ -904,6 +904,13 @@ bool NavigationManager::go_back() {
 
         // Lifecycle: Deactivate the closing overlay before animation
         if (is_overlay && current_top) {
+            // Remove overlay from focus group BEFORE closing to prevent LVGL from
+            // auto-focusing the next element (which triggers scroll-on-focus)
+            lv_group_t* group = lv_group_get_default();
+            if (group) {
+                lv_group_remove_obj(current_top);
+            }
+
             auto it = mgr.overlay_instances_.find(current_top);
             if (it != mgr.overlay_instances_.end() && it->second) {
                 spdlog::trace("[NavigationManager] Deactivating closing overlay {}",
