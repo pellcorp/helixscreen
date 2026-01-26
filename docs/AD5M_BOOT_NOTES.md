@@ -240,3 +240,290 @@ backlight)
 - `make deploy-ad5m` - deploys binaries and assets to AD5M
 - Uses `scp -O` for legacy SCP protocol (BusyBox has no sftp-server)
 - Init script auto-updated if different from deployed version
+
+---
+
+## Backlight Investigation (2026-01-25)
+
+### Current Status
+- **GuppyScreen**: Works from cold boot - backlight turns ON
+- **HelixScreen**: Does NOT work from cold boot - backlight stays OFF
+- Display mode: `GUPPY` in variables.cfg
+
+### What We've Confirmed
+
+1. **FBIOBLANK succeeds** - logs show `Display unblanked via FBIOBLANK`
+2. **Allwinner ioctls succeed** - logs show `Allwinner backlight enabled`, `brightness set to 255`
+3. **Brightness reads 255** - `backlight.py` with no args returns `255`
+4. **But backlight is physically OFF**
+
+### Key Observations
+
+1. ForgeX boot shows splash with backlight ON
+2. ~3 seconds after boot completes, backlight turns OFF
+3. Our screen.sh patch blocks Klipper's `reset_screen` delayed_gcode (debug log shows `flag=YES`)
+4. Something ELSE is turning off the backlight (not screen.sh)
+5. Once backlight is off, even manual `backlight.py 100` doesn't turn it back on
+6. GuppyScreen somehow CAN turn it on from cold boot
+7. When GuppyScreen turns it on and we kill it, backlight STAYS on
+
+### Code Comparison Needed
+
+GuppyScreen source: `~/Code/Printing/guppyscreen`
+- `lv_drivers/display/fbdev.c` - their fbdev driver
+
+HelixScreen:
+- Uses LVGL 9.4's built-in `lv_linux_fbdev.c`
+- Additional code in `src/api/display_backend_fbdev.cpp`
+
+**Key question**: What does GuppyScreen do that we don't?
+
+### GuppyScreen fbdev.c Analysis
+
+```c
+void fbdev_init(void) {
+    fbfd = open(FBDEV_PATH, O_RDWR);           // 1. Open /dev/fb0
+    ioctl(fbfd, FBIOBLANK, FB_BLANK_UNBLANK);  // 2. Unblank IMMEDIATELY
+    // ... get screen info, mmap ...
+    // NOTE: fd is kept open forever, never closed
+}
+```
+
+### LVGL 9.4 lv_linux_fbdev.c Analysis
+
+```c
+void lv_linux_fbdev_set_file(lv_display_t * disp, const char * file) {
+    dsc->fbfd = open(dsc->devname, O_RDWR);    // 1. Open /dev/fb0
+    ioctl(dsc->fbfd, FBIOBLANK, FB_BLANK_UNBLANK);  // 2. Unblank
+    // ... get screen info, mmap ...
+    // NOTE: fd is kept open forever in dsc->fbfd
+}
+```
+
+**Both do essentially the same thing!** So why does GuppyScreen work?
+
+### Theories to Test
+
+1. **Timing**: GuppyScreen starts at S80, we start at S90. Maybe something happens between?
+2. **Init script differences**: GuppyScreen's init is simpler (no flag files, no enable_backlight)
+3. **Other processes**: Maybe something in ForgeX startup interferes with later backlight calls
+4. **LVGL version**: GuppyScreen uses LVGL 8.x, we use LVGL 9.4 - driver differences?
+
+### Next Steps
+
+1. Compare exact LVGL driver code paths between GuppyScreen (8.x) and HelixScreen (9.4)
+2. Check if GuppyScreen has any other backlight-related code we're missing
+3. Test starting HelixScreen at S80 instead of S90
+4. Check ForgeX source for what runs between S80-S90
+
+### Source Code Locations
+
+- GuppyScreen: `~/Code/Printing/guppyscreen`
+- ForgeX: `~/Code/Printing/ad5m-forgex`
+- HelixScreen LVGL: `lib/lvgl/src/drivers/display/fb/lv_linux_fbdev.c`
+- HelixScreen backend: `src/api/display_backend_fbdev.cpp`
+
+### Key Differences Found
+
+| Aspect | GuppyScreen | HelixScreen |
+|--------|-------------|-------------|
+| Init script | S80 - just starts binary | S90 - creates flag, calls enable_backlight(), starts binary |
+| Boot order | Earlier (S80) | Later (S90) |
+| LVGL version | 8.x with custom lv_drivers | 9.4 with built-in linux_fbdev |
+| fbdev fd | Global `fbfd`, never closed | Private fd in LVGL driver data |
+| enable_backlight() | NOT called | Called via backlight.py before binary |
+| Additional ioctls | None (just FBIOBLANK) | Allwinner /dev/disp ioctls |
+
+### ROOT CAUSE FOUND (2026-01-25)
+
+**The screen.sh patch was the problem!**
+
+ForgeX's S99root does this:
+```bash
+# Turn off and on display's backlight otherwise it's will not work.
+"$SCRIPTS"/screen.sh backlight 0
+"$SCRIPTS"/screen.sh draw_splash
+"$SCRIPTS"/screen.sh backlight 100
+```
+
+The backlight 0 → 100 cycle is REQUIRED for the display to work properly.
+Our patch blocked this cycle when the flag file existed, breaking the display.
+
+**Solution**: Smart screen.sh patch that allows `backlight 100` but blocks other values.
+
+### Smart screen.sh Patch (2026-01-25)
+
+**Problem**: Need to allow S99root's 0→100 cycle but block Klipper's delayed_gcode dimming.
+
+**Patch applied to `/opt/config/mod/.shell/screen.sh`** (backlight case):
+```bash
+backlight)
+    # Skip non-100 backlight changes when HelixScreen is controlling display
+    if [ -f /tmp/helixscreen_active ] && [ "$2" != "100" ]; then
+        exit 0
+    fi
+    value=$2
+    ...
+```
+
+**Key insight**: Klipper's `_BACKLIGHT` macro uses `RUN_SHELL_COMMAND CMD=screen` which
+calls `/root/printer_data/scripts/screen.sh` inside the ForgeX chroot. This is the SAME
+file as `/opt/config/mod/.shell/screen.sh` on the host (mounted/linked).
+
+**Debug logging** (temporary, for troubleshooting):
+```bash
+echo "$(date): backlight $2 called" >> /tmp/backlight_debug.log
+if [ -f /tmp/helixscreen_active ]; then
+    echo "  flag file EXISTS" >> /tmp/backlight_debug.log
+    if [ "$2" != "100" ]; then
+        echo "  BLOCKING (value $2 != 100)" >> /tmp/backlight_debug.log
+        exit 0
+    fi
+    echo "  ALLOWING (value is 100)" >> /tmp/backlight_debug.log
+else
+    echo "  flag file MISSING, allowing" >> /tmp/backlight_debug.log
+fi
+```
+
+### Delayed Brightness Override (DisplayManager)
+
+Even with the screen.sh patch, we keep a delayed brightness override timer in
+`display_manager.cpp` as a safety net:
+- Fires 20 seconds after DisplayManager::init()
+- Restores configured brightness from SettingsManager
+- Uses `spdlog::warn()` so it's visible at default log level
+
+```cpp
+lv_timer_create(
+    [](lv_timer_t* t) {
+        auto* dm = static_cast<DisplayManager*>(lv_timer_get_user_data(t));
+        if (dm && dm->m_backlight && dm->m_backlight->is_available()) {
+            int brightness = SettingsManager::instance().get_brightness();
+            brightness = std::clamp(brightness, 10, 100);
+            dm->m_backlight->set_brightness(brightness);
+            spdlog::warn("[DisplayManager] Delayed brightness override: {}%", brightness);
+        }
+        lv_timer_delete(t);
+    },
+    20000, this);
+```
+
+### Display Timeout Settings (2026-01-26)
+
+HelixScreen has TWO separate display timeout settings in `helixconfig.json`:
+
+| Setting | Purpose | Default |
+|---------|---------|---------|
+| `dim_sec` | Time before screen dims to `dim_brightness` | 600 (10 min) |
+| `dim_brightness` | Brightness % when dimmed | 30 |
+| `sleep_sec` | Time before screen fully blanks (backlight OFF) | 1800 (30 min) |
+
+**Important**: Both timeouts are independent. If `sleep_sec` < `dim_sec`, the screen goes
+straight to sleep without dimming first.
+
+**For debugging**, set both to very high values:
+```bash
+ssh root@192.168.1.67 'sed -i "s/\"dim_sec\": [0-9]*/\"dim_sec\": 99999/" /opt/helixscreen/config/helixconfig.json'
+ssh root@192.168.1.67 'sed -i "s/\"sleep_sec\": [0-9]*/\"sleep_sec\": 99999/" /opt/helixscreen/config/helixconfig.json'
+```
+
+### Brightness Inversion Bug (2026-01-26)
+
+**Symptom**: Brightness slider works BACKWARDS - higher values = dimmer, lower values = brighter.
+This affects BOTH the HelixScreen slider AND raw `backlight.py` commands.
+
+**Root cause**: Unknown - appears to be Allwinner display driver state corruption. The driver
+enters an inverted PWM state. Software reports correct values (90% → 230/255) but physical
+brightness is inverted.
+
+**FIX**: Cycle brightness through 0 (disable) then back to desired value:
+```bash
+/usr/sbin/chroot /data/.mod/.forge-x /root/printer_data/py/backlight.py 0
+sleep 1
+/usr/sbin/chroot /data/.mod/.forge-x /root/printer_data/py/backlight.py 90
+```
+
+**Key findings**:
+- Survives soft reboot (`/sbin/reboot`)
+- Survives hard power cycle (unplug/replug) - **NOT a hardware state issue**
+- Fixed by cycling through brightness 0 (which calls DISP_LCD_BACKLIGHT_DISABLE)
+- May be caused by our `unblank_display()` code calling BACKLIGHT_ENABLE + SET_BRIGHTNESS(255)
+
+**Possible cause**: Our code in `display_backend_fbdev.cpp` `unblank_display()` calls:
+1. FBIOBLANK (FB_BLANK_UNBLANK)
+2. DISP_LCD_BACKLIGHT_ENABLE (0x104)
+3. DISP_LCD_SET_BRIGHTNESS (0x102) with value 255
+
+This sequence may put the driver in an inverted state. GuppyScreen does NOT call these
+Allwinner ioctls directly - it only uses FBIOBLANK.
+
+**TODO**: Consider removing the Allwinner ioctls from `unblank_display()` and relying only
+on `backlight.py` for brightness control.
+
+### Complete Working Sequence (2026-01-26)
+
+**Boot sequence**:
+1. Boot starts, ForgeX shows splash with backlight ON
+2. HelixScreen init script starts, creates `/tmp/helixscreen_active` flag
+3. S99root runs backlight 0→100 cycle:
+   - `backlight 0` → **BLOCKED** by smart patch (flag exists, value ≠ 100)
+   - `backlight 100` → **ALLOWED** (value = 100)
+4. HelixScreen starts, DisplayManager sets backlight to 100%
+5. Klipper becomes ready (~15-25s into boot)
+6. Klipper's `reset_screen` delayed_gcode fires 3s later:
+   - `backlight 10` → **BLOCKED** by smart patch
+7. Our 20-second timer fires, sets brightness to user's configured level
+8. Display stays bright until `dim_sec` timeout (no touch activity)
+
+**Note**: Timer changed from 30s to 20s (2026-01-26). Klipper typically becomes ready
+10-20s after boot, then delayed_gcode fires 3s later. 20s gives enough margin.
+
+### Verification Commands
+
+```bash
+# Check current brightness (0-255)
+/usr/sbin/chroot /data/.mod/.forge-x /root/printer_data/py/backlight.py
+
+# Check backlight call log (shows what screen.sh blocked/allowed)
+cat /tmp/backlight_debug.log
+
+# Check all display settings
+grep -E "brightness|dim|sleep" /opt/helixscreen/config/helixconfig.json
+
+# Check if HelixScreen flag exists
+ls -la /tmp/helixscreen_active
+
+# Check screen.sh patch
+grep -A5 "backlight)" /opt/config/mod/.shell/screen.sh
+
+# Test brightness (should physically brighten if NOT inverted)
+/usr/sbin/chroot /data/.mod/.forge-x /root/printer_data/py/backlight.py 90
+
+# Fix inverted brightness
+/usr/sbin/chroot /data/.mod/.forge-x /root/printer_data/py/backlight.py 0 && sleep 1 && /usr/sbin/chroot /data/.mod/.forge-x /root/printer_data/py/backlight.py 90
+```
+
+### Backlight Control Summary
+
+| Interface | Path | Purpose |
+|-----------|------|---------|
+| Allwinner ioctl | /dev/disp | SET_BRIGHTNESS (0x102), GET (0x103), ENABLE (0x104), DISABLE (0x105) |
+| ForgeX script | screen.sh backlight N | Calls backlight.py inside chroot |
+| backlight.py | /root/printer_data/py/backlight.py | Python wrapper for /dev/disp ioctls |
+| HelixScreen | BacklightBackendAllwinner | C++ wrapper for /dev/disp ioctls |
+
+**No standard Linux backlight interface** - /sys/class/backlight is empty. Must use /dev/disp ioctls.
+
+### Files Modified for Backlight Fix
+
+**In repository** (committed):
+- `src/application/display_manager.cpp` - 20s delayed brightness timer
+- `src/api/display_backend_fbdev.cpp` - unblank_display() with Allwinner ioctls
+- `scripts/lib/installer/forgex.sh` - smart screen.sh patch function
+- `scripts/install-bundled.sh` - same smart patch function
+
+**On AD5M** (per-installation):
+- `/opt/config/mod/.shell/screen.sh` - smart patch (blocks non-100 when flag exists)
+- `/opt/helixscreen/config/helixconfig.json` - brightness/dim/sleep settings
+- `/tmp/helixscreen_active` - flag file (created by init, removed on stop)
+- `/tmp/backlight_debug.log` - debug log (if debug logging enabled in screen.sh)

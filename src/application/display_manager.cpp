@@ -64,20 +64,21 @@ bool DisplayManager::init(const Config& config) {
 
     spdlog::info("[DisplayManager] Using backend: {}", m_backend->name());
 
-    // Unblank display via framebuffer ioctl BEFORE creating LVGL display.
-    // This is essential on AD5M where ForgeX may have blanked the display.
-    // Uses same approach as GuppyScreen: FBIOBLANK + FBIOPAN_DISPLAY.
-    if (m_backend->unblank_display()) {
-        spdlog::info("[DisplayManager] Display unblanked via framebuffer ioctl");
-    }
-
-    // Create LVGL display
+    // Create LVGL display first - this opens /dev/fb0 and keeps it open
     m_display = m_backend->create_display(m_width, m_height);
     if (!m_display) {
         spdlog::error("[DisplayManager] Failed to create display");
         m_backend.reset();
         lv_deinit();
         return false;
+    }
+
+    // Unblank display via framebuffer ioctl AFTER creating LVGL display.
+    // On AD5M, the FBIOBLANK state may be tied to the fd - calling it after
+    // LVGL opens /dev/fb0 ensures the unblank persists while the display runs.
+    // Uses same approach as GuppyScreen: FBIOBLANK + FBIOPAN_DISPLAY.
+    if (m_backend->unblank_display()) {
+        spdlog::info("[DisplayManager] Display unblanked via framebuffer ioctl");
     }
 
     // Initialize UI update queue for thread-safe async updates
@@ -137,6 +138,23 @@ bool DisplayManager::init(const Config& config) {
     if (m_backlight && m_backlight->is_available()) {
         m_backlight->set_brightness(100);
         spdlog::info("[DisplayManager] Backlight forced ON at 100% for startup");
+
+        // Schedule delayed brightness override to counteract ForgeX's delayed_gcode.
+        // On AD5M, Klipper's reset_screen fires ~3s after Klipper becomes READY.
+        // Klipper typically becomes ready 10-20s after boot, so a 20s delay ensures
+        // we fire AFTER the delayed_gcode dims the screen.
+        lv_timer_create(
+            [](lv_timer_t* t) {
+                auto* dm = static_cast<DisplayManager*>(lv_timer_get_user_data(t));
+                if (dm && dm->m_backlight && dm->m_backlight->is_available()) {
+                    int brightness = SettingsManager::instance().get_brightness();
+                    brightness = std::clamp(brightness, 10, 100);
+                    dm->m_backlight->set_brightness(brightness);
+                    spdlog::warn("[DisplayManager] Delayed brightness override: {}%", brightness);
+                }
+                lv_timer_delete(t);
+            },
+            20000, this);
     }
 
     // Load dim settings from config

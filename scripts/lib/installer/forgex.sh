@@ -55,9 +55,13 @@ configure_forgex_display() {
     return 1
 }
 
-# Patch ForgeX screen.sh to skip backlight control when HelixScreen is active
+# Patch ForgeX screen.sh to skip non-100 backlight control when HelixScreen is active
 # ForgeX's headless.cfg runs a delayed_gcode that dims the backlight 3 seconds after
-# Klipper starts. This patch makes screen.sh check for /tmp/helixscreen_active flag.
+# Klipper starts. This patch blocks dimming calls but allows the S99root 0→100 cycle.
+#
+# The smart patch:
+# - Allows "backlight 100" (needed for S99root initialization cycle)
+# - Blocks other values (10, 0, etc.) when helixscreen_active flag exists
 patch_forgex_screen_sh() {
     screen_sh="/opt/config/mod/.shell/screen.sh"
 
@@ -66,10 +70,19 @@ patch_forgex_screen_sh() {
         return 1
     fi
 
-    # Check if already patched
-    if grep -q "helixscreen_active" "$screen_sh" 2>/dev/null; then
-        log_info "ForgeX screen.sh already patched"
+    # Check if already patched (look for the smart patch signature)
+    if grep -q 'helixscreen_active.*!=.*100' "$screen_sh" 2>/dev/null; then
+        log_info "ForgeX screen.sh already has smart patch"
         return 0
+    fi
+
+    # Remove old-style patch if present (blocks ALL backlight when flag exists)
+    if grep -q "helixscreen_active" "$screen_sh" 2>/dev/null; then
+        log_info "Removing old-style patch from screen.sh..."
+        tmp_file="${screen_sh}.tmp"
+        grep -v "helixscreen_active\|# Skip if HelixScreen" "$screen_sh" > "$tmp_file"
+        $SUDO mv "$tmp_file" "$screen_sh"
+        $SUDO chmod +x "$screen_sh"
     fi
 
     # Find the backlight) case and add our guard
@@ -78,15 +91,17 @@ patch_forgex_screen_sh() {
         return 1
     fi
 
-    log_info "Patching ForgeX screen.sh to respect HelixScreen backlight control..."
+    log_info "Patching ForgeX screen.sh with smart backlight control..."
 
     # Use awk to insert our check after "backlight)" line (BusyBox compatible)
+    # Smart patch: only block non-100 values, allowing S99root's 0→100 init cycle
     tmp_file="${screen_sh}.tmp"
     awk '
     /^[[:space:]]*backlight\)/ {
         print
-        print "        # Skip if HelixScreen is controlling the display"
-        print "        if [ -f /tmp/helixscreen_active ]; then"
+        print "        # Skip non-100 backlight changes when HelixScreen is controlling display"
+        print "        # Allows S99root 0->100 init cycle but blocks Klipper eco dimming"
+        print "        if [ -f /tmp/helixscreen_active ] && [ \"$2\" != \"100\" ]; then"
         print "            exit 0"
         print "        fi"
         next
@@ -94,10 +109,10 @@ patch_forgex_screen_sh() {
     { print }
     ' "$screen_sh" > "$tmp_file"
 
-    if [ -s "$tmp_file" ] && grep -q "helixscreen_active" "$tmp_file" 2>/dev/null; then
+    if [ -s "$tmp_file" ] && grep -q 'helixscreen_active.*!=.*100' "$tmp_file" 2>/dev/null; then
         $SUDO mv "$tmp_file" "$screen_sh"
         $SUDO chmod +x "$screen_sh"
-        log_success "ForgeX screen.sh patched"
+        log_success "ForgeX screen.sh patched with smart backlight control"
         return 0
     else
         rm -f "$tmp_file"
