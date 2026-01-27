@@ -1,5 +1,16 @@
 {
   "animations_enabled": false,
+  "sensors": {
+    "switch": {
+      "sensors": [
+        {
+          "klipper_name": "filament_switch_sensor e1_sensor",
+          "role": "z_probe",
+          "enabled": true
+        }
+      ]
+    }
+  },
   "brightness": 100,
   "config_path": "helixconfig.json",
   "dark_mode": true,

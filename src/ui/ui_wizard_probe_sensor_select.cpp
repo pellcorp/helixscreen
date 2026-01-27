@@ -32,9 +32,8 @@ static std::unique_ptr<WizardProbeSensorSelectStep> g_wizard_probe_sensor_select
 WizardProbeSensorSelectStep* get_wizard_probe_sensor_select_step() {
     if (!g_wizard_probe_sensor_select_step) {
         g_wizard_probe_sensor_select_step = std::make_unique<WizardProbeSensorSelectStep>();
-        StaticPanelRegistry::instance().register_destroy("WizardProbeSensorSelectStep", []() {
-            g_wizard_probe_sensor_select_step.reset();
-        });
+        StaticPanelRegistry::instance().register_destroy(
+            "WizardProbeSensorSelectStep", []() { g_wizard_probe_sensor_select_step.reset(); });
     }
     return g_wizard_probe_sensor_select_step.get();
 }
