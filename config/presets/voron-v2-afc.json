@@ -24,7 +24,7 @@
         "label": "Clean Nozzle"
       },
       "macro_2": {
-        "gcode": "HELIX_BED_LEVEL_IF_NEEDED",
+        "gcode": "HELIX_BED_MESH_IF_NEEDED",
         "label": "Bed Level"
       },
       "unload_filament": {

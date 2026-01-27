@@ -628,7 +628,7 @@ class PrinterDiscovery {
 
     /**
      * @brief Check if a specific HelixScreen helper macro exists
-     * @param macro_name Full macro name (e.g., "HELIX_BED_LEVEL_IF_NEEDED")
+     * @param macro_name Full macro name (e.g., "HELIX_BED_MESH_IF_NEEDED")
      * @return true if macro was detected
      */
     [[nodiscard]] bool has_helix_macro(const std::string& macro_name) const {

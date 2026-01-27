@@ -30,7 +30,7 @@ class MacroManagerTestFixture {
         json objects = json::array(
             {"gcode_macro HELIX_READY", "gcode_macro HELIX_ENDED", "gcode_macro HELIX_RESET",
              "gcode_macro HELIX_START_PRINT", "gcode_macro HELIX_CLEAN_NOZZLE",
-             "gcode_macro HELIX_BED_LEVEL_IF_NEEDED", "gcode_macro _HELIX_STATE", "bed_mesh"});
+             "gcode_macro HELIX_BED_MESH_IF_NEEDED", "gcode_macro _HELIX_STATE", "bed_mesh"});
         hardware_.parse_objects(objects);
     }
 
@@ -107,7 +107,7 @@ TEST_CASE("MacroManager - get_macro_content returns valid Klipper config", "[con
     // Should contain pre-print helper macros
     REQUIRE(content.find("[gcode_macro HELIX_START_PRINT]") != std::string::npos);
     REQUIRE(content.find("[gcode_macro HELIX_CLEAN_NOZZLE]") != std::string::npos);
-    REQUIRE(content.find("[gcode_macro HELIX_BED_LEVEL_IF_NEEDED]") != std::string::npos);
+    REQUIRE(content.find("[gcode_macro HELIX_BED_MESH_IF_NEEDED]") != std::string::npos);
 
     // Should contain phase tracking macros
     REQUIRE(content.find("[gcode_macro HELIX_PHASE_HOMING]") != std::string::npos);
@@ -164,7 +164,7 @@ TEST_CASE("MacroManager - get_macro_names returns expected macros", "[slow][conf
     // Pre-print helpers
     REQUIRE(std::find(names.begin(), names.end(), "HELIX_START_PRINT") != names.end());
     REQUIRE(std::find(names.begin(), names.end(), "HELIX_CLEAN_NOZZLE") != names.end());
-    REQUIRE(std::find(names.begin(), names.end(), "HELIX_BED_LEVEL_IF_NEEDED") != names.end());
+    REQUIRE(std::find(names.begin(), names.end(), "HELIX_BED_MESH_IF_NEEDED") != names.end());
 
     // Phase tracking (spot check a few)
     REQUIRE(std::find(names.begin(), names.end(), "HELIX_PHASE_HOMING") != names.end());
@@ -187,10 +187,10 @@ TEST_CASE("MacroManager - HELIX_CLEAN_NOZZLE has configurable brush position",
 }
 
 // ============================================================================
-// HELIX_BED_LEVEL_IF_NEEDED Macro Tests
+// HELIX_BED_MESH_IF_NEEDED Macro Tests
 // ============================================================================
 
-TEST_CASE("MacroManager - HELIX_BED_LEVEL_IF_NEEDED has age-based logic", "[config][content]") {
+TEST_CASE("MacroManager - HELIX_BED_MESH_IF_NEEDED has age-based logic", "[config][content]") {
     std::string content = MacroManager::get_macro_content();
 
     // Should have MAX_AGE parameter

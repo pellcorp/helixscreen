@@ -56,22 +56,22 @@ TEST_CASE("StandardMacroInfo - get_macro priority", "[standard_macros]") {
     SECTION("Configured takes priority over detected and fallback") {
         info.configured_macro = "MY_BED_LEVEL";
         info.detected_macro = "BED_MESH_CALIBRATE";
-        info.fallback_macro = "HELIX_BED_LEVEL_IF_NEEDED";
+        info.fallback_macro = "HELIX_BED_MESH_IF_NEEDED";
         REQUIRE(info.get_macro() == "MY_BED_LEVEL");
     }
 
     SECTION("Detected takes priority over fallback when no configured") {
         info.configured_macro = "";
         info.detected_macro = "BED_MESH_CALIBRATE";
-        info.fallback_macro = "HELIX_BED_LEVEL_IF_NEEDED";
+        info.fallback_macro = "HELIX_BED_MESH_IF_NEEDED";
         REQUIRE(info.get_macro() == "BED_MESH_CALIBRATE");
     }
 
     SECTION("Fallback used when no configured or detected") {
         info.configured_macro = "";
         info.detected_macro = "";
-        info.fallback_macro = "HELIX_BED_LEVEL_IF_NEEDED";
-        REQUIRE(info.get_macro() == "HELIX_BED_LEVEL_IF_NEEDED");
+        info.fallback_macro = "HELIX_BED_MESH_IF_NEEDED";
+        REQUIRE(info.get_macro() == "HELIX_BED_MESH_IF_NEEDED");
     }
 
     SECTION("Empty string when all sources empty") {
@@ -325,14 +325,14 @@ TEST_CASE("StandardMacros - HELIX fallbacks", "[standard_macros]") {
     macros.reset();
 
     helix::PrinterDiscovery hardware;
-    json objects = {"extruder", "gcode_macro HELIX_BED_LEVEL_IF_NEEDED",
+    json objects = {"extruder", "gcode_macro HELIX_BED_MESH_IF_NEEDED",
                     "gcode_macro HELIX_CLEAN_NOZZLE", "gcode_macro HELIX_BED_MESH_IF_NEEDED"};
     hardware.parse_objects(objects);
 
     macros.init(hardware);
 
     SECTION("BedLevel has no fallback (removed in favor of BedMesh slot)") {
-        // BedLevel no longer uses HELIX_BED_LEVEL_IF_NEEDED as a fallback.
+        // BedLevel no longer uses HELIX_BED_MESH_IF_NEEDED as a fallback.
         // The new BedMesh slot handles bed mesh calibration separately.
         // BedLevel is now only for physical leveling (QGL, Z_TILT_ADJUST).
         const auto& bed_level = macros.get(StandardMacroSlot::BedLevel);
