@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "display_manager.h"
+#include "ui_toast_manager.h"
 #include "moonraker_api.h"
 #include "moonraker_client.h"
 #include "runtime_config.h"
@@ -313,6 +314,18 @@ int SettingsManager::get_display_sleep_sec() const {
 void SettingsManager::set_display_sleep_sec(int seconds) {
     spdlog::info("[SettingsManager] set_display_sleep_sec({})", seconds);
 
+    // Ensure sleep timeout >= dim timeout (unless sleep is disabled with 0)
+    // It's nonsensical to sleep before dimming
+    if (seconds > 0) {
+        int dim_sec = get_display_dim_sec();
+        if (dim_sec > 0 && seconds < dim_sec) {
+            spdlog::info("[SettingsManager] Clamping sleep {}s to dim {}s", seconds, dim_sec);
+            seconds = dim_sec;
+            ToastManager::instance().show(ToastSeverity::INFO, "Sleep adjusted to match dim timeout",
+                                          2000);
+        }
+    }
+
     // 1. Update subject
     lv_subject_set_int(&display_sleep_subject_, seconds);
 
@@ -344,6 +357,18 @@ void SettingsManager::set_display_dim_sec(int seconds) {
     DisplayManager* dm = DisplayManager::instance();
     if (dm) {
         dm->set_dim_timeout(seconds);
+    }
+
+    // 4. If dim is now > sleep, bump sleep up to match (unless sleep is disabled)
+    int sleep_sec = get_display_sleep_sec();
+    if (seconds > 0 && sleep_sec > 0 && sleep_sec < seconds) {
+        spdlog::info("[SettingsManager] Bumping sleep {}s up to match dim {}s", sleep_sec, seconds);
+        // Update directly to avoid recursion through set_display_sleep_sec
+        lv_subject_set_int(&display_sleep_subject_, seconds);
+        Config* cfg = Config::get_instance();
+        cfg->set<int>("/display/sleep_sec", seconds);
+        cfg->save();
+        ToastManager::instance().show(ToastSeverity::INFO, "Sleep timeout adjusted", 2000);
     }
 
     spdlog::debug("[SettingsManager] Display dim set to {}s", seconds);
