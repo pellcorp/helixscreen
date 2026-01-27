@@ -1,6 +1,6 @@
-# Theme QA: Kanagawa and System Improvements
+# Theme System QA
 
-## Status: KANAGAWA DONE - System Improvements Remain
+## Status: THEME PREVIEW COMPLETE - Individual Theme QA Remains
 
 ## Completed This Session
 
@@ -167,10 +167,30 @@ Tasks:
 - src/ui/ui_settings_display.cpp - modal callback, include ui_modal.h
 - ui_xml/theme_preview_overlay.xml - layout changes, Open button, named icons
 
+#### Session 2026-01-27 Evening - Dropdown & Cleanup
+
+**Dropdown Selection Highlight FIXED:**
+- LVGL dropdowns use `LV_PART_SELECTED` with state flags (CHECKED, PRESSED)
+- Now setting styles for all state combinations in `theme_core.c`
+- Dropdown accent color uses `more_saturated(primary, secondary)` to handle neutral themes like ChatGPT
+- `dropdown_accent_color` stored in theme instance for use in apply callback
+- `theme_apply_palette_to_screen_dropdowns()` handles already-open dropdowns during preview
+
+**Code Quality Cleanup:**
+- Replaced hardcoded colors and verbose `parse_hex_color` patterns across 7 files
+- ChatGPT light mode `text_muted` corrected to #8F8F8F
+
+**Divider Defaults:**
+- Dividers now default to `border` color instead of `text_muted`
+- Removed redundant opacity overrides from 11 XML files (were using 30-128, now use component default of 255)
+
+**Modal Backdrop:**
+- Backdrop opacity now configurable via `globals.xml` (commit 6c45028e)
+
 #### QA Progress
 - [x] ayu - DONE
 - [x] catppuccin - DONE (both dark and light)
-- [x] chatgpt - Colors updated, buttons have borders, needs knob fix
+- [x] chatgpt - DONE (knobs/dropdowns use saturation-based accent color)
 - [x] chatgpt-classic - DELETED (consolidated into chatgpt)
 - [ ] dracula (dark only)
 - [ ] everforest
