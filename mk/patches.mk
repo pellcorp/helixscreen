@@ -30,9 +30,13 @@ PATCHES_STAMP := $(BUILD_DIR)/.patches-applied
 PATCH_FILES := $(wildcard patches/*.patch)
 
 # Submodule HEAD files - changes when submodule is updated
-# Note: submodules use .git files pointing to .git/modules/<name>/
-LVGL_HEAD := .git/modules/lvgl/HEAD
-LIBHV_HEAD := .git/modules/libhv/HEAD
+# Note: In regular repos, submodules use .git/modules/<name>/HEAD
+# In worktrees, .git is a file pointing to main repo's .git/worktrees/<name>/
+# So we need to resolve the actual git modules path
+GIT_DIR := $(shell git rev-parse --git-dir 2>/dev/null || echo ".git")
+GIT_COMMON_DIR := $(shell git rev-parse --git-common-dir 2>/dev/null || echo ".git")
+LVGL_HEAD := $(GIT_COMMON_DIR)/modules/lvgl/HEAD
+LIBHV_HEAD := $(GIT_COMMON_DIR)/modules/libhv/HEAD
 
 # Reset all patched files in LVGL submodule to upstream state
 reset-patches:
