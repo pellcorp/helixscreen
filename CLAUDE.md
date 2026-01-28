@@ -12,10 +12,6 @@ make -j                              # Build (pure Makefile, NOT cmake/ninja)
 make test-run                        # Parallel tests
 ./build/bin/helix-tests "[tag]"      # Specific tests
 make pi-test                         # Build on thelio + deploy + run
-
-# Worktree setup (for multi-phase projects)
-git worktree add -b feature-name ../helixscreen-feature main
-./scripts/init-worktree.sh ../helixscreen-feature
 ```
 
 **Panels:** home, controls, motion, nozzle-temp, bed-temp, extrusion, filament, settings, advanced, print-select
@@ -27,7 +23,7 @@ git worktree add -b feature-name ../helixscreen-feature main
 
 | Doc | When |
 |-----|------|
-| `docs/LVGL9_XML_GUIDE.md` | XML layouts, observer cleanup |
+| `docs/LVGL9_XML_GUIDE.md` | XML layouts, observer cleanup, XML gotchas |
 | `docs/ENVIRONMENT_VARIABLES.md` | Runtime env, mock config |
 | `docs/BUILD_SYSTEM.md` | Build, Makefile |
 | `docs/MOONRAKER_SECURITY_REVIEW.md` | Moonraker/security |
@@ -79,48 +75,16 @@ git worktree add -b feature-name ../helixscreen-feature main
 | **Spacing** | `style_pad_all="12"` | `style_pad_all="#space_md"` |
 | **Typography** | `<lv_label style_text_font="...">` | `<text_heading>`, `<text_body>`, `<text_small>` |
 
-```cpp
-ui_theme_get_color("card_bg");     // ✅ Token lookup (handles light/dark)
-ui_theme_parse_color("#FF4444");   // ✅ Hex string only
-// ui_theme_parse_color("#card_bg") → ❌ WRONG - doesn't lookup tokens!
-```
-
+Note: `ui_theme_get_color()` for tokens, `ui_theme_parse_color()` for hex strings only (NOT tokens).
 
 ---
 
-## LVGL Lifecycle & Threading
+## Threading & Lifecycle
 
-### Threading
 WebSocket/libhv callbacks = background thread. **NEVER** call `lv_subject_set_*()` directly.
 Use `ui_async_call()` from `ui_update_queue.h`. Pattern: `printer_state.cpp` `set_*_internal()`
 
-### Cleanup
-- **Observer cleanup:** Use `ObserverGuard` RAII wrapper - automatically removes observer on destruction
-- **Shutdown guard:** `Application::shutdown()` needs `m_shutdown_complete` flag against double-call
-
-### Observer Factory Pattern (REQUIRED)
-Use `observer_factory.h` for all subject observers - eliminates boilerplate static callbacks.
-
-```cpp
-#include "observer_factory.h"
-using helix::ui::observe_int_sync;
-
-// Sync observer (UI thread only)
-observer_ = observe_int_sync<MyPanel>(subject, this, [](MyPanel* self, int val) {
-    self->handle_value(val);
-});
-
-// Async observer (background thread → UI update)
-observer_ = observe_int_async<MyPanel>(subject, this,
-    [](MyPanel* self, int val) { self->cached_val_ = val; },  // Called on any thread
-    [](MyPanel* self) { self->update_ui(); });                // Called on UI thread
-```
-
-**Available functions:** `observe_int_sync`, `observe_int_async`, `observe_string`, `observe_string_async`
-
-### Deferred Dependencies
-When `set_X()` updates member, also update child objects that cached old value.
-Ex: `PrintSelectPanel::set_api()` must call `file_provider_->set_api()`
+Use `ObserverGuard` for RAII cleanup. See `observer_factory.h` for `observe_int_sync`, `observe_int_async`, `observe_string`, `observe_string_async`.
 
 ---
 
@@ -129,24 +93,8 @@ Ex: `PrintSelectPanel::set_api()` must call `file_provider_->set_api()`
 | Pattern | Key Point |
 |---------|-----------|
 | Subject init order | Register components → init subjects → create XML |
-| Component tags | Always `name="..."` |
 | Widget lookup | `lv_obj_find_by_name()` not `lv_obj_get_child()` |
-| Image scaling | `lv_obj_update_layout()` before scaling |
 | Overlays | `ui_nav_push_overlay()`/`ui_nav_go_back()` |
-| LVGL API | Never `_lv_*()` private interfaces |
-| Docs | Doxygen `@brief`/`@param`/`@return` |
-
----
-
-## XML Gotchas
-
-1. `hidden="true"` not `flag_hidden="true"`
-2. Conditional bindings = child elements: `<bind_flag_if_eq>` not attributes (short syntax preferred)
-3. Three flex: `style_flex_main_place` + `style_flex_cross_place` + `style_flex_track_place`
-4. No subjects in `globals.xml`
-5. Component name = filename: `foo.xml` → `foo`
-6. **9.4 API:** `lv_xml_register_component_from_file()`, `lv_xml_register_widget()`, `<event_cb trigger="clicked">`
-7. **Align values:** `left_mid`, `right_mid`, `top_left`, `top_mid`, `top_right`, `bottom_left`, `bottom_mid`, `bottom_right`, `center`
 
 ---
 
@@ -157,17 +105,6 @@ Trust debug output. Impossible values = bug is UPSTREAM. Ask "what ELSE?" not "d
 
 ---
 
-## Work Classification
+## Critical Paths (always MAJOR work)
 
-| MAJOR (any = yes) | MINOR |
-|-------------------|-------|
-| New feature, 4+ files, architectural, refactoring | Single-file fix, config, docs |
-
-**MAJOR**: `superpowers:writing-plans` → worktree → test-first → delegate → `superpowers:requesting-code-review` → commit
-**MINOR**: No plan, no worktree, tests if behavior changes, single commit
-
-**Critical paths (always MAJOR):** PrinterState, WebSocket/threading, shutdown, DisplayManager, XML processing
-
-**Worktree:** `git worktree add ../helixscreen-<feature> origin/main`
-
-**If uncertain whether MAJOR → it is. Plan first.**
+PrinterState, WebSocket/threading, shutdown, DisplayManager, XML processing
