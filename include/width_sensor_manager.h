@@ -60,13 +60,19 @@ class WidthSensorManager : public ISensorManager {
     /// @brief Get category name for registry
     [[nodiscard]] std::string category_name() const override;
 
-    /// @brief Discover sensors from Klipper object list
+    /**
+     * @brief Discover sensors from Klipper objects list
+     * @note MUST be called from main LVGL thread (updates subjects directly)
+     */
     void discover(const std::vector<std::string>& klipper_objects) override;
 
     /// @brief Update state from Moonraker status JSON
     void update_from_status(const nlohmann::json& status) override;
 
-    /// @brief Load configuration from JSON
+    /**
+     * @brief Load sensor configuration from JSON
+     * @note MUST be called from main LVGL thread (updates subjects directly)
+     */
     void load_config(const nlohmann::json& config) override;
 
     /// @brief Save configuration to JSON
@@ -115,7 +121,8 @@ class WidthSensorManager : public ISensorManager {
     // ========================================================================
 
     /**
-     * @brief Set role for a specific sensor
+     * @brief Assign a role to a sensor
+     * @note MUST be called from main LVGL thread (updates subjects directly)
      *
      * @param klipper_name Full Klipper object name
      * @param role New role assignment
@@ -123,7 +130,8 @@ class WidthSensorManager : public ISensorManager {
     void set_sensor_role(const std::string& klipper_name, WidthSensorRole role);
 
     /**
-     * @brief Enable or disable a specific sensor
+     * @brief Enable or disable a sensor
+     * @note MUST be called from main LVGL thread (updates subjects directly)
      *
      * @param klipper_name Full Klipper object name
      * @param enabled Whether sensor should be monitored
@@ -230,6 +238,7 @@ class WidthSensorManager : public ISensorManager {
 
     /**
      * @brief Update all LVGL subjects from current state
+     * @note Internal method - MUST only be called from main LVGL thread
      */
     void update_subjects();
 

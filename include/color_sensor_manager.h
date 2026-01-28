@@ -59,14 +59,20 @@ class ColorSensorManager : public ISensorManager {
     /// @brief Get category name for registry
     [[nodiscard]] std::string category_name() const override;
 
-    /// @brief Discover sensors from device ID list
-    /// @note Unlike other sensors, color sensors use device IDs, not Klipper objects
+    /**
+     * @brief Discover sensors from device ID list
+     * @note MUST be called from main LVGL thread (updates subjects directly)
+     * @note Unlike other sensors, color sensors use device IDs, not Klipper objects
+     */
     void discover(const std::vector<std::string>& device_ids) override;
 
     /// @brief Update state from Moonraker TD-1 status JSON
     void update_from_status(const nlohmann::json& status) override;
 
-    /// @brief Load configuration from JSON
+    /**
+     * @brief Load sensor configuration from JSON
+     * @note MUST be called from main LVGL thread (updates subjects directly)
+     */
     void load_config(const nlohmann::json& config) override;
 
     /// @brief Save configuration to JSON
@@ -115,7 +121,8 @@ class ColorSensorManager : public ISensorManager {
     // ========================================================================
 
     /**
-     * @brief Set role for a specific sensor
+     * @brief Assign a role to a sensor
+     * @note MUST be called from main LVGL thread (updates subjects directly)
      *
      * @param device_id Device ID (e.g., "td1_lane0")
      * @param role New role assignment
@@ -123,7 +130,8 @@ class ColorSensorManager : public ISensorManager {
     void set_sensor_role(const std::string& device_id, ColorSensorRole role);
 
     /**
-     * @brief Enable or disable a specific sensor
+     * @brief Enable or disable a sensor
+     * @note MUST be called from main LVGL thread (updates subjects directly)
      *
      * @param device_id Device ID
      * @param enabled Whether sensor should be monitored
@@ -227,6 +235,7 @@ class ColorSensorManager : public ISensorManager {
 
     /**
      * @brief Update all LVGL subjects from current state
+     * @note Internal method - MUST only be called from main LVGL thread
      */
     void update_subjects();
 
