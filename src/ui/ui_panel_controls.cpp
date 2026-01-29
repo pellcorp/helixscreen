@@ -32,6 +32,7 @@
 #include "theme_manager.h"
 #include "ui/ui_event_trampoline.h"
 #include "ui/ui_lazy_panel_helper.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -338,10 +339,8 @@ void ControlsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     refresh_macro_buttons();
 
     // Cache dynamic container for secondary fans
-    secondary_fans_list_ = lv_obj_find_by_name(panel_, "secondary_fans_list");
-    if (!secondary_fans_list_) {
-        spdlog::warn("[{}] Could not find secondary_fans_list container", get_name());
-    } else {
+    FIND_WIDGET(secondary_fans_list_, panel_, "secondary_fans_list", get_name());
+    if (secondary_fans_list_) {
         // Make the secondary fans list clickable to open the fan control overlay
         lv_obj_add_flag(secondary_fans_list_, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(secondary_fans_list_, on_secondary_fans_clicked, LV_EVENT_CLICKED,
@@ -383,10 +382,15 @@ void ControlsPanel::setup_card_handlers() {
     // All card click handlers are now wired via XML event_cb - see init_subjects().
     // This function is retained for validation and debugging purposes.
 
-    lv_obj_t* card_quick_actions = lv_obj_find_by_name(panel_, "card_quick_actions");
-    lv_obj_t* card_temperatures = lv_obj_find_by_name(panel_, "card_temperatures");
-    lv_obj_t* card_cooling = lv_obj_find_by_name(panel_, "card_cooling");
-    lv_obj_t* card_calibration = lv_obj_find_by_name(panel_, "card_calibration");
+    lv_obj_t* card_quick_actions = nullptr;
+    lv_obj_t* card_temperatures = nullptr;
+    lv_obj_t* card_cooling = nullptr;
+    lv_obj_t* card_calibration = nullptr;
+
+    FIND_WIDGET_OPTIONAL(card_quick_actions, panel_, "card_quick_actions");
+    FIND_WIDGET_OPTIONAL(card_temperatures, panel_, "card_temperatures");
+    FIND_WIDGET_OPTIONAL(card_cooling, panel_, "card_cooling");
+    FIND_WIDGET_OPTIONAL(card_calibration, panel_, "card_calibration");
 
     if (!card_quick_actions || !card_temperatures || !card_cooling || !card_calibration) {
         spdlog::error("[{}] Failed to find all V2 cards", get_name());
