@@ -483,3 +483,189 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: multiple buttons update together
     lv_obj_delete(btn2);
     lv_obj_delete(btn3);
 }
+
+// ============================================================================
+// Icon Button Tests
+// ============================================================================
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: creates button with icon and text",
+                 "[ui-button][icon]") {
+    const char* attrs[] = {"icon", "cog", "text", "Settings", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Button should have at least two children (icon + label)
+    uint32_t child_count = lv_obj_get_child_count(btn);
+    REQUIRE(child_count >= 2);
+
+    // Button should use flex layout
+    lv_flex_flow_t flow = (lv_flex_flow_t)lv_obj_get_style_flex_flow(btn, LV_PART_MAIN);
+    REQUIRE(flow == LV_FLEX_FLOW_ROW);
+
+    // First child should be icon (since icon_position defaults to "left")
+    lv_obj_t* first_child = lv_obj_get_child(btn, 0);
+    REQUIRE(first_child != nullptr);
+    REQUIRE(lv_obj_check_type(first_child, &lv_label_class));
+
+    // Second child should be label
+    lv_obj_t* second_child = lv_obj_get_child(btn, 1);
+    REQUIRE(second_child != nullptr);
+    REQUIRE(lv_obj_check_type(second_child, &lv_label_class));
+
+    // Second child should have the text
+    const char* text = lv_label_get_text(second_child);
+    REQUIRE(text != nullptr);
+    REQUIRE(strcmp(text, "Settings") == 0);
+
+    lv_obj_delete(btn);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: creates icon-only button", "[ui-button][icon]") {
+    const char* attrs[] = {"icon", "cog", "text", "", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Button should have at least one visible child (icon)
+    uint32_t child_count = lv_obj_get_child_count(btn);
+    REQUIRE(child_count >= 1);
+
+    // First visible child should be icon
+    lv_obj_t* icon = lv_obj_get_child(btn, 0);
+    REQUIRE(icon != nullptr);
+    REQUIRE(lv_obj_check_type(icon, &lv_label_class));
+
+    // Icon should be centered (no flex layout for icon-only)
+    lv_flex_flow_t flow = (lv_flex_flow_t)lv_obj_get_style_flex_flow(btn, LV_PART_MAIN);
+    REQUIRE(flow == LV_FLEX_FLOW_ROW); // Flex is still set but only icon is visible
+
+    lv_obj_delete(btn);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: icon_position right puts icon after text",
+                 "[ui-button][icon]") {
+    const char* attrs[] = {"icon", "cog", "text", "Settings", "icon_position", "right", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Button should have at least two children
+    uint32_t child_count = lv_obj_get_child_count(btn);
+    REQUIRE(child_count >= 2);
+
+    // First child should be label (since icon_position is "right")
+    lv_obj_t* first_child = lv_obj_get_child(btn, 0);
+    REQUIRE(first_child != nullptr);
+    const char* text = lv_label_get_text(first_child);
+    REQUIRE(text != nullptr);
+    REQUIRE(strcmp(text, "Settings") == 0);
+
+    // Second child should be icon
+    lv_obj_t* second_child = lv_obj_get_child(btn, 1);
+    REQUIRE(second_child != nullptr);
+    // Icon is a label with MDI font glyph
+    REQUIRE(lv_obj_check_type(second_child, &lv_label_class));
+
+    lv_obj_delete(btn);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: icon has auto-contrast color", "[ui-button][icon]") {
+    const char* attrs[] = {"variant", "primary", "icon", "cog", "text", "Settings", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Get button bg luminance
+    lv_color_t btn_bg = lv_obj_get_style_bg_color(btn, LV_PART_MAIN);
+    uint8_t r = btn_bg.red;
+    uint8_t g = btn_bg.green;
+    uint8_t b = btn_bg.blue;
+    uint32_t lum = (299 * r + 587 * g + 114 * b) / 1000;
+
+    lv_color_t expected_color =
+        (lum < 128) ? theme_core_get_text_for_dark_bg() : theme_core_get_text_for_light_bg();
+
+    // Icon is first child (icon_position defaults to "left")
+    lv_obj_t* icon = lv_obj_get_child(btn, 0);
+    REQUIRE(icon != nullptr);
+
+    lv_color_t icon_color = lv_obj_get_style_text_color(icon, LV_PART_MAIN);
+    REQUIRE(lv_color_eq(icon_color, expected_color));
+
+    // Label should have same color as icon
+    lv_obj_t* label = lv_obj_get_child(btn, 1);
+    REQUIRE(label != nullptr);
+
+    lv_color_t label_color = lv_obj_get_style_text_color(label, LV_PART_MAIN);
+    REQUIRE(lv_color_eq(label_color, expected_color));
+
+    lv_obj_delete(btn);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: icon contrast updates on theme change",
+                 "[ui-button][icon]") {
+    const char* attrs[] = {"variant", "primary", "icon", "cog", "text", "Test", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Get initial icon color
+    lv_obj_t* icon = lv_obj_get_child(btn, 0);
+    REQUIRE(icon != nullptr);
+
+    // Update theme colors with a significantly different primary color (yellow)
+    theme_palette_t palette = make_dark_test_palette_with_primary(lv_color_hex(0xFFEB3B));
+    theme_core_update_colors(true, &palette, 40);
+
+    lv_obj_report_style_change(nullptr);
+
+    // Get updated icon color
+    lv_color_t after_icon = lv_obj_get_style_text_color(icon, LV_PART_MAIN);
+
+    // Get the button's new bg and verify icon has correct contrast
+    lv_color_t new_btn_bg = lv_obj_get_style_bg_color(btn, LV_PART_MAIN);
+    uint8_t r = new_btn_bg.red;
+    uint8_t g = new_btn_bg.green;
+    uint8_t b = new_btn_bg.blue;
+    uint32_t lum = (299 * r + 587 * g + 114 * b) / 1000;
+
+    lv_color_t expected_color =
+        (lum < 128) ? theme_core_get_text_for_dark_bg() : theme_core_get_text_for_light_bg();
+
+    REQUIRE(lv_color_eq(after_icon, expected_color));
+
+    lv_obj_delete(btn);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: unknown icon name does not crash",
+                 "[ui-button][icon]") {
+    // Unknown icon should not crash, just log warning
+    const char* attrs[] = {"icon", "nonexistent_icon_xyz", "text", "Test", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Button should still be created and have a label
+    lv_obj_t* label = lv_obj_get_child(btn, 0);
+    REQUIRE(label != nullptr);
+
+    lv_obj_delete(btn);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "ui_button: text-only button still works", "[ui-button][icon]") {
+    // Ensure original text-only behavior is preserved
+    const char* attrs[] = {"text", "Cancel", nullptr};
+    lv_obj_t* btn = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_button", attrs));
+    REQUIRE(btn != nullptr);
+
+    // Button should have at least one child (the label)
+    uint32_t child_count = lv_obj_get_child_count(btn);
+    REQUIRE(child_count >= 1);
+
+    // First child should be the label
+    lv_obj_t* label = lv_obj_get_child(btn, 0);
+    REQUIRE(label != nullptr);
+    REQUIRE(lv_obj_check_type(label, &lv_label_class));
+
+    // Label should show the text
+    const char* text = lv_label_get_text(label);
+    REQUIRE(text != nullptr);
+    REQUIRE(strcmp(text, "Cancel") == 0);
+
+    lv_obj_delete(btn);
+}

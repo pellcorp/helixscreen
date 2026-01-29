@@ -29,6 +29,50 @@
 // from theme_core, which updates in-place when theme_core_preview_colors() is called.
 // ============================================================================
 
+// Helper to create a base test palette
+static theme_palette_t make_base_test_palette() {
+    theme_palette_t p = {};
+    p.screen_bg = lv_color_hex(0x121212);
+    p.panel_bg = lv_color_hex(0x1E1E1E);
+    p.card_bg = lv_color_hex(0x2D2D2D);
+    p.surface_control = lv_color_hex(0x424242);
+    p.border = lv_color_hex(0x424242);
+    p.text = lv_color_hex(0xE0E0E0);
+    p.text_muted = lv_color_hex(0xB0B0B0);
+    p.text_subtle = lv_color_hex(0x757575);
+    p.primary = lv_color_hex(0xFF5722);
+    p.secondary = lv_color_hex(0xFF8A65);
+    p.tertiary = lv_color_hex(0xFFAB91);
+    p.info = lv_color_hex(0x42A5F5);
+    p.success = lv_color_hex(0x66BB6A);
+    p.warning = lv_color_hex(0xFFA726);
+    p.danger = lv_color_hex(0xEF5350);
+    p.focus = lv_color_hex(0x4FC3F7);
+    return p;
+}
+
+// Helper to create a test palette with a specific warning color
+static theme_palette_t make_test_palette_with_warning(lv_color_t warning_color) {
+    theme_palette_t p = {};
+    p.screen_bg = lv_color_hex(0x121212);
+    p.panel_bg = lv_color_hex(0x1E1E1E);
+    p.card_bg = lv_color_hex(0x2D2D2D);
+    p.surface_control = lv_color_hex(0x424242);
+    p.border = lv_color_hex(0x424242);
+    p.text = lv_color_hex(0xE0E0E0);
+    p.text_muted = lv_color_hex(0xB0B0B0);
+    p.text_subtle = lv_color_hex(0x757575);
+    p.primary = lv_color_hex(0xFF5722);
+    p.secondary = lv_color_hex(0xFF8A65);
+    p.tertiary = lv_color_hex(0xFFAB91);
+    p.info = lv_color_hex(0x42A5F5);
+    p.success = lv_color_hex(0x66BB6A);
+    p.warning = warning_color;
+    p.danger = lv_color_hex(0xEF5350);
+    p.focus = lv_color_hex(0x4FC3F7);
+    return p;
+}
+
 TEST_CASE_METHOD(LVGLUITestFixture, "ui_severity_card: border color matches shared severity style",
                  "[reactive-severity][reactive]") {
     // Create severity_card widget via XML with info severity (default)
@@ -66,28 +110,10 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ui_severity_card: border color updates on t
     INFO("Initial severity card border color: 0x" << std::hex << before_rgb);
 
     // Update theme via theme_core_preview_colors with DIFFERENT warning color
-    // Palette indices: 12 = warning color
-    const char* dark_palette[16] = {
-        "#121212", // 0: bg_darkest
-        "#1E1E1E", // 1: bg_dark
-        "#2D2D2D", // 2: bg_dark_highlight
-        "#424242", // 3: card_alt
-        "#757575", // 4: text_subtle
-        "#E0E0E0", // 5: bg_light
-        "#FFFFFF", // 6: bg_lightest
-        "#FF7043", // 7: accent_highlight
-        "#FF5722", // 8: primary accent
-        "#FF8A65", // 9: accent 2
-        "#FFAB91", // 10: accent 3
-        "#66BB6A", // 11: success
-        "#FF00FF", // 12: warning - BRIGHT MAGENTA to ensure visible change
-        "#EF5350", // 13: danger
-        "#42A5F5", // 14: info
-        "#4FC3F7", // 15: focus
-    };
+    // Using bright magenta to ensure visible change
+    theme_palette_t dark_palette = make_test_palette_with_warning(lv_color_hex(0xFF00FF));
 
-    theme_core_preview_colors(true, // is_dark
-                              dark_palette, 8);
+    theme_core_preview_colors(true, &dark_palette, 8, 100);
 
     // Force LVGL style refresh cascade
     lv_obj_report_style_change(nullptr);
@@ -118,26 +144,11 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(shared_style != nullptr);
 
     // Update theme via theme_core_preview_colors with different danger color
-    const char* dark_palette[16] = {
-        "#121212", // 0: bg_darkest
-        "#1E1E1E", // 1: bg_dark
-        "#2D2D2D", // 2: bg_dark_highlight
-        "#424242", // 3: card_alt
-        "#757575", // 4: text_subtle
-        "#E0E0E0", // 5: bg_light
-        "#FFFFFF", // 6: bg_lightest
-        "#FF7043", // 7: accent_highlight
-        "#9C27B0", // 8: primary accent (purple)
-        "#BA68C8", // 9: accent 2
-        "#CE93D8", // 10: accent 3
-        "#4CAF50", // 11: success
-        "#FFA726", // 12: warning
-        "#FF1493", // 13: danger - HOT PINK to ensure visible change
-        "#42A5F5", // 14: info
-        "#4FC3F7", // 15: focus
-    };
+    // Using hot pink to ensure visible change
+    theme_palette_t dark_palette = make_base_test_palette();
+    dark_palette.danger = lv_color_hex(0xFF1493); // HOT PINK
 
-    theme_core_preview_colors(true, dark_palette, 8);
+    theme_core_preview_colors(true, &dark_palette, 8, 100);
     lv_obj_report_style_change(nullptr);
 
     // Get the updated color from the shared style
@@ -191,26 +202,13 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_color_t before_success = lv_obj_get_style_border_color(card_success, LV_PART_MAIN);
 
     // Update theme via theme_core_preview_colors with ALL different semantic colors
-    const char* dark_palette[16] = {
-        "#121212", // 0: bg_darkest
-        "#1E1E1E", // 1: bg_dark
-        "#2D2D2D", // 2: bg_dark_highlight
-        "#424242", // 3: card_alt
-        "#757575", // 4: text_subtle
-        "#E0E0E0", // 5: bg_light
-        "#FFFFFF", // 6: bg_lightest
-        "#FF7043", // 7: accent_highlight
-        "#00BCD4", // 8: primary accent (cyan)
-        "#26C6DA", // 9: accent 2
-        "#4DD0E1", // 10: accent 3
-        "#00FF00", // 11: success - BRIGHT GREEN
-        "#FFFF00", // 12: warning - BRIGHT YELLOW
-        "#FF0000", // 13: danger - PURE RED
-        "#0000FF", // 14: info - PURE BLUE
-        "#4FC3F7", // 15: focus
-    };
+    theme_palette_t dark_palette = make_base_test_palette();
+    dark_palette.success = lv_color_hex(0x00FF00); // BRIGHT GREEN
+    dark_palette.warning = lv_color_hex(0xFFFF00); // BRIGHT YELLOW
+    dark_palette.danger = lv_color_hex(0xFF0000);  // PURE RED
+    dark_palette.info = lv_color_hex(0x0000FF);    // PURE BLUE
 
-    theme_core_preview_colors(true, dark_palette, 8);
+    theme_core_preview_colors(true, &dark_palette, 8, 100);
     lv_obj_report_style_change(nullptr);
 
     // Get colors after theme change

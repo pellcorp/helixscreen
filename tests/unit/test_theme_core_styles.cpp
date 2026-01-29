@@ -807,19 +807,10 @@ TEST_CASE_METHOD(LVGLUITestFixture, "text_body: text color updates on theme chan
     INFO("Initial text_body text_color: 0x" << std::hex << before_rgb);
 
     // Update theme colors to dark mode (significantly different colors)
-    lv_color_t dark_screen_bg = lv_color_hex(0x121212);
-    lv_color_t dark_card_bg = lv_color_hex(0x1E1E1E);
-    lv_color_t dark_surface = lv_color_hex(0x2D2D2D);
-    lv_color_t dark_text = lv_color_hex(0xE0E0E0); // Light text for dark mode
-    lv_color_t dark_text_muted = lv_color_hex(0xA0A0A0);
-    lv_color_t dark_text_subtle = lv_color_hex(0x808080);
-    lv_color_t dark_focus = lv_color_hex(0x4FC3F7);
-    lv_color_t dark_primary = lv_color_hex(0x2196F3);
-    lv_color_t dark_border = lv_color_hex(0x424242);
+    theme_palette_t dark_palette = make_dark_test_palette();
+    dark_palette.text = lv_color_hex(0xE0E0E0); // Light text for dark mode
 
-    theme_core_update_colors(true, // is_dark
-                             dark_screen_bg, dark_card_bg, dark_surface, dark_text, dark_text_muted,
-                             dark_text_subtle, dark_focus, dark_primary, dark_border);
+    theme_core_update_colors(true, &dark_palette, 40);
 
     // Force LVGL style refresh cascade
     lv_obj_report_style_change(nullptr);
@@ -851,19 +842,10 @@ TEST_CASE_METHOD(LVGLUITestFixture, "text_heading: text color updates on theme c
     INFO("Initial text_heading text_color: 0x" << std::hex << before_rgb);
 
     // Update theme colors to dark mode
-    lv_color_t dark_screen_bg = lv_color_hex(0x121212);
-    lv_color_t dark_card_bg = lv_color_hex(0x1E1E1E);
-    lv_color_t dark_surface = lv_color_hex(0x2D2D2D);
-    lv_color_t dark_text = lv_color_hex(0xE0E0E0);
-    lv_color_t dark_text_muted = lv_color_hex(0xA0A0A0); // Muted text for dark mode
-    lv_color_t dark_text_subtle = lv_color_hex(0x808080);
-    lv_color_t dark_focus = lv_color_hex(0x4FC3F7);
-    lv_color_t dark_primary = lv_color_hex(0x2196F3);
-    lv_color_t dark_border = lv_color_hex(0x424242);
+    theme_palette_t dark_palette = make_dark_test_palette();
+    dark_palette.text_muted = lv_color_hex(0xA0A0A0); // Muted text for dark mode
 
-    theme_core_update_colors(true, // is_dark
-                             dark_screen_bg, dark_card_bg, dark_surface, dark_text, dark_text_muted,
-                             dark_text_subtle, dark_focus, dark_primary, dark_border);
+    theme_core_update_colors(true, &dark_palette, 40);
 
     // Force LVGL style refresh cascade
     lv_obj_report_style_change(nullptr);
@@ -1533,21 +1515,15 @@ TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: severity styles update in previ
     REQUIRE(res == LV_STYLE_RES_FOUND);
     lv_color_t before = before_value.color;
 
-    // Preview colors: indices 11-14 are success, warning, danger, info
-    // Use very different colors to ensure we detect the change
-    const char* palette[16] = {
-        "#1A1A2E", "#16213E", "#0F3460", "#E94560", // 0-3: bg colors
-        "#808080", "#F0F0F0", "#FFFFFF", "#00D9FF", // 4-7: greys, accent_highlight
-        "#4FC3F7", "#29B6F6", "#03A9F4",            // 8-10: accent variations
-        "#00FF00",                                  // 11: success (bright green)
-        "#FFFF00",                                  // 12: warning (yellow)
-        "#FF0000",                                  // 13: danger (red)
-        "#0000FF", // 14: info (bright blue - different from default)
-        "#808080"  // 15: spare
-    };
+    // Preview colors: use very different colors to ensure we detect the change
+    theme_palette_t palette = make_dark_test_palette();
+    palette.success = lv_color_hex(0x00FF00); // bright green
+    palette.warning = lv_color_hex(0xFFFF00); // yellow
+    palette.danger = lv_color_hex(0xFF0000);  // red
+    palette.info = lv_color_hex(0x0000FF);    // bright blue - different from default
 
     // Apply preview with custom palette
-    theme_core_preview_colors(true, palette, 8);
+    theme_core_preview_colors(true, &palette, 8, 100);
 
     // Get border color after preview
     lv_style_value_t after_value;
@@ -1853,17 +1829,11 @@ TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button primary style updates in
     REQUIRE(res == LV_STYLE_RES_FOUND);
     lv_color_t before = before_value.color;
 
-    // Preview with custom accent/primary color (index 8)
-    const char* palette[16] = {
-        "#1A1A2E", "#16213E", "#0F3460", "#E94560", // 0-3: bg colors
-        "#808080", "#F0F0F0", "#FFFFFF", "#00D9FF", // 4-7: greys, accent_highlight
-        "#FF5722",                                  // 8: primary accent (orange, different)
-        "#E64A19", "#BF360C",                       // 9-10: accent variations
-        "#4CAF50", "#FFA726", "#EF5350", "#42A5F5", // 11-14: semantic
-        "#808080"                                   // 15: focus
-    };
+    // Preview with custom accent/primary color (orange, different from default)
+    theme_palette_t palette = make_dark_test_palette();
+    palette.primary = lv_color_hex(0xFF5722); // orange
 
-    theme_core_preview_colors(true, palette, 8);
+    theme_core_preview_colors(true, &palette, 8, 100);
 
     // Get color after preview
     lv_style_value_t after_value;
