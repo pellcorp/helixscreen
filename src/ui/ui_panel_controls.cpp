@@ -30,6 +30,7 @@
 #include "static_panel_registry.h"
 #include "subject_managed_panel.h"
 #include "theme_manager.h"
+#include "ui/ui_cleanup_helpers.h"
 #include "ui/ui_event_trampoline.h"
 #include "ui/ui_lazy_panel_helper.h"
 #include "ui/ui_widget_helpers.h"
@@ -73,34 +74,14 @@ ControlsPanel::~ControlsPanel() {
     }
 
     // Clean up lazily-created overlay panels to prevent dangling LVGL objects
-    if (motion_panel_) {
-        lv_obj_del(motion_panel_);
-        motion_panel_ = nullptr;
-    }
-    if (nozzle_temp_panel_) {
-        lv_obj_del(nozzle_temp_panel_);
-        nozzle_temp_panel_ = nullptr;
-    }
-    if (bed_temp_panel_) {
-        lv_obj_del(bed_temp_panel_);
-        bed_temp_panel_ = nullptr;
-    }
-    if (fan_control_panel_) {
-        lv_obj_del(fan_control_panel_);
-        fan_control_panel_ = nullptr;
-    }
-    if (bed_mesh_panel_) {
-        lv_obj_del(bed_mesh_panel_);
-        bed_mesh_panel_ = nullptr;
-    }
-    if (zoffset_panel_) {
-        lv_obj_del(zoffset_panel_);
-        zoffset_panel_ = nullptr;
-    }
-    if (screws_panel_) {
-        lv_obj_del(screws_panel_);
-        screws_panel_ = nullptr;
-    }
+    using helix::ui::safe_delete_obj;
+    safe_delete_obj(motion_panel_);
+    safe_delete_obj(nozzle_temp_panel_);
+    safe_delete_obj(bed_temp_panel_);
+    safe_delete_obj(fan_control_panel_);
+    safe_delete_obj(bed_mesh_panel_);
+    safe_delete_obj(zoffset_panel_);
+    safe_delete_obj(screws_panel_);
     // Modal dialogs: ModalGuard handles cleanup automatically via RAII
     // See docs/DEVELOPER_QUICK_REFERENCE.md "Modal Dialog Lifecycle"
 }
