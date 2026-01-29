@@ -51,11 +51,14 @@ ExtrusionPanel& get_global_extrusion_panel() {
 // ============================================================================
 
 ExtrusionPanel::ExtrusionPanel() {
-    // Initialize buffer contents
-    std::snprintf(temp_status_buf_, sizeof(temp_status_buf_), "%d / %dC", nozzle_current_,
-                  nozzle_target_);
-    std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_), "Current: %dC\nTarget: %dC",
-                  nozzle_current_, nozzle_target_);
+    // Initialize buffer contents using consistent temperature formatting
+    helix::fmt::format_temp_pair(nozzle_current_, nozzle_target_, temp_status_buf_,
+                                 sizeof(temp_status_buf_));
+    char cur_buf[16], tgt_buf[16];
+    helix::fmt::format_temp(nozzle_current_, cur_buf, sizeof(cur_buf));
+    helix::fmt::format_temp(nozzle_target_, tgt_buf, sizeof(tgt_buf));
+    std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_), "Current: %s\nTarget: %s",
+                  cur_buf, tgt_buf);
     helix::fmt::format_speed_mm_min(static_cast<double>(extrusion_speed_mmpm_), speed_display_buf_,
                                     sizeof(speed_display_buf_));
 
@@ -287,14 +290,19 @@ void ExtrusionPanel::update_temp_status() {
         status_icon = "\xE2\x9C\x97"; // Too cold (x)
     }
 
-    std::snprintf(temp_status_buf_, sizeof(temp_status_buf_), "%d / %dC %s", nozzle_current_,
-                  nozzle_target_, status_icon);
+    // Format temp pair and append status icon
+    char temp_buf[24];
+    helix::fmt::format_temp_pair(nozzle_current_, nozzle_target_, temp_buf, sizeof(temp_buf));
+    std::snprintf(temp_status_buf_, sizeof(temp_status_buf_), "%s %s", temp_buf, status_icon);
     lv_subject_copy_string(&temp_status_subject_, temp_status_buf_);
 }
 
 void ExtrusionPanel::update_warning_text() {
-    std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_), "Current: %dC\nTarget: %dC",
-                  nozzle_current_, nozzle_target_);
+    char cur_buf[16], tgt_buf[16];
+    helix::fmt::format_temp(nozzle_current_, cur_buf, sizeof(cur_buf));
+    helix::fmt::format_temp(nozzle_target_, tgt_buf, sizeof(tgt_buf));
+    std::snprintf(warning_temps_buf_, sizeof(warning_temps_buf_), "Current: %s\nTarget: %s",
+                  cur_buf, tgt_buf);
     lv_subject_copy_string(&warning_temps_subject_, warning_temps_buf_);
 }
 

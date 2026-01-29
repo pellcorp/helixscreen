@@ -170,6 +170,79 @@ TEST_CASE("formatters handle small buffers safely", "[format_utils][safety]") {
 }
 
 // ============================================================================
+// Temperature formatting tests
+// ============================================================================
+
+TEST_CASE("format_temp basic cases", "[format_utils][temperature]") {
+    char buf[16];
+
+    SECTION("formats positive temperatures") {
+        CHECK(std::string(format_temp(0, buf, sizeof(buf))) == "0°C");
+        CHECK(std::string(format_temp(25, buf, sizeof(buf))) == "25°C");
+        CHECK(std::string(format_temp(210, buf, sizeof(buf))) == "210°C");
+    }
+
+    SECTION("handles negative temperatures") {
+        CHECK(std::string(format_temp(-10, buf, sizeof(buf))) == "-10°C");
+        CHECK(std::string(format_temp(-40, buf, sizeof(buf))) == "-40°C");
+    }
+
+    SECTION("handles high temperatures") {
+        CHECK(std::string(format_temp(300, buf, sizeof(buf))) == "300°C");
+        CHECK(std::string(format_temp(500, buf, sizeof(buf))) == "500°C");
+    }
+}
+
+TEST_CASE("format_temp_pair basic cases", "[format_utils][temperature]") {
+    char buf[32];
+
+    SECTION("formats current/target pair") {
+        CHECK(std::string(format_temp_pair(150, 200, buf, sizeof(buf))) == "150 / 200°C");
+        CHECK(std::string(format_temp_pair(0, 60, buf, sizeof(buf))) == "0 / 60°C");
+        CHECK(std::string(format_temp_pair(210, 210, buf, sizeof(buf))) == "210 / 210°C");
+    }
+
+    SECTION("shows em dash when target is 0 (heater off)") {
+        CHECK(std::string(format_temp_pair(25, 0, buf, sizeof(buf))) == "25 / —°C");
+        CHECK(std::string(format_temp_pair(0, 0, buf, sizeof(buf))) == "0 / —°C");
+    }
+}
+
+TEST_CASE("format_temp_range basic cases", "[format_utils][temperature]") {
+    char buf[24];
+
+    SECTION("formats min-max range") {
+        CHECK(std::string(format_temp_range(200, 230, buf, sizeof(buf))) == "200-230°C");
+        CHECK(std::string(format_temp_range(60, 80, buf, sizeof(buf))) == "60-80°C");
+        CHECK(std::string(format_temp_range(180, 220, buf, sizeof(buf))) == "180-220°C");
+    }
+
+    SECTION("handles same min and max") {
+        CHECK(std::string(format_temp_range(200, 200, buf, sizeof(buf))) == "200-200°C");
+    }
+}
+
+TEST_CASE("temperature formatters handle small buffers safely",
+          "[format_utils][temperature][safety]") {
+    char tiny[4];
+
+    SECTION("format_temp truncates safely") {
+        format_temp(999, tiny, sizeof(tiny));
+        CHECK(tiny[sizeof(tiny) - 1] == '\0');
+    }
+
+    SECTION("format_temp_pair truncates safely") {
+        format_temp_pair(100, 200, tiny, sizeof(tiny));
+        CHECK(tiny[sizeof(tiny) - 1] == '\0');
+    }
+
+    SECTION("format_temp_range truncates safely") {
+        format_temp_range(100, 200, tiny, sizeof(tiny));
+        CHECK(tiny[sizeof(tiny) - 1] == '\0');
+    }
+}
+
+// ============================================================================
 // heater_display() tests
 // ============================================================================
 

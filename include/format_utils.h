@@ -149,6 +149,48 @@ char* format_accel_mm_s2(double accel, char* buf, size_t size);
 char* format_frequency_hz(double hz, char* buf, size_t size);
 
 // =============================================================================
+// Temperature Formatting
+// =============================================================================
+
+/**
+ * @brief Format single temperature with °C suffix
+ *
+ * Produces consistent output like "210°C" (no space before °C).
+ *
+ * @param temp_c Temperature in degrees Celsius
+ * @param buf Output buffer
+ * @param size Buffer size (recommended: 16)
+ * @return Pointer to buffer for chaining
+ */
+char* format_temp(int temp_c, char* buf, size_t size);
+
+/**
+ * @brief Format temperature pair as "current / target°C"
+ *
+ * Produces output like "150 / 200°C" or "150 / —°C" when target is 0 (heater off).
+ *
+ * @param current_c Current temperature in degrees Celsius
+ * @param target_c Target temperature in degrees Celsius (0 = heater off, shows "—")
+ * @param buf Output buffer
+ * @param size Buffer size (recommended: 24)
+ * @return Pointer to buffer for chaining
+ */
+char* format_temp_pair(int current_c, int target_c, char* buf, size_t size);
+
+/**
+ * @brief Format temperature range as "min-max°C"
+ *
+ * Produces output like "200-230°C" for material temperature ranges.
+ *
+ * @param min_c Minimum temperature in degrees Celsius
+ * @param max_c Maximum temperature in degrees Celsius
+ * @param buf Output buffer
+ * @param size Buffer size (recommended: 16)
+ * @return Pointer to buffer for chaining
+ */
+char* format_temp_range(int min_c, int max_c, char* buf, size_t size);
+
+// =============================================================================
 // Duration Formatting
 // =============================================================================
 

@@ -82,6 +82,29 @@ char* format_frequency_hz(double hz, char* buf, size_t size) {
 }
 
 // =============================================================================
+// Temperature Formatting
+// =============================================================================
+
+char* format_temp(int temp_c, char* buf, size_t size) {
+    std::snprintf(buf, size, "%d°C", temp_c);
+    return buf;
+}
+
+char* format_temp_pair(int current_c, int target_c, char* buf, size_t size) {
+    if (target_c == 0) {
+        std::snprintf(buf, size, "%d / %s°C", current_c, UNAVAILABLE);
+    } else {
+        std::snprintf(buf, size, "%d / %d°C", current_c, target_c);
+    }
+    return buf;
+}
+
+char* format_temp_range(int min_c, int max_c, char* buf, size_t size) {
+    std::snprintf(buf, size, "%d-%d°C", min_c, max_c);
+    return buf;
+}
+
+// =============================================================================
 // Duration Formatting
 // =============================================================================
 
