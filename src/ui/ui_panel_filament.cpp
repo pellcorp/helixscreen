@@ -94,45 +94,16 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, MoonrakerAPI* api)
     // Cooldown button
     lv_xml_register_event_cb(nullptr, "on_filament_cooldown", on_cooldown_clicked);
 
-    // Subscribe to PrinterState temperatures to show actual printer state
+    // Subscribe to PrinterState temperatures using bundle pattern
     // NOTE: Observers must defer UI updates via ui_async_call to avoid render-phase assertions
     // [L029]
-    extruder_temp_observer_ = observe_int_async<FilamentPanel>(
-        printer_state_.get_extruder_temp_subject(), this,
+    temp_observers_.setup_async(
+        this, printer_state_,
         [](FilamentPanel* self, int raw) { self->nozzle_current_ = centi_to_degrees(raw); },
-        [](FilamentPanel* self) {
-            self->update_left_card_temps();
-            self->update_temp_display();
-            self->update_warning_text();
-            self->update_safety_state();
-            self->update_status();
-        });
-
-    extruder_target_observer_ = observe_int_async<FilamentPanel>(
-        printer_state_.get_extruder_target_subject(), this,
         [](FilamentPanel* self, int raw) { self->nozzle_target_ = centi_to_degrees(raw); },
-        [](FilamentPanel* self) {
-            self->update_left_card_temps();
-            self->update_material_temp_display();
-            self->update_warning_text();
-            self->update_status();
-            self->check_and_auto_select_preset();
-            lv_subject_set_int(&self->nozzle_heating_subject_, self->nozzle_target_ > 0 ? 1 : 0);
-        });
-
-    bed_temp_observer_ = observe_int_async<FilamentPanel>(
-        printer_state_.get_bed_temp_subject(), this,
         [](FilamentPanel* self, int raw) { self->bed_current_ = centi_to_degrees(raw); },
-        [](FilamentPanel* self) { self->update_left_card_temps(); });
-
-    bed_target_observer_ = observe_int_async<FilamentPanel>(
-        printer_state_.get_bed_target_subject(), this,
         [](FilamentPanel* self, int raw) { self->bed_target_ = centi_to_degrees(raw); },
-        [](FilamentPanel* self) {
-            self->update_left_card_temps();
-            self->update_material_temp_display();
-            self->check_and_auto_select_preset();
-        });
+        [](FilamentPanel* self) { self->update_all_temps(); });
 }
 
 FilamentPanel::~FilamentPanel() {
@@ -406,6 +377,19 @@ void FilamentPanel::check_and_auto_select_preset() {
                           nozzle_target_, bed_target_);
         }
     }
+}
+
+void FilamentPanel::update_all_temps() {
+    // Unified update handler for temperature observer bundle
+    // Called on UI thread after any temperature value changes
+    update_left_card_temps();
+    update_temp_display();
+    update_material_temp_display();
+    update_warning_text();
+    update_safety_state();
+    update_status();
+    check_and_auto_select_preset();
+    lv_subject_set_int(&nozzle_heating_subject_, nozzle_target_ > 0 ? 1 : 0);
 }
 
 // ============================================================================

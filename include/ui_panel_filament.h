@@ -8,6 +8,7 @@
 
 #include "config.h"
 #include "subject_managed_panel.h"
+#include "ui/temperature_observer_bundle.h"
 
 // Forward declarations
 class TempControlPanel;
@@ -250,11 +251,8 @@ class FilamentPanel : public PanelBase {
     lv_obj_t* temp_group_ = nullptr;
     lv_obj_t* temp_graph_card_ = nullptr;
 
-    // Observers for printer state temperature updates
-    ObserverGuard extruder_temp_observer_;
-    ObserverGuard extruder_target_observer_;
-    ObserverGuard bed_temp_observer_;
-    ObserverGuard bed_target_observer_;
+    // Temperature observer bundle (nozzle + bed current/target)
+    helix::ui::TemperatureObserverBundle<FilamentPanel> temp_observers_;
     ObserverGuard ams_type_observer_; ///< Adjusts temp card size when AMS hidden
 
     //
@@ -268,6 +266,7 @@ class FilamentPanel : public PanelBase {
     void update_safety_state();
     void update_preset_buttons_visual();
     void check_and_auto_select_preset(); ///< Auto-select preset if targets match
+    void update_all_temps();             ///< Unified handler for temp observer bundle
 
     //
     // === Instance Handlers ===
