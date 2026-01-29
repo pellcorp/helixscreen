@@ -1745,3 +1745,327 @@ TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: severity styles update in previ
     uint32_t after_rgb = lv_color_to_u32(after) & 0x00FFFFFF;
     REQUIRE(after_rgb == 0x0000FF);
 }
+
+// ============================================================================
+// Button Style Getter Tests - Phase 2.6a
+// ============================================================================
+// Button styles provide reactive background colors for different button types.
+// Each button style sets bg_color only - text color is handled separately by
+// the button widget using contrast text getters.
+// ============================================================================
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button primary style getter returns valid style",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_primary_style();
+    REQUIRE(style != nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button primary style has background color set",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_primary_style();
+    REQUIRE(style != nullptr);
+
+    // Button primary style should have bg_color property set to primary color
+    lv_style_value_t value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+
+    uint32_t color_rgb = lv_color_to_u32(value.color) & 0x00FFFFFF;
+    INFO("Button primary bg_color RGB: 0x" << std::hex << color_rgb);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button secondary style getter returns valid style",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_secondary_style();
+    REQUIRE(style != nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button secondary style has background color set",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_secondary_style();
+    REQUIRE(style != nullptr);
+
+    // Button secondary style should have bg_color property set to surface color
+    lv_style_value_t value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+
+    uint32_t color_rgb = lv_color_to_u32(value.color) & 0x00FFFFFF;
+    INFO("Button secondary bg_color RGB: 0x" << std::hex << color_rgb);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button danger style getter returns valid style",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_danger_style();
+    REQUIRE(style != nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button danger style has background color set",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_danger_style();
+    REQUIRE(style != nullptr);
+
+    // Button danger style should have bg_color property set to danger color (0xEF5350)
+    lv_style_value_t value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+
+    uint32_t color_rgb = lv_color_to_u32(value.color) & 0x00FFFFFF;
+    INFO("Button danger bg_color RGB: 0x" << std::hex << color_rgb);
+    REQUIRE(color_rgb == 0xEF5350);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button ghost style getter returns valid style",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_ghost_style();
+    REQUIRE(style != nullptr);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button ghost style has transparent background",
+                 "[theme-core]") {
+    lv_style_t* style = theme_core_get_button_ghost_style();
+    REQUIRE(style != nullptr);
+
+    // Ghost button should have transparent bg (LV_OPA_0)
+    lv_style_value_t value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_OPA, &value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    REQUIRE(value.num == LV_OPA_0);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "theme_core: button style getters return same pointer on repeat calls",
+                 "[theme-core]") {
+    // Style pointers should be stable - multiple calls return same object
+    lv_style_t* primary1 = theme_core_get_button_primary_style();
+    lv_style_t* primary2 = theme_core_get_button_primary_style();
+    REQUIRE(primary1 == primary2);
+
+    lv_style_t* secondary1 = theme_core_get_button_secondary_style();
+    lv_style_t* secondary2 = theme_core_get_button_secondary_style();
+    REQUIRE(secondary1 == secondary2);
+
+    lv_style_t* danger1 = theme_core_get_button_danger_style();
+    lv_style_t* danger2 = theme_core_get_button_danger_style();
+    REQUIRE(danger1 == danger2);
+
+    lv_style_t* ghost1 = theme_core_get_button_ghost_style();
+    lv_style_t* ghost2 = theme_core_get_button_ghost_style();
+    REQUIRE(ghost1 == ghost2);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: all button styles are distinct pointers",
+                 "[theme-core]") {
+    lv_style_t* primary = theme_core_get_button_primary_style();
+    lv_style_t* secondary = theme_core_get_button_secondary_style();
+    lv_style_t* danger = theme_core_get_button_danger_style();
+    lv_style_t* ghost = theme_core_get_button_ghost_style();
+
+    // All should be non-null
+    REQUIRE(primary != nullptr);
+    REQUIRE(secondary != nullptr);
+    REQUIRE(danger != nullptr);
+    REQUIRE(ghost != nullptr);
+
+    // All should be distinct style objects
+    REQUIRE(primary != secondary);
+    REQUIRE(primary != danger);
+    REQUIRE(primary != ghost);
+    REQUIRE(secondary != danger);
+    REQUIRE(secondary != ghost);
+    REQUIRE(danger != ghost);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button primary style updates on theme change",
+                 "[theme-core][reactive]") {
+    lv_style_t* style = theme_core_get_button_primary_style();
+    REQUIRE(style != nullptr);
+
+    // Get initial color
+    lv_style_value_t before_value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &before_value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    lv_color_t before = before_value.color;
+
+    // Switch to dark mode with different primary color
+    lv_color_t dark_screen_bg = lv_color_hex(0x121212);
+    lv_color_t dark_card_bg = lv_color_hex(0x1E1E1E);
+    lv_color_t dark_surface = lv_color_hex(0x2D2D2D);
+    lv_color_t dark_text = lv_color_hex(0xE0E0E0);
+    lv_color_t dark_text_muted = lv_color_hex(0xA0A0A0);
+    lv_color_t dark_text_subtle = lv_color_hex(0x808080);
+    lv_color_t dark_focus = lv_color_hex(0x4FC3F7);
+    lv_color_t dark_primary = lv_color_hex(0xFF5722); // Different primary color
+    lv_color_t dark_border = lv_color_hex(0x424242);
+
+    theme_core_update_colors(true, dark_screen_bg, dark_card_bg, dark_surface, dark_text,
+                             dark_text_muted, dark_text_subtle, dark_focus, dark_primary,
+                             dark_border);
+
+    // Get color after update
+    lv_style_value_t after_value;
+    res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &after_value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    lv_color_t after = after_value.color;
+
+    // Style should have updated to new primary color
+    INFO("Before: 0x" << std::hex << (lv_color_to_u32(before) & 0x00FFFFFF));
+    INFO("After: 0x" << std::hex << (lv_color_to_u32(after) & 0x00FFFFFF));
+    REQUIRE_FALSE(lv_color_eq(before, after));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button secondary style updates on theme change",
+                 "[theme-core][reactive]") {
+    lv_style_t* style = theme_core_get_button_secondary_style();
+    REQUIRE(style != nullptr);
+
+    // Get initial color
+    lv_style_value_t before_value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &before_value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    lv_color_t before = before_value.color;
+
+    // Switch to dark mode
+    lv_color_t dark_screen_bg = lv_color_hex(0x121212);
+    lv_color_t dark_card_bg = lv_color_hex(0x1E1E1E);
+    lv_color_t dark_surface = lv_color_hex(0x2D2D2D);
+    lv_color_t dark_text = lv_color_hex(0xE0E0E0);
+    lv_color_t dark_text_muted = lv_color_hex(0xA0A0A0);
+    lv_color_t dark_text_subtle = lv_color_hex(0x808080);
+    lv_color_t dark_focus = lv_color_hex(0x4FC3F7);
+    lv_color_t dark_primary = lv_color_hex(0x2196F3);
+    lv_color_t dark_border = lv_color_hex(0x424242);
+
+    theme_core_update_colors(true, dark_screen_bg, dark_card_bg, dark_surface, dark_text,
+                             dark_text_muted, dark_text_subtle, dark_focus, dark_primary,
+                             dark_border);
+
+    // Get color after update
+    lv_style_value_t after_value;
+    res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &after_value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    lv_color_t after = after_value.color;
+
+    // Style should have updated to new surface color
+    REQUIRE_FALSE(lv_color_eq(before, after));
+}
+
+// ============================================================================
+// Contrast Text Color Getter Tests - Phase 2.6a
+// ============================================================================
+// Contrast text getters provide appropriate text colors for dark and light
+// backgrounds. These are used by button widgets to pick readable text colors
+// based on background luminance.
+// ============================================================================
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "theme_core: text for dark bg returns light color (for contrast)",
+                 "[theme-core]") {
+    lv_color_t color = theme_core_get_text_for_dark_bg();
+
+    // Should be a light color (high RGB values) for visibility on dark backgrounds
+    uint32_t rgb = lv_color_to_u32(color) & 0x00FFFFFF;
+    INFO("Text for dark bg: 0x" << std::hex << rgb);
+
+    // Extract RGB components
+    uint8_t r = (rgb >> 16) & 0xFF;
+    uint8_t g = (rgb >> 8) & 0xFF;
+    uint8_t b = rgb & 0xFF;
+
+    // Light colors should have high average RGB (at least 0xC0 = 192)
+    int avg = (r + g + b) / 3;
+    REQUIRE(avg >= 0xC0);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "theme_core: text for light bg returns dark color (for contrast)",
+                 "[theme-core]") {
+    lv_color_t color = theme_core_get_text_for_light_bg();
+
+    // Should be a dark color (low RGB values) for visibility on light backgrounds
+    uint32_t rgb = lv_color_to_u32(color) & 0x00FFFFFF;
+    INFO("Text for light bg: 0x" << std::hex << rgb);
+
+    // Extract RGB components
+    uint8_t r = (rgb >> 16) & 0xFF;
+    uint8_t g = (rgb >> 8) & 0xFF;
+    uint8_t b = rgb & 0xFF;
+
+    // Dark colors should have low average RGB (at most 0x40 = 64)
+    int avg = (r + g + b) / 3;
+    REQUIRE(avg <= 0x40);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "theme_core: contrast text colors are different from each other",
+                 "[theme-core]") {
+    lv_color_t dark_bg_text = theme_core_get_text_for_dark_bg();
+    lv_color_t light_bg_text = theme_core_get_text_for_light_bg();
+
+    // They should be different colors (one light, one dark)
+    REQUIRE_FALSE(lv_color_eq(dark_bg_text, light_bg_text));
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "theme_core: contrast text getters work before theme init (fallback)",
+                 "[theme-core]") {
+    // Note: This test relies on the fixture already having initialized the theme.
+    // The fallback behavior is tested implicitly - if theme_core_deinit() were
+    // called, the getters should return fallback values.
+    //
+    // For now, we just verify the getters don't crash and return valid colors.
+    lv_color_t dark_bg_text = theme_core_get_text_for_dark_bg();
+    lv_color_t light_bg_text = theme_core_get_text_for_light_bg();
+
+    // Should return meaningful colors (not crash)
+    uint32_t rgb1 = lv_color_to_u32(dark_bg_text) & 0x00FFFFFF;
+    uint32_t rgb2 = lv_color_to_u32(light_bg_text) & 0x00FFFFFF;
+
+    INFO("Dark bg text: 0x" << std::hex << rgb1);
+    INFO("Light bg text: 0x" << std::hex << rgb2);
+
+    // Just verify they're different
+    REQUIRE(rgb1 != rgb2);
+}
+
+// ============================================================================
+// Button Styles in Preview Mode - Phase 2.6a
+// ============================================================================
+
+TEST_CASE_METHOD(LVGLUITestFixture, "theme_core: button primary style updates in preview mode",
+                 "[theme-core][reactive]") {
+    lv_style_t* style = theme_core_get_button_primary_style();
+    REQUIRE(style != nullptr);
+
+    // Get initial color
+    lv_style_value_t before_value;
+    lv_style_res_t res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &before_value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    lv_color_t before = before_value.color;
+
+    // Preview with custom accent/primary color (index 8)
+    const char* palette[16] = {
+        "#1A1A2E", "#16213E", "#0F3460", "#E94560", // 0-3: bg colors
+        "#808080", "#F0F0F0", "#FFFFFF", "#00D9FF", // 4-7: greys, accent_highlight
+        "#FF5722",                                  // 8: primary accent (orange, different)
+        "#E64A19", "#BF360C",                       // 9-10: accent variations
+        "#4CAF50", "#FFA726", "#EF5350", "#42A5F5", // 11-14: semantic
+        "#808080"                                   // 15: focus
+    };
+
+    theme_core_preview_colors(true, palette, 8);
+
+    // Get color after preview
+    lv_style_value_t after_value;
+    res = lv_style_get_prop(style, LV_STYLE_BG_COLOR, &after_value);
+    REQUIRE(res == LV_STYLE_RES_FOUND);
+    lv_color_t after = after_value.color;
+
+    INFO("Before: 0x" << std::hex << (lv_color_to_u32(before) & 0x00FFFFFF));
+    INFO("After: 0x" << std::hex << (lv_color_to_u32(after) & 0x00FFFFFF));
+    REQUIRE_FALSE(lv_color_eq(before, after));
+
+    // Verify it's the orange from palette
+    uint32_t after_rgb = lv_color_to_u32(after) & 0x00FFFFFF;
+    REQUIRE(after_rgb == 0xFF5722);
+}

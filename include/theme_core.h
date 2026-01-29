@@ -312,6 +312,80 @@ lv_style_t* theme_core_get_severity_warning_style(void);
  */
 lv_style_t* theme_core_get_severity_danger_style(void);
 
+// ============================================================================
+// Button Style Getters (Phase 2.6a)
+// ============================================================================
+// Button styles provide reactive background colors for different button types.
+// Each style sets bg_color only - text color is handled separately by the
+// button widget using contrast text getters.
+
+/**
+ * @brief Get the shared button primary style
+ *
+ * Returns a pointer to the persistent button style using primary_color for bg.
+ * The style updates in-place when theme_core_update_colors() is called.
+ *
+ * @return Pointer to button primary style, or NULL if theme not initialized
+ */
+lv_style_t* theme_core_get_button_primary_style(void);
+
+/**
+ * @brief Get the shared button secondary style
+ *
+ * Returns a pointer to the persistent button style using surface_control for bg.
+ * The style updates in-place when theme_core_update_colors() is called.
+ *
+ * @return Pointer to button secondary style, or NULL if theme not initialized
+ */
+lv_style_t* theme_core_get_button_secondary_style(void);
+
+/**
+ * @brief Get the shared button danger style
+ *
+ * Returns a pointer to the persistent button style using danger color for bg.
+ * The style updates in-place when theme_core_update_colors() is called.
+ *
+ * @return Pointer to button danger style, or NULL if theme not initialized
+ */
+lv_style_t* theme_core_get_button_danger_style(void);
+
+/**
+ * @brief Get the shared button ghost style
+ *
+ * Returns a pointer to the persistent button style with transparent background.
+ * The style updates in-place when theme_core_update_colors() is called.
+ *
+ * @return Pointer to button ghost style, or NULL if theme not initialized
+ */
+lv_style_t* theme_core_get_button_ghost_style(void);
+
+// ============================================================================
+// Contrast Text Color Getters (Phase 2.6a)
+// ============================================================================
+// Contrast text getters provide appropriate text colors for dark and light
+// backgrounds. These are used by button widgets to pick readable text colors
+// based on background luminance.
+
+/**
+ * @brief Get text color appropriate for dark backgrounds
+ *
+ * Returns a light text color (near-white) suitable for display on dark
+ * backgrounds. Used by button widgets to ensure text readability.
+ *
+ * @return Light text color for dark backgrounds (fallback: white 0xFFFFFF)
+ */
+lv_color_t theme_core_get_text_for_dark_bg(void);
+
+/**
+ * @brief Get text color appropriate for light backgrounds
+ *
+ * Returns a dark text color suitable for display on light backgrounds.
+ * Used by button widgets to ensure text readability.
+ *
+ * @return Dark text color for light backgrounds (fallback: dark gray 0x212121)
+ */
+lv_color_t theme_core_get_text_for_light_bg(void);
+
 #ifdef __cplusplus
 }
 #endif

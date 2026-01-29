@@ -53,7 +53,15 @@ typedef struct {
     lv_style_t severity_success_style;
     lv_style_t severity_warning_style;
     lv_style_t severity_danger_style;
-    bool is_dark_mode; // Track theme mode for context
+    // Button styles (Phase 2.6a) - bg_color only, text handled separately
+    lv_style_t button_primary_style;   // Primary button (primary color bg)
+    lv_style_t button_secondary_style; // Secondary button (surface color bg)
+    lv_style_t button_danger_style;    // Danger button (danger color bg)
+    lv_style_t button_ghost_style;     // Ghost button (transparent bg)
+    // Contrast text colors (Phase 2.6a) - for button text based on bg luminance
+    lv_color_t contrast_text_for_dark_bg_;  // Light text for dark backgrounds
+    lv_color_t contrast_text_for_light_bg_; // Dark text for light backgrounds
+    bool is_dark_mode;                      // Track theme mode for context
 } helix_theme_t;
 
 // Static theme instance (singleton pattern matching LVGL's approach)
@@ -275,6 +283,11 @@ lv_theme_t* theme_core_init(lv_display_t* display, lv_color_t primary_color,
         lv_style_reset(&helix_theme_instance->severity_success_style);
         lv_style_reset(&helix_theme_instance->severity_warning_style);
         lv_style_reset(&helix_theme_instance->severity_danger_style);
+        // Reset button styles (Phase 2.6a)
+        lv_style_reset(&helix_theme_instance->button_primary_style);
+        lv_style_reset(&helix_theme_instance->button_secondary_style);
+        lv_style_reset(&helix_theme_instance->button_danger_style);
+        lv_style_reset(&helix_theme_instance->button_ghost_style);
         free(helix_theme_instance);
         helix_theme_instance = NULL;
     }
@@ -522,6 +535,34 @@ lv_theme_t* theme_core_init(lv_display_t* display, lv_color_t primary_color,
     lv_style_init(&helix_theme_instance->severity_danger_style);
     lv_style_set_border_color(&helix_theme_instance->severity_danger_style, lv_color_hex(0xEF5350));
 
+    // Initialize button styles (Phase 2.6a)
+    // Button styles set bg_color only - text color handled by button widget
+
+    // button_primary_style - uses primary_color as background
+    lv_style_init(&helix_theme_instance->button_primary_style);
+    lv_style_set_bg_color(&helix_theme_instance->button_primary_style, primary_color);
+    lv_style_set_bg_opa(&helix_theme_instance->button_primary_style, LV_OPA_COVER);
+
+    // button_secondary_style - uses surface_control as background
+    lv_style_init(&helix_theme_instance->button_secondary_style);
+    lv_style_set_bg_color(&helix_theme_instance->button_secondary_style, surface_control);
+    lv_style_set_bg_opa(&helix_theme_instance->button_secondary_style, LV_OPA_COVER);
+
+    // button_danger_style - uses danger color (0xEF5350) as background
+    lv_style_init(&helix_theme_instance->button_danger_style);
+    lv_style_set_bg_color(&helix_theme_instance->button_danger_style, lv_color_hex(0xEF5350));
+    lv_style_set_bg_opa(&helix_theme_instance->button_danger_style, LV_OPA_COVER);
+
+    // button_ghost_style - transparent background
+    lv_style_init(&helix_theme_instance->button_ghost_style);
+    lv_style_set_bg_opa(&helix_theme_instance->button_ghost_style, LV_OPA_0);
+
+    // Initialize contrast text colors (Phase 2.6a)
+    // These are static colors for text on dark/light backgrounds
+    // Using sensible defaults based on typical theme conventions
+    helix_theme_instance->contrast_text_for_dark_bg_ = lv_color_hex(0xE0E0E0);  // Light text
+    helix_theme_instance->contrast_text_for_light_bg_ = lv_color_hex(0x212121); // Dark text
+
     // CRITICAL: Now we need to patch the default theme's color fields
     // This is necessary because LVGL's default theme bakes colors into pre-computed
     // styles during init. We must update both the theme color fields AND the styles.
@@ -653,6 +694,12 @@ void theme_core_update_colors(bool is_dark, lv_color_t screen_bg, lv_color_t car
     // Update spinner style (Phase 2.3) - uses primary_color
     lv_style_set_arc_color(&helix_theme_instance->spinner_style, primary_color);
     // Note: severity styles use static semantic colors, no update needed here
+
+    // Update button styles (Phase 2.6a)
+    lv_style_set_bg_color(&helix_theme_instance->button_primary_style, primary_color);
+    lv_style_set_bg_color(&helix_theme_instance->button_secondary_style, surface_control);
+    // Note: button_danger_style uses static danger color, no update needed
+    // Note: button_ghost_style has transparent bg, no update needed
 
     // Update LVGL default theme's internal styles
     // This is the same private API access pattern used in theme_core_init
@@ -848,6 +895,12 @@ void theme_core_preview_colors(bool is_dark, const char* colors[16], int32_t bor
     lv_style_set_border_color(&helix_theme_instance->severity_warning_style, warning);
     lv_style_set_border_color(&helix_theme_instance->severity_danger_style, danger);
 
+    // Update button styles (Phase 2.6a) - use palette colors
+    lv_style_set_bg_color(&helix_theme_instance->button_primary_style, accent_color);
+    lv_style_set_bg_color(&helix_theme_instance->button_secondary_style, card_alt);
+    lv_style_set_bg_color(&helix_theme_instance->button_danger_style, danger);
+    // Note: button_ghost_style has transparent bg, no update needed
+
     // Update default theme internal styles (private API access)
     typedef struct {
         lv_style_t scr;
@@ -1029,4 +1082,56 @@ lv_style_t* theme_core_get_severity_danger_style(void) {
         return NULL;
     }
     return &helix_theme_instance->severity_danger_style;
+}
+
+// ============================================================================
+// Button Style Getters (Phase 2.6a)
+// ============================================================================
+
+lv_style_t* theme_core_get_button_primary_style(void) {
+    if (!helix_theme_instance) {
+        return NULL;
+    }
+    return &helix_theme_instance->button_primary_style;
+}
+
+lv_style_t* theme_core_get_button_secondary_style(void) {
+    if (!helix_theme_instance) {
+        return NULL;
+    }
+    return &helix_theme_instance->button_secondary_style;
+}
+
+lv_style_t* theme_core_get_button_danger_style(void) {
+    if (!helix_theme_instance) {
+        return NULL;
+    }
+    return &helix_theme_instance->button_danger_style;
+}
+
+lv_style_t* theme_core_get_button_ghost_style(void) {
+    if (!helix_theme_instance) {
+        return NULL;
+    }
+    return &helix_theme_instance->button_ghost_style;
+}
+
+// ============================================================================
+// Contrast Text Color Getters (Phase 2.6a)
+// ============================================================================
+
+lv_color_t theme_core_get_text_for_dark_bg(void) {
+    if (!helix_theme_instance) {
+        // Fallback: white for dark backgrounds
+        return lv_color_hex(0xFFFFFF);
+    }
+    return helix_theme_instance->contrast_text_for_dark_bg_;
+}
+
+lv_color_t theme_core_get_text_for_light_bg(void) {
+    if (!helix_theme_instance) {
+        // Fallback: dark gray for light backgrounds
+        return lv_color_hex(0x212121);
+    }
+    return helix_theme_instance->contrast_text_for_light_bg_;
 }
