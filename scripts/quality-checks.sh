@@ -158,8 +158,13 @@ if [ -n "$XML_FILES" ]; then
     XML_ERRORS=0
     for xml in $XML_FILES; do
       if [ -f "$xml" ]; then
-        if ! xmllint --noout "$xml" 2>&1; then
+        # Use --recover to continue on namespace errors (LVGL uses colon syntax like
+        # style_arc_color:indicator which xmllint interprets as namespace prefixes).
+        # Filter: only keep error lines (file:line: format) and exclude namespace errors.
+        XMLLINT_OUTPUT=$(xmllint --noout --recover "$xml" 2>&1 | grep -E "^[^:]+:[0-9]+:" | grep -v "namespace error" || true)
+        if [ -n "$XMLLINT_OUTPUT" ]; then
           echo "❌ Invalid XML: $xml"
+          echo "$XMLLINT_OUTPUT"
           XML_ERRORS=$((XML_ERRORS + 1))
           EXIT_CODE=1
         fi
