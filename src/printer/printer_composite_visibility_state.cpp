@@ -12,6 +12,8 @@
 
 #include "printer_composite_visibility_state.h"
 
+#include "state/subject_macros.h"
+
 #include <spdlog/spdlog.h>
 
 namespace helix {
@@ -27,30 +29,11 @@ void PrinterCompositeVisibilityState::init_subjects(bool register_xml) {
 
     // Composite visibility subjects - all initialize to 0 (hidden by default)
     // These are derived from helix_plugin_installed AND printer_has_* subjects
-    lv_subject_init_int(&can_show_bed_mesh_, 0);
-    lv_subject_init_int(&can_show_qgl_, 0);
-    lv_subject_init_int(&can_show_z_tilt_, 0);
-    lv_subject_init_int(&can_show_nozzle_clean_, 0);
-    lv_subject_init_int(&can_show_purge_line_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&can_show_bed_mesh_);
-    subjects_.register_subject(&can_show_qgl_);
-    subjects_.register_subject(&can_show_z_tilt_);
-    subjects_.register_subject(&can_show_nozzle_clean_);
-    subjects_.register_subject(&can_show_purge_line_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterCompositeVisibilityState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "can_show_bed_mesh", &can_show_bed_mesh_);
-        lv_xml_register_subject(NULL, "can_show_qgl", &can_show_qgl_);
-        lv_xml_register_subject(NULL, "can_show_z_tilt", &can_show_z_tilt_);
-        lv_xml_register_subject(NULL, "can_show_nozzle_clean", &can_show_nozzle_clean_);
-        lv_xml_register_subject(NULL, "can_show_purge_line", &can_show_purge_line_);
-    } else {
-        spdlog::debug("[PrinterCompositeVisibilityState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(can_show_bed_mesh, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(can_show_qgl, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(can_show_z_tilt, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(can_show_nozzle_clean, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(can_show_purge_line, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterCompositeVisibilityState] Subjects initialized successfully");

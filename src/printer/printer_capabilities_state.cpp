@@ -11,6 +11,7 @@
 #include "printer_capabilities_state.h"
 
 #include "async_helpers.h"
+#include "state/subject_macros.h"
 
 #include <spdlog/spdlog.h>
 
@@ -26,61 +27,21 @@ void PrinterCapabilitiesState::init_subjects(bool register_xml) {
                   register_xml);
 
     // Printer capability subjects (all default to 0=not available)
-    lv_subject_init_int(&printer_has_qgl_, 0);
-    lv_subject_init_int(&printer_has_z_tilt_, 0);
-    lv_subject_init_int(&printer_has_bed_mesh_, 0);
-    lv_subject_init_int(&printer_has_nozzle_clean_, 0);
-    lv_subject_init_int(&printer_has_probe_, 0);
-    lv_subject_init_int(&printer_has_heater_bed_, 0);
-    lv_subject_init_int(&printer_has_led_, 0);
-    lv_subject_init_int(&printer_has_accelerometer_, 0);
-    lv_subject_init_int(&printer_has_spoolman_, 0);
-    lv_subject_init_int(&printer_has_speaker_, 0);
-    lv_subject_init_int(&printer_has_timelapse_, 0);
-    lv_subject_init_int(&printer_has_purge_line_, 0);
-    lv_subject_init_int(&printer_has_firmware_retraction_, 0);
-    lv_subject_init_int(&printer_bed_moves_, 0); // 0=gantry moves, 1=bed moves (cartesian)
-    lv_subject_init_int(&printer_has_chamber_sensor_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&printer_has_qgl_);
-    subjects_.register_subject(&printer_has_z_tilt_);
-    subjects_.register_subject(&printer_has_bed_mesh_);
-    subjects_.register_subject(&printer_has_nozzle_clean_);
-    subjects_.register_subject(&printer_has_probe_);
-    subjects_.register_subject(&printer_has_heater_bed_);
-    subjects_.register_subject(&printer_has_led_);
-    subjects_.register_subject(&printer_has_accelerometer_);
-    subjects_.register_subject(&printer_has_spoolman_);
-    subjects_.register_subject(&printer_has_speaker_);
-    subjects_.register_subject(&printer_has_timelapse_);
-    subjects_.register_subject(&printer_has_purge_line_);
-    subjects_.register_subject(&printer_has_firmware_retraction_);
-    subjects_.register_subject(&printer_bed_moves_);
-    subjects_.register_subject(&printer_has_chamber_sensor_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterCapabilitiesState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "printer_has_qgl", &printer_has_qgl_);
-        lv_xml_register_subject(NULL, "printer_has_z_tilt", &printer_has_z_tilt_);
-        lv_xml_register_subject(NULL, "printer_has_bed_mesh", &printer_has_bed_mesh_);
-        lv_xml_register_subject(NULL, "printer_has_nozzle_clean", &printer_has_nozzle_clean_);
-        lv_xml_register_subject(NULL, "printer_has_probe", &printer_has_probe_);
-        lv_xml_register_subject(NULL, "printer_has_heater_bed", &printer_has_heater_bed_);
-        lv_xml_register_subject(NULL, "printer_has_led", &printer_has_led_);
-        lv_xml_register_subject(NULL, "printer_has_accelerometer", &printer_has_accelerometer_);
-        lv_xml_register_subject(NULL, "printer_has_spoolman", &printer_has_spoolman_);
-        lv_xml_register_subject(NULL, "printer_has_speaker", &printer_has_speaker_);
-        lv_xml_register_subject(NULL, "printer_has_timelapse", &printer_has_timelapse_);
-        lv_xml_register_subject(NULL, "printer_has_purge_line", &printer_has_purge_line_);
-        lv_xml_register_subject(NULL, "printer_has_firmware_retraction",
-                                &printer_has_firmware_retraction_);
-        lv_xml_register_subject(NULL, "printer_bed_moves", &printer_bed_moves_);
-        lv_xml_register_subject(NULL, "printer_has_chamber_sensor", &printer_has_chamber_sensor_);
-    } else {
-        spdlog::debug("[PrinterCapabilitiesState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(printer_has_qgl, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_z_tilt, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_bed_mesh, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_nozzle_clean, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_probe, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_heater_bed, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_led, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_accelerometer, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_spoolman, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_speaker, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_timelapse, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_purge_line, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_has_firmware_retraction, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(printer_bed_moves, 0, subjects_, register_xml); // 0=gantry moves, 1=bed moves
+    INIT_SUBJECT_INT(printer_has_chamber_sensor, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterCapabilitiesState] Subjects initialized successfully");

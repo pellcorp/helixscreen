@@ -13,6 +13,7 @@
 #include "printer_plugin_status_state.h"
 
 #include "async_helpers.h"
+#include "state/subject_macros.h"
 
 #include <spdlog/spdlog.h>
 
@@ -29,21 +30,8 @@ void PrinterPluginStatusState::init_subjects(bool register_xml) {
 
     // Plugin status subjects use tri-state: -1=unknown, 0=no, 1=yes
     // Unknown state allows UI to show "checking..." vs "not available"
-    lv_subject_init_int(&helix_plugin_installed_, -1);
-    lv_subject_init_int(&phase_tracking_enabled_, -1);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&helix_plugin_installed_);
-    subjects_.register_subject(&phase_tracking_enabled_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterPluginStatusState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "helix_plugin_installed", &helix_plugin_installed_);
-        lv_xml_register_subject(NULL, "phase_tracking_enabled", &phase_tracking_enabled_);
-    } else {
-        spdlog::debug("[PrinterPluginStatusState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(helix_plugin_installed, -1, subjects_, register_xml);
+    INIT_SUBJECT_INT(phase_tracking_enabled, -1, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterPluginStatusState] Subjects initialized successfully");

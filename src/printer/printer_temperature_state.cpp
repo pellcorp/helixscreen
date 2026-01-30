@@ -9,6 +9,7 @@
 
 #include "printer_temperature_state.h"
 
+#include "state/subject_macros.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -25,30 +26,11 @@ void PrinterTemperatureState::init_subjects(bool register_xml) {
                   register_xml);
 
     // Temperature subjects (integer, centidegrees for 0.1C resolution)
-    lv_subject_init_int(&extruder_temp_, 0);
-    lv_subject_init_int(&extruder_target_, 0);
-    lv_subject_init_int(&bed_temp_, 0);
-    lv_subject_init_int(&bed_target_, 0);
-    lv_subject_init_int(&chamber_temp_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&extruder_temp_);
-    subjects_.register_subject(&extruder_target_);
-    subjects_.register_subject(&bed_temp_);
-    subjects_.register_subject(&bed_target_);
-    subjects_.register_subject(&chamber_temp_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterTemperatureState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "extruder_temp", &extruder_temp_);
-        lv_xml_register_subject(NULL, "extruder_target", &extruder_target_);
-        lv_xml_register_subject(NULL, "bed_temp", &bed_temp_);
-        lv_xml_register_subject(NULL, "bed_target", &bed_target_);
-        lv_xml_register_subject(NULL, "chamber_temp", &chamber_temp_);
-    } else {
-        spdlog::debug("[PrinterTemperatureState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(extruder_temp, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(extruder_target, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(bed_temp, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(bed_target, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(chamber_temp, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterTemperatureState] Subjects initialized successfully");

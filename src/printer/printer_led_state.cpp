@@ -9,6 +9,8 @@
 
 #include "printer_led_state.h"
 
+#include "state/subject_macros.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -24,35 +26,14 @@ void PrinterLedState::init_subjects(bool register_xml) {
     spdlog::debug("[PrinterLedState] Initializing subjects (register_xml={})", register_xml);
 
     // LED state subject (0=off, 1=on, derived from LED color data)
-    lv_subject_init_int(&led_state_, 0);
+    INIT_SUBJECT_INT(led_state, 0, subjects_, register_xml);
 
     // LED RGBW channel subjects (0-255 range)
-    lv_subject_init_int(&led_r_, 0);
-    lv_subject_init_int(&led_g_, 0);
-    lv_subject_init_int(&led_b_, 0);
-    lv_subject_init_int(&led_w_, 0);
-    lv_subject_init_int(&led_brightness_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&led_state_);
-    subjects_.register_subject(&led_r_);
-    subjects_.register_subject(&led_g_);
-    subjects_.register_subject(&led_b_);
-    subjects_.register_subject(&led_w_);
-    subjects_.register_subject(&led_brightness_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterLedState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "led_state", &led_state_);
-        lv_xml_register_subject(NULL, "led_r", &led_r_);
-        lv_xml_register_subject(NULL, "led_g", &led_g_);
-        lv_xml_register_subject(NULL, "led_b", &led_b_);
-        lv_xml_register_subject(NULL, "led_w", &led_w_);
-        lv_xml_register_subject(NULL, "led_brightness", &led_brightness_);
-    } else {
-        spdlog::debug("[PrinterLedState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(led_r, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(led_g, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(led_b, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(led_w, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(led_brightness, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterLedState] Subjects initialized successfully");

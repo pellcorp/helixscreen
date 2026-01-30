@@ -11,6 +11,8 @@
 
 #include "printer_hardware_validation_state.h"
 
+#include "state/subject_macros.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -27,61 +29,18 @@ void PrinterHardwareValidationState::init_subjects(bool register_xml) {
     spdlog::debug("[PrinterHardwareValidationState] Initializing subjects (register_xml={})",
                   register_xml);
 
-    // Initialize string buffers
-    std::memset(hardware_status_title_buf_, 0, sizeof(hardware_status_title_buf_));
-    std::memset(hardware_status_detail_buf_, 0, sizeof(hardware_status_detail_buf_));
-    std::memset(hardware_issues_label_buf_, 0, sizeof(hardware_issues_label_buf_));
-
-    // Set default values
-    std::strcpy(hardware_status_title_buf_, "Healthy");
-    std::strcpy(hardware_issues_label_buf_, "No Hardware Issues");
-
     // Initialize hardware validation subjects
-    lv_subject_init_int(&hardware_has_issues_, 0);
-    lv_subject_init_int(&hardware_issue_count_, 0);
-    lv_subject_init_int(&hardware_max_severity_, 0);
-    lv_subject_init_int(&hardware_validation_version_, 0);
-    lv_subject_init_int(&hardware_critical_count_, 0);
-    lv_subject_init_int(&hardware_warning_count_, 0);
-    lv_subject_init_int(&hardware_info_count_, 0);
-    lv_subject_init_int(&hardware_session_count_, 0);
-    lv_subject_init_string(&hardware_status_title_, hardware_status_title_buf_, nullptr,
-                           sizeof(hardware_status_title_buf_), "Healthy");
-    lv_subject_init_string(&hardware_status_detail_, hardware_status_detail_buf_, nullptr,
-                           sizeof(hardware_status_detail_buf_), "");
-    lv_subject_init_string(&hardware_issues_label_, hardware_issues_label_buf_, nullptr,
-                           sizeof(hardware_issues_label_buf_), "No Hardware Issues");
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&hardware_has_issues_);
-    subjects_.register_subject(&hardware_issue_count_);
-    subjects_.register_subject(&hardware_max_severity_);
-    subjects_.register_subject(&hardware_validation_version_);
-    subjects_.register_subject(&hardware_critical_count_);
-    subjects_.register_subject(&hardware_warning_count_);
-    subjects_.register_subject(&hardware_info_count_);
-    subjects_.register_subject(&hardware_session_count_);
-    subjects_.register_subject(&hardware_status_title_);
-    subjects_.register_subject(&hardware_status_detail_);
-    subjects_.register_subject(&hardware_issues_label_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterHardwareValidationState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "hardware_has_issues", &hardware_has_issues_);
-        lv_xml_register_subject(NULL, "hardware_issue_count", &hardware_issue_count_);
-        lv_xml_register_subject(NULL, "hardware_max_severity", &hardware_max_severity_);
-        lv_xml_register_subject(NULL, "hardware_validation_version", &hardware_validation_version_);
-        lv_xml_register_subject(NULL, "hardware_critical_count", &hardware_critical_count_);
-        lv_xml_register_subject(NULL, "hardware_warning_count", &hardware_warning_count_);
-        lv_xml_register_subject(NULL, "hardware_info_count", &hardware_info_count_);
-        lv_xml_register_subject(NULL, "hardware_session_count", &hardware_session_count_);
-        lv_xml_register_subject(NULL, "hardware_status_title", &hardware_status_title_);
-        lv_xml_register_subject(NULL, "hardware_status_detail", &hardware_status_detail_);
-        lv_xml_register_subject(NULL, "hardware_issues_label", &hardware_issues_label_);
-    } else {
-        spdlog::debug("[PrinterHardwareValidationState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(hardware_has_issues, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_issue_count, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_max_severity, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_validation_version, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_critical_count, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_warning_count, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_info_count, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(hardware_session_count, 0, subjects_, register_xml);
+    INIT_SUBJECT_STRING(hardware_status_title, "Healthy", subjects_, register_xml);
+    INIT_SUBJECT_STRING(hardware_status_detail, "", subjects_, register_xml);
+    INIT_SUBJECT_STRING(hardware_issues_label, "No Hardware Issues", subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterHardwareValidationState] Subjects initialized successfully");

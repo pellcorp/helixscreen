@@ -11,6 +11,8 @@
 
 #include "printer_excluded_objects_state.h"
 
+#include "state/subject_macros.h"
+
 #include <spdlog/spdlog.h>
 
 namespace helix {
@@ -25,18 +27,7 @@ void PrinterExcludedObjectsState::init_subjects(bool register_xml) {
                   register_xml);
 
     // Initialize version subject to 0 (no changes yet)
-    lv_subject_init_int(&excluded_objects_version_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&excluded_objects_version_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterExcludedObjectsState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "excluded_objects_version", &excluded_objects_version_);
-    } else {
-        spdlog::debug("[PrinterExcludedObjectsState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(excluded_objects_version, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterExcludedObjectsState] Subjects initialized successfully");

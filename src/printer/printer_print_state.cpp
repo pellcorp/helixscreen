@@ -11,6 +11,7 @@
 
 #include "async_helpers.h"
 #include "printer_state.h" // For enum definitions
+#include "state/subject_macros.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -41,79 +42,33 @@ void PrinterPrintState::init_subjects(bool register_xml) {
     spdlog::debug("[PrinterPrintState] Initializing subjects (register_xml={})", register_xml);
 
     // Print progress subjects
-    lv_subject_init_int(&print_progress_, 0);
-    lv_subject_init_string(&print_filename_, print_filename_buf_, nullptr,
-                           sizeof(print_filename_buf_), "");
-    lv_subject_init_string(&print_state_, print_state_buf_, nullptr, sizeof(print_state_buf_),
-                           "standby");
-    lv_subject_init_int(&print_state_enum_, static_cast<int>(PrintJobState::STANDBY));
-    lv_subject_init_int(&print_outcome_, static_cast<int>(PrintOutcome::NONE));
-    lv_subject_init_int(&print_active_, 0);
-    lv_subject_init_int(&print_show_progress_, 0);
-    lv_subject_init_string(&print_display_filename_, print_display_filename_buf_, nullptr,
-                           sizeof(print_display_filename_buf_), "");
-    lv_subject_init_string(&print_thumbnail_path_, print_thumbnail_path_buf_, nullptr,
-                           sizeof(print_thumbnail_path_buf_), "");
+    INIT_SUBJECT_INT(print_progress, 0, subjects_, register_xml);
+    INIT_SUBJECT_STRING(print_filename, "", subjects_, register_xml);
+    INIT_SUBJECT_STRING(print_state, "standby", subjects_, register_xml);
+    INIT_SUBJECT_INT(print_state_enum, static_cast<int>(PrintJobState::STANDBY), subjects_,
+                     register_xml);
+    INIT_SUBJECT_INT(print_outcome, static_cast<int>(PrintOutcome::NONE), subjects_, register_xml);
+    INIT_SUBJECT_INT(print_active, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(print_show_progress, 0, subjects_, register_xml);
+    INIT_SUBJECT_STRING(print_display_filename, "", subjects_, register_xml);
+    INIT_SUBJECT_STRING(print_thumbnail_path, "", subjects_, register_xml);
 
     // Layer tracking subjects
-    lv_subject_init_int(&print_layer_current_, 0);
-    lv_subject_init_int(&print_layer_total_, 0);
+    INIT_SUBJECT_INT(print_layer_current, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(print_layer_total, 0, subjects_, register_xml);
 
     // Print time tracking subjects
-    lv_subject_init_int(&print_duration_, 0);
-    lv_subject_init_int(&print_time_left_, 0);
+    INIT_SUBJECT_INT(print_duration, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(print_time_left, 0, subjects_, register_xml);
 
     // Print start progress subjects
-    lv_subject_init_int(&print_start_phase_, static_cast<int>(PrintStartPhase::IDLE));
-    lv_subject_init_string(&print_start_message_, print_start_message_buf_, nullptr,
-                           sizeof(print_start_message_buf_), "");
-    lv_subject_init_int(&print_start_progress_, 0);
+    INIT_SUBJECT_INT(print_start_phase, static_cast<int>(PrintStartPhase::IDLE), subjects_,
+                     register_xml);
+    INIT_SUBJECT_STRING(print_start_message, "", subjects_, register_xml);
+    INIT_SUBJECT_INT(print_start_progress, 0, subjects_, register_xml);
 
     // Print workflow in-progress subject
-    lv_subject_init_int(&print_in_progress_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&print_progress_);
-    subjects_.register_subject(&print_filename_);
-    subjects_.register_subject(&print_state_);
-    subjects_.register_subject(&print_state_enum_);
-    subjects_.register_subject(&print_outcome_);
-    subjects_.register_subject(&print_active_);
-    subjects_.register_subject(&print_show_progress_);
-    subjects_.register_subject(&print_display_filename_);
-    subjects_.register_subject(&print_thumbnail_path_);
-    subjects_.register_subject(&print_layer_current_);
-    subjects_.register_subject(&print_layer_total_);
-    subjects_.register_subject(&print_duration_);
-    subjects_.register_subject(&print_time_left_);
-    subjects_.register_subject(&print_start_phase_);
-    subjects_.register_subject(&print_start_message_);
-    subjects_.register_subject(&print_start_progress_);
-    subjects_.register_subject(&print_in_progress_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterPrintState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "print_progress", &print_progress_);
-        lv_xml_register_subject(NULL, "print_filename", &print_filename_);
-        lv_xml_register_subject(NULL, "print_state", &print_state_);
-        lv_xml_register_subject(NULL, "print_state_enum", &print_state_enum_);
-        lv_xml_register_subject(NULL, "print_outcome", &print_outcome_);
-        lv_xml_register_subject(NULL, "print_active", &print_active_);
-        lv_xml_register_subject(NULL, "print_show_progress", &print_show_progress_);
-        lv_xml_register_subject(NULL, "print_display_filename", &print_display_filename_);
-        lv_xml_register_subject(NULL, "print_thumbnail_path", &print_thumbnail_path_);
-        lv_xml_register_subject(NULL, "print_layer_current", &print_layer_current_);
-        lv_xml_register_subject(NULL, "print_layer_total", &print_layer_total_);
-        lv_xml_register_subject(NULL, "print_duration", &print_duration_);
-        lv_xml_register_subject(NULL, "print_time_left", &print_time_left_);
-        lv_xml_register_subject(NULL, "print_start_phase", &print_start_phase_);
-        lv_xml_register_subject(NULL, "print_start_message", &print_start_message_);
-        lv_xml_register_subject(NULL, "print_start_progress", &print_start_progress_);
-        lv_xml_register_subject(NULL, "print_in_progress", &print_in_progress_);
-    } else {
-        spdlog::debug("[PrinterPrintState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(print_in_progress, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterPrintState] Subjects initialized successfully");

@@ -9,6 +9,7 @@
 
 #include "printer_motion_state.h"
 
+#include "state/subject_macros.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -24,53 +25,24 @@ void PrinterMotionState::init_subjects(bool register_xml) {
     spdlog::debug("[PrinterMotionState] Initializing subjects (register_xml={})", register_xml);
 
     // Toolhead position subjects (actual physical position)
-    lv_subject_init_int(&position_x_, 0);
-    lv_subject_init_int(&position_y_, 0);
-    lv_subject_init_int(&position_z_, 0);
+    INIT_SUBJECT_INT(position_x, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(position_y, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(position_z, 0, subjects_, register_xml);
 
     // Gcode position subjects (commanded position)
-    lv_subject_init_int(&gcode_position_x_, 0);
-    lv_subject_init_int(&gcode_position_y_, 0);
-    lv_subject_init_int(&gcode_position_z_, 0);
+    INIT_SUBJECT_INT(gcode_position_x, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(gcode_position_y, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(gcode_position_z, 0, subjects_, register_xml);
 
-    lv_subject_init_string(&homed_axes_, homed_axes_buf_, nullptr, sizeof(homed_axes_buf_), "");
+    INIT_SUBJECT_STRING(homed_axes, "", subjects_, register_xml);
 
     // Speed/Flow subjects (percentages)
-    lv_subject_init_int(&speed_factor_, 100);
-    lv_subject_init_int(&flow_factor_, 100);
-    lv_subject_init_int(&gcode_z_offset_, 0);         // Z-offset in microns from homing_origin[2]
-    lv_subject_init_int(&pending_z_offset_delta_, 0); // Accumulated adjustment during print
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&position_x_);
-    subjects_.register_subject(&position_y_);
-    subjects_.register_subject(&position_z_);
-    subjects_.register_subject(&gcode_position_x_);
-    subjects_.register_subject(&gcode_position_y_);
-    subjects_.register_subject(&gcode_position_z_);
-    subjects_.register_subject(&homed_axes_);
-    subjects_.register_subject(&speed_factor_);
-    subjects_.register_subject(&flow_factor_);
-    subjects_.register_subject(&gcode_z_offset_);
-    subjects_.register_subject(&pending_z_offset_delta_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterMotionState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "position_x", &position_x_);
-        lv_xml_register_subject(NULL, "position_y", &position_y_);
-        lv_xml_register_subject(NULL, "position_z", &position_z_);
-        lv_xml_register_subject(NULL, "gcode_position_x", &gcode_position_x_);
-        lv_xml_register_subject(NULL, "gcode_position_y", &gcode_position_y_);
-        lv_xml_register_subject(NULL, "gcode_position_z", &gcode_position_z_);
-        lv_xml_register_subject(NULL, "homed_axes", &homed_axes_);
-        lv_xml_register_subject(NULL, "speed_factor", &speed_factor_);
-        lv_xml_register_subject(NULL, "flow_factor", &flow_factor_);
-        lv_xml_register_subject(NULL, "gcode_z_offset", &gcode_z_offset_);
-        lv_xml_register_subject(NULL, "pending_z_offset_delta", &pending_z_offset_delta_);
-    } else {
-        spdlog::debug("[PrinterMotionState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(speed_factor, 100, subjects_, register_xml);
+    INIT_SUBJECT_INT(flow_factor, 100, subjects_, register_xml);
+    INIT_SUBJECT_INT(gcode_z_offset, 0, subjects_,
+                     register_xml); // Z-offset in microns from homing_origin[2]
+    INIT_SUBJECT_INT(pending_z_offset_delta, 0, subjects_,
+                     register_xml); // Accumulated adjustment during print
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterMotionState] Subjects initialized successfully");

@@ -13,6 +13,7 @@
 
 #include "moonraker_client.h" // For ConnectionState enum
 #include "printer_state.h"    // For KlippyState enum
+#include "state/subject_macros.h"
 
 #include <spdlog/spdlog.h>
 
@@ -35,39 +36,20 @@ void PrinterNetworkState::init_subjects(bool register_xml) {
     spdlog::debug("[PrinterNetworkState] Initializing subjects (register_xml={})", register_xml);
 
     // Printer connection state subjects (Moonraker WebSocket)
-    lv_subject_init_int(&printer_connection_state_, 0); // 0 = disconnected
-    lv_subject_init_string(&printer_connection_message_, printer_connection_message_buf_, nullptr,
-                           sizeof(printer_connection_message_buf_), "Disconnected");
+    INIT_SUBJECT_INT(printer_connection_state, 0, subjects_, register_xml); // 0 = disconnected
+    INIT_SUBJECT_STRING(printer_connection_message, "Disconnected", subjects_, register_xml);
 
     // Network connectivity subject (WiFi/Ethernet)
     // Default to connected for mock mode
-    lv_subject_init_int(&network_status_, 2); // 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED
+    INIT_SUBJECT_INT(network_status, 2, subjects_,
+                     register_xml); // 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED
 
     // Klipper firmware state subject (default to READY)
-    lv_subject_init_int(&klippy_state_, static_cast<int>(KlippyState::READY));
+    INIT_SUBJECT_INT(klippy_state, static_cast<int>(KlippyState::READY), subjects_, register_xml);
 
     // Combined nav button enabled subject (connected AND klippy ready)
     // Starts disabled (0) - will be updated when connection/klippy state changes
-    lv_subject_init_int(&nav_buttons_enabled_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&printer_connection_state_);
-    subjects_.register_subject(&printer_connection_message_);
-    subjects_.register_subject(&network_status_);
-    subjects_.register_subject(&klippy_state_);
-    subjects_.register_subject(&nav_buttons_enabled_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterNetworkState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "printer_connection_state", &printer_connection_state_);
-        lv_xml_register_subject(NULL, "printer_connection_message", &printer_connection_message_);
-        lv_xml_register_subject(NULL, "network_status", &network_status_);
-        lv_xml_register_subject(NULL, "klippy_state", &klippy_state_);
-        lv_xml_register_subject(NULL, "nav_buttons_enabled", &nav_buttons_enabled_);
-    } else {
-        spdlog::debug("[PrinterNetworkState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(nav_buttons_enabled, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterNetworkState] Subjects initialized successfully");

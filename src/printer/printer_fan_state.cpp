@@ -11,6 +11,7 @@
 #include "printer_fan_state.h"
 
 #include "device_display_name.h"
+#include "state/subject_macros.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -26,21 +27,8 @@ void PrinterFanState::init_subjects(bool register_xml) {
     spdlog::debug("[PrinterFanState] Initializing subjects (register_xml={})", register_xml);
 
     // Fan subjects
-    lv_subject_init_int(&fan_speed_, 0);
-    lv_subject_init_int(&fans_version_, 0);
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&fan_speed_);
-    subjects_.register_subject(&fans_version_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterFanState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "fan_speed", &fan_speed_);
-        lv_xml_register_subject(NULL, "fans_version", &fans_version_);
-    } else {
-        spdlog::debug("[PrinterFanState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(fan_speed, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(fans_version, 0, subjects_, register_xml);
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterFanState] Subjects initialized successfully");

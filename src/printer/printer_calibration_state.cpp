@@ -11,6 +11,7 @@
 
 #include "printer_calibration_state.h"
 
+#include "state/subject_macros.h"
 #include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
@@ -27,40 +28,18 @@ void PrinterCalibrationState::init_subjects(bool register_xml) {
                   register_xml);
 
     // Firmware retraction settings (defaults: disabled)
-    lv_subject_init_int(&retract_length_, 0);         // 0 = disabled
-    lv_subject_init_int(&retract_speed_, 20);         // 20 mm/s default
-    lv_subject_init_int(&unretract_extra_length_, 0); // 0mm extra
-    lv_subject_init_int(&unretract_speed_, 10);       // 10 mm/s default
+    INIT_SUBJECT_INT(retract_length, 0, subjects_, register_xml);         // 0 = disabled
+    INIT_SUBJECT_INT(retract_speed, 20, subjects_, register_xml);         // 20 mm/s default
+    INIT_SUBJECT_INT(unretract_extra_length, 0, subjects_, register_xml); // 0mm extra
+    INIT_SUBJECT_INT(unretract_speed, 10, subjects_, register_xml);       // 10 mm/s default
 
     // Manual probe subjects (for Z-offset calibration)
-    lv_subject_init_int(&manual_probe_active_, 0);     // 0=inactive, 1=active
-    lv_subject_init_int(&manual_probe_z_position_, 0); // Z position in microns
+    INIT_SUBJECT_INT(manual_probe_active, 0, subjects_, register_xml);     // 0=inactive, 1=active
+    INIT_SUBJECT_INT(manual_probe_z_position, 0, subjects_, register_xml); // Z position in microns
 
     // Motor enabled state (from idle_timeout.state - defaults to enabled/Ready)
-    lv_subject_init_int(&motors_enabled_, 1); // 1=enabled (Ready/Printing), 0=disabled (Idle)
-
-    // Register with SubjectManager for automatic cleanup
-    subjects_.register_subject(&retract_length_);
-    subjects_.register_subject(&retract_speed_);
-    subjects_.register_subject(&unretract_extra_length_);
-    subjects_.register_subject(&unretract_speed_);
-    subjects_.register_subject(&manual_probe_active_);
-    subjects_.register_subject(&manual_probe_z_position_);
-    subjects_.register_subject(&motors_enabled_);
-
-    // Register with LVGL XML system for XML bindings
-    if (register_xml) {
-        spdlog::debug("[PrinterCalibrationState] Registering subjects with XML system");
-        lv_xml_register_subject(NULL, "retract_length", &retract_length_);
-        lv_xml_register_subject(NULL, "retract_speed", &retract_speed_);
-        lv_xml_register_subject(NULL, "unretract_extra_length", &unretract_extra_length_);
-        lv_xml_register_subject(NULL, "unretract_speed", &unretract_speed_);
-        lv_xml_register_subject(NULL, "manual_probe_active", &manual_probe_active_);
-        lv_xml_register_subject(NULL, "manual_probe_z_position", &manual_probe_z_position_);
-        lv_xml_register_subject(NULL, "motors_enabled", &motors_enabled_);
-    } else {
-        spdlog::debug("[PrinterCalibrationState] Skipping XML registration (tests mode)");
-    }
+    INIT_SUBJECT_INT(motors_enabled, 1, subjects_,
+                     register_xml); // 1=enabled (Ready/Printing), 0=disabled (Idle)
 
     subjects_initialized_ = true;
     spdlog::debug("[PrinterCalibrationState] Subjects initialized successfully");
