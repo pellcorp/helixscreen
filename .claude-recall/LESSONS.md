@@ -14,8 +14,8 @@
 > 
 
 
-### [L008] [***--|-----] Design tokens and semantic widgets
-- **Uses**: 8 | **Velocity**: 0.01 | **Learned**: 2025-12-14 | **Last**: 2026-01-30 | **Category**: pattern | **Type**: informational
+### [L008] [***--|+----] Design tokens and semantic widgets
+- **Uses**: 9 | **Velocity**: 0.86 | **Learned**: 2025-12-14 | **Last**: 2026-01-30 | **Category**: pattern | **Type**: informational
 > No hardcoded colors or spacing. Prefer semantic widgets (ui_card, ui_button, text_*, divider_*) which apply tokens automatically. Don't redundantly specify their built-in defaults (e.g., style_radius on ui_card, button_height on ui_button). See docs/LVGL9_XML_GUIDE.md "Custom Semantic Widgets" for defaults.
 
 
@@ -44,8 +44,8 @@
 > Use centidegrees (int) for temperature subjects to preserve 0.1C resolution. Float subjects lose precision in LVGL binding
 
 
-### [L025] [***--|+----] Button content centering
-- **Uses**: 8 | **Velocity**: 0.86 | **Learned**: 2025-12-21 | **Last**: 2026-01-30 | **Category**: pattern | **Type**: constraint
+### [L025] [***--|*----] Button content centering
+- **Uses**: 10 | **Velocity**: 2.43 | **Learned**: 2025-12-21 | **Last**: 2026-01-30 | **Category**: pattern | **Type**: constraint
 > Text-only buttons: use `align="center"` on child. Icon+text buttons with flex_flow="row": need ALL THREE flex properties - style_flex_main_place="center" (horizontal), style_flex_cross_place="center" (vertical align items), style_flex_track_place="center" (vertical position of row). Missing track_place causes content to sit at top.
 
 
@@ -69,8 +69,8 @@
 > All XML event_cb callback names must be globally unique using on_<component>_<action> pattern. LVGL's XML callback registry is a flat global namespace with no scoping. Generic names like on_modal_ok_clicked cause collisions when multiple components register handlers.
 
 
-### [L040] [**---|-----] Inline XML attrs override bind_style
-- **Uses**: 4 | **Velocity**: 0.01 | **Learned**: 2025-12-30 | **Last**: 2026-01-23 | **Category**: gotcha | **Type**: constraint
+### [L040] [**---|+----] Inline XML attrs override bind_style
+- **Uses**: 5 | **Velocity**: 0.86 | **Learned**: 2025-12-30 | **Last**: 2026-01-30 | **Category**: gotcha | **Type**: constraint
 > When using bind_style for reactive visual changes, inline style attributes (style_bg_color, style_text_color, etc.) have higher priority in LVGL's style cascade. bind_style cannot override them. Solution: use TWO bind_styles (one per state) with NO inline styling for properties you want to change reactively.
 
 
@@ -89,8 +89,8 @@
 > LVGL dropdowns do NOT support bind_options in XML. Always use lv_dropdown_set_options() directly in C++ code to set dropdown options dynamically. All other dropdowns in the codebase follow this pattern.
 
 
-### [L046] [*----|-----] XML subject shadows C++ subject
-- **Uses**: 1 | **Velocity**: 0.0 | **Learned**: 2026-01-06 | **Last**: 2026-01-06 | **Category**: correction | **Type**: constraint
+### [L046] [*----|+----] XML subject shadows C++ subject
+- **Uses**: 2 | **Velocity**: 0.85 | **Learned**: 2026-01-06 | **Last**: 2026-01-30 | **Category**: correction | **Type**: constraint
 > When XML <subjects> declares a subject with the same name as a C++-registered subject (UI_SUBJECT_INIT_AND_REGISTER_*), the XML component-local subject shadows the global C++ one. XML bindings will find the local subject (stuck at default value) instead of the C++ one. Solution: Don't declare XML subjects for values managed entirely by C++.
 
 
@@ -135,17 +135,17 @@
 
 
 ### [L056] [*----|-----] lv_subject_t no shallow copy
-- **Uses**: 2 | **Velocity**: 0.09 | **Learned**: 2026-01-14 | **Last**: 2026-01-16 | **Category**: gotcha | **Type**: constraint
+- **Uses**: 2 | **Velocity**: 0.08 | **Learned**: 2026-01-14 | **Last**: 2026-01-16 | **Category**: gotcha | **Type**: constraint
 > lv_subject_t must NEVER be shallow-copied in move constructors/assignment. The struct contains internal state that becomes invalid when copied. In move operations, reinitialize the subject in the moved-to object instead of copying.
 
 
 ### [L057] [*----|-----] Subject deinit before destruction
-- **Uses**: 2 | **Velocity**: 0.09 | **Learned**: 2026-01-14 | **Last**: 2026-01-16 | **Category**: gotcha | **Type**: constraint
+- **Uses**: 2 | **Velocity**: 0.08 | **Learned**: 2026-01-14 | **Last**: 2026-01-16 | **Category**: gotcha | **Type**: constraint
 > Classes owning lv_subject_t members must call lv_subject_deinit() in their destructor. Without deinit, observers attached to the subject leak and may fire after destruction causing use-after-free.
 
 
 ### [L058] [**---|-----] Re-stage clang-formatted files after commit
-- **Uses**: 3 | **Velocity**: 0.2 | **Learned**: 2026-01-19 | **Last**: 2026-01-25 | **Category**: workflow | **Type**: informational
+- **Uses**: 3 | **Velocity**: 0.17 | **Learned**: 2026-01-19 | **Last**: 2026-01-25 | **Category**: workflow | **Type**: informational
 > Pre-commit hook auto-formats files but doesn't re-stage them. After committing, check git status for modified files and amend if they're just formatting changes.
 
 
