@@ -1,9 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "theme_compat.h"
 
+#include "ui_fonts.h"
+
+#include "lvgl/lvgl.h"
+#include "lvgl/src/themes/lv_theme_private.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
+
+// Static theme instance - persists for lifetime of app
+static lv_theme_t helix_theme;
+static lv_theme_t* default_theme_backup = nullptr;
+
+// Additional styles not in StyleRole enum (widget-specific parts)
+static lv_style_t dropdown_indicator_style;
+static lv_style_t checkbox_text_style;
+static lv_style_t checkbox_box_style;
+static lv_style_t checkbox_indicator_style;
+static lv_style_t switch_track_style;
+static lv_style_t switch_indicator_style;
+static lv_style_t switch_knob_style;
+static lv_style_t slider_track_style;
+static lv_style_t slider_indicator_style;
+static lv_style_t slider_knob_style;
+static lv_style_t slider_disabled_style;
+static lv_color_t dropdown_accent_color;
+static bool extra_styles_initialized = false;
 
 // Convert theme_palette_t to ThemePalette
 static ThemePalette convert_palette(const theme_palette_t* p, int border_radius, int border_width,
@@ -31,12 +54,178 @@ static ThemePalette convert_palette(const theme_palette_t* p, int border_radius,
     return palette;
 }
 
+// Initialize the extra widget-specific styles
+static void init_extra_styles(const theme_palette_t* palette, int border_radius) {
+    if (extra_styles_initialized)
+        return;
+
+    dropdown_accent_color = palette->secondary;
+
+    // Dropdown indicator - MDI font for chevron
+    lv_style_init(&dropdown_indicator_style);
+    lv_style_set_text_font(&dropdown_indicator_style, &mdi_icons_24);
+
+    // Checkbox styles
+    lv_style_init(&checkbox_text_style);
+    lv_style_set_text_color(&checkbox_text_style, palette->text);
+
+    lv_style_init(&checkbox_box_style);
+    lv_style_set_bg_color(&checkbox_box_style, palette->elevated_bg);
+    lv_style_set_bg_opa(&checkbox_box_style, LV_OPA_COVER);
+    lv_style_set_border_color(&checkbox_box_style, palette->border);
+    lv_style_set_border_width(&checkbox_box_style, 2);
+    lv_style_set_radius(&checkbox_box_style, 4);
+
+    lv_style_init(&checkbox_indicator_style);
+    lv_style_set_text_font(&checkbox_indicator_style, &mdi_icons_16);
+    lv_style_set_text_color(&checkbox_indicator_style, palette->primary);
+
+    // Switch styles
+    lv_style_init(&switch_track_style);
+    lv_style_set_bg_color(&switch_track_style, palette->border);
+    lv_style_set_bg_opa(&switch_track_style, LV_OPA_COVER);
+
+    lv_style_init(&switch_indicator_style);
+    lv_style_set_bg_color(&switch_indicator_style, palette->secondary);
+    lv_style_set_bg_opa(&switch_indicator_style, LV_OPA_COVER);
+
+    lv_style_init(&switch_knob_style);
+    lv_style_set_bg_color(&switch_knob_style, palette->primary);
+    lv_style_set_bg_opa(&switch_knob_style, LV_OPA_COVER);
+
+    // Slider styles
+    lv_style_init(&slider_track_style);
+    lv_style_set_bg_color(&slider_track_style, palette->border);
+    lv_style_set_bg_opa(&slider_track_style, LV_OPA_COVER);
+    lv_style_set_radius(&slider_track_style, border_radius);
+
+    lv_style_init(&slider_indicator_style);
+    lv_style_set_bg_color(&slider_indicator_style, palette->primary);
+    lv_style_set_bg_opa(&slider_indicator_style, LV_OPA_COVER);
+
+    lv_style_init(&slider_knob_style);
+    lv_style_set_bg_color(&slider_knob_style, palette->primary);
+    lv_style_set_bg_opa(&slider_knob_style, LV_OPA_COVER);
+    lv_style_set_border_color(&slider_knob_style, palette->border);
+    lv_style_set_border_width(&slider_knob_style, 1);
+    lv_style_set_shadow_width(&slider_knob_style, 4);
+    lv_style_set_shadow_color(&slider_knob_style, lv_color_black());
+    lv_style_set_shadow_opa(&slider_knob_style, LV_OPA_30);
+
+    lv_style_init(&slider_disabled_style);
+    lv_style_set_opa(&slider_disabled_style, LV_OPA_50);
+
+    extra_styles_initialized = true;
+}
+
+// HelixScreen theme apply callback - applies styles based on widget type
+static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
+    // First apply LVGL default theme
+    if (default_theme_backup && default_theme_backup->apply_cb) {
+        default_theme_backup->apply_cb(default_theme_backup, obj);
+    }
+
+    auto& tm = ThemeManager::instance();
+
+    // Global disabled state
+    lv_obj_add_style(obj, tm.get_style(StyleRole::Disabled), LV_PART_MAIN | LV_STATE_DISABLED);
+
+    // Plain lv_obj containers get transparent background (layout containers)
+    if (lv_obj_check_type(obj, &lv_obj_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::ObjBase), LV_PART_MAIN);
+    }
+
+#if LV_USE_BUTTON
+    if (lv_obj_check_type(obj, &lv_button_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::Button), LV_PART_MAIN);
+        lv_obj_add_style(obj, tm.get_style(StyleRole::Pressed), LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_add_style(obj, tm.get_style(StyleRole::Focused), LV_STATE_FOCUSED);
+    }
+#endif
+
+#if LV_USE_TEXTAREA
+    if (lv_obj_check_type(obj, &lv_textarea_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+        lv_obj_add_style(obj, tm.get_style(StyleRole::Focused), LV_STATE_FOCUSED);
+    }
+#endif
+
+#if LV_USE_DROPDOWN
+    if (lv_obj_check_type(obj, &lv_dropdown_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+        lv_obj_add_style(obj, &dropdown_indicator_style, LV_PART_INDICATOR);
+        lv_obj_add_style(obj, tm.get_style(StyleRole::Focused), LV_STATE_FOCUSED);
+    }
+    if (lv_obj_check_type(obj, &lv_dropdownlist_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+
+        // Compute contrast text for dropdown accent
+        uint8_t lum = lv_color_luminance(dropdown_accent_color);
+        lv_color_t selected_text = (lum > 140) ? lv_color_black() : lv_color_white();
+
+        lv_obj_set_style_bg_color(obj, dropdown_accent_color, LV_PART_SELECTED);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_SELECTED);
+        lv_obj_set_style_text_color(obj, selected_text, LV_PART_SELECTED);
+        lv_obj_set_style_bg_color(obj, dropdown_accent_color, LV_PART_SELECTED | LV_STATE_CHECKED);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_SELECTED | LV_STATE_CHECKED);
+        lv_obj_set_style_text_color(obj, selected_text, LV_PART_SELECTED | LV_STATE_CHECKED);
+        lv_obj_set_style_bg_color(obj, dropdown_accent_color, LV_PART_SELECTED | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_SELECTED | LV_STATE_PRESSED);
+        lv_obj_set_style_text_color(obj, selected_text, LV_PART_SELECTED | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(obj, dropdown_accent_color,
+                                  LV_PART_SELECTED | LV_STATE_CHECKED | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER,
+                                LV_PART_SELECTED | LV_STATE_CHECKED | LV_STATE_PRESSED);
+        lv_obj_set_style_text_color(obj, selected_text,
+                                    LV_PART_SELECTED | LV_STATE_CHECKED | LV_STATE_PRESSED);
+    }
+#endif
+
+#if LV_USE_ROLLER
+    if (lv_obj_check_type(obj, &lv_roller_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+    }
+#endif
+
+#if LV_USE_SPINBOX
+    if (lv_obj_check_type(obj, &lv_spinbox_class)) {
+        lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+    }
+#endif
+
+#if LV_USE_CHECKBOX
+    if (lv_obj_check_type(obj, &lv_checkbox_class)) {
+        lv_obj_add_style(obj, &checkbox_text_style, LV_PART_MAIN);
+        lv_obj_add_style(obj, &checkbox_box_style, LV_PART_INDICATOR);
+        lv_obj_add_style(obj, &checkbox_indicator_style, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    }
+#endif
+
+#if LV_USE_SWITCH
+    if (lv_obj_check_type(obj, &lv_switch_class)) {
+        lv_obj_add_style(obj, &switch_track_style, LV_PART_MAIN);
+        lv_obj_add_style(obj, &switch_indicator_style, LV_PART_INDICATOR | LV_STATE_CHECKED);
+        lv_obj_add_style(obj, &switch_knob_style, LV_PART_KNOB);
+        lv_obj_add_style(obj, tm.get_style(StyleRole::Focused), LV_STATE_FOCUSED);
+    }
+#endif
+
+#if LV_USE_SLIDER
+    if (lv_obj_check_type(obj, &lv_slider_class)) {
+        lv_obj_add_style(obj, &slider_track_style, LV_PART_MAIN);
+        lv_obj_add_style(obj, &slider_indicator_style, LV_PART_INDICATOR);
+        lv_obj_add_style(obj, &slider_knob_style, LV_PART_KNOB);
+        lv_obj_add_style(obj, &slider_disabled_style, LV_PART_MAIN | LV_STATE_DISABLED);
+        lv_obj_add_style(obj, &slider_disabled_style, LV_PART_INDICATOR | LV_STATE_DISABLED);
+        lv_obj_add_style(obj, &slider_disabled_style, LV_PART_KNOB | LV_STATE_DISABLED);
+    }
+#endif
+}
+
 // Theme lifecycle functions
 lv_theme_t* theme_core_init(lv_display_t* display, const theme_palette_t* palette, bool is_dark,
                             const lv_font_t* base_font, int32_t border_radius, int32_t border_width,
                             int32_t border_opacity) {
-    (void)base_font; // Font handled separately
-
     // Convert palette and initialize ThemeManager
     ThemePalette dark_pal = convert_palette(palette, border_radius, border_width, border_opacity);
     ThemePalette light_pal = dark_pal; // Same palette for both modes initially
@@ -46,12 +235,23 @@ lv_theme_t* theme_core_init(lv_display_t* display, const theme_palette_t* palett
     tm.init();
     tm.set_dark_mode(is_dark);
 
-    // Create LVGL default theme and return it
-    // ThemeManager handles our custom styles, LVGL handles base widget styling
-    lv_theme_t* theme =
+    // Initialize widget-specific styles not in StyleRole enum
+    init_extra_styles(palette, border_radius);
+
+    // Create LVGL default theme as base (we'll layer on top)
+    default_theme_backup =
         lv_theme_default_init(display, palette->primary, palette->secondary, is_dark, base_font);
-    spdlog::debug("[ThemeCompat] Initialized theme via ThemeManager");
-    return theme;
+
+    // Initialize our custom theme
+    lv_theme_set_apply_cb(&helix_theme, helix_theme_apply);
+    helix_theme.font_small = base_font;
+    helix_theme.font_normal = base_font;
+    helix_theme.font_large = base_font;
+    helix_theme.color_primary = palette->primary;
+    helix_theme.color_secondary = palette->secondary;
+
+    spdlog::debug("[ThemeCompat] Initialized HelixScreen theme via ThemeManager");
+    return &helix_theme;
 }
 
 void theme_core_update_colors(bool is_dark, const theme_palette_t* palette,
