@@ -196,7 +196,7 @@
           <!-- Icons switch based on home_network_icon_state: 0=disconnected, 1-4=wifi strength, 5=ethernet -->
           <!-- Note: Uses different subject than navigation_bar's network_icon_state (simpler 3-state) -->
           <ui_button name="network_btn"
-                     height="100%" variant="ghost" flex_grow="1" flex_flow="column" style_flex_main_place="center"
+                     height="100%" variant="ghost" flex_grow="1" flex_flow="column" style_flex_main_place="end"
                      style_flex_cross_place="center" style_flex_track_place="center">
             <event_cb trigger="clicked" callback="network_clicked_cb"/>
             <!-- Disconnected (state 0) -->
