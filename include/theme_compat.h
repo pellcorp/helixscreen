@@ -9,9 +9,29 @@
  * compatibility. They will be removed once all callers are migrated.
  */
 
-#include "theme_core.h" // For theme_palette_t
-
 #include <lvgl.h>
+
+/**
+ * @brief 16-color semantic palette for theme initialization
+ */
+typedef struct {
+    lv_color_t screen_bg;   // 0: Main app background
+    lv_color_t overlay_bg;  // 1: Sidebar/panel background
+    lv_color_t card_bg;     // 2: Card surfaces
+    lv_color_t elevated_bg; // 3: Elevated/control surfaces (buttons, inputs)
+    lv_color_t border;      // 4: Borders and dividers
+    lv_color_t text;        // 5: Primary text
+    lv_color_t text_muted;  // 6: Secondary text
+    lv_color_t text_subtle; // 7: Hint/tertiary text
+    lv_color_t primary;     // 8: Primary accent
+    lv_color_t secondary;   // 9: Secondary accent
+    lv_color_t tertiary;    // 10: Tertiary accent
+    lv_color_t info;        // 11: Info states
+    lv_color_t success;     // 12: Success states
+    lv_color_t warning;     // 13: Warning states
+    lv_color_t danger;      // 14: Error/danger states
+    lv_color_t focus;       // 15: Focus ring color
+} theme_palette_t;
 
 #ifdef __cplusplus
 extern "C" {
