@@ -74,7 +74,7 @@
     <!-- Button row (edge-to-edge style matching modal_dialog) -->
     <!-- ============================================================ -->
     <lv_obj width="100%"
-            height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row">
+            height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
       <!-- Cancel button (always visible) -->
       <ui_button name="cancel_btn" height="100%" flex_grow="1" style_radius="0" text="Cancel">
         <event_cb trigger="clicked" callback="on_hidden_cancel_clicked"/>

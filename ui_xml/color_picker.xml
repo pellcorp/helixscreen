@@ -265,8 +265,7 @@
       <divider_horizontal/>
       <!-- Action buttons row -->
       <lv_obj width="100%"
-              height="#button_height" style_bg_opa="0" style_border_width="0" style_pad_all="0" flex_flow="row"
-              scrollable="false">
+              height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row" scrollable="false">
         <!-- Cancel button -->
         <ui_button name="btn_cancel" height="100%" text="Cancel" flex_grow="1" variant="ghost">
           <event_cb trigger="clicked" callback="color_picker_cancel_cb"/>
