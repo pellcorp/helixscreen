@@ -1054,6 +1054,12 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
         motors_enabled_.store(true);
         bool is_relative = relative_mode_.load();
 
+        // Position limits (typical Voron 2.4 350mm config)
+        // Z allows slight negative for probe calibration
+        constexpr double X_MIN = 0.0, X_MAX = 350.0;
+        constexpr double Y_MIN = 0.0, Y_MAX = 350.0;
+        constexpr double Z_MIN = -0.5, Z_MAX = 340.0;
+
         // Helper lambda to parse axis value from gcode string
         auto parse_axis = [&gcode](char axis) -> std::pair<bool, double> {
             // Look for the axis letter followed by a number
@@ -1084,34 +1090,44 @@ int MoonrakerClientMock::gcode_script(const std::string& gcode) {
         auto [has_y, y_val] = parse_axis('Y');
         auto [has_z, z_val] = parse_axis('Z');
 
-        if (has_x) {
-            if (is_relative) {
-                pos_x_.store(pos_x_.load() + x_val);
-            } else {
-                pos_x_.store(x_val);
-            }
-        }
-        if (has_y) {
-            if (is_relative) {
-                pos_y_.store(pos_y_.load() + y_val);
-            } else {
-                pos_y_.store(y_val);
-            }
-        }
-        if (has_z) {
-            if (is_relative) {
-                pos_z_.store(pos_z_.load() + z_val);
-            } else {
-                pos_z_.store(z_val);
-            }
+        // Calculate target positions
+        double target_x = has_x ? (is_relative ? pos_x_.load() + x_val : x_val) : pos_x_.load();
+        double target_y = has_y ? (is_relative ? pos_y_.load() + y_val : y_val) : pos_y_.load();
+        double target_z = has_z ? (is_relative ? pos_z_.load() + z_val : z_val) : pos_z_.load();
+
+        // Check limits (like real Klipper)
+        bool out_of_range = false;
+        std::string error_msg;
+        if (target_x < X_MIN || target_x > X_MAX) {
+            error_msg = "!! Move out of range: X=" + std::to_string(target_x);
+            out_of_range = true;
+        } else if (target_y < Y_MIN || target_y > Y_MAX) {
+            error_msg = "!! Move out of range: Y=" + std::to_string(target_y);
+            out_of_range = true;
+        } else if (target_z < Z_MIN || target_z > Z_MAX) {
+            error_msg = "!! Move out of range: Z=" + std::to_string(target_z);
+            out_of_range = true;
         }
 
-        if (has_x || has_y || has_z) {
-            spdlog::debug("[MoonrakerClientMock] Move {} X={} Y={} Z={} (mode={})",
-                          gcode.find("G0") != std::string::npos ? "G0" : "G1", pos_x_.load(),
-                          pos_y_.load(), pos_z_.load(), is_relative ? "relative" : "absolute");
-            // Reset idle timeout when moving
-            reset_idle_timeout();
+        if (out_of_range) {
+            dispatch_gcode_response(error_msg);
+            spdlog::warn("[MoonrakerClientMock] Move rejected - {}", error_msg);
+        } else {
+            // Apply the move
+            if (has_x)
+                pos_x_.store(target_x);
+            if (has_y)
+                pos_y_.store(target_y);
+            if (has_z)
+                pos_z_.store(target_z);
+
+            if (has_x || has_y || has_z) {
+                spdlog::debug("[MoonrakerClientMock] Move {} X={} Y={} Z={} (mode={})",
+                              gcode.find("G0") != std::string::npos ? "G0" : "G1", pos_x_.load(),
+                              pos_y_.load(), pos_z_.load(), is_relative ? "relative" : "absolute");
+                // Reset idle timeout when moving
+                reset_idle_timeout();
+            }
         }
     }
 
