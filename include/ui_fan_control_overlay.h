@@ -7,6 +7,7 @@
 
 #include "overlay_base.h"
 #include "printer_state.h"
+#include "ui/animated_value.h"
 
 #include <memory>
 #include <vector>
@@ -153,10 +154,22 @@ class FanControlOverlay : public OverlayBase {
     lv_obj_t* fans_container_ = nullptr; ///< Single flex-wrap container for all fans
 
     //
-    // === FanDial Instances ===
+    // === Animated FanDial Instances ===
     //
 
-    std::vector<std::unique_ptr<FanDial>> fan_dials_;
+    /**
+     * @brief Pairs a FanDial with its speed animation
+     *
+     * AnimatedValue observes the per-fan speed subject and smoothly animates
+     * the dial when speed changes arrive from the printer. Respects the
+     * animations_enabled user setting.
+     */
+    struct AnimatedFanDial {
+        std::unique_ptr<FanDial> dial;
+        std::string object_name; ///< Moonraker object name for subject lookup
+        helix::ui::AnimatedValue<int> animation;
+    };
+    std::vector<AnimatedFanDial> animated_fan_dials_;
 
     //
     // === Auto Fan Card Tracking ===

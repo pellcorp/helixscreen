@@ -45,7 +45,7 @@ FanControlOverlay::~FanControlOverlay() {
     }
 
     // Clear vectors to destroy FanDial instances before LVGL objects are deleted
-    fan_dials_.clear();
+    animated_fan_dials_.clear();
     auto_fan_cards_.clear();
 
     spdlog::debug("[FanControlOverlay] Destroyed");
@@ -85,8 +85,8 @@ lv_obj_t* FanControlOverlay::create(lv_obj_t* parent) {
     // Populate fans from current PrinterState
     populate_fans();
 
-    spdlog::debug("[{}] Created overlay with {} controllable and {} auto fans", get_name(),
-                  fan_dials_.size(), auto_fan_cards_.size());
+    spdlog::debug("[{}] Created overlay with {} animated dials and {} auto fans", get_name(),
+                  animated_fan_dials_.size(), auto_fan_cards_.size());
 
     return overlay_root_;
 }
@@ -106,9 +106,9 @@ void FanControlOverlay::on_activate() {
         fans_observer_ = observe_int_sync<FanControlOverlay>(
             fans_ver, this, [](FanControlOverlay* self, int /* version */) {
                 if (self->is_visible()) {
-                    // Structural change - rebuild fan list and resubscribe
-                    self->populate_fans();
+                    // Structural change - unsubscribe before rebuild to avoid dangling observers
                     self->unsubscribe_from_fan_speeds();
+                    self->populate_fans();
                     self->subscribe_to_fan_speeds();
                 }
             });
@@ -139,7 +139,7 @@ void FanControlOverlay::cleanup() {
     fans_observer_.reset();
     unsubscribe_from_fan_speeds();
     // Clear widget tracking vectors (widgets will be destroyed by OverlayBase::cleanup)
-    fan_dials_.clear();
+    animated_fan_dials_.clear();
     auto_fan_cards_.clear();
     OverlayBase::cleanup();
 }
@@ -158,26 +158,28 @@ void FanControlOverlay::populate_fans() {
     lv_obj_clean(fans_container_);
 
     // Clear tracking vectors
-    fan_dials_.clear();
+    animated_fan_dials_.clear();
     auto_fan_cards_.clear();
 
     const auto& fans = printer_state_.get_fans();
 
-    // First pass: create controllable fans (FanDial widgets)
+    // First pass: create controllable fans (FanDial widgets with animation)
     for (const auto& fan : fans) {
         if (fan.is_controllable) {
-            auto dial = std::make_unique<FanDial>(fans_container_, fan.display_name,
-                                                  fan.object_name, fan.speed_percent);
+            AnimatedFanDial afd;
+            afd.object_name = fan.object_name;
+            afd.dial = std::make_unique<FanDial>(fans_container_, fan.display_name, fan.object_name,
+                                                 fan.speed_percent);
 
-            // Set callback for speed changes
-            dial->set_on_speed_changed([this](const std::string& fan_id, int speed_percent) {
+            // Set callback for user-initiated speed changes (dial interaction)
+            afd.dial->set_on_speed_changed([this](const std::string& fan_id, int speed_percent) {
                 send_fan_speed(fan_id, speed_percent);
             });
 
-            fan_dials_.push_back(std::move(dial));
+            animated_fan_dials_.push_back(std::move(afd));
 
-            spdlog::debug("[{}] Created FanDial for '{}' ({}%)", get_name(), fan.display_name,
-                          fan.speed_percent);
+            spdlog::debug("[{}] Created AnimatedFanDial for '{}' ({}%)", get_name(),
+                          fan.display_name, fan.speed_percent);
         }
     }
 
@@ -222,24 +224,17 @@ void FanControlOverlay::populate_fans() {
         }
     }
 
-    spdlog::info("[{}] Populated {} controllable fans and {} auto fans", get_name(),
-                 fan_dials_.size(), auto_fan_cards_.size());
+    spdlog::info("[{}] Populated {} animated fan dials and {} auto fan cards", get_name(),
+                 animated_fan_dials_.size(), auto_fan_cards_.size());
 }
 
 void FanControlOverlay::update_fan_speeds() {
     const auto& fans = printer_state_.get_fans();
 
-    // Update FanDial widgets
-    for (auto& dial : fan_dials_) {
-        for (const auto& fan : fans) {
-            if (fan.object_name == dial->get_fan_id()) {
-                dial->set_speed(fan.speed_percent);
-                break;
-            }
-        }
-    }
+    // Note: FanDial widgets are updated via AnimatedValue bindings in subscribe_to_fan_speeds()
+    // This method only updates auto fan cards which don't need animation
 
-    // Update auto fan card labels and arcs
+    // Update auto fan card labels and arcs (immediate, no animation)
     for (auto& card_info : auto_fan_cards_) {
         for (const auto& fan : fans) {
             if (fan.object_name == card_info.object_name) {
@@ -258,7 +253,7 @@ void FanControlOverlay::update_fan_speeds() {
         }
     }
 
-    spdlog::trace("[{}] Updated fan speeds", get_name());
+    spdlog::trace("[{}] Updated auto fan card speeds", get_name());
 }
 
 void FanControlOverlay::send_fan_speed(const std::string& object_name, int speed_percent) {
@@ -297,21 +292,40 @@ void FanControlOverlay::on_fan_speed_changed(lv_observer_t* obs, lv_subject_t* /
 }
 
 void FanControlOverlay::subscribe_to_fan_speeds() {
-    const auto& fans = printer_state_.get_fans();
-    fan_speed_observers_.reserve(fans.size());
-
-    for (const auto& fan : fans) {
-        if (auto* subject = printer_state_.get_fan_speed_subject(fan.object_name)) {
-            fan_speed_observers_.emplace_back(subject, on_fan_speed_changed, this);
-            spdlog::trace("[{}] Subscribed to speed subject for '{}'", get_name(), fan.object_name);
+    // Bind AnimatedValue for each FanDial - provides smooth animation when speed changes
+    for (auto& afd : animated_fan_dials_) {
+        if (auto* subject = printer_state_.get_fan_speed_subject(afd.object_name)) {
+            FanDial* dial_ptr = afd.dial.get();
+            afd.animation.bind(subject, [dial_ptr](int percent) { dial_ptr->set_speed(percent); },
+                               {.duration_ms = 300, .threshold = 2}
+                               // 2% threshold to avoid micro-updates
+            );
+            spdlog::trace("[{}] Bound AnimatedValue for '{}'", get_name(), afd.object_name);
         }
     }
 
-    spdlog::debug("[{}] Subscribed to {} per-fan speed subjects", get_name(),
-                  fan_speed_observers_.size());
+    // Subscribe to auto fan subjects using traditional observers (immediate update, no animation)
+    fan_speed_observers_.reserve(auto_fan_cards_.size());
+    for (const auto& card : auto_fan_cards_) {
+        if (auto* subject = printer_state_.get_fan_speed_subject(card.object_name)) {
+            fan_speed_observers_.emplace_back(subject, on_fan_speed_changed, this);
+            spdlog::trace("[{}] Subscribed to auto fan subject for '{}'", get_name(),
+                          card.object_name);
+        }
+    }
+
+    spdlog::debug("[{}] Bound {} animated fan dials, subscribed to {} auto fan subjects",
+                  get_name(), animated_fan_dials_.size(), fan_speed_observers_.size());
 }
 
 void FanControlOverlay::unsubscribe_from_fan_speeds() {
+    // Unbind AnimatedValue instances
+    for (auto& afd : animated_fan_dials_) {
+        afd.animation.unbind();
+    }
+
+    // Clear auto fan observers
     fan_speed_observers_.clear();
-    spdlog::trace("[{}] Unsubscribed from per-fan speed subjects", get_name());
+
+    spdlog::trace("[{}] Unsubscribed from fan speed subjects", get_name());
 }

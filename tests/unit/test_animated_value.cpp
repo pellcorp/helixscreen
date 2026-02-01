@@ -87,7 +87,9 @@ TEST_CASE_METHOD(AnimatedValueTestFixture, "AnimatedValue: unbind clears state",
 TEST_CASE_METHOD(AnimatedValueTestFixture, "AnimatedValue: starts animation on value change",
                  "[animated_value]") {
     lv_subject_t subject;
-    lv_subject_init_int(&subject, 0);
+    // Use non-zero initial value - AnimatedValue skips animation when display_value_ is 0
+    // (by design, to handle startup where values arrive rapidly)
+    lv_subject_init_int(&subject, 50);
 
     int last_value = -1;
     AnimatedValue<int> animated;
@@ -101,8 +103,8 @@ TEST_CASE_METHOD(AnimatedValueTestFixture, "AnimatedValue: starts animation on v
     REQUIRE(animated.is_animating());
     REQUIRE(animated.target_value() == 100);
 
-    // Initial callback was 0, target is 100
-    REQUIRE(animated.display_value() >= 0);
+    // Display value is animating from 50 toward 100
+    REQUIRE(animated.display_value() >= 50);
     REQUIRE(animated.display_value() <= 100);
 
     animated.unbind();
@@ -227,13 +229,14 @@ TEST_CASE_METHOD(AnimatedValueTestFixture, "AnimatedValue: instant update when a
 TEST_CASE_METHOD(AnimatedValueTestFixture, "AnimatedValue: destructor cleans up",
                  "[animated_value]") {
     lv_subject_t subject;
-    lv_subject_init_int(&subject, 0);
+    // Use non-zero initial value to trigger animation
+    lv_subject_init_int(&subject, 50);
 
     bool callback_invoked = false;
 
     {
         AnimatedValue<int> animated;
-        animated.bind(&subject, [&](bool) { callback_invoked = true; }, {.duration_ms = 100});
+        animated.bind(&subject, [&](int) { callback_invoked = true; }, {.duration_ms = 100});
 
         // Start animation
         lv_subject_set_int(&subject, 100);
