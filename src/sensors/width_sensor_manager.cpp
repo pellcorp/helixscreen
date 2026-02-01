@@ -407,10 +407,12 @@ void WidthSensorManager::reset_for_testing() {
     states_.clear();
     sync_mode_ = true;
 
-    // Reset subject state for clean test isolation
+    // Reset subject VALUES but keep subjects initialized
+    // (deinit_all() corrupts subjects in ways that prevent reuse)
     if (subjects_initialized_) {
-        subjects_.deinit_all();
-        subjects_initialized_ = false;
+        lv_subject_set_int(&sensor_count_, 0);
+        lv_subject_set_int(&diameter_, -1);
+        lv_subject_copy_string(&diameter_text_, "--");
     }
 
     spdlog::debug("[WidthSensorManager] Reset for testing");

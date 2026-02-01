@@ -49,10 +49,10 @@ class WidthSensorTestFixture {
             display_created_ = true;
         }
 
-        // Initialize subjects (idempotent)
+        // Initialize subjects first (idempotent - only runs once)
         mgr().init_subjects();
 
-        // Reset state for test isolation
+        // Then reset state for test isolation (clears data but keeps subjects)
         mgr().reset_for_testing();
     }
 
