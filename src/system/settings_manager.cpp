@@ -173,7 +173,7 @@ void SettingsManager::init_subjects() {
     UI_MANAGED_SUBJECT_INT(scroll_limit_subject_, scroll_limit, "settings_scroll_limit", subjects_);
 
     // Animations enabled (default: true)
-    bool animations = config->get<bool>("/animations_enabled", true);
+    bool animations = config->get<bool>("/display/animations_enabled", true);
     UI_MANAGED_SUBJECT_INT(animations_enabled_subject_, animations ? 1 : 0,
                            "settings_animations_enabled", subjects_);
 
@@ -195,7 +195,7 @@ void SettingsManager::init_subjects() {
                            subjects_);
 
     // Time format (default: 0 = 12-hour)
-    int time_format = config->get<int>("/time_format", 0);
+    int time_format = config->get<int>("/display/time_format", 0);
     time_format = std::clamp(time_format, 0, 1);
     UI_MANAGED_SUBJECT_INT(time_format_subject_, time_format, "settings_time_format", subjects_);
 
@@ -479,7 +479,7 @@ void SettingsManager::set_animations_enabled(bool enabled) {
 
     // 2. Persist to config
     Config* config = Config::get_instance();
-    config->set<bool>("/animations_enabled", enabled);
+    config->set<bool>("/display/animations_enabled", enabled);
     config->save();
 }
 
@@ -563,7 +563,7 @@ void SettingsManager::set_time_format(TimeFormat format) {
 
     // 2. Persist to config
     Config* config = Config::get_instance();
-    config->set<int>("/time_format", val);
+    config->set<int>("/display/time_format", val);
     config->save();
 }
 

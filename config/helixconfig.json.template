@@ -1,8 +1,17 @@
 {
-  "animations_enabled": true,
   "dark_mode": false,
-  "time_format": 0,
-  "_time_format_comment": "Time display format. 0 = 12-hour (2:30 PM), 1 = 24-hour (14:30). Default is 12-hour.",
+  "brightness": 50,
+  "_brightness_comment": "Screen brightness percentage (1-100). Default: 50%.",
+  "sounds_enabled": true,
+  "_sounds_enabled_comment": "Enable UI sound effects. Default: true.",
+  "completion_alert": true,
+  "_completion_alert_comment": "Play alert sound when print completes. Default: true.",
+  "wizard_completed": false,
+  "_wizard_completed_comment": "Whether the setup wizard has been completed. Set automatically after first-run wizard.",
+  "wifi_expected": false,
+  "_wifi_expected_comment": "Whether WiFi connectivity is expected. Used to show connection warnings. Set during wizard.",
+  "language": "en",
+  "_language_comment": "UI language code. Options: 'en' (English). Default: 'en'.",
   "theme": {
     "preset": 0,
     "_preset_comment": "Theme accent preset. 0=Nord. Requires restart."
@@ -102,6 +111,10 @@
     "_scroll_limit_comment": "Pixels of movement before scrolling starts. Lower = more responsive. Default LVGL is 10, we use 5."
   },
   "display": {
+    "animations_enabled": true,
+    "_animations_enabled_comment": "Enable UI animations and transitions. Disable for better performance on slow devices. Default: true.",
+    "time_format": 0,
+    "_time_format_comment": "Time display format. 0 = 12-hour (2:30 PM), 1 = 24-hour (14:30). Default is 12-hour.",
     "rotate": 0,
     "sleep_sec": 1800,
     "_sleep_sec_comment": "Seconds of inactivity before display turns OFF (0 = never). Default: 1800 (30 minutes).",
@@ -115,6 +128,10 @@
     "_touch_device_comment": "Override touch/pointer input device (e.g., '/dev/input/event1'). Empty string enables auto-detection. Auto-detection uses libinput to find touch or pointer capable devices.",
     "gcode_render_mode": 2,
     "_gcode_render_mode_comment": "G-code visualization mode. 0=Auto (2D), 1=3D TinyGL (dev only, ~3FPS), 2=2D Layer (default). Can also be overridden via HELIX_GCODE_MODE env var (3D/2D).",
+    "gcode_3d_enabled": true,
+    "_gcode_3d_enabled_comment": "Enable 3D G-code preview capability. When false, only 2D layer view is available. Default: true.",
+    "bed_mesh_render_mode": 0,
+    "_bed_mesh_render_mode_comment": "Bed mesh visualization mode. 0=3D surface (default), 1=2D heatmap. Default: 0.",
     "calibration": {
       "valid": false,
       "_comment": "Touch calibration coefficients. Set by calibration wizard or manually."
@@ -127,6 +144,10 @@
   "ams": {
     "spool_style": "3d",
     "_spool_style_comment": "Filament spool visualization style. Options: '3d' (Bambu-style pseudo-3D canvas with gradients), 'flat' (concentric rings). Default is '3d'."
+  },
+  "safety": {
+    "estop_require_confirmation": false,
+    "_estop_require_confirmation_comment": "Require confirmation dialog before emergency stop. When false, E-Stop triggers immediately. Default: false (immediate action)."
   },
   "filament_sensors": {
     "master_enabled": true,
