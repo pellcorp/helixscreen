@@ -143,6 +143,7 @@ MDI_ICONS+=",0xF058C"    # water (droplet)
 MDI_ICONS+=",0xF05A1"    # weight
 MDI_ICONS+=",0xF05A9"    # wifi
 MDI_ICONS+=",0xF05AA"    # wifi-off (wifi-slash)
+MDI_ICONS+=",0xF05CA"    # translate (language selection)
 MDI_ICONS+=",0xF0553"    # usb
 MDI_ICONS+=",0xF05E1"    # check-circle-outline (check-circle)
 MDI_ICONS+=",0xF062C"    # source-branch (bypass)

@@ -24,6 +24,10 @@
     <setting_action_row name="row_display_settings"
                         label="Display Settings" icon="light" description="Theme, brightness, and sleep settings"
                         callback="on_display_settings_clicked"/>
+    <!-- Language Dropdown -->
+    <setting_dropdown_row name="row_language"
+                          label="Language" icon="translate" description="Choose display language"
+                          callback="on_language_changed"/>
     <!-- ================================================================== -->
     <!-- PRINTER SECTION -->
     <!-- ================================================================== -->

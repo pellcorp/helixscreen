@@ -49,6 +49,18 @@ regen-fonts:
 		exit 1; \
 	fi
 
+# Regenerate Noto Sans text fonts with i18n support
+# Use this when expanding language support
+regen-text-fonts:
+	$(ECHO) "$(CYAN)Regenerating text fonts with i18n support...$(RESET)"
+	$(Q)if [ -f scripts/regen_text_fonts.sh ]; then \
+		./scripts/regen_text_fonts.sh; \
+		echo "$(GREEN)✓ Text fonts regenerated - rebuild required$(RESET)"; \
+	else \
+		echo "$(RED)✗ regen_text_fonts.sh not found$(RESET)"; \
+		exit 1; \
+	fi
+
 # Regenerate icon constants in globals.xml from ui_icon_codepoints.h
 # Single source of truth: C++ header -> XML constants
 regen-icon-consts:

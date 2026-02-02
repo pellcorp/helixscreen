@@ -140,6 +140,15 @@ static void on_time_format_changed(lv_event_t* e) {
     SettingsManager::instance().set_time_format(format);
 }
 
+// Static callback for language dropdown
+static void on_language_changed(lv_event_t* e) {
+    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    int index = static_cast<int>(lv_dropdown_get_selected(dropdown));
+    std::string lang_code = SettingsManager::language_index_to_code(index);
+    spdlog::info("[SettingsPanel] Language changed: index {} ({})", index, lang_code);
+    SettingsManager::instance().set_language_by_index(index);
+}
+
 // Static callback for version row tap (memory debug toggle via 7-tap secret)
 // This provides a touch-based way to enable memory debugging on Pi (no keyboard)
 // Like Android's "tap build number 7 times" to enable developer mode
@@ -274,6 +283,7 @@ void SettingsPanel::init_subjects() {
     lv_xml_register_event_cb(nullptr, "on_bed_mesh_mode_changed", on_bed_mesh_mode_changed);
     lv_xml_register_event_cb(nullptr, "on_gcode_mode_changed", on_gcode_mode_changed);
     lv_xml_register_event_cb(nullptr, "on_time_format_changed", on_time_format_changed);
+    lv_xml_register_event_cb(nullptr, "on_language_changed", on_language_changed);
     lv_xml_register_event_cb(nullptr, "on_version_clicked", on_version_clicked);
 
     // Register XML event callbacks for toggle switches
@@ -458,6 +468,19 @@ void SettingsPanel::setup_toggle_handlers() {
             lv_dropdown_set_selected(completion_alert_dropdown_, static_cast<uint32_t>(mode));
             spdlog::debug("[{}]   ✓ Completion alert dropdown (mode={})", get_name(),
                           static_cast<int>(mode));
+        }
+    }
+
+    // === Language Dropdown ===
+    // Event handler wired via XML <event_cb>, options populated from SettingsManager
+    lv_obj_t* language_row = lv_obj_find_by_name(panel_, "row_language");
+    if (language_row) {
+        language_dropdown_ = lv_obj_find_by_name(language_row, "dropdown");
+        if (language_dropdown_) {
+            lv_dropdown_set_options(language_dropdown_, SettingsManager::get_language_options());
+            int lang_index = settings.get_language_index();
+            lv_dropdown_set_selected(language_dropdown_, static_cast<uint32_t>(lang_index));
+            spdlog::debug("[{}]   ✓ Language dropdown (index={})", get_name(), lang_index);
         }
     }
 
