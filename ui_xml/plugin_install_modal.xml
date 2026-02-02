@@ -14,7 +14,7 @@
             height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_lg"
             style_pad_bottom="#space_lg" flex_flow="column" style_flex_cross_place="center" style_pad_gap="#space_md">
       <!-- Icon -->
-      <icon src="puzzle_outline" size="lg" color="#success"/>
+      <icon src="puzzle_outline" size="lg" variant="success"/>
       <!-- Title -->
       <text_heading name="modal_title" width="100%" text="Optimize Your Printing" style_text_align="center"/>
       <!-- Description (LOCAL mode - auto-install available) -->
@@ -60,7 +60,7 @@
       <lv_obj name="result_container"
               width="100%" height="content" style_pad_all="#space_md" flex_flow="column" style_flex_cross_place="center"
               style_pad_gap="#space_sm" hidden="true">
-        <icon name="result_icon" src="check_circle" size="lg" color="#success"/>
+        <icon name="result_icon" src="check_circle" size="lg" variant="success"/>
         <text_heading name="result_title" width="100%" text="Success!" style_text_align="center"/>
         <text_body name="result_message"
                    width="100%" text="Plugin installed successfully." long_mode="wrap" style_text_align="center"/>

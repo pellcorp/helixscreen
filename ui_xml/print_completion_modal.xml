@@ -13,7 +13,7 @@
             style_pad_top="#space_lg" style_pad_bottom="#space_lg" flex_flow="column" style_flex_cross_place="center"
             style_pad_gap="#space_md">
       <!-- Status icon (set programmatically based on completion state) -->
-      <icon name="status_icon" src="check_circle" size="lg" color="#success"/>
+      <icon name="status_icon" src="check_circle" size="lg" variant="success"/>
       <!-- Title (set programmatically) -->
       <text_heading name="title_label" width="100%" text="Print Complete" style_text_align="center"/>
       <!-- Filename -->

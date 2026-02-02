@@ -52,7 +52,7 @@
                   height="content" flex_flow="row" style_flex_cross_place="center" style_pad_left="#space_md"
                   style_pad_right="#space_md" style_pad_top="#space_sm" style_pad_bottom="#space_sm"
                   style_pad_gap="#space_sm" scrollable="false">
-            <icon src="info" size="sm" color="#success"/>
+            <icon src="info" size="sm" variant="success"/>
             <text_body text="Current Mesh" flex_grow="1"/>
           </lv_obj>
           <!-- Divider -->
@@ -109,7 +109,7 @@
                   height="content" flex_flow="row" style_flex_cross_place="center" style_pad_left="#space_md"
                   style_pad_right="#space_md" style_pad_top="#space_sm" style_pad_bottom="#space_sm"
                   style_pad_gap="#space_sm" scrollable="false">
-            <icon src="layers" size="sm" color="#success"/>
+            <icon src="layers" size="sm" variant="success"/>
             <text_body text="Profiles" flex_grow="1"/>
           </lv_obj>
           <!-- Divider -->

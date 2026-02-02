@@ -58,7 +58,7 @@
       <lv_obj width="100%"
               height="content" flex_flow="column" style_flex_cross_place="center" style_pad_gap="#space_sm"
               style_pad_all="0">
-        <icon src="check_circle_outline" size="lg" color="#success"/>
+        <icon src="check_circle_outline" size="lg" variant="success"/>
         <text_body text="Review your changes" style_text_align="center"/>
       </lv_obj>
       <!-- Summary list container -->
@@ -80,7 +80,7 @@
       <lv_obj width="100%"
               height="content" flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm"
               style_pad_all="0">
-        <icon src="alert" size="sm" color="#warning"/>
+        <icon src="alert" size="sm" variant="warning"/>
         <text_small width="content" text="Klipper will restart to apply changes" style_text_color="#warning"/>
       </lv_obj>
     </lv_obj>
@@ -105,7 +105,7 @@
             style_pad_gap="#space_md">
       <!-- Only visible when show_success == 1 (hide when 0) -->
       <bind_flag_if_eq subject="macro_enhance_show_success" flag="hidden" ref_value="0"/>
-      <icon src="check_circle" size="xl" color="#success"/>
+      <icon src="check_circle" size="xl" variant="success"/>
       <text_heading text="Enhancement Complete!" style_text_align="center"/>
       <text_body name="success_message"
                  width="100%" bind_text="macro_enhance_description" long_mode="wrap" style_text_align="center"/>

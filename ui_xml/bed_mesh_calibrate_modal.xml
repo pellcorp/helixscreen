@@ -45,7 +45,7 @@
       <!-- Show only when state=2 -->
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="2"/>
       <!-- Success icon -->
-      <icon src="check_circle" size="lg" color="#success"/>
+      <icon src="check_circle" size="lg" variant="success"/>
       <!-- Title -->
       <text_heading width="100%" text="Mesh Complete" style_text_align="center"/>
       <!-- Instructions -->

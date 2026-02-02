@@ -89,7 +89,7 @@
                 height="content" style_bg_color="#success" style_bg_opa="40" style_radius="#border_radius"
                 style_border_width="1" style_border_color="#success" style_pad_all="#space_md" flex_flow="row"
                 style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false">
-          <icon src="check_circle" size="md" color="#success"/>
+          <icon src="check_circle" size="md" variant="success"/>
           <lv_obj flex_grow="1" style_pad_all="0" flex_flow="column" scrollable="false">
             <text_small text="Recommended" style_text_color="#success"/>
             <text_heading name="recommendation_label" text="mzv @ 36.7 Hz"/>
@@ -181,7 +181,7 @@
                 height="content" style_bg_color="#warning" style_bg_opa="25" style_radius="#border_radius"
                 style_border_width="1" style_border_color="#warning" style_pad_all="#space_sm" flex_flow="row"
                 style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false">
-          <icon src="alert" size="sm" color="#warning"/>
+          <icon src="alert" size="sm" variant="warning"/>
           <text_small text="Apply saves for this session only" style_text_color="#warning" flex_grow="1"/>
           <ui_button name="btn_save_config" width="content" height="#space_2xl" variant="warning" text="Save Config">
             <event_cb trigger="clicked" callback="input_shaper_save_config_cb"/>

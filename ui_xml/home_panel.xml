@@ -49,7 +49,7 @@
             <bind_flag_if_eq subject="printer_connection_state" flag="hidden" ref_value="2"/>
           </icon>
           <!-- Shutdown overlay - shown when klippy is SHUTDOWN (state 2) -->
-          <icon name="shutdown_overlay" src="alert_octagon" size="xl" align="center" color="#warning" hidden="true">
+          <icon name="shutdown_overlay" src="alert_octagon" size="xl" align="center" variant="warning" hidden="true">
             <bind_flag_if_not_eq subject="klippy_state" flag="hidden" ref_value="2"/>
           </icon>
         </lv_obj>
@@ -311,7 +311,7 @@
             <bind_flag_if_eq subject="printer_has_led" flag="hidden" ref_value="0"/>
             <bind_state_if_not_eq subject="printer_connection_state" state="disabled" ref_value="2"/>
             <!-- Dynamic icon - source and color set by C++ based on LED brightness/color -->
-            <icon name="light_icon" src="lightbulb_outline" size="#icon_size_card" align="center" color="#border"/>
+            <icon name="light_icon" src="lightbulb_outline" size="#icon_size_card" align="center" variant="muted"/>
             <event_cb trigger="clicked" callback="light_toggle_cb"/>
           </ui_button>
 

@@ -13,7 +13,7 @@
             style_pad_top="#space_lg" style_pad_bottom="#space_lg" flex_flow="column" style_flex_cross_place="center"
             style_pad_gap="#space_md">
       <!-- Warning icon -->
-      <icon src="alert" size="lg" color="#warning"/>
+      <icon src="alert" size="lg" variant="warning"/>
       <!-- Title -->
       <text_heading width="100%" text="Save Z-Offset?" style_text_align="center"/>
       <!-- Warning message (VERY IMPORTANT) -->
