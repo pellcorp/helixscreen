@@ -1602,6 +1602,11 @@ void theme_manager_refresh_preview_elements(lv_obj_t* root, const helix::ThemeDa
 // ============================================================================
 
 /**
+ * Check if a font is one of the MDI icon fonts (forward declaration)
+ */
+static bool is_icon_font(const lv_font_t* font);
+
+/**
  * Helper to update button label text with contrast-aware color
  * text_light = dark text for light backgrounds
  * text_dark = light text for dark backgrounds
@@ -1624,19 +1629,49 @@ static void apply_button_text_contrast(lv_obj_t* btn, lv_color_t text_light, lv_
         text_color = lv_color_mix(text_color, lv_color_hex(0x888888), 128);
     }
 
+    // Get current text colors to detect text/muted-variant icons
+    lv_color_t current_text = theme_manager_get_color("text");
+    lv_color_t current_muted = theme_manager_get_color("text_muted");
+
+    // Helper lambda to check if icon color is a "text-like" color that should get contrast
+    auto is_text_variant_color = [&](lv_color_t c) {
+        return lv_color_eq(c, current_text) || lv_color_eq(c, current_muted) ||
+               lv_color_eq(c, text_light) || lv_color_eq(c, text_dark);
+    };
+
     // Update all label children in the button
+    // For icons: only apply contrast if they're using text/muted variant
+    // Skip icons with semantic colors (primary, warning, etc.)
     uint32_t count = lv_obj_get_child_count(btn);
     for (uint32_t i = 0; i < count; i++) {
         lv_obj_t* child = lv_obj_get_child(btn, i);
         if (lv_obj_check_type(child, &lv_label_class)) {
-            lv_obj_set_style_text_color(child, text_color, LV_PART_MAIN);
+            const lv_font_t* font = lv_obj_get_style_text_font(child, LV_PART_MAIN);
+            if (is_icon_font(font)) {
+                // Icon: only apply contrast if it's using text/muted variant
+                lv_color_t icon_color = lv_obj_get_style_text_color(child, LV_PART_MAIN);
+                if (is_text_variant_color(icon_color)) {
+                    lv_obj_set_style_text_color(child, text_color, LV_PART_MAIN);
+                }
+            } else {
+                // Regular label: always apply contrast
+                lv_obj_set_style_text_color(child, text_color, LV_PART_MAIN);
+            }
         }
         // Also check nested containers (some buttons have container > label structure)
         uint32_t nested_count = lv_obj_get_child_count(child);
         for (uint32_t j = 0; j < nested_count; j++) {
             lv_obj_t* nested = lv_obj_get_child(child, j);
             if (lv_obj_check_type(nested, &lv_label_class)) {
-                lv_obj_set_style_text_color(nested, text_color, LV_PART_MAIN);
+                const lv_font_t* nested_font = lv_obj_get_style_text_font(nested, LV_PART_MAIN);
+                if (is_icon_font(nested_font)) {
+                    lv_color_t icon_color = lv_obj_get_style_text_color(nested, LV_PART_MAIN);
+                    if (is_text_variant_color(icon_color)) {
+                        lv_obj_set_style_text_color(nested, text_color, LV_PART_MAIN);
+                    }
+                } else {
+                    lv_obj_set_style_text_color(nested, text_color, LV_PART_MAIN);
+                }
             }
         }
     }
@@ -1876,9 +1911,9 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
             spdlog::debug("[Theme] Applying elevated_bg to dialog: {} (color: 0x{:06X})", obj_name,
                           lv_color_to_u32(elevated_bg) & 0xFFFFFF);
             lv_obj_set_style_bg_color(obj, elevated_bg, LV_PART_MAIN);
-        } else if (strstr(obj_name, "background") != nullptr) {
-            lv_obj_set_style_bg_color(obj, screen_bg, LV_PART_MAIN);
-        } else if (strstr(obj_name, "header") != nullptr) {
+        } else if (strstr(obj_name, "background") != nullptr ||
+                   strstr(obj_name, "toast") != nullptr || strstr(obj_name, "header") != nullptr) {
+            // Containers that use screen_bg background
             lv_obj_set_style_bg_color(obj, screen_bg, LV_PART_MAIN);
         }
     }
