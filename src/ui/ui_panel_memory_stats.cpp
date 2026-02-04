@@ -156,8 +156,12 @@ void MemoryStatsOverlay::shutdown() {
 
 void MemoryStatsOverlay::update() {
     // Guard against shutdown race: timer may fire after LVGL objects destroyed
-    // but before shutdown() clears our pointers
-    if (!lv_is_initialized() || !overlay_ || !is_visible())
+    // but before shutdown() clears our pointers. This can happen when:
+    // 1. SDL_WINDOWEVENT_CLOSE triggers lv_display_delete() inside lv_timer_handler()
+    // 2. Display deletion destroys all UI objects
+    // 3. Same lv_timer_handler() call continues and runs this timer
+    // The lv_obj_is_valid() check catches this race condition.
+    if (!lv_is_initialized() || !overlay_ || !lv_obj_is_valid(overlay_) || !is_visible())
         return;
 
     int64_t rss_kb = 0, hwm_kb = 0, private_kb = 0;
