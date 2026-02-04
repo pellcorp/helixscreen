@@ -58,6 +58,7 @@ usage() {
     echo "  --clean        Clean install: remove old installation completely,"
     echo "                 including config and caches (asks for confirmation)"
     echo "  --version VER  Install specific version (default: latest)"
+    echo "  --local FILE   Install from local tarball (skip download)"
     echo "  --help         Show this help message"
     echo ""
     echo "Examples:"
@@ -65,6 +66,7 @@ usage() {
     echo "  $0 --update           # Update existing installation"
     echo "  $0 --clean            # Remove old install completely, then install"
     echo "  $0 --version v1.1.0   # Install specific version"
+    echo "  $0 --local /tmp/helixscreen-ad5m.tar.gz  # Install from local file"
 }
 
 # Main installation flow
@@ -73,6 +75,7 @@ main() {
     uninstall_mode=false
     clean_mode=false
     version=""
+    local_tarball=""
 
     # Parse arguments
     while [ $# -gt 0 ]; do
@@ -95,6 +98,14 @@ main() {
                     exit 1
                 fi
                 version="$2"
+                shift 2
+                ;;
+            --local)
+                if [ -z "${2:-}" ]; then
+                    log_error "--local requires a file path argument"
+                    exit 1
+                fi
+                local_tarball="$2"
                 shift 2
                 ;;
             --help|-h)
@@ -155,9 +166,23 @@ main() {
     check_disk_space "$platform"
     detect_init_system
 
-    # Get version
-    if [ -z "$version" ]; then
-        version=$(get_latest_version)
+    # Get version (skip if using local tarball)
+    if [ -n "$local_tarball" ]; then
+        # Validate local file exists
+        if [ ! -f "$local_tarball" ]; then
+            log_error "Local tarball not found: $local_tarball"
+            exit 1
+        fi
+        # Extract version from filename if possible (helixscreen-platform-v1.2.3.tar.gz)
+        version=$(echo "$local_tarball" | sed -n 's/.*helixscreen-[^-]*-\(v[0-9.]*\)\.tar\.gz/\1/p')
+        if [ -z "$version" ]; then
+            version="local"
+        fi
+        log_info "Installing from local file: ${BOLD}${local_tarball}${NC}"
+    else
+        if [ -z "$version" ]; then
+            version=$(get_latest_version "$platform")
+        fi
     fi
     log_info "Target version: ${BOLD}${version}${NC}"
 
@@ -187,8 +212,12 @@ main() {
         stop_service
     fi
 
-    # Download and install
-    download_release "$version" "$platform"
+    # Download and install (or use local tarball)
+    if [ -n "$local_tarball" ]; then
+        use_local_tarball "$local_tarball"
+    else
+        download_release "$version" "$platform"
+    fi
     extract_release "$platform"
     install_service "$platform"
 

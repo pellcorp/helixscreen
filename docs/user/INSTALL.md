@@ -24,63 +24,18 @@ This guide walks you through installing HelixScreen on your 3D printer's touchsc
 
 ## Quick Start
 
-**One-liner install (recommended):**
+**Raspberry Pi (MainsailOS) or Creality K1:**
 ```bash
-# Raspberry Pi (MainsailOS), Adventurer 5M, or Creality K1
 curl -sSL https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install-bundled.sh | sh
 ```
 
 The installer automatically detects your platform and downloads the correct release.
 
-> **Note:** Both `bash` and `sh` work. The installer is POSIX-compatible for BusyBox environments (like AD5M).
+**Adventurer 5M:** The AD5M's BusyBox doesn't support HTTPS downloads. See [Adventurer 5M Installation](#adventurer-5m-installation) for the two-step process (download on your computer, then copy to printer).
 
-> **Note:** `install-bundled.sh` and `install.sh` are functionally equivalent. The bundled version is auto-generated from the modular version for easier one-liner installation.
+> **Note:** Both `bash` and `sh` work. The installer is POSIX-compatible for BusyBox environments.
 
 **KIAUH users:** The one-liner works on KIAUH installations too! Alternatively, see [scripts/kiauh/](https://github.com/prestonbrown/helixscreen/tree/main/scripts/kiauh) to add HelixScreen to your KIAUH menu.
-
-**Manual installation** (if you prefer):
-
-<details>
-<summary>MainsailOS (Raspberry Pi)</summary>
-
-```bash
-# Download the latest release
-cd ~
-wget https://github.com/prestonbrown/helixscreen/releases/latest/download/helixscreen-pi.tar.gz
-tar -xzf helixscreen-pi.tar.gz
-
-# Install (copies to /opt/helixscreen and sets up service)
-cd helixscreen
-sudo cp -r . /opt/helixscreen/
-sudo cp /opt/helixscreen/config/helixscreen.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now helixscreen
-```
-</details>
-
-<details>
-<summary>Adventurer 5M</summary>
-
-```bash
-# From your computer, copy to printer
-# Note: AD5M requires scp -O (legacy protocol) since BusyBox lacks sftp-server
-scp -O helixscreen-ad5m-*.tar.gz root@<printer-ip>:/tmp/helixscreen.tar.gz
-
-# SSH into printer and install
-ssh root@<printer-ip>
-cd /opt && gunzip -c /tmp/helixscreen.tar.gz | tar xf -
-cp /opt/helixscreen/config/helixscreen.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now helixscreen
-
-# Clean up
-rm /tmp/helixscreen.tar.gz
-```
-
-> **Note:** AD5M uses BusyBox utilities with some limitations:
-> - Use `scp -O` (legacy protocol) instead of plain `scp` - BusyBox lacks sftp-server
-> - Use `gunzip -c | tar xf -` instead of `tar -xzf` - BusyBox tar lacks `-z` flag
-</details>
 
 After installation, the setup wizard will guide you through initial configuration.
 
@@ -253,12 +208,33 @@ See [First Boot & Setup Wizard](#first-boot--setup-wizard) for details.
 
 ### Automated Installation (Recommended)
 
-The install script automatically detects your firmware (Forge-X or Klipper Mod) and installs to the correct location:
+The AD5M uses BusyBox which doesn't support HTTPS downloads directly. You'll need to download the release on your computer first, then copy it to the printer:
+
+**Step 1: Download on your computer**
+
+```bash
+# Download the latest release and installer
+wget https://github.com/prestonbrown/helixscreen/releases/latest/download/helixscreen-ad5m.tar.gz
+wget https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install-bundled.sh
+```
+
+Or download manually from: https://github.com/prestonbrown/helixscreen/releases/latest
+
+**Step 2: Copy to your printer**
+
+```bash
+# AD5M requires -O flag for scp (BusyBox lacks sftp-server)
+scp -O helixscreen-ad5m.tar.gz install-bundled.sh root@<printer-ip>:/tmp/
+```
+
+**Step 3: Run the installer**
 
 ```bash
 ssh root@<printer-ip>
-curl -sSL https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install-bundled.sh | sh
+sh /tmp/install-bundled.sh --local /tmp/helixscreen-ad5m.tar.gz
 ```
+
+The install script automatically detects your firmware (Forge-X or Klipper Mod) and installs to the correct location.
 
 **What the installer does on Forge-X:**
 - Verifies ForgeX is installed and sets display mode to `GUPPY`

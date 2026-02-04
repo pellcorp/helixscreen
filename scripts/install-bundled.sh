@@ -799,10 +799,81 @@ stop_competing_uis() {
 # ============================================
 
 #
+# Check if we can download from HTTPS URLs
+# BusyBox wget on AD5M doesn't support HTTPS
+check_https_capability() {
+    # curl with SSL support works
+    if command -v curl >/dev/null 2>&1; then
+        # Test if curl can reach HTTPS (quick timeout)
+        if curl -sSL --connect-timeout 5 -o /dev/null "https://github.com" 2>/dev/null; then
+            return 0
+        fi
+    fi
+
+    # Check if wget supports HTTPS
+    if command -v wget >/dev/null 2>&1; then
+        # BusyBox wget outputs "not an http or ftp url" for https
+        if wget --help 2>&1 | grep -qi "https"; then
+            return 0
+        fi
+        # Try a test fetch - BusyBox wget fails immediately on https URLs
+        if wget -q --timeout=5 -O /dev/null "https://github.com" 2>/dev/null; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# Show manual install instructions when HTTPS download isn't available
+show_manual_install_instructions() {
+    local platform=$1
+    local version=${2:-latest}
+
+    echo ""
+    log_error "=========================================="
+    log_error "  HTTPS Download Not Available"
+    log_error "=========================================="
+    echo ""
+    log_error "This system cannot download from HTTPS URLs."
+    log_error "BusyBox wget (common on embedded devices) doesn't support HTTPS."
+    echo ""
+    log_info "To install HelixScreen, download the release on another computer"
+    log_info "and copy it to this device:"
+    echo ""
+    echo "  1. Download the release:"
+    if [ "$version" = "latest" ]; then
+        echo "     ${CYAN}https://github.com/${GITHUB_REPO}/releases/latest${NC}"
+    else
+        echo "     ${CYAN}https://github.com/${GITHUB_REPO}/releases/tag/${version}${NC}"
+    fi
+    echo ""
+    echo "  2. Download: ${BOLD}helixscreen-${platform}.tar.gz${NC}"
+    echo ""
+    echo "  3. Copy to this device (note: AD5M needs -O flag):"
+    if [ "$platform" = "ad5m" ]; then
+        echo "     ${CYAN}scp -O helixscreen-${platform}.tar.gz root@<this-ip>:/tmp/${NC}"
+    else
+        echo "     ${CYAN}scp helixscreen-${platform}.tar.gz root@<this-ip>:/tmp/${NC}"
+    fi
+    echo ""
+    echo "  4. Run the installer with the local file:"
+    echo "     ${CYAN}sh /tmp/install-bundled.sh --local /tmp/helixscreen-${platform}.tar.gz${NC}"
+    echo ""
+    exit 1
+}
+
 # Get latest release version from GitHub
+# Args: platform (for error message if HTTPS unavailable)
 get_latest_version() {
+    local platform=${1:-unknown}
     local url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
     local version=""
+
+    # Check HTTPS capability first
+    if ! check_https_capability; then
+        show_manual_install_instructions "$platform" "latest"
+    fi
 
     log_info "Fetching latest version from GitHub..."
 
@@ -880,6 +951,38 @@ download_release() {
     local size
     size=$(ls -lh "$dest" | awk '{print $5}')
     log_success "Downloaded ${filename} (${size})"
+}
+
+# Use a local tarball instead of downloading
+use_local_tarball() {
+    local src=$1
+    local dest="${TMP_DIR}/helixscreen.tar.gz"
+
+    log_info "Using local tarball: $src"
+
+    mkdir -p "$TMP_DIR"
+    CLEANUP_TMP=true
+
+    # Copy to temp location (in case source is on different filesystem)
+    cp "$src" "$dest"
+
+    # Verify it's a valid gzip file
+    if ! gunzip -t "$dest" 2>/dev/null; then
+        log_error "Local file is not a valid gzip archive."
+        exit 1
+    fi
+
+    # Verify download isn't truncated (releases should be >1MB)
+    local size_kb
+    size_kb=$(du -k "$dest" 2>/dev/null | cut -f1)
+    if [ "${size_kb:-0}" -lt 1024 ]; then
+        log_error "Local file too small (${size_kb}KB). File may be incomplete."
+        exit 1
+    fi
+
+    local size
+    size=$(ls -lh "$dest" | awk '{print $5}')
+    log_success "Using local tarball (${size})"
 }
 
 # Extract tarball (handles BusyBox tar on AD5M)
@@ -1515,6 +1618,7 @@ usage() {
     echo "  --clean        Clean install: remove old installation completely,"
     echo "                 including config and caches (asks for confirmation)"
     echo "  --version VER  Install specific version (default: latest)"
+    echo "  --local FILE   Install from local tarball (skip download)"
     echo "  --help         Show this help message"
     echo ""
     echo "Examples:"
@@ -1522,6 +1626,7 @@ usage() {
     echo "  $0 --update           # Update existing installation"
     echo "  $0 --clean            # Remove old install completely, then install"
     echo "  $0 --version v1.1.0   # Install specific version"
+    echo "  $0 --local /tmp/helixscreen-ad5m.tar.gz  # Install from local file"
 }
 
 # Main installation flow
@@ -1530,6 +1635,7 @@ main() {
     uninstall_mode=false
     clean_mode=false
     version=""
+    local_tarball=""
 
     # Parse arguments
     while [ $# -gt 0 ]; do
@@ -1552,6 +1658,14 @@ main() {
                     exit 1
                 fi
                 version="$2"
+                shift 2
+                ;;
+            --local)
+                if [ -z "${2:-}" ]; then
+                    log_error "--local requires a file path argument"
+                    exit 1
+                fi
+                local_tarball="$2"
                 shift 2
                 ;;
             --help|-h)
@@ -1612,9 +1726,23 @@ main() {
     check_disk_space "$platform"
     detect_init_system
 
-    # Get version
-    if [ -z "$version" ]; then
-        version=$(get_latest_version)
+    # Get version (skip if using local tarball)
+    if [ -n "$local_tarball" ]; then
+        # Validate local file exists
+        if [ ! -f "$local_tarball" ]; then
+            log_error "Local tarball not found: $local_tarball"
+            exit 1
+        fi
+        # Extract version from filename if possible (helixscreen-platform-v1.2.3.tar.gz)
+        version=$(echo "$local_tarball" | sed -n 's/.*helixscreen-[^-]*-\(v[0-9.]*\)\.tar\.gz/\1/p')
+        if [ -z "$version" ]; then
+            version="local"
+        fi
+        log_info "Installing from local file: ${BOLD}${local_tarball}${NC}"
+    else
+        if [ -z "$version" ]; then
+            version=$(get_latest_version "$platform")
+        fi
     fi
     log_info "Target version: ${BOLD}${version}${NC}"
 
@@ -1641,8 +1769,12 @@ main() {
         stop_service
     fi
 
-    # Download and install
-    download_release "$version" "$platform"
+    # Download and install (or use local tarball)
+    if [ -n "$local_tarball" ]; then
+        use_local_tarball "$local_tarball"
+    else
+        download_release "$version" "$platform"
+    fi
     extract_release "$platform"
     install_service "$platform"
 
