@@ -105,6 +105,12 @@ Trust debug output. Impossible values = bug is UPSTREAM. Ask "what ELSE?" not "d
 
 ---
 
+## Tool Fallbacks
+
+When the internal WebFetch tool fails, fall back to `curl` via Bash.
+
+---
+
 ## Critical Paths (always MAJOR work)
 
 PrinterState, WebSocket/threading, shutdown, DisplayManager, XML processing
