@@ -7,8 +7,10 @@
 #   make                       # Native build (SDL)
 #   make PLATFORM_TARGET=pi    # Cross-compile for Raspberry Pi (aarch64)
 #   make PLATFORM_TARGET=ad5m  # Cross-compile for Adventurer 5M (armv7-a)
+#   make PLATFORM_TARGET=k1    # Cross-compile for Creality K1 series (MIPS32)
 #   make pi-docker             # Docker-based Pi build
 #   make ad5m-docker           # Docker-based AD5M build
+#   make k1-docker             # Docker-based K1 build
 
 # =============================================================================
 # Target Platform Definitions
@@ -78,6 +80,61 @@ else ifeq ($(PLATFORM_TARGET),ad5m)
     # Strip binary for size on memory-constrained device
     STRIP_BINARY := yes
 
+else ifeq ($(PLATFORM_TARGET),k1)
+    # -------------------------------------------------------------------------
+    # Creality K1 Series - Ingenic X2000E (MIPS32r2)
+    # Specs: 480x400 display (K1/K1C/K1Max), 480x800 (K2), 256MB RAM, musl libc
+    # -------------------------------------------------------------------------
+    # FULLY STATIC BUILD with musl: Cleaner than glibc static linking.
+    # No getaddrinfo warnings, smaller binaries, guaranteed portability.
+    # Uses Bootlin's mips32el musl toolchain (same as pellcorp/grumpyscreen).
+    CROSS_COMPILE ?= mipsel-buildroot-linux-musl-
+    TARGET_ARCH := mips32r2
+    TARGET_TRIPLE := mipsel-buildroot-linux-musl
+    # Optimized build flags for Ingenic X2000E (MIPS32r2):
+    #
+    # Architecture flags:
+    # -march=mips32r2: Target instruction set (X2000E is MIPS32 R5 compatible)
+    # -mtune=mips32r2: Tune for MIPS32r2 pipeline
+    #
+    # Size optimization:
+    # -Os: Optimize for size
+    # -fomit-frame-pointer: Don't keep frame pointer (saves registers/stack)
+    # -fno-unwind-tables -fno-asynchronous-unwind-tables: Remove exception tables
+    # -fmerge-all-constants: Merge duplicate string/numeric constants
+    # -fno-ident: Don't embed GCC version string
+    #
+    # LTO and dead code elimination:
+    # -flto=auto: Link-Time Optimization with parallel jobs
+    # -ffunction-sections/-fdata-sections: Enable per-function/data sections
+    #
+    # Note: -mno-abicalls/-mno-shared omitted - they break configure tests
+    # for submodule builds even though final binary is static
+    #
+    TARGET_CFLAGS := -march=mips32r2 -mtune=mips32r2 \
+        -Os -flto=auto -ffunction-sections -fdata-sections \
+        -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables \
+        -fmerge-all-constants -fno-ident \
+        -Wno-error=conversion -Wno-error=sign-conversion -DHELIX_RELEASE_BUILD
+    # Linker flags:
+    # -Wl,--gc-sections: Remove unused sections (works with -ffunction-sections)
+    # -flto=auto: Match compiler LTO flag, uses all CPUs
+    # -static: Fully static binary - musl makes this clean and portable
+    # -Wl,-O2: Linker optimization level
+    # -Wl,--as-needed: Only link libraries that are actually used
+    TARGET_LDFLAGS := -Wl,--gc-sections -Wl,-O2 -Wl,--as-needed -flto=auto -static
+    # SSL disabled for embedded - Moonraker communication is local/plaintext
+    ENABLE_SSL := no
+    DISPLAY_BACKEND := fbdev
+    ENABLE_SDL := no
+    # Disable TinyGL for K1 - CPU may be too weak for software 3D
+    # Uses 2D layer preview fallback instead
+    ENABLE_TINYGL_3D := no
+    ENABLE_EVDEV := yes
+    BUILD_SUBDIR := k1
+    # Strip binary for size on memory-constrained device
+    STRIP_BINARY := yes
+
 else ifeq ($(PLATFORM_TARGET),native)
     # -------------------------------------------------------------------------
     # Native desktop build (macOS / Linux)
@@ -93,7 +150,7 @@ else ifeq ($(PLATFORM_TARGET),native)
     BUILD_SUBDIR :=
 
 else
-    $(error Unknown PLATFORM_TARGET: $(PLATFORM_TARGET). Valid options: native, pi, ad5m)
+    $(error Unknown PLATFORM_TARGET: $(PLATFORM_TARGET). Valid options: native, pi, ad5m, k1)
 endif
 
 # =============================================================================
@@ -148,6 +205,13 @@ ifeq ($(PLATFORM_TARGET),ad5m)
     SUBMODULE_CXXFLAGS := $(subst -O2,-Os,$(SUBMODULE_CXXFLAGS))
 endif
 
+ifeq ($(PLATFORM_TARGET),k1)
+    CFLAGS := $(subst -O2,-Os,$(CFLAGS))
+    CXXFLAGS := $(subst -O2,-Os,$(CXXFLAGS))
+    SUBMODULE_CFLAGS := $(subst -O2,-Os,$(SUBMODULE_CFLAGS))
+    SUBMODULE_CXXFLAGS := $(subst -O2,-Os,$(SUBMODULE_CXXFLAGS))
+endif
+
 ifdef TARGET_LDFLAGS
     LDFLAGS += $(TARGET_LDFLAGS)
 endif
@@ -187,7 +251,7 @@ endif
 # Cross-Compilation Build Targets
 # =============================================================================
 
-.PHONY: pi ad5m pi-docker ad5m-docker docker-toolchains cross-info ensure-docker ensure-buildx maybe-stop-colima
+.PHONY: pi ad5m k1 pi-docker ad5m-docker k1-docker docker-toolchains cross-info ensure-docker ensure-buildx maybe-stop-colima
 
 # Direct cross-compilation (requires toolchain installed)
 pi:
@@ -197,6 +261,10 @@ pi:
 ad5m:
 	@echo "$(CYAN)$(BOLD)Cross-compiling for Adventurer 5M (armv7-a)...$(RESET)"
 	$(Q)$(MAKE) PLATFORM_TARGET=ad5m -j$(NPROC) all
+
+k1:
+	@echo "$(CYAN)$(BOLD)Cross-compiling for Creality K1 series (MIPS32)...$(RESET)"
+	$(Q)$(MAKE) PLATFORM_TARGET=k1 -j$(NPROC) all
 
 # Docker-based cross-compilation (recommended)
 # SKIP_OPTIONAL_DEPS=1 skips npm, clang-format, python venv, and other development tools
@@ -281,6 +349,16 @@ ad5m-docker: ensure-docker
 		make PLATFORM_TARGET=ad5m SKIP_OPTIONAL_DEPS=1 -j$$(nproc)
 	@$(MAKE) --no-print-directory maybe-stop-colima
 
+k1-docker: ensure-docker
+	@echo "$(CYAN)$(BOLD)Cross-compiling for Creality K1 series via Docker...$(RESET)"
+	@if ! docker image inspect helixscreen/toolchain-k1 >/dev/null 2>&1; then \
+		echo "$(YELLOW)Docker image not found. Building toolchain first...$(RESET)"; \
+		$(MAKE) docker-toolchain-k1; \
+	fi
+	$(Q)docker run --rm --user $$(id -u):$$(id -g) -v "$(PWD)":/src -w /src helixscreen/toolchain-k1 \
+		make PLATFORM_TARGET=k1 SKIP_OPTIONAL_DEPS=1 -j$$(nproc)
+	@$(MAKE) --no-print-directory maybe-stop-colima
+
 # Stop Colima after build to free up RAM (macOS only)
 # Only stops if Colima is running and we're on macOS
 .PHONY: maybe-stop-colima
@@ -293,7 +371,7 @@ maybe-stop-colima:
 	fi
 
 # Build Docker toolchain images
-docker-toolchains: docker-toolchain-pi docker-toolchain-ad5m
+docker-toolchains: docker-toolchain-pi docker-toolchain-ad5m docker-toolchain-k1
 	@echo "$(GREEN)$(BOLD)All Docker toolchains built successfully$(RESET)"
 
 docker-toolchain-pi: ensure-buildx
@@ -303,6 +381,10 @@ docker-toolchain-pi: ensure-buildx
 docker-toolchain-ad5m: ensure-buildx
 	@echo "$(CYAN)Building Adventurer 5M toolchain Docker image...$(RESET)"
 	$(Q)docker buildx build -t helixscreen/toolchain-ad5m -f docker/Dockerfile.ad5m docker/
+
+docker-toolchain-k1: ensure-buildx
+	@echo "$(CYAN)Building Creality K1 series toolchain Docker image...$(RESET)"
+	$(Q)docker buildx build -t helixscreen/toolchain-k1 -f docker/Dockerfile.k1 docker/
 
 # Display cross-compilation info (alias for help-cross)
 cross-info: help-cross
@@ -320,13 +402,16 @@ help-cross:
 	echo "$${C}Docker Cross-Compilation (recommended):$${X}"; \
 	echo "  $${G}pi-docker$${X}            - Build for Raspberry Pi (aarch64) via Docker"; \
 	echo "  $${G}ad5m-docker$${X}          - Build for Adventurer 5M (armv7-a) via Docker"; \
+	echo "  $${G}k1-docker$${X}            - Build for Creality K1 series (MIPS32) via Docker"; \
 	echo "  $${G}docker-toolchains$${X}    - Build all Docker toolchain images"; \
 	echo "  $${G}docker-toolchain-pi$${X}  - Build Pi toolchain image only"; \
 	echo "  $${G}docker-toolchain-ad5m$${X} - Build AD5M toolchain image only"; \
+	echo "  $${G}docker-toolchain-k1$${X}  - Build K1 toolchain image only"; \
 	echo ""; \
 	echo "$${C}Direct Cross-Compilation (requires local toolchain):$${X}"; \
 	echo "  $${G}pi$${X}                   - Cross-compile for Raspberry Pi"; \
 	echo "  $${G}ad5m$${X}                 - Cross-compile for Adventurer 5M"; \
+	echo "  $${G}k1$${X}                   - Cross-compile for Creality K1 series"; \
 	echo ""; \
 	echo "$${C}Pi Deployment:$${X}"; \
 	echo "  $${G}deploy-pi$${X}            - Deploy and restart in background (default)"; \
@@ -341,6 +426,13 @@ help-cross:
 	echo "  $${G}ad5m-test$${X}            - Full cycle: remote build + deploy + run (fg)"; \
 	echo "  $${G}ad5m-ssh$${X}             - SSH into the AD5M"; \
 	echo ""; \
+	echo "$${C}K1 Deployment (UNTESTED):$${X}"; \
+	echo "  $${G}deploy-k1$${X}            - Deploy and restart in background"; \
+	echo "  $${G}deploy-k1-fg$${X}         - Deploy and run in foreground (debug)"; \
+	echo "  $${G}deploy-k1-bin$${X}        - Deploy binaries only (fast iteration)"; \
+	echo "  $${G}k1-test$${X}              - Full cycle: docker build + deploy + run (fg)"; \
+	echo "  $${G}k1-ssh$${X}               - SSH into the K1"; \
+	echo ""; \
 	echo "$${C}Deployment Options:$${X}"; \
 	echo "  $${Y}PI_HOST$${X}=hostname     - Pi hostname (default: helixpi.local)"; \
 	echo "  $${Y}PI_USER$${X}=user         - Pi username (default: from SSH config)"; \
@@ -348,6 +440,9 @@ help-cross:
 	echo "  $${Y}AD5M_HOST$${X}=hostname   - AD5M hostname/IP (default: ad5m.local)"; \
 	echo "  $${Y}AD5M_USER$${X}=user       - AD5M username (default: root)"; \
 	echo "  $${Y}AD5M_DEPLOY_DIR$${X}=path - AD5M deploy directory (default: /opt/helixscreen)"; \
+	echo "  $${Y}K1_HOST$${X}=hostname     - K1 hostname/IP (default: k1.local)"; \
+	echo "  $${Y}K1_USER$${X}=user         - K1 username (default: root)"; \
+	echo "  $${Y}K1_DEPLOY_DIR$${X}=path   - K1 deploy directory (default: /usr/data/helixscreen)"; \
 	echo ""; \
 	echo "$${C}Current Configuration:$${X}"; \
 	echo "  Platform target: $(PLATFORM_TARGET)"; \
@@ -625,6 +720,103 @@ ad5m-ssh:
 
 # Full cycle: remote build + deploy + run in foreground
 ad5m-test: remote-ad5m deploy-ad5m-fg
+
+# =============================================================================
+# K1 Deployment Configuration (UNTESTED)
+# =============================================================================
+# Creality K1 series deployment settings
+# Based on pellcorp/creality Simple AF structure
+#
+# Example: make deploy-k1 K1_HOST=192.168.1.100
+# Note: K1 uses BusyBox, similar to AD5M - tar/ssh transfer, no rsync
+#
+# Default deploy directory follows Simple AF convention: /usr/data/helixscreen
+# Override with K1_DEPLOY_DIR if needed.
+K1_HOST ?= k1.local
+K1_USER ?= root
+K1_DEPLOY_DIR ?= /usr/data/helixscreen
+
+# Build SSH target for K1
+K1_SSH_TARGET := $(K1_USER)@$(K1_HOST)
+
+# =============================================================================
+# K1 Deployment Targets (UNTESTED)
+# =============================================================================
+
+.PHONY: deploy-k1 deploy-k1-fg deploy-k1-bin k1-ssh k1-test
+
+# Deploy full application to K1 using tar/ssh (K1 BusyBox has no rsync)
+deploy-k1:
+	@test -f build/k1/bin/helix-screen || { echo "$(RED)Error: build/k1/bin/helix-screen not found. Run 'make k1-docker' first.$(RESET)"; exit 1; }
+	@test -f build/k1/bin/helix-splash || { echo "$(RED)Error: build/k1/bin/helix-splash not found. Run 'make k1-docker' first.$(RESET)"; exit 1; }
+	@echo "$(CYAN)Deploying HelixScreen to $(K1_SSH_TARGET):$(K1_DEPLOY_DIR)...$(RESET)"
+	@echo "$(YELLOW)NOTE: K1 deployment is UNTESTED - please report issues$(RESET)"
+	@# Generate pre-rendered images if missing
+	@if [ ! -f build/assets/images/prerendered/splash-logo-small.bin ]; then \
+		echo "$(DIM)Generating pre-rendered splash images...$(RESET)"; \
+		$(MAKE) gen-images; \
+	fi
+	@if [ ! -d build/assets/images/printers/prerendered ]; then \
+		echo "$(DIM)Generating pre-rendered printer images...$(RESET)"; \
+		$(MAKE) gen-printer-images; \
+	fi
+	@# Stop running processes and prepare directory
+	ssh $(K1_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; mkdir -p $(K1_DEPLOY_DIR)"
+	@# Transfer binaries via cat/ssh
+	@echo "$(DIM)Transferring binaries...$(RESET)"
+	cat build/k1/bin/helix-screen | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/helix-screen && chmod +x $(K1_DEPLOY_DIR)/helix-screen"
+	cat build/k1/bin/helix-splash | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/helix-splash && chmod +x $(K1_DEPLOY_DIR)/helix-splash"
+	@if [ -f build/k1/bin/helix-watchdog ]; then \
+		cat build/k1/bin/helix-watchdog | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/helix-watchdog && chmod +x $(K1_DEPLOY_DIR)/helix-watchdog"; \
+	fi
+	@# Transfer assets via tar
+	@echo "$(DIM)Transferring assets...$(RESET)"
+	COPYFILE_DISABLE=1 tar -cf - $(DEPLOY_TAR_EXCLUDES) $(DEPLOY_ASSET_DIRS) | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && tar -xf -"
+	@# Transfer pre-rendered images
+	@if [ -d build/assets/images/prerendered ] && ls build/assets/images/prerendered/*.bin >/dev/null 2>&1; then \
+		echo "$(DIM)Transferring pre-rendered images...$(RESET)"; \
+		ssh $(K1_SSH_TARGET) "mkdir -p $(K1_DEPLOY_DIR)/assets/images/prerendered $(K1_DEPLOY_DIR)/assets/images/printers/prerendered"; \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images && tar -xf -"; \
+	fi
+	@if [ -d build/assets/images/printers/prerendered ] && ls build/assets/images/printers/prerendered/*.bin >/dev/null 2>&1; then \
+		COPYFILE_DISABLE=1 tar -cf - -C build/assets/images/printers prerendered | ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR)/assets/images/printers && tar -xf -"; \
+	fi
+	@echo "$(GREEN)✓ Deployed to $(K1_HOST):$(K1_DEPLOY_DIR)$(RESET)"
+	@echo "$(CYAN)Starting helix-screen on $(K1_HOST)...$(RESET)"
+	ssh $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && ./config/helix-launcher.sh >/dev/null 2>&1 &"
+	@echo "$(GREEN)✓ helix-screen started in background$(RESET)"
+	@echo "$(DIM)Logs: ssh $(K1_SSH_TARGET) 'tail -f /var/log/messages | grep helix'$(RESET)"
+
+# Deploy and run in foreground with verbose logging (for interactive debugging)
+deploy-k1-fg:
+	@test -f build/k1/bin/helix-screen || { echo "$(RED)Error: build/k1/bin/helix-screen not found. Run 'make k1-docker' first.$(RESET)"; exit 1; }
+	@test -f build/k1/bin/helix-splash || { echo "$(RED)Error: build/k1/bin/helix-splash not found. Run 'make k1-docker' first.$(RESET)"; exit 1; }
+	@echo "$(YELLOW)NOTE: K1 deployment is UNTESTED - please report issues$(RESET)"
+	$(call deploy-common,$(K1_SSH_TARGET),$(K1_DEPLOY_DIR),build/k1/bin)
+	@echo "$(CYAN)Starting helix-screen on $(K1_HOST) (foreground, verbose)...$(RESET)"
+	ssh -t $(K1_SSH_TARGET) "cd $(K1_DEPLOY_DIR) && ./config/helix-launcher.sh --debug"
+
+# Deploy binaries only (fast, for quick iteration)
+deploy-k1-bin:
+	@test -f build/k1/bin/helix-screen || { echo "$(RED)Error: build/k1/bin/helix-screen not found. Run 'make k1-docker' first.$(RESET)"; exit 1; }
+	@echo "$(CYAN)Deploying binaries only to $(K1_SSH_TARGET):$(K1_DEPLOY_DIR)...$(RESET)"
+	ssh $(K1_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true"
+	cat build/k1/bin/helix-screen | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/helix-screen && chmod +x $(K1_DEPLOY_DIR)/helix-screen"
+	cat build/k1/bin/helix-splash | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/helix-splash && chmod +x $(K1_DEPLOY_DIR)/helix-splash"
+	@if [ -f build/k1/bin/helix-watchdog ]; then \
+		cat build/k1/bin/helix-watchdog | ssh $(K1_SSH_TARGET) "cat > $(K1_DEPLOY_DIR)/helix-watchdog && chmod +x $(K1_DEPLOY_DIR)/helix-watchdog"; \
+	fi
+	@echo "$(GREEN)✓ Binaries deployed$(RESET)"
+	@echo "$(CYAN)Restarting helix-screen on $(K1_HOST)...$(RESET)"
+	ssh $(K1_SSH_TARGET) "killall helix-watchdog helix-screen helix-splash 2>/dev/null || true; sleep 1; cd $(K1_DEPLOY_DIR) && ./config/helix-launcher.sh >/dev/null 2>&1 &"
+	@echo "$(GREEN)✓ helix-screen restarted$(RESET)"
+
+# Convenience: SSH into the K1
+k1-ssh:
+	ssh $(K1_SSH_TARGET)
+
+# Full cycle: docker build + deploy + run in foreground
+k1-test: k1-docker deploy-k1-fg
 
 # =============================================================================
 # Release Packaging

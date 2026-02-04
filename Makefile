@@ -424,8 +424,14 @@ ifneq ($(CROSS_COMPILE),)
     # No SDL2 - display handled by framebuffer/DRM
     # SSL is optional - only needed if connecting to remote Moonraker over HTTPS
     # Note: libnl must come AFTER wpa_client (static linking order matters)
-    # Note: -L path MUST come before library flags (-lsystemd, -ldrm, etc.)
-    LDFLAGS := -L/usr/lib/$(TARGET_TRIPLE) $(LIBHV_LIBS) $(TINYGL_LIB) $(FMT_LIBS) $(WPA_CLIENT_LIB) $(LIBNL_LIBS) $(SYSTEMD_LIBS) -ldl -lm -lpthread
+    # Note: -L path only for glibc targets (Pi, AD5M) - musl targets (K1) are self-contained
+    ifeq ($(PLATFORM_TARGET),k1)
+        # K1 uses musl - fully static, no system library paths needed
+        # -latomic: Required for 64-bit atomics on 32-bit MIPS (std::atomic<int64_t>)
+        LDFLAGS := $(LIBHV_LIBS) $(TINYGL_LIB) $(FMT_LIBS) $(WPA_CLIENT_LIB) $(LIBNL_LIBS) -latomic -ldl -lm -lpthread
+    else
+        LDFLAGS := -L/usr/lib/$(TARGET_TRIPLE) $(LIBHV_LIBS) $(TINYGL_LIB) $(FMT_LIBS) $(WPA_CLIENT_LIB) $(LIBNL_LIBS) $(SYSTEMD_LIBS) -ldl -lm -lpthread
+    endif
     ifeq ($(ENABLE_SSL),yes)
         LDFLAGS += -lssl -lcrypto
     endif

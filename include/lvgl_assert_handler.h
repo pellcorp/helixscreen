@@ -20,8 +20,9 @@
 #include <time.h>
 #include <unistd.h>
 
-// Stack trace support (Linux/macOS)
-#if defined(__linux__) || defined(__APPLE__)
+// Stack trace support (glibc Linux / macOS only)
+// musl libc (used by K1 series) doesn't have execinfo.h
+#if defined(__APPLE__) || (defined(__linux__) && defined(__GLIBC__))
 #include <execinfo.h>
 #define HELIX_HAS_BACKTRACE 1
 #endif
